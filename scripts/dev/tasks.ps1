@@ -1,6 +1,6 @@
 param(
     [Parameter(Mandatory = $true)]
-    [ValidateSet("fmt", "test", "build", "check")]
+    [ValidateSet("fmt", "test", "build", "check", "dev-up", "dev-down")]
     [string]$Task
 )
 
@@ -26,6 +26,12 @@ try {
             & $PSCommandPath -Task fmt
             & $PSCommandPath -Task test
             & $PSCommandPath -Task build
+        }
+        "dev-up" {
+            docker compose up -d
+        }
+        "dev-down" {
+            docker compose down
         }
     }
 }

@@ -16,9 +16,7 @@ build:
 check: fmt test build
 
 dev-up:
-	@echo "dev-up is not implemented yet. Next slice should add compose.yaml for Postgres/Redis/Temporal."
-	@exit 1
+	docker compose up -d
 
 dev-down:
-	@echo "dev-down is not implemented yet. No local stack has been defined in this slice."
-	@exit 1
+	docker compose down

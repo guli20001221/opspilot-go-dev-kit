@@ -8,6 +8,7 @@
 ├── README.md
 ├── .env.example
 ├── .gitignore
+├── compose.yaml
 ├── .claude
 │   ├── agents
 │   │   ├── README.md
@@ -50,8 +51,9 @@
 │   └── worker
 │       └── main.go
 ├── config
-│   ├── default.yaml
-│   └── local.yaml
+│   └── temporal
+│       └── dynamicconfig
+│           └── development-sql.yaml
 ├── db
 │   ├── migrations
 │   └── queries
@@ -109,3 +111,4 @@ Notes:
 - This package does not generate the whole application codebase for you.
 - It gives you the final instruction layer, skill playbooks, and the recommended tree to implement against.
 - Create the missing code files incrementally with the relevant skill rather than scaffolding everything at once.
+- The current foundation slice also includes a local Compose stack and initial SQL migration scaffold.

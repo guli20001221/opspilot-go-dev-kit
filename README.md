@@ -18,6 +18,8 @@ Current foundation slice:
 - `cmd/api` serving `/healthz` and `/readyz`
 - `cmd/worker` process bootstrap and graceful shutdown wiring
 - shared config and `slog` logging packages under `internal/app`
+- a first SQL migration scaffold under `db/migrations`
+- `compose.yaml` for local PostgreSQL, Redis, Temporal, API, and worker bootstrapping
 - `Makefile` targets for `fmt`, `test`, `build`, and `check`
 - `scripts/dev/tasks.ps1` as the verified PowerShell fallback when `make` is unavailable
 - local bootstrap instructions in `docs/runbooks/local-bootstrap.md`
