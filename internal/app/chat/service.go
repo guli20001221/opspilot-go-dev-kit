@@ -11,6 +11,7 @@ import (
 	"opspilot-go/internal/retrieval"
 	"opspilot-go/internal/session"
 	toolregistry "opspilot-go/internal/tools/registry"
+	"opspilot-go/internal/workflow"
 )
 
 // SessionService defines the session operations the chat service consumes.
@@ -29,6 +30,7 @@ type Service struct {
 	retrieval *retrieval.Service
 	tools     *agenttool.Service
 	registry  *toolregistry.Registry
+	workflows *workflow.Service
 }
 
 // NewService constructs a chat service with the required downstream dependencies.
@@ -60,6 +62,7 @@ func NewService(sessions SessionService) *Service {
 		retrieval: retrieval.NewService(nil),
 		tools:     agenttool.NewService(registry),
 		registry:  registry,
+		workflows: workflow.NewService(),
 	}
 }
 
@@ -170,6 +173,31 @@ func (s *Service) Handle(ctx context.Context, req ChatRequestEnvelope) (HandleRe
 		return HandleResult{}, err
 	}
 
+	var promotedTask *workflow.Task
+	if plan.RequiresWorkflow || criticVerdict.Verdict == agentcritic.VerdictPromoteWorkflow {
+		taskType := workflow.TaskTypeReportGeneration
+		reason := workflow.PromotionReasonWorkflowRequired
+		requiresApproval := false
+		if criticVerdict.Verdict == agentcritic.VerdictPromoteWorkflow {
+			taskType = workflow.TaskTypeApprovedToolExecution
+			reason = workflow.PromotionReasonApprovalRequired
+			requiresApproval = true
+		}
+
+		task, err := s.workflows.Promote(ctx, workflow.PromoteRequest{
+			RequestID:        req.RequestID,
+			TenantID:         req.TenantID,
+			SessionID:        sessionID,
+			TaskType:         taskType,
+			Reason:           reason,
+			RequiresApproval: requiresApproval,
+		})
+		if err != nil {
+			return HandleResult{}, err
+		}
+		promotedTask = &task
+	}
+
 	if _, err := s.sessions.AppendMessage(ctx, session.AppendMessageInput{
 		SessionID: sessionID,
 		Role:      session.RoleAssistant,
@@ -179,12 +207,13 @@ func (s *Service) Handle(ctx context.Context, req ChatRequestEnvelope) (HandleRe
 	}
 
 	return HandleResult{
-		SessionID:   sessionID,
-		Context:     assembledContext,
-		Plan:        plan,
-		Retrieval:   retrievalResult,
-		ToolResults: toolResults,
-		Critic:      criticVerdict,
+		SessionID:    sessionID,
+		Context:      assembledContext,
+		Plan:         plan,
+		Retrieval:    retrievalResult,
+		ToolResults:  toolResults,
+		Critic:       criticVerdict,
+		PromotedTask: promotedTask,
 		Events: []StreamEvent{
 			{
 				Name: "meta",

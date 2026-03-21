@@ -110,6 +110,33 @@ func TestServiceHandleExecutesReadOnlyToolForTicketQuery(t *testing.T) {
 	}
 }
 
+func TestServiceHandlePromotesTaskModeIntoWorkflowResult(t *testing.T) {
+	sessionService := session.NewService()
+	svc := NewService(sessionService)
+
+	got, err := svc.Handle(context.Background(), ChatRequestEnvelope{
+		RequestID:   "req-task",
+		TraceID:     "trace-task",
+		TenantID:    "tenant-1",
+		UserID:      "user-1",
+		Mode:        "task",
+		UserMessage: "generate a report for last week's incidents",
+	})
+	if err != nil {
+		t.Fatalf("Handle() error = %v", err)
+	}
+
+	if !got.Plan.RequiresWorkflow {
+		t.Fatal("Plan.RequiresWorkflow = false, want true")
+	}
+	if got.PromotedTask == nil {
+		t.Fatal("PromotedTask is nil")
+	}
+	if got.PromotedTask.Status != "queued" {
+		t.Fatalf("PromotedTask.Status = %q, want %q", got.PromotedTask.Status, "queued")
+	}
+}
+
 func assertEventPayload(t *testing.T, got StreamEvent, wantName string, wantPayload map[string]string) {
 	t.Helper()
 

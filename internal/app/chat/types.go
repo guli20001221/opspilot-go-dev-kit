@@ -8,6 +8,7 @@ import (
 	agenttool "opspilot-go/internal/agent/tool"
 	"opspilot-go/internal/contextengine"
 	"opspilot-go/internal/retrieval"
+	"opspilot-go/internal/workflow"
 )
 
 // PlaceholderAssistantResponse is the fixed M1 assistant content used before agent runtime lands.
@@ -35,11 +36,12 @@ type StreamEvent struct {
 
 // HandleResult contains the persisted session identifier and ordered stream events.
 type HandleResult struct {
-	SessionID   string
-	Context     contextengine.BuildResult
-	Plan        planner.ExecutionPlan
-	Retrieval   retrieval.RetrievalResult
-	ToolResults []agenttool.ToolResult
-	Critic      critic.CriticVerdict
-	Events      []StreamEvent
+	SessionID    string
+	Context      contextengine.BuildResult
+	Plan         planner.ExecutionPlan
+	Retrieval    retrieval.RetrievalResult
+	ToolResults  []agenttool.ToolResult
+	Critic       critic.CriticVerdict
+	PromotedTask *workflow.Task
+	Events       []StreamEvent
 }
