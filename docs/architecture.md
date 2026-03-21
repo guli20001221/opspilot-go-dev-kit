@@ -30,5 +30,12 @@ The current Milestone 1 slice adds:
 - `internal/workflow` for in-memory promoted task records before Temporal-backed workflows land
 - `internal/app/httpapi` as a thin transport layer over the session and chat services
 
+The current synchronous chat stream now surfaces internal runtime milestones over SSE:
+
+- `plan` when the execution plan is derived
+- `retrieval` when retrieval runs
+- `tool` for each executed tool step
+- `task_promoted` when the internal workflow layer creates an async task
+
 This file is intentionally brief in the AI development kit.
 Promote it to the main repository and expand it as implementation begins.

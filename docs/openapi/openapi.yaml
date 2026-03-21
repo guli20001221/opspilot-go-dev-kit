@@ -96,7 +96,7 @@ paths:
     post:
       summary: Start the synchronous chat skeleton stream
       description: |
-        Returns a short placeholder SSE stream in `meta -> state -> done` order.
+        Returns a short placeholder SSE stream with runtime milestone events.
         The current Milestone 1 implementation persists user and assistant messages
         in the in-memory session store.
       operationId: streamChat
@@ -136,6 +136,18 @@ paths:
                 example: |-
                   event: meta
                   data: {"request_id":"req-1","session_id":"sess-1","trace_id":"trace-1"}
+
+                  event: plan
+                  data: {"plan_id":"plan-req-1","intent":"knowledge_qa","requires_retrieval":"true","requires_tool":"false","requires_workflow":"false"}
+
+                  event: retrieval
+                  data: {"query_used":"incident sop","evidence_count":"0"}
+
+                  event: tool
+                  data: {"tool_name":"ticket_search","status":"succeeded"}
+
+                  event: task_promoted
+                  data: {"task_id":"task-1","status":"queued","reason":"workflow_required"}
 
                   event: state
                   data: {"state":"completed"}

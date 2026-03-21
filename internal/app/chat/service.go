@@ -3,6 +3,7 @@ package chat
 import (
 	"context"
 	"encoding/json"
+	"strconv"
 
 	agentcritic "opspilot-go/internal/agent/critic"
 	"opspilot-go/internal/agent/planner"
@@ -214,29 +215,7 @@ func (s *Service) Handle(ctx context.Context, req ChatRequestEnvelope) (HandleRe
 		ToolResults:  toolResults,
 		Critic:       criticVerdict,
 		PromotedTask: promotedTask,
-		Events: []StreamEvent{
-			{
-				Name: "meta",
-				Data: map[string]string{
-					"request_id": req.RequestID,
-					"trace_id":   req.TraceID,
-					"session_id": sessionID,
-				},
-			},
-			{
-				Name: "state",
-				Data: map[string]string{
-					"state": "completed",
-				},
-			},
-			{
-				Name: "done",
-				Data: map[string]string{
-					"session_id": sessionID,
-					"content":    PlaceholderAssistantResponse,
-				},
-			},
-		},
+		Events:       buildEvents(req, sessionID, plan, retrievalResult, toolResults, promotedTask),
 	}, nil
 }
 
@@ -272,4 +251,83 @@ func actionClassForStep(step planner.PlanStep) string {
 	}
 
 	return agenttool.ActionClassWrite
+}
+
+func buildEvents(
+	req ChatRequestEnvelope,
+	sessionID string,
+	plan planner.ExecutionPlan,
+	retrievalResult retrieval.RetrievalResult,
+	toolResults []agenttool.ToolResult,
+	promotedTask *workflow.Task,
+) []StreamEvent {
+	events := []StreamEvent{
+		{
+			Name: "meta",
+			Data: map[string]string{
+				"request_id": req.RequestID,
+				"trace_id":   req.TraceID,
+				"session_id": sessionID,
+			},
+		},
+		{
+			Name: "plan",
+			Data: map[string]string{
+				"plan_id":            plan.PlanID,
+				"intent":             plan.Intent,
+				"requires_retrieval": strconv.FormatBool(plan.RequiresRetrieval),
+				"requires_tool":      strconv.FormatBool(plan.RequiresTool),
+				"requires_workflow":  strconv.FormatBool(plan.RequiresWorkflow),
+			},
+		},
+	}
+
+	if plan.RequiresRetrieval {
+		events = append(events, StreamEvent{
+			Name: "retrieval",
+			Data: map[string]string{
+				"query_used":     retrievalResult.QueryUsed,
+				"evidence_count": strconv.Itoa(len(retrievalResult.EvidenceBlocks)),
+			},
+		})
+	}
+
+	for _, toolResult := range toolResults {
+		events = append(events, StreamEvent{
+			Name: "tool",
+			Data: map[string]string{
+				"tool_name": toolResult.ToolName,
+				"status":    toolResult.Status,
+			},
+		})
+	}
+
+	if promotedTask != nil {
+		events = append(events, StreamEvent{
+			Name: "task_promoted",
+			Data: map[string]string{
+				"task_id": promotedTask.ID,
+				"status":  promotedTask.Status,
+				"reason":  promotedTask.Reason,
+			},
+		})
+	}
+
+	events = append(events,
+		StreamEvent{
+			Name: "state",
+			Data: map[string]string{
+				"state": "completed",
+			},
+		},
+		StreamEvent{
+			Name: "done",
+			Data: map[string]string{
+				"session_id": sessionID,
+				"content":    PlaceholderAssistantResponse,
+			},
+		},
+	)
+
+	return events
 }

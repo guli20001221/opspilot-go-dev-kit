@@ -37,4 +37,4 @@ Current Milestone 1 slice:
 - deterministic async promotion records under `internal/workflow`
 - `POST /api/v1/sessions` for session creation
 - `GET /api/v1/sessions/{session_id}/messages` for message listing
-- `POST /api/v1/chat/stream` with a thin HTTP handler delegating to SSE `meta -> state -> done` placeholder flow
+- `POST /api/v1/chat/stream` with optional SSE `plan`, `retrieval`, `tool`, and `task_promoted` events ahead of `state -> done`

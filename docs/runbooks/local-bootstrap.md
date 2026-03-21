@@ -40,7 +40,8 @@ Successful build artifacts are emitted under `bin/`.
 
 The current chat stream implementation is a Milestone 1 skeleton:
 - session storage is in-memory
-- SSE events are limited to `meta`, `state`, and `done`
+- SSE always emits `meta`, `plan`, `state`, and `done`
+- SSE may also emit `retrieval`, `tool`, and `task_promoted` depending on the internal runtime path
 - assistant output is a fixed placeholder response
 - the current HTTP contract is documented in `docs/openapi/openapi.yaml`
 
