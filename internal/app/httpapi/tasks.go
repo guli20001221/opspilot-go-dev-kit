@@ -26,8 +26,11 @@ type taskResponse struct {
 	TaskType         string `json:"task_type"`
 	Status           string `json:"status"`
 	Reason           string `json:"reason"`
+	ErrorReason      string `json:"error_reason,omitempty"`
+	AuditRef         string `json:"audit_ref,omitempty"`
 	RequiresApproval bool   `json:"requires_approval"`
 	CreatedAt        string `json:"created_at"`
+	UpdatedAt        string `json:"updated_at"`
 }
 
 func (a *appHandler) handleTasks(w http.ResponseWriter, r *http.Request) {
@@ -93,7 +96,10 @@ func newTaskResponse(task workflow.Task) taskResponse {
 		TaskType:         task.TaskType,
 		Status:           task.Status,
 		Reason:           task.Reason,
+		ErrorReason:      task.ErrorReason,
+		AuditRef:         task.AuditRef,
 		RequiresApproval: task.RequiresApproval,
 		CreatedAt:        task.CreatedAt.Format(time.RFC3339Nano),
+		UpdatedAt:        task.UpdatedAt.Format(time.RFC3339Nano),
 	}
 }

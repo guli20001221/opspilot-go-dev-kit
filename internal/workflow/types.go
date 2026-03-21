@@ -40,6 +40,9 @@ type Task struct {
 	TaskType         string
 	Status           string
 	Reason           string
+	ErrorReason      string
+	AuditRef         string
 	RequiresApproval bool
 	CreatedAt        time.Time
+	UpdatedAt        time.Time
 }

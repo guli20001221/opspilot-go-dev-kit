@@ -50,9 +50,11 @@ type errorResponse struct {
 	Message string `json:"message"`
 }
 
-func newAppHandler() *appHandler {
+func newAppHandler(workflowService *workflow.Service) *appHandler {
 	sessionService := session.NewService()
-	workflowService := workflow.NewService()
+	if workflowService == nil {
+		workflowService = workflow.NewService()
+	}
 
 	return &appHandler{
 		sessions:  sessionService,

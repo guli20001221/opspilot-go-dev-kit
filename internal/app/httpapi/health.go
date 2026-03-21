@@ -3,16 +3,28 @@ package httpapi
 import (
 	"encoding/json"
 	"net/http"
+
+	"opspilot-go/internal/workflow"
 )
 
 type statusResponse struct {
 	Status string `json:"status"`
 }
 
+// Dependencies supplies optional runtime services for the HTTP layer.
+type Dependencies struct {
+	Workflows *workflow.Service
+}
+
 // NewHandler constructs the minimum API handler tree for the foundation slice.
 func NewHandler() http.Handler {
+	return NewHandlerWithDependencies(Dependencies{})
+}
+
+// NewHandlerWithDependencies constructs the HTTP handler tree with injected services.
+func NewHandlerWithDependencies(deps Dependencies) http.Handler {
 	mux := http.NewServeMux()
-	app := newAppHandler()
+	app := newAppHandler(deps.Workflows)
 	mux.HandleFunc("/healthz", writeStatus("ok"))
 	mux.HandleFunc("/readyz", writeStatus("ready"))
 	app.registerRoutes(mux)

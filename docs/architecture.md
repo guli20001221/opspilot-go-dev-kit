@@ -27,7 +27,8 @@ The current Milestone 1 slice adds:
 - `internal/retrieval` for deterministic structured-query retrieval and provenance-bearing evidence blocks
 - `internal/agent/tool` and `internal/tools/registry` for deterministic stub tool execution and approval gating
 - `internal/agent/critic` for deterministic structured verdicts over draft answers, retrieval, and tool results
-- `internal/workflow` for in-memory promoted task records before Temporal-backed workflows land
+- `internal/workflow` for store-backed promoted task records before Temporal-backed workflows land
+- `internal/storage/postgres` for the current PostgreSQL task repository and connection pool wiring
 - `internal/app/httpapi` as a thin transport layer over the session and chat services
 
 The current synchronous chat stream now surfaces internal runtime milestones over SSE:
@@ -37,7 +38,7 @@ The current synchronous chat stream now surfaces internal runtime milestones ove
 - `tool` for each executed tool step
 - `task_promoted` when the internal workflow layer creates an async task
 
-The current HTTP layer also exposes the same in-memory workflow records over REST:
+The current HTTP layer also exposes the same PostgreSQL-backed workflow records over REST:
 
 - `POST /api/v1/tasks` for explicit async task creation
 - `GET /api/v1/tasks/{task_id}` for task status lookup

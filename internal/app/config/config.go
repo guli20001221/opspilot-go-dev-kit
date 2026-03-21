@@ -10,6 +10,7 @@ const (
 	defaultEnv                   = "development"
 	defaultLogLevel              = "INFO"
 	defaultAPIListenAddr         = ":8080"
+	defaultPostgresDSN           = "postgres://opspilot:opspilot@localhost:5432/opspilot?sslmode=disable"
 	defaultWorkerShutdownTimeout = 10 * time.Second
 )
 
@@ -18,6 +19,7 @@ type Config struct {
 	Env                   string
 	LogLevel              string
 	APIListenAddr         string
+	PostgresDSN           string
 	WorkerShutdownTimeout time.Duration
 }
 
@@ -27,6 +29,7 @@ func Load() (Config, error) {
 		Env:                   getEnv("OPSPILOT_ENV", defaultEnv),
 		LogLevel:              getEnv("OPSPILOT_LOG_LEVEL", defaultLogLevel),
 		APIListenAddr:         getEnv("OPSPILOT_API_LISTEN_ADDR", defaultAPIListenAddr),
+		PostgresDSN:           getEnv("OPSPILOT_POSTGRES_DSN", defaultPostgresDSN),
 		WorkerShutdownTimeout: defaultWorkerShutdownTimeout,
 	}
 
@@ -40,6 +43,9 @@ func Load() (Config, error) {
 
 	if cfg.APIListenAddr == "" {
 		return Config{}, fmt.Errorf("OPSPILOT_API_LISTEN_ADDR must not be empty")
+	}
+	if cfg.PostgresDSN == "" {
+		return Config{}, fmt.Errorf("OPSPILOT_POSTGRES_DSN must not be empty")
 	}
 
 	return cfg, nil

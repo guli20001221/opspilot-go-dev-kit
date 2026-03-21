@@ -13,6 +13,8 @@ import (
 	"opspilot-go/internal/app/config"
 	"opspilot-go/internal/app/httpapi"
 	"opspilot-go/internal/app/logging"
+	storagepostgres "opspilot-go/internal/storage/postgres"
+	"opspilot-go/internal/workflow"
 )
 
 func main() {
@@ -25,9 +27,18 @@ func main() {
 	logger := logging.New(cfg.LogLevel)
 	slog.SetDefault(logger)
 
+	pool, err := storagepostgres.OpenPool(context.Background(), cfg.PostgresDSN)
+	if err != nil {
+		logger.Error("open postgres pool", slog.Any("error", err))
+		os.Exit(1)
+	}
+	defer pool.Close()
+
+	workflowService := workflow.NewServiceWithStore(storagepostgres.NewWorkflowTaskStore(pool))
+
 	server := &http.Server{
 		Addr:              cfg.APIListenAddr,
-		Handler:           httpapi.NewHandler(),
+		Handler:           httpapi.NewHandlerWithDependencies(httpapi.Dependencies{Workflows: workflowService}),
 		ReadHeaderTimeout: 5 * time.Second,
 	}
 

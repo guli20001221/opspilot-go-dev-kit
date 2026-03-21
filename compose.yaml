@@ -86,6 +86,7 @@ services:
       OPSPILOT_ENV: development
       OPSPILOT_LOG_LEVEL: INFO
       OPSPILOT_API_LISTEN_ADDR: :8080
+      OPSPILOT_POSTGRES_DSN: postgres://opspilot:opspilot@postgres:5432/opspilot?sslmode=disable
       OPSPILOT_WORKER_SHUTDOWN_TIMEOUT: 10s
     volumes:
       - ./:/workspace
@@ -107,6 +108,7 @@ services:
       OPSPILOT_ENV: development
       OPSPILOT_LOG_LEVEL: INFO
       OPSPILOT_API_LISTEN_ADDR: :8080
+      OPSPILOT_POSTGRES_DSN: postgres://opspilot:opspilot@postgres:5432/opspilot?sslmode=disable
       OPSPILOT_WORKER_SHUTDOWN_TIMEOUT: 10s
     volumes:
       - ./:/workspace

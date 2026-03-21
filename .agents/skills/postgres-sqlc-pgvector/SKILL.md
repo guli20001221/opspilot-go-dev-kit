@@ -39,6 +39,7 @@ Model operational, retrieval, and audit data in PostgreSQL using additive migrat
 6. Add indexes only after understanding query paths.
 7. For vector-backed tables, preserve source metadata, chunk ids, versions, and permission scope.
 8. Add integration tests for the query behavior that matters.
+9. Workflow task tables should carry tenant scope, status, timestamps, and operator-facing failure fields from the start.
 
 ## Output contract
 When you finish, always report:

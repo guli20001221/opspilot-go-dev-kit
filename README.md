@@ -34,9 +34,9 @@ Current Milestone 1 slice:
 - deterministic typed retrieval under `internal/retrieval`
 - deterministic typed tool execution under `internal/agent/tool` and `internal/tools/registry`
 - deterministic typed critic review under `internal/agent/critic`
-- deterministic async promotion records under `internal/workflow`
+- PostgreSQL-backed async promotion records under `internal/workflow` for the API runtime
 - `POST /api/v1/sessions` for session creation
 - `GET /api/v1/sessions/{session_id}/messages` for message listing
-- `POST /api/v1/tasks` for in-memory async task creation
-- `GET /api/v1/tasks/{task_id}` for in-memory task status lookup
+- `POST /api/v1/tasks` for PostgreSQL-backed task creation
+- `GET /api/v1/tasks/{task_id}` for persisted task status lookup
 - `POST /api/v1/chat/stream` with optional SSE `plan`, `retrieval`, `tool`, and `task_promoted` events ahead of `state -> done`

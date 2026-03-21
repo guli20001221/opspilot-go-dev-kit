@@ -39,6 +39,7 @@ Move long-running, retryable, or approval-gated work into a durable workflow lay
 6. Expose job status, error reasons, and retry affordances through APIs.
 7. Test branching, approval, retry, and failure scenarios.
 8. Document recovery and replay procedures in runbooks.
+9. Before full Temporal execution exists, land durable task records in storage so async promotion is externally visible.
 
 ## Output contract
 When you finish, always report:

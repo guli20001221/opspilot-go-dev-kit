@@ -42,15 +42,21 @@ Successful build artifacts are emitted under `bin/`.
 
 The current chat stream implementation is a Milestone 1 skeleton:
 - session storage is in-memory
-- task storage is in-memory
+- task storage is PostgreSQL-backed in the API runtime
 - SSE always emits `meta`, `plan`, `state`, and `done`
 - SSE may also emit `retrieval`, `tool`, and `task_promoted` depending on the internal runtime path
 - assistant output is a fixed placeholder response
 - the current HTTP contract is documented in `docs/openapi/openapi.yaml`
 
+If your local PostgreSQL volume predates `db/migrations/000002_workflow_tasks.sql`, apply it manually before starting the API:
+
+```powershell
+docker compose exec -T postgres psql -U opspilot -d opspilot -f /docker-entrypoint-initdb.d/000002_workflow_tasks.sql
+```
+
 ## Current gaps
 
 - In the current Windows shell, `make` may be unavailable; use `scripts/dev/tasks.ps1` as the verified fallback.
 - The application does not yet open PostgreSQL, Redis, or Temporal connections.
-- Only the first bootstrap SQL migration exists.
+- The API process opens PostgreSQL for workflow task persistence; worker-side durable workflow execution is not wired yet.
 - No trace exporter exists yet; only request-scoped IDs are logged.

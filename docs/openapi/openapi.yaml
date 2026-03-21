@@ -182,7 +182,7 @@ paths:
     post:
       summary: Create an async task record
       description: |
-        Creates an in-memory workflow task record for the current skeleton.
+        Creates a PostgreSQL-backed workflow task record for the current skeleton.
         This endpoint does not yet start a durable Temporal workflow.
       operationId: createTask
       parameters:
@@ -226,7 +226,7 @@ paths:
     get:
       summary: Get an async task record
       description: |
-        Returns the current in-memory task status for the current skeleton.
+        Returns the current PostgreSQL-backed task status for the current skeleton.
         This endpoint will later front durable Temporal-backed task status.
       operationId: getTask
       parameters:
@@ -372,6 +372,7 @@ components:
         - reason
         - requires_approval
         - created_at
+        - updated_at
       properties:
         task_id:
           type: string
@@ -396,8 +397,15 @@ components:
           enum:
             - workflow_required
             - approval_required
+        error_reason:
+          type: string
+        audit_ref:
+          type: string
         requires_approval:
           type: boolean
         created_at:
+          type: string
+          format: date-time
+        updated_at:
           type: string
           format: date-time

@@ -4,28 +4,40 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"sync"
 	"time"
 )
 
 // ErrTaskNotFound identifies missing workflow task records.
 var ErrTaskNotFound = errors.New("workflow task not found")
 
-// Service stores promoted tasks in memory for the current skeleton.
+// TaskStore persists workflow task records.
+type TaskStore interface {
+	SaveTask(ctx context.Context, task Task) (Task, error)
+	GetTask(ctx context.Context, taskID string) (Task, error)
+}
+
+// Service persists promoted tasks through a caller-provided store.
 type Service struct {
-	mu    sync.RWMutex
-	tasks map[string]Task
+	store TaskStore
 }
 
 // NewService constructs the workflow promotion service.
 func NewService() *Service {
-	return &Service{
-		tasks: make(map[string]Task),
+	return NewServiceWithStore(NewMemoryStore())
+}
+
+// NewServiceWithStore constructs the workflow promotion service with a
+// caller-provided task store.
+func NewServiceWithStore(store TaskStore) *Service {
+	if store == nil {
+		store = NewMemoryStore()
 	}
+
+	return &Service{store: store}
 }
 
 // Promote creates a new async task record from the current synchronous request.
-func (s *Service) Promote(_ context.Context, req PromoteRequest) (Task, error) {
+func (s *Service) Promote(ctx context.Context, req PromoteRequest) (Task, error) {
 	now := time.Now().UTC()
 	task := Task{
 		ID:               fmt.Sprintf("task-%d", now.UnixNano()),
@@ -37,27 +49,16 @@ func (s *Service) Promote(_ context.Context, req PromoteRequest) (Task, error) {
 		Reason:           req.Reason,
 		RequiresApproval: req.RequiresApproval,
 		CreatedAt:        now,
+		UpdatedAt:        now,
 	}
 	if req.RequiresApproval {
 		task.Status = StatusWaitingApproval
 	}
 
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	s.tasks[task.ID] = task
-
-	return task, nil
+	return s.store.SaveTask(ctx, task)
 }
 
 // GetTask returns a promoted task by ID.
-func (s *Service) GetTask(_ context.Context, taskID string) (Task, error) {
-	s.mu.RLock()
-	defer s.mu.RUnlock()
-
-	task, ok := s.tasks[taskID]
-	if !ok {
-		return Task{}, fmt.Errorf("%w: %s", ErrTaskNotFound, taskID)
-	}
-
-	return task, nil
+func (s *Service) GetTask(ctx context.Context, taskID string) (Task, error) {
+	return s.store.GetTask(ctx, taskID)
 }
