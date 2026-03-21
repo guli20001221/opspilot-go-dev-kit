@@ -37,4 +37,6 @@ Current Milestone 1 slice:
 - deterministic async promotion records under `internal/workflow`
 - `POST /api/v1/sessions` for session creation
 - `GET /api/v1/sessions/{session_id}/messages` for message listing
+- `POST /api/v1/tasks` for in-memory async task creation
+- `GET /api/v1/tasks/{task_id}` for in-memory task status lookup
 - `POST /api/v1/chat/stream` with optional SSE `plan`, `retrieval`, `tool`, and `task_promoted` events ahead of `state -> done`

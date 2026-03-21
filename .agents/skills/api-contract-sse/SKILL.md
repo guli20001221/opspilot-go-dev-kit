@@ -36,6 +36,7 @@ Keep the HTTP surface explicit, documented, stable, and friendly to streaming ag
 5. Add request validation and tenancy enforcement at the boundary.
 6. Update OpenAPI and handler tests together.
 7. If asynchronous job creation is involved, return stable job ids and status endpoints.
+8. If sync flows can promote work into async tasks, keep the task id stable across SSE events and REST lookup endpoints.
 
 ## Output contract
 When you finish, always report:

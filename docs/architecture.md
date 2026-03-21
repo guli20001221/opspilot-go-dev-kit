@@ -37,5 +37,10 @@ The current synchronous chat stream now surfaces internal runtime milestones ove
 - `tool` for each executed tool step
 - `task_promoted` when the internal workflow layer creates an async task
 
+The current HTTP layer also exposes the same in-memory workflow records over REST:
+
+- `POST /api/v1/tasks` for explicit async task creation
+- `GET /api/v1/tasks/{task_id}` for task status lookup
+
 This file is intentionally brief in the AI development kit.
 Promote it to the main repository and expand it as implementation begins.

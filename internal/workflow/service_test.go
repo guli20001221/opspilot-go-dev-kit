@@ -52,3 +52,26 @@ func TestServicePromoteCreatesWaitingApprovalTask(t *testing.T) {
 		t.Fatal("RequiresApproval = false, want true")
 	}
 }
+
+func TestServiceGetTaskReturnsStoredTask(t *testing.T) {
+	svc := NewService()
+
+	created, err := svc.Promote(context.Background(), PromoteRequest{
+		RequestID: "req-3",
+		TenantID:  "tenant-1",
+		SessionID: "session-1",
+		TaskType:  TaskTypeReportGeneration,
+		Reason:    PromotionReasonWorkflowRequired,
+	})
+	if err != nil {
+		t.Fatalf("Promote() error = %v", err)
+	}
+
+	got, err := svc.GetTask(context.Background(), created.ID)
+	if err != nil {
+		t.Fatalf("GetTask() error = %v", err)
+	}
+	if got.ID != created.ID {
+		t.Fatalf("ID = %q, want %q", got.ID, created.ID)
+	}
+}

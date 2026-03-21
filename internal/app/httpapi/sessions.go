@@ -7,11 +7,13 @@ import (
 
 	appchat "opspilot-go/internal/app/chat"
 	"opspilot-go/internal/session"
+	"opspilot-go/internal/workflow"
 )
 
 type appHandler struct {
-	sessions *session.Service
-	chat     *appchat.Service
+	sessions  *session.Service
+	workflows *workflow.Service
+	chat      *appchat.Service
 }
 
 type createSessionRequest struct {
@@ -50,16 +52,20 @@ type errorResponse struct {
 
 func newAppHandler() *appHandler {
 	sessionService := session.NewService()
+	workflowService := workflow.NewService()
 
 	return &appHandler{
-		sessions: sessionService,
-		chat:     appchat.NewService(sessionService),
+		sessions:  sessionService,
+		workflows: workflowService,
+		chat:      appchat.NewServiceWithWorkflow(sessionService, workflowService),
 	}
 }
 
 func (a *appHandler) registerRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("/api/v1/sessions", a.handleSessions)
 	mux.HandleFunc("/api/v1/sessions/", a.handleSessionMessages)
+	mux.HandleFunc("/api/v1/tasks", a.handleTasks)
+	mux.HandleFunc("/api/v1/tasks/", a.handleTaskByID)
 	mux.HandleFunc("/api/v1/chat/stream", a.handleChatStream)
 }
 

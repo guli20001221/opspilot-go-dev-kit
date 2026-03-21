@@ -178,6 +178,88 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
+  /api/v1/tasks:
+    post:
+      summary: Create an async task record
+      description: |
+        Creates an in-memory workflow task record for the current skeleton.
+        This endpoint does not yet start a durable Temporal workflow.
+      operationId: createTask
+      parameters:
+        - name: X-Request-Id
+          in: header
+          required: false
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateTaskRequest'
+      responses:
+        '201':
+          description: Task record created.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Task'
+        '400':
+          description: Request body was invalid JSON.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '405':
+          description: Method not allowed.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Task creation failed.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+  /api/v1/tasks/{task_id}:
+    get:
+      summary: Get an async task record
+      description: |
+        Returns the current in-memory task status for the current skeleton.
+        This endpoint will later front durable Temporal-backed task status.
+      operationId: getTask
+      parameters:
+        - name: task_id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Task record returned.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Task'
+        '404':
+          description: Task not found.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '405':
+          description: Method not allowed.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Task lookup failed.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
 components:
   schemas:
     StatusResponse:
@@ -261,3 +343,61 @@ components:
             type: string
         client_request_id:
           type: string
+    CreateTaskRequest:
+      type: object
+      properties:
+        tenant_id:
+          type: string
+        session_id:
+          type: string
+        task_type:
+          type: string
+          enum:
+            - report_generation
+            - approved_tool_execution
+        reason:
+          type: string
+          enum:
+            - workflow_required
+            - approval_required
+        requires_approval:
+          type: boolean
+    Task:
+      type: object
+      required:
+        - task_id
+        - tenant_id
+        - task_type
+        - status
+        - reason
+        - requires_approval
+        - created_at
+      properties:
+        task_id:
+          type: string
+        request_id:
+          type: string
+        tenant_id:
+          type: string
+        session_id:
+          type: string
+        task_type:
+          type: string
+          enum:
+            - report_generation
+            - approved_tool_execution
+        status:
+          type: string
+          enum:
+            - queued
+            - waiting_approval
+        reason:
+          type: string
+          enum:
+            - workflow_required
+            - approval_required
+        requires_approval:
+          type: boolean
+        created_at:
+          type: string
+          format: date-time
