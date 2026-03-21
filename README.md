@@ -24,3 +24,9 @@ Current foundation slice:
 - `Makefile` targets for `fmt`, `test`, `build`, and `check`
 - `scripts/dev/tasks.ps1` as the verified PowerShell fallback when `make` is unavailable
 - local bootstrap instructions in `docs/runbooks/local-bootstrap.md`
+
+Current Milestone 1 slice:
+- in-memory session and message persistence under `internal/session`
+- `POST /api/v1/sessions` for session creation
+- `GET /api/v1/sessions/{session_id}/messages` for message listing
+- `POST /api/v1/chat/stream` with SSE `meta -> state -> done` placeholder flow

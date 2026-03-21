@@ -12,8 +12,10 @@ type statusResponse struct {
 // NewHandler constructs the minimum API handler tree for the foundation slice.
 func NewHandler() http.Handler {
 	mux := http.NewServeMux()
+	app := newAppHandler()
 	mux.HandleFunc("/healthz", writeStatus("ok"))
 	mux.HandleFunc("/readyz", writeStatus("ready"))
+	app.registerRoutes(mux)
 
 	return withRequestContext(mux)
 }

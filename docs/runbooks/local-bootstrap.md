@@ -32,6 +32,17 @@ It does not yet wire real DB access from the app code or a real OpenTelemetry ex
 
 Successful build artifacts are emitted under `bin/`.
 
+## Current API surface
+
+- `POST /api/v1/sessions`
+- `GET /api/v1/sessions/{session_id}/messages`
+- `POST /api/v1/chat/stream`
+
+The current chat stream implementation is a Milestone 1 skeleton:
+- session storage is in-memory
+- SSE events are limited to `meta`, `state`, and `done`
+- assistant output is a fixed placeholder response
+
 ## Current gaps
 
 - In the current Windows shell, `make` may be unavailable; use `scripts/dev/tasks.ps1` as the verified fallback.

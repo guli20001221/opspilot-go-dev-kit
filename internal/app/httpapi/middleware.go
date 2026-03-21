@@ -30,6 +30,8 @@ func withRequestContext(next http.Handler) http.Handler {
 			traceID = requestID
 		}
 
+		r.Header.Set(requestIDHeader, requestID)
+		r.Header.Set(traceIDHeader, traceID)
 		w.Header().Set(requestIDHeader, requestID)
 		w.Header().Set(traceIDHeader, traceID)
 
@@ -46,6 +48,32 @@ func withRequestContext(next http.Handler) http.Handler {
 			slog.Duration("duration", time.Since(start)),
 		)
 	})
+}
+
+func requestIDFromContext(ctx context.Context) string {
+	requestID, _ := ctx.Value(requestIDKey).(string)
+	return requestID
+}
+
+func traceIDFromContext(ctx context.Context) string {
+	traceID, _ := ctx.Value(traceIDKey).(string)
+	return traceID
+}
+
+func requestIDFromRequest(r *http.Request) string {
+	if requestID := requestIDFromContext(r.Context()); requestID != "" {
+		return requestID
+	}
+
+	return r.Header.Get(requestIDHeader)
+}
+
+func traceIDFromRequest(r *http.Request) string {
+	if traceID := traceIDFromContext(r.Context()); traceID != "" {
+		return traceID
+	}
+
+	return r.Header.Get(traceIDHeader)
 }
 
 func newID() string {
