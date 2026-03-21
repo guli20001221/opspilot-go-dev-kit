@@ -1,0 +1,251 @@
+openapi: 3.1.0
+info:
+  title: OpsPilot-Go API
+  version: 0.1.0
+  description: Minimal Foundation and Milestone 1 API surface for the OpsPilot-Go development kit.
+servers:
+  - url: http://localhost:18080
+paths:
+  /healthz:
+    get:
+      summary: Liveness probe
+      operationId: getHealth
+      responses:
+        '200':
+          description: Service is alive.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StatusResponse'
+  /readyz:
+    get:
+      summary: Readiness probe
+      operationId: getReady
+      responses:
+        '200':
+          description: Service is ready.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StatusResponse'
+  /api/v1/sessions:
+    post:
+      summary: Create a chat session
+      operationId: createSession
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateSessionRequest'
+      responses:
+        '201':
+          description: Session created.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CreateSessionResponse'
+        '400':
+          description: Request body was invalid JSON.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '405':
+          description: Method not allowed.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Session creation failed.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+  /api/v1/sessions/{session_id}/messages:
+    get:
+      summary: List messages for a session
+      operationId: listSessionMessages
+      parameters:
+        - name: session_id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Messages returned in append order.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ListMessagesResponse'
+        '404':
+          description: Session not found.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '405':
+          description: Method not allowed.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+  /api/v1/chat/stream:
+    post:
+      summary: Start the synchronous chat skeleton stream
+      description: |
+        Returns a short placeholder SSE stream in `meta -> state -> done` order.
+        The current Milestone 1 implementation persists user and assistant messages
+        in the in-memory session store.
+      operationId: streamChat
+      parameters:
+        - name: X-Request-Id
+          in: header
+          required: false
+          schema:
+            type: string
+        - name: X-Trace-Id
+          in: header
+          required: false
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ChatStreamRequest'
+      responses:
+        '200':
+          description: Server-sent event stream with placeholder response events.
+          headers:
+            X-Request-Id:
+              description: Request correlation identifier.
+              schema:
+                type: string
+            X-Trace-Id:
+              description: Trace correlation identifier.
+              schema:
+                type: string
+          content:
+            text/event-stream:
+              schema:
+                type: string
+                example: |-
+                  event: meta
+                  data: {"request_id":"req-1","session_id":"sess-1","trace_id":"trace-1"}
+
+                  event: state
+                  data: {"state":"completed"}
+
+                  event: done
+                  data: {"content":"Milestone 1 placeholder response.","session_id":"sess-1"}
+        '400':
+          description: Request body was invalid JSON.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Provided session was not found.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '405':
+          description: Method not allowed.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Streaming unsupported or chat handling failed.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+components:
+  schemas:
+    StatusResponse:
+      type: object
+      required:
+        - status
+      properties:
+        status:
+          type: string
+          examples:
+            - ok
+            - ready
+    ErrorResponse:
+      type: object
+      required:
+        - code
+        - message
+      properties:
+        code:
+          type: string
+        message:
+          type: string
+    CreateSessionRequest:
+      type: object
+      properties:
+        tenant_id:
+          type: string
+        user_id:
+          type: string
+    CreateSessionResponse:
+      type: object
+      required:
+        - session_id
+      properties:
+        session_id:
+          type: string
+    Message:
+      type: object
+      required:
+        - id
+        - role
+        - content
+      properties:
+        id:
+          type: string
+        role:
+          type: string
+          enum:
+            - user
+            - assistant
+        content:
+          type: string
+    ListMessagesResponse:
+      type: object
+      required:
+        - messages
+      properties:
+        messages:
+          type: array
+          items:
+            $ref: '#/components/schemas/Message'
+    ChatStreamRequest:
+      type: object
+      properties:
+        tenant_id:
+          type: string
+        user_id:
+          type: string
+        session_id:
+          type: string
+        mode:
+          type: string
+          enum:
+            - chat
+            - task
+        user_message:
+          type: string
+        attachment_refs:
+          type: array
+          items:
+            type: string
+        client_request_id:
+          type: string

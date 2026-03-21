@@ -42,6 +42,7 @@ The current chat stream implementation is a Milestone 1 skeleton:
 - session storage is in-memory
 - SSE events are limited to `meta`, `state`, and `done`
 - assistant output is a fixed placeholder response
+- the current HTTP contract is documented in `docs/openapi/openapi.yaml`
 
 ## Current gaps
 
