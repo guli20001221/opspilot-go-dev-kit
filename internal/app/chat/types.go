@@ -1,6 +1,10 @@
 package chat
 
-import "time"
+import (
+	"time"
+
+	"opspilot-go/internal/contextengine"
+)
 
 // PlaceholderAssistantResponse is the fixed M1 assistant content used before agent runtime lands.
 const PlaceholderAssistantResponse = "Milestone 1 placeholder response."
@@ -28,5 +32,6 @@ type StreamEvent struct {
 // HandleResult contains the persisted session identifier and ordered stream events.
 type HandleResult struct {
 	SessionID string
+	Context   contextengine.BuildResult
 	Events    []StreamEvent
 }

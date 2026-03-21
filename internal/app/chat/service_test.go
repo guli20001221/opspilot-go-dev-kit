@@ -27,6 +27,12 @@ func TestServiceHandleCreatesSessionAndBuildsStreamEvents(t *testing.T) {
 	if got.SessionID == "" {
 		t.Fatal("Handle() returned empty session ID")
 	}
+	if len(got.Context.Planner.Blocks) == 0 {
+		t.Fatal("Handle() returned empty planner context blocks")
+	}
+	if got.Context.Log.RequestID != "req-1" {
+		t.Fatalf("Context.Log.RequestID = %q, want %q", got.Context.Log.RequestID, "req-1")
+	}
 	if len(got.Events) != 3 {
 		t.Fatalf("len(Events) = %d, want %d", len(got.Events), 3)
 	}

@@ -29,6 +29,7 @@ Current foundation slice:
 Current Milestone 1 slice:
 - in-memory session and message persistence under `internal/session`
 - typed chat application service under `internal/app/chat`
+- deterministic context assembly under `internal/contextengine`
 - `POST /api/v1/sessions` for session creation
 - `GET /api/v1/sessions/{session_id}/messages` for message listing
 - `POST /api/v1/chat/stream` with a thin HTTP handler delegating to SSE `meta -> state -> done` placeholder flow
