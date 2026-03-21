@@ -5,11 +5,13 @@ import (
 	"net/http"
 	"strings"
 
+	appchat "opspilot-go/internal/app/chat"
 	"opspilot-go/internal/session"
 )
 
 type appHandler struct {
 	sessions *session.Service
+	chat     *appchat.Service
 }
 
 type createSessionRequest struct {
@@ -47,8 +49,11 @@ type errorResponse struct {
 }
 
 func newAppHandler() *appHandler {
+	sessionService := session.NewService()
+
 	return &appHandler{
-		sessions: session.NewService(),
+		sessions: sessionService,
+		chat:     appchat.NewService(sessionService),
 	}
 }
 
@@ -130,35 +135,24 @@ func (a *appHandler) handleChatStream(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	sessionID := req.SessionID
-	if sessionID == "" {
-		created, err := a.sessions.CreateSession(r.Context(), session.CreateSessionInput{
-			TenantID: req.TenantID,
-			UserID:   req.UserID,
-		})
-		if err != nil {
-			writeError(w, http.StatusInternalServerError, "session_create_failed", err.Error())
+	result, err := a.chat.Handle(r.Context(), appchat.ChatRequestEnvelope{
+		RequestID:       requestIDFromRequest(r),
+		TraceID:         traceIDFromRequest(r),
+		TenantID:        req.TenantID,
+		UserID:          req.UserID,
+		SessionID:       req.SessionID,
+		Mode:            req.Mode,
+		UserMessage:     req.UserMessage,
+		AttachmentRefs:  req.AttachmentRefs,
+		ClientRequestID: req.ClientRequestID,
+	})
+	if err != nil {
+		if req.SessionID != "" {
+			writeError(w, http.StatusNotFound, "session_not_found", "session not found")
 			return
 		}
-		sessionID = created.ID
-	}
 
-	if _, err := a.sessions.AppendMessage(r.Context(), session.AppendMessageInput{
-		SessionID: sessionID,
-		Role:      session.RoleUser,
-		Content:   req.UserMessage,
-	}); err != nil {
-		writeError(w, http.StatusNotFound, "session_not_found", "session not found")
-		return
-	}
-
-	assistantContent := "Milestone 1 placeholder response."
-	if _, err := a.sessions.AppendMessage(r.Context(), session.AppendMessageInput{
-		SessionID: sessionID,
-		Role:      session.RoleAssistant,
-		Content:   assistantContent,
-	}); err != nil {
-		writeError(w, http.StatusInternalServerError, "assistant_message_failed", err.Error())
+		writeError(w, http.StatusInternalServerError, "chat_handle_failed", err.Error())
 		return
 	}
 
@@ -167,21 +161,10 @@ func (a *appHandler) handleChatStream(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Connection", "keep-alive")
 	w.WriteHeader(http.StatusOK)
 
-	writeSSE(w, "meta", map[string]string{
-		"request_id": requestIDFromRequest(r),
-		"trace_id":   traceIDFromRequest(r),
-		"session_id": sessionID,
-	})
-	flusher.Flush()
-
-	writeSSE(w, "state", map[string]string{"state": "completed"})
-	flusher.Flush()
-
-	writeSSE(w, "done", map[string]string{
-		"session_id": sessionID,
-		"content":    assistantContent,
-	})
-	flusher.Flush()
+	for _, event := range result.Events {
+		writeSSE(w, event.Name, event.Data)
+		flusher.Flush()
+	}
 }
 
 func writeJSON(w http.ResponseWriter, status int, payload any) {
