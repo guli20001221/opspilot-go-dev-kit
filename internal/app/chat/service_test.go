@@ -33,6 +33,12 @@ func TestServiceHandleCreatesSessionAndBuildsStreamEvents(t *testing.T) {
 	if got.Context.Log.RequestID != "req-1" {
 		t.Fatalf("Context.Log.RequestID = %q, want %q", got.Context.Log.RequestID, "req-1")
 	}
+	if got.Plan.Intent != "knowledge_qa" {
+		t.Fatalf("Plan.Intent = %q, want %q", got.Plan.Intent, "knowledge_qa")
+	}
+	if len(got.Plan.Steps) == 0 {
+		t.Fatal("Handle() returned empty plan steps")
+	}
 	if len(got.Events) != 3 {
 		t.Fatalf("len(Events) = %d, want %d", len(got.Events), 3)
 	}

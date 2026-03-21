@@ -3,6 +3,7 @@ package chat
 import (
 	"context"
 
+	"opspilot-go/internal/agent/planner"
 	"opspilot-go/internal/contextengine"
 	"opspilot-go/internal/session"
 )
@@ -18,6 +19,7 @@ type SessionService interface {
 type Service struct {
 	sessions SessionService
 	contexts *contextengine.Service
+	planner  *planner.Service
 }
 
 // NewService constructs a chat service with the required downstream dependencies.
@@ -25,6 +27,7 @@ func NewService(sessions SessionService) *Service {
 	return &Service{
 		sessions: sessions,
 		contexts: contextengine.NewService(contextengine.Config{}),
+		planner:  planner.NewService(),
 	}
 }
 
@@ -67,6 +70,19 @@ func (s *Service) Handle(ctx context.Context, req ChatRequestEnvelope) (HandleRe
 		return HandleResult{}, err
 	}
 
+	plan, err := s.planner.Plan(ctx, planner.PlanInput{
+		RequestID:   req.RequestID,
+		TraceID:     req.TraceID,
+		TenantID:    req.TenantID,
+		SessionID:   sessionID,
+		Mode:        req.Mode,
+		UserMessage: req.UserMessage,
+		Context:     assembledContext.Planner,
+	})
+	if err != nil {
+		return HandleResult{}, err
+	}
+
 	if _, err := s.sessions.AppendMessage(ctx, session.AppendMessageInput{
 		SessionID: sessionID,
 		Role:      session.RoleAssistant,
@@ -78,6 +94,7 @@ func (s *Service) Handle(ctx context.Context, req ChatRequestEnvelope) (HandleRe
 	return HandleResult{
 		SessionID: sessionID,
 		Context:   assembledContext,
+		Plan:      plan,
 		Events: []StreamEvent{
 			{
 				Name: "meta",

@@ -23,6 +23,7 @@ The current Milestone 1 slice adds:
 - `internal/session` for in-memory session and message persistence
 - `internal/app/chat` as the application boundary for the synchronous chat skeleton
 - `internal/contextengine` for deterministic block assembly and assembly logging
+- `internal/agent/planner` for deterministic typed execution plans
 - `internal/app/httpapi` as a thin transport layer over the session and chat services
 
 This file is intentionally brief in the AI development kit.

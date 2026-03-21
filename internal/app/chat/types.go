@@ -3,6 +3,7 @@ package chat
 import (
 	"time"
 
+	"opspilot-go/internal/agent/planner"
 	"opspilot-go/internal/contextengine"
 )
 
@@ -33,5 +34,6 @@ type StreamEvent struct {
 type HandleResult struct {
 	SessionID string
 	Context   contextengine.BuildResult
+	Plan      planner.ExecutionPlan
 	Events    []StreamEvent
 }
