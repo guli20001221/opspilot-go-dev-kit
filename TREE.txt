@@ -1,0 +1,126 @@
+opspilot-go-dev-kit
+├── .claude
+│   ├── agents
+│   │   ├── architecture-reviewer.md
+│   │   ├── eval-judge.md
+│   │   ├── README.md
+│   │   └── security-reviewer.md
+│   ├── hooks
+│   │   └── README.md
+│   ├── rules
+│   │   └── .gitkeep
+│   └── skills
+│       ├── admin-console-reports
+│       │   └── SKILL.md
+│       ├── agent-runtime-responses
+│       │   └── SKILL.md
+│       ├── api-contract-sse
+│       │   └── SKILL.md
+│       ├── docs-adr-runbook
+│       │   └── SKILL.md
+│       ├── eval-datasets-regression
+│       │   └── SKILL.md
+│       ├── mcp-adapter-factory
+│       │   └── SKILL.md
+│       ├── otel-langfuse-observability
+│       │   └── SKILL.md
+│       ├── postgres-sqlc-pgvector
+│       │   └── SKILL.md
+│       ├── repo-bootstrap-go
+│       │   └── SKILL.md
+│       ├── retrieval-ingest-provenance
+│       │   └── SKILL.md
+│       ├── security-tenancy-audit
+│       │   └── SKILL.md
+│       └── workflow-temporal-approval
+│           └── SKILL.md
+├── cmd
+│   ├── api
+│   │   └── .gitkeep
+│   └── worker
+│       └── .gitkeep
+├── config
+│   └── .gitkeep
+├── db
+│   ├── migrations
+│   │   └── .gitkeep
+│   └── queries
+│       └── .gitkeep
+├── docs
+│   ├── adr
+│   │   └── README.md
+│   ├── runbooks
+│   │   └── README.md
+│   ├── skills
+│   │   └── README.md
+│   ├── architecture.md
+│   └── repo-tree.md
+├── eval
+│   ├── datasets
+│   │   └── .gitkeep
+│   ├── prompts
+│   │   └── .gitkeep
+│   └── reports
+│       └── .gitkeep
+├── internal
+│   ├── agent
+│   │   ├── critic
+│   │   │   └── .gitkeep
+│   │   ├── planner
+│   │   │   └── .gitkeep
+│   │   ├── retrieval
+│   │   │   └── .gitkeep
+│   │   ├── tool
+│   │   │   └── .gitkeep
+│   │   └── AGENTS.override.md
+│   ├── app
+│   │   └── .gitkeep
+│   ├── auth
+│   │   └── .gitkeep
+│   ├── contextengine
+│   │   └── .gitkeep
+│   ├── eval
+│   │   ├── .gitkeep
+│   │   └── AGENTS.override.md
+│   ├── model
+│   │   └── .gitkeep
+│   ├── observability
+│   │   └── .gitkeep
+│   ├── retrieval
+│   │   ├── .gitkeep
+│   │   └── AGENTS.override.md
+│   ├── session
+│   │   └── .gitkeep
+│   ├── storage
+│   │   └── .gitkeep
+│   ├── tools
+│   │   ├── http
+│   │   │   └── .gitkeep
+│   │   ├── mcp
+│   │   │   └── .gitkeep
+│   │   └── registry
+│   │       └── .gitkeep
+│   └── workflow
+│       ├── .gitkeep
+│       └── AGENTS.override.md
+├── pkg
+│   └── apierror
+│       └── .gitkeep
+├── scripts
+│   ├── dev
+│   │   └── .gitkeep
+│   ├── hooks
+│   │   ├── .gitkeep
+│   │   ├── post_tool_go_checks.sh
+│   │   └── pre_tool_protect_files.sh
+│   └── sql
+│       └── .gitkeep
+├── web
+│   ├── admin
+│   │   ├── .gitkeep
+│   │   └── AGENTS.override.md
+│   └── shared
+│       └── .gitkeep
+├── AGENTS.md
+├── CLAUDE.md
+└── README.md
