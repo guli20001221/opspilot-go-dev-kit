@@ -4,6 +4,7 @@ import (
 	"time"
 
 	"opspilot-go/internal/agent/planner"
+	agenttool "opspilot-go/internal/agent/tool"
 	"opspilot-go/internal/contextengine"
 	"opspilot-go/internal/retrieval"
 )
@@ -33,9 +34,10 @@ type StreamEvent struct {
 
 // HandleResult contains the persisted session identifier and ordered stream events.
 type HandleResult struct {
-	SessionID string
-	Context   contextengine.BuildResult
-	Plan      planner.ExecutionPlan
-	Retrieval retrieval.RetrievalResult
-	Events    []StreamEvent
+	SessionID   string
+	Context     contextengine.BuildResult
+	Plan        planner.ExecutionPlan
+	Retrieval   retrieval.RetrievalResult
+	ToolResults []agenttool.ToolResult
+	Events      []StreamEvent
 }

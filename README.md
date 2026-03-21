@@ -32,6 +32,7 @@ Current Milestone 1 slice:
 - deterministic context assembly under `internal/contextengine`
 - deterministic typed planning under `internal/agent/planner`
 - deterministic typed retrieval under `internal/retrieval`
+- deterministic typed tool execution under `internal/agent/tool` and `internal/tools/registry`
 - `POST /api/v1/sessions` for session creation
 - `GET /api/v1/sessions/{session_id}/messages` for message listing
 - `POST /api/v1/chat/stream` with a thin HTTP handler delegating to SSE `meta -> state -> done` placeholder flow

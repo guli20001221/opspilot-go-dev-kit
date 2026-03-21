@@ -75,6 +75,14 @@ func selectTool(input PlanInput) ToolDescriptor {
 	}
 
 	message := strings.ToLower(input.UserMessage)
+	if strings.Contains(message, "ticket") && (strings.Contains(message, "search") || strings.Contains(message, "history") || strings.Contains(message, "query")) {
+		for _, tool := range input.AvailableTools {
+			if tool.Name == "ticket_search" {
+				return tool
+			}
+		}
+	}
+
 	for _, tool := range input.AvailableTools {
 		if strings.Contains(message, "ticket") && strings.Contains(tool.Name, "ticket") {
 			return tool

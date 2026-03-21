@@ -25,6 +25,7 @@ The current Milestone 1 slice adds:
 - `internal/contextengine` for deterministic block assembly and assembly logging
 - `internal/agent/planner` for deterministic typed execution plans
 - `internal/retrieval` for deterministic structured-query retrieval and provenance-bearing evidence blocks
+- `internal/agent/tool` and `internal/tools/registry` for deterministic stub tool execution and approval gating
 - `internal/app/httpapi` as a thin transport layer over the session and chat services
 
 This file is intentionally brief in the AI development kit.

@@ -74,6 +74,36 @@ func TestServiceHandleCreatesSessionAndBuildsStreamEvents(t *testing.T) {
 	}
 }
 
+func TestServiceHandleExecutesReadOnlyToolForTicketQuery(t *testing.T) {
+	sessionService := session.NewService()
+	svc := NewService(sessionService)
+
+	got, err := svc.Handle(context.Background(), ChatRequestEnvelope{
+		RequestID:   "req-tool",
+		TraceID:     "trace-tool",
+		TenantID:    "tenant-1",
+		UserID:      "user-1",
+		Mode:        "chat",
+		UserMessage: "search related ticket history",
+	})
+	if err != nil {
+		t.Fatalf("Handle() error = %v", err)
+	}
+
+	if !got.Plan.RequiresTool {
+		t.Fatal("Plan.RequiresTool = false, want true")
+	}
+	if len(got.ToolResults) != 1 {
+		t.Fatalf("len(ToolResults) = %d, want %d", len(got.ToolResults), 1)
+	}
+	if got.ToolResults[0].ToolName != "ticket_search" {
+		t.Fatalf("ToolResults[0].ToolName = %q, want %q", got.ToolResults[0].ToolName, "ticket_search")
+	}
+	if got.ToolResults[0].Status != "succeeded" {
+		t.Fatalf("ToolResults[0].Status = %q, want %q", got.ToolResults[0].Status, "succeeded")
+	}
+}
+
 func assertEventPayload(t *testing.T, got StreamEvent, wantName string, wantPayload map[string]string) {
 	t.Helper()
 

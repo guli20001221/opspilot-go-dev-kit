@@ -2,11 +2,14 @@ package chat
 
 import (
 	"context"
+	"encoding/json"
 
 	"opspilot-go/internal/agent/planner"
+	agenttool "opspilot-go/internal/agent/tool"
 	"opspilot-go/internal/contextengine"
 	"opspilot-go/internal/retrieval"
 	"opspilot-go/internal/session"
+	toolregistry "opspilot-go/internal/tools/registry"
 )
 
 // SessionService defines the session operations the chat service consumes.
@@ -22,15 +25,38 @@ type Service struct {
 	contexts  *contextengine.Service
 	planner   *planner.Service
 	retrieval *retrieval.Service
+	tools     *agenttool.Service
+	registry  *toolregistry.Registry
 }
 
 // NewService constructs a chat service with the required downstream dependencies.
 func NewService(sessions SessionService) *Service {
+	registry := toolregistry.New()
+	registry.Register(toolregistry.Definition{
+		Name:             "ticket_search",
+		ActionClass:      agenttool.ActionClassRead,
+		ReadOnly:         true,
+		RequiresApproval: false,
+		StubResponse: map[string]any{
+			"matches": []map[string]string{
+				{"ticket_id": "INC-100", "summary": "database incident"},
+			},
+		},
+	})
+	registry.Register(toolregistry.Definition{
+		Name:             "ticket_comment_create",
+		ActionClass:      agenttool.ActionClassWrite,
+		ReadOnly:         false,
+		RequiresApproval: true,
+	})
+
 	return &Service{
 		sessions:  sessions,
 		contexts:  contextengine.NewService(contextengine.Config{}),
 		planner:   planner.NewService(),
 		retrieval: retrieval.NewService(nil),
+		tools:     agenttool.NewService(registry),
+		registry:  registry,
 	}
 }
 
@@ -74,13 +100,14 @@ func (s *Service) Handle(ctx context.Context, req ChatRequestEnvelope) (HandleRe
 	}
 
 	plan, err := s.planner.Plan(ctx, planner.PlanInput{
-		RequestID:   req.RequestID,
-		TraceID:     req.TraceID,
-		TenantID:    req.TenantID,
-		SessionID:   sessionID,
-		Mode:        req.Mode,
-		UserMessage: req.UserMessage,
-		Context:     assembledContext.Planner,
+		RequestID:      req.RequestID,
+		TraceID:        req.TraceID,
+		TenantID:       req.TenantID,
+		SessionID:      sessionID,
+		Mode:           req.Mode,
+		UserMessage:    req.UserMessage,
+		Context:        assembledContext.Planner,
+		AvailableTools: toPlannerToolDescriptors(s.registry.List()),
 	})
 	if err != nil {
 		return HandleResult{}, err
@@ -101,6 +128,35 @@ func (s *Service) Handle(ctx context.Context, req ChatRequestEnvelope) (HandleRe
 		}
 	}
 
+	toolResults := make([]agenttool.ToolResult, 0, len(plan.Steps))
+	for _, step := range plan.Steps {
+		if step.Kind != planner.StepKindTool {
+			continue
+		}
+
+		args, err := json.Marshal(map[string]string{"query": req.UserMessage})
+		if err != nil {
+			return HandleResult{}, err
+		}
+
+		toolResult, err := s.tools.Execute(ctx, agenttool.ToolInvocation{
+			RequestID:        req.RequestID,
+			TraceID:          req.TraceID,
+			TenantID:         req.TenantID,
+			SessionID:        sessionID,
+			PlanID:           plan.PlanID,
+			StepID:           step.StepID,
+			ToolName:         step.ToolName,
+			ActionClass:      actionClassForStep(step),
+			RequiresApproval: step.NeedsApproval,
+			Arguments:        args,
+		})
+		if err != nil {
+			return HandleResult{}, err
+		}
+		toolResults = append(toolResults, toolResult)
+	}
+
 	if _, err := s.sessions.AppendMessage(ctx, session.AppendMessageInput{
 		SessionID: sessionID,
 		Role:      session.RoleAssistant,
@@ -110,10 +166,11 @@ func (s *Service) Handle(ctx context.Context, req ChatRequestEnvelope) (HandleRe
 	}
 
 	return HandleResult{
-		SessionID: sessionID,
-		Context:   assembledContext,
-		Plan:      plan,
-		Retrieval: retrievalResult,
+		SessionID:   sessionID,
+		Context:     assembledContext,
+		Plan:        plan,
+		Retrieval:   retrievalResult,
+		ToolResults: toolResults,
 		Events: []StreamEvent{
 			{
 				Name: "meta",
@@ -150,4 +207,26 @@ func toTurns(messages []session.Message) []contextengine.Turn {
 	}
 
 	return turns
+}
+
+func toPlannerToolDescriptors(defs []toolregistry.Definition) []planner.ToolDescriptor {
+	out := make([]planner.ToolDescriptor, 0, len(defs))
+	for _, def := range defs {
+		out = append(out, planner.ToolDescriptor{
+			Name:             def.Name,
+			ReadOnly:         def.ReadOnly,
+			RequiresApproval: def.RequiresApproval,
+			AsyncOnly:        def.AsyncOnly,
+		})
+	}
+
+	return out
+}
+
+func actionClassForStep(step planner.PlanStep) string {
+	if step.ReadOnly {
+		return agenttool.ActionClassRead
+	}
+
+	return agenttool.ActionClassWrite
 }
