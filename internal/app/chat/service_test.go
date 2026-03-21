@@ -42,6 +42,9 @@ func TestServiceHandleCreatesSessionAndBuildsStreamEvents(t *testing.T) {
 	if got.Retrieval.QueryUsed != "hello" {
 		t.Fatalf("Retrieval.QueryUsed = %q, want %q", got.Retrieval.QueryUsed, "hello")
 	}
+	if got.Critic.Verdict != "revise" {
+		t.Fatalf("Critic.Verdict = %q, want %q", got.Critic.Verdict, "revise")
+	}
 	if len(got.Events) != 3 {
 		t.Fatalf("len(Events) = %d, want %d", len(got.Events), 3)
 	}
@@ -101,6 +104,9 @@ func TestServiceHandleExecutesReadOnlyToolForTicketQuery(t *testing.T) {
 	}
 	if got.ToolResults[0].Status != "succeeded" {
 		t.Fatalf("ToolResults[0].Status = %q, want %q", got.ToolResults[0].Status, "succeeded")
+	}
+	if got.Critic.Verdict != "approve" {
+		t.Fatalf("Critic.Verdict = %q, want %q", got.Critic.Verdict, "approve")
 	}
 }
 

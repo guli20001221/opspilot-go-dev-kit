@@ -23,11 +23,15 @@ func (s *Service) Plan(_ context.Context, input PlanInput) (ExecutionPlan, error
 	tool := selectTool(input)
 	requiresTool := tool.Name != ""
 	requiresApproval := tool.RequiresApproval
+	requiresRetrieval := !requiresWorkflow
+	if requiresTool && tool.ReadOnly {
+		requiresRetrieval = false
+	}
 
 	plan := ExecutionPlan{
 		PlanID:                derivePlanID(input),
 		Intent:                intent,
-		RequiresRetrieval:     !requiresWorkflow,
+		RequiresRetrieval:     requiresRetrieval,
 		RequiresTool:          requiresTool,
 		RequiresWorkflow:      requiresWorkflow || tool.AsyncOnly,
 		RequiresApproval:      requiresApproval,

@@ -3,6 +3,7 @@ package chat
 import (
 	"time"
 
+	"opspilot-go/internal/agent/critic"
 	"opspilot-go/internal/agent/planner"
 	agenttool "opspilot-go/internal/agent/tool"
 	"opspilot-go/internal/contextengine"
@@ -39,5 +40,6 @@ type HandleResult struct {
 	Plan        planner.ExecutionPlan
 	Retrieval   retrieval.RetrievalResult
 	ToolResults []agenttool.ToolResult
+	Critic      critic.CriticVerdict
 	Events      []StreamEvent
 }

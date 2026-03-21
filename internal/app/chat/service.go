@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 
+	agentcritic "opspilot-go/internal/agent/critic"
 	"opspilot-go/internal/agent/planner"
 	agenttool "opspilot-go/internal/agent/tool"
 	"opspilot-go/internal/contextengine"
@@ -23,6 +24,7 @@ type SessionService interface {
 type Service struct {
 	sessions  SessionService
 	contexts  *contextengine.Service
+	critic    *agentcritic.Service
 	planner   *planner.Service
 	retrieval *retrieval.Service
 	tools     *agenttool.Service
@@ -53,6 +55,7 @@ func NewService(sessions SessionService) *Service {
 	return &Service{
 		sessions:  sessions,
 		contexts:  contextengine.NewService(contextengine.Config{}),
+		critic:    agentcritic.NewService(),
 		planner:   planner.NewService(),
 		retrieval: retrieval.NewService(nil),
 		tools:     agenttool.NewService(registry),
@@ -157,6 +160,16 @@ func (s *Service) Handle(ctx context.Context, req ChatRequestEnvelope) (HandleRe
 		toolResults = append(toolResults, toolResult)
 	}
 
+	criticVerdict, err := s.critic.Review(ctx, agentcritic.CriticInput{
+		Plan:        plan,
+		Retrieval:   &retrievalResult,
+		ToolResults: toolResults,
+		DraftAnswer: PlaceholderAssistantResponse,
+	})
+	if err != nil {
+		return HandleResult{}, err
+	}
+
 	if _, err := s.sessions.AppendMessage(ctx, session.AppendMessageInput{
 		SessionID: sessionID,
 		Role:      session.RoleAssistant,
@@ -171,6 +184,7 @@ func (s *Service) Handle(ctx context.Context, req ChatRequestEnvelope) (HandleRe
 		Plan:        plan,
 		Retrieval:   retrievalResult,
 		ToolResults: toolResults,
+		Critic:      criticVerdict,
 		Events: []StreamEvent{
 			{
 				Name: "meta",

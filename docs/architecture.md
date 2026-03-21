@@ -26,6 +26,7 @@ The current Milestone 1 slice adds:
 - `internal/agent/planner` for deterministic typed execution plans
 - `internal/retrieval` for deterministic structured-query retrieval and provenance-bearing evidence blocks
 - `internal/agent/tool` and `internal/tools/registry` for deterministic stub tool execution and approval gating
+- `internal/agent/critic` for deterministic structured verdicts over draft answers, retrieval, and tool results
 - `internal/app/httpapi` as a thin transport layer over the session and chat services
 
 This file is intentionally brief in the AI development kit.
