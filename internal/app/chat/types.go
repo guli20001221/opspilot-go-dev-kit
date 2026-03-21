@@ -5,6 +5,7 @@ import (
 
 	"opspilot-go/internal/agent/planner"
 	"opspilot-go/internal/contextengine"
+	"opspilot-go/internal/retrieval"
 )
 
 // PlaceholderAssistantResponse is the fixed M1 assistant content used before agent runtime lands.
@@ -35,5 +36,6 @@ type HandleResult struct {
 	SessionID string
 	Context   contextengine.BuildResult
 	Plan      planner.ExecutionPlan
+	Retrieval retrieval.RetrievalResult
 	Events    []StreamEvent
 }

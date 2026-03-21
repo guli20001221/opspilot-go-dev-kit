@@ -39,6 +39,9 @@ func TestServiceHandleCreatesSessionAndBuildsStreamEvents(t *testing.T) {
 	if len(got.Plan.Steps) == 0 {
 		t.Fatal("Handle() returned empty plan steps")
 	}
+	if got.Retrieval.QueryUsed != "hello" {
+		t.Fatalf("Retrieval.QueryUsed = %q, want %q", got.Retrieval.QueryUsed, "hello")
+	}
 	if len(got.Events) != 3 {
 		t.Fatalf("len(Events) = %d, want %d", len(got.Events), 3)
 	}

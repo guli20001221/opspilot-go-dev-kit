@@ -5,6 +5,7 @@ import (
 
 	"opspilot-go/internal/agent/planner"
 	"opspilot-go/internal/contextengine"
+	"opspilot-go/internal/retrieval"
 	"opspilot-go/internal/session"
 )
 
@@ -17,17 +18,19 @@ type SessionService interface {
 
 // Service orchestrates the Milestone 1 chat request flow.
 type Service struct {
-	sessions SessionService
-	contexts *contextengine.Service
-	planner  *planner.Service
+	sessions  SessionService
+	contexts  *contextengine.Service
+	planner   *planner.Service
+	retrieval *retrieval.Service
 }
 
 // NewService constructs a chat service with the required downstream dependencies.
 func NewService(sessions SessionService) *Service {
 	return &Service{
-		sessions: sessions,
-		contexts: contextengine.NewService(contextengine.Config{}),
-		planner:  planner.NewService(),
+		sessions:  sessions,
+		contexts:  contextengine.NewService(contextengine.Config{}),
+		planner:   planner.NewService(),
+		retrieval: retrieval.NewService(nil),
 	}
 }
 
@@ -83,6 +86,21 @@ func (s *Service) Handle(ctx context.Context, req ChatRequestEnvelope) (HandleRe
 		return HandleResult{}, err
 	}
 
+	retrievalResult := retrieval.RetrievalResult{}
+	if plan.RequiresRetrieval {
+		retrievalResult, err = s.retrieval.Search(ctx, retrieval.RetrievalRequest{
+			RequestID: req.RequestID,
+			TraceID:   req.TraceID,
+			TenantID:  req.TenantID,
+			SessionID: sessionID,
+			PlanID:    plan.PlanID,
+			QueryText: req.UserMessage,
+		})
+		if err != nil {
+			return HandleResult{}, err
+		}
+	}
+
 	if _, err := s.sessions.AppendMessage(ctx, session.AppendMessageInput{
 		SessionID: sessionID,
 		Role:      session.RoleAssistant,
@@ -95,6 +113,7 @@ func (s *Service) Handle(ctx context.Context, req ChatRequestEnvelope) (HandleRe
 		SessionID: sessionID,
 		Context:   assembledContext,
 		Plan:      plan,
+		Retrieval: retrievalResult,
 		Events: []StreamEvent{
 			{
 				Name: "meta",
