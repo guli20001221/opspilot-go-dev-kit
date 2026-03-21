@@ -26,8 +26,8 @@ It does not yet wire real DB access from the app code or a real OpenTelemetry ex
 3. If `make` is not installed, run `powershell -File scripts/dev/tasks.ps1 test` and `powershell -File scripts/dev/tasks.ps1 build`.
 4. Validate the Compose file with `docker compose config`.
 5. Start the local stack with `make dev-up` or `powershell -File scripts/dev/tasks.ps1 dev-up`.
-6. Check `http://localhost:8080/healthz`.
-7. Check `http://localhost:8080/readyz`.
+6. Check `http://localhost:18080/healthz`.
+7. Check `http://localhost:18080/readyz`.
 8. Check Temporal UI at `http://localhost:8088`.
 
 Successful build artifacts are emitted under `bin/`.

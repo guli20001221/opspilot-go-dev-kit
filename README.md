@@ -20,6 +20,7 @@ Current foundation slice:
 - shared config and `slog` logging packages under `internal/app`
 - a first SQL migration scaffold under `db/migrations`
 - `compose.yaml` for local PostgreSQL, Redis, Temporal, API, and worker bootstrapping
+- API container published on host port `18080` to avoid common local `8080` conflicts
 - `Makefile` targets for `fmt`, `test`, `build`, and `check`
 - `scripts/dev/tasks.ps1` as the verified PowerShell fallback when `make` is unavailable
 - local bootstrap instructions in `docs/runbooks/local-bootstrap.md`
