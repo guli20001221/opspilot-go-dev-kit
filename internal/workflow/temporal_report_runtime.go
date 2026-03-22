@@ -6,6 +6,7 @@ import (
 	"strings"
 	"time"
 
+	enumspb "go.temporal.io/api/enums/v1"
 	temporalclient "go.temporal.io/sdk/client"
 	"go.temporal.io/sdk/temporal"
 	temporalworker "go.temporal.io/sdk/worker"
@@ -140,12 +141,7 @@ func (r *TemporalReportRunner) Register(w temporalworker.Worker) {
 
 // StartTask starts the waiting approval workflow on promote.
 func (r *TemporalApprovedToolRunner) StartTask(ctx context.Context, task Task) error {
-	_, err := r.client.ExecuteWorkflow(ctx, temporalclient.StartWorkflowOptions{
-		ID:                       task.ID,
-		TaskQueue:                r.taskQueue,
-		WorkflowExecutionTimeout: defaultReportWorkflowExecutionTimeout,
-		WorkflowTaskTimeout:      defaultReportWorkflowTaskTimeout,
-	}, ApprovedToolExecutionWorkflow, ApprovedToolWorkflowInput{
+	_, err := r.client.ExecuteWorkflow(ctx, approvedToolStartWorkflowOptions(task, r.taskQueue), ApprovedToolExecutionWorkflow, ApprovedToolWorkflowInput{
 		TaskID:    task.ID,
 		TenantID:  task.TenantID,
 		SessionID: task.SessionID,
@@ -168,12 +164,7 @@ func (r *TemporalApprovedToolRunner) ContinueApprovedToolWorkflow(ctx context.Co
 		task.ID,
 		approvedToolContinueSignalName,
 		signal,
-		temporalclient.StartWorkflowOptions{
-			ID:                       task.ID,
-			TaskQueue:                r.taskQueue,
-			WorkflowExecutionTimeout: defaultReportWorkflowExecutionTimeout,
-			WorkflowTaskTimeout:      defaultReportWorkflowTaskTimeout,
-		},
+		approvedToolStartWorkflowOptions(task, r.taskQueue),
 		ApprovedToolExecutionWorkflow,
 		ApprovedToolWorkflowInput{
 			TaskID:    task.ID,
@@ -254,17 +245,16 @@ func ApprovedToolExecutionWorkflow(ctx temporalworkflow.Context, input ApprovedT
 	})
 
 	signalChannel := temporalworkflow.GetSignalChannel(ctx, approvedToolContinueSignalName)
-	for {
-		var signal ApprovedToolSignal
-		signalChannel.Receive(ctx, &signal)
+	var signal ApprovedToolSignal
+	signalChannel.Receive(ctx, &signal)
 
-		var activities *ApprovedToolActivities
-		var result ApprovedToolWorkflowResult
-		err := temporalworkflow.ExecuteActivity(ctx, activities.ExecuteApprovedTool, input).Get(ctx, &result)
-		if err == nil {
-			return result, nil
-		}
+	var activities *ApprovedToolActivities
+	var result ApprovedToolWorkflowResult
+	if err := temporalworkflow.ExecuteActivity(ctx, activities.ExecuteApprovedTool, input).Get(ctx, &result); err != nil {
+		return ApprovedToolWorkflowResult{}, err
 	}
+
+	return result, nil
 }
 
 // ApprovedToolActivities contains the activity implementations for approved-tool workflows.
@@ -295,4 +285,18 @@ func signalActorFromAuditRef(auditRef string) string {
 	}
 
 	return ""
+}
+
+func approvedToolStartWorkflowOptions(task Task, taskQueue string) temporalclient.StartWorkflowOptions {
+	opts := temporalclient.StartWorkflowOptions{
+		ID:                       task.ID,
+		TaskQueue:                taskQueue,
+		WorkflowExecutionTimeout: defaultReportWorkflowExecutionTimeout,
+		WorkflowTaskTimeout:      defaultReportWorkflowTaskTimeout,
+	}
+	if strings.HasPrefix(task.AuditRef, "retry:") {
+		opts.WorkflowIDReusePolicy = enumspb.WORKFLOW_ID_REUSE_POLICY_ALLOW_DUPLICATE_FAILED_ONLY
+	}
+
+	return opts
 }

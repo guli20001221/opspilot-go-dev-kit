@@ -48,6 +48,7 @@ The current chat stream implementation is a Milestone 1 skeleton:
 - the worker process polls queued tasks and advances supported task types to terminal states
 - `report_generation` is executed through a Temporal workflow on the `opspilot-report-tasks` queue when Temporal is enabled
 - `approved_tool_execution` now starts a waiting Temporal workflow at task creation time and is resumed by the worker after the approval action updates the task row
+- if `approved_tool_execution` fails after approval, the current Temporal run closes, the task row moves to `failed`, and `POST /api/v1/tasks/{task_id}/retry` starts a new failed-only Temporal run for the same task
 - approval-gated tasks can be resumed through the approval action endpoint
 - failed tasks can be re-queued through the retry action endpoint
 - task responses now include structured `audit_events`
@@ -67,6 +68,19 @@ If you change Compose environment variables such as `OPSPILOT_POSTGRES_DSN`, `OP
 ```powershell
 docker compose up -d --force-recreate api worker
 ```
+
+If an approval-gated task fails after approval, recover it with:
+
+```powershell
+$task = Invoke-RestMethod -Method Post -Uri http://localhost:18080/api/v1/tasks/<task_id>/retry -ContentType application/json -Body '{"actor":"operator-1"}'
+Invoke-RestMethod -Uri "http://localhost:18080/api/v1/tasks/$($task.task_id)"
+```
+
+The expected progression is:
+- task status changes from `failed` back to `queued`
+- the worker claims it again
+- the Temporal run referenced by `audit_ref` changes to a new run ID for the same `task_id`
+- `audit_events` grows with `retried`, `claimed`, and the terminal action
 
 ## Current gaps
 

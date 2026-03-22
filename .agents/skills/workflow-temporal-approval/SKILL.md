@@ -46,6 +46,7 @@ Move long-running, retryable, or approval-gated work into a durable workflow lay
 13. When task status changes and task audit events are both persisted, write them in one storage transaction rather than as separate best-effort calls.
 14. During gradual migration to Temporal, it is acceptable to keep PostgreSQL task rows as the operator-facing status surface and move one task type at a time behind Temporal execution.
 15. Approval-gated migrations can use the API to start a waiting workflow and the worker to signal-and-wait after approval, as long as the pause/resume path remains explicit and operator-visible.
+16. If an approval-gated activity attempt fails, let that Temporal run fail and close; use retry to start a new run rather than leaving the worker blocked on a workflow that returned to waiting-for-signal.
 
 ## Output contract
 When you finish, always report:

@@ -31,7 +31,7 @@ The current Milestone 1 slice adds:
 - `internal/storage/postgres` for the current PostgreSQL task repository and connection pool wiring
 - `internal/app/httpapi` as a thin transport layer over the session and chat services
 - `cmd/api` for task creation plus Temporal-backed approval-workflow initialization
-- `cmd/worker` plus `internal/workflow.Runner` for PostgreSQL-backed task claiming, Temporal report execution, and Temporal approval-workflow continuation
+- `cmd/worker` plus `internal/workflow.Runner` for PostgreSQL-backed task claiming, Temporal report execution, and Temporal approval-workflow continuation and recovery
 
 The current synchronous chat stream now surfaces internal runtime milestones over SSE:
 
@@ -55,7 +55,8 @@ success, and failure paths.
 The current worker path advances supported queued tasks through:
 
 - `queued -> running -> succeeded` for report generation, with the execution body now running inside a Temporal workflow and activity
-- `waiting_approval -> queued -> running -> succeeded` for approved tool execution, with the waiting phase and resume signal now tracked in Temporal
+- `waiting_approval -> queued -> running -> succeeded` for approved tool execution, with the waiting phase and resume signal tracked in Temporal
+- `waiting_approval -> queued -> running -> failed -> queued -> running -> succeeded` for approved tool execution recovery, where a failed approval run closes and retry starts a new Temporal run for the same task ID
 - `queued -> running -> failed` for unsupported task types
 
 This file is intentionally brief in the AI development kit.
