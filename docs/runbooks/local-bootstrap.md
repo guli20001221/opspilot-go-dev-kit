@@ -38,12 +38,16 @@ Successful build artifacts are emitted under `bin/`.
 - `GET /api/v1/sessions/{session_id}/messages`
 - `POST /api/v1/tasks`
 - `GET /api/v1/tasks/{task_id}`
+- `POST /api/v1/tasks/{task_id}/approve`
+- `POST /api/v1/tasks/{task_id}/retry`
 - `POST /api/v1/chat/stream`
 
 The current chat stream implementation is a Milestone 1 skeleton:
 - session storage is in-memory
 - task storage is PostgreSQL-backed in the API runtime
 - the worker process polls queued tasks and advances supported task types to terminal states
+- approval-gated tasks can be resumed through the approval action endpoint
+- failed tasks can be re-queued through the retry action endpoint
 - SSE always emits `meta`, `plan`, `state`, and `done`
 - SSE may also emit `retrieval`, `tool`, and `task_promoted` depending on the internal runtime path
 - assistant output is a fixed placeholder response

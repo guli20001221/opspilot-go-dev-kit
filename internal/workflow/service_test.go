@@ -75,3 +75,65 @@ func TestServiceGetTaskReturnsStoredTask(t *testing.T) {
 		t.Fatalf("ID = %q, want %q", got.ID, created.ID)
 	}
 }
+
+func TestServiceApproveTaskTransitionsWaitingApprovalToQueued(t *testing.T) {
+	svc := NewService()
+
+	created, err := svc.Promote(context.Background(), PromoteRequest{
+		RequestID:        "req-4",
+		TenantID:         "tenant-1",
+		SessionID:        "session-1",
+		TaskType:         TaskTypeApprovedToolExecution,
+		Reason:           PromotionReasonApprovalRequired,
+		RequiresApproval: true,
+	})
+	if err != nil {
+		t.Fatalf("Promote() error = %v", err)
+	}
+
+	got, err := svc.ApproveTask(context.Background(), created.ID, "operator-1")
+	if err != nil {
+		t.Fatalf("ApproveTask() error = %v", err)
+	}
+	if got.Status != StatusQueued {
+		t.Fatalf("Status = %q, want %q", got.Status, StatusQueued)
+	}
+	if got.AuditRef != "approval:operator-1" {
+		t.Fatalf("AuditRef = %q, want %q", got.AuditRef, "approval:operator-1")
+	}
+}
+
+func TestServiceRetryTaskTransitionsFailedToQueued(t *testing.T) {
+	svc := NewService()
+
+	created, err := svc.Promote(context.Background(), PromoteRequest{
+		RequestID: "req-5",
+		TenantID:  "tenant-1",
+		SessionID: "session-1",
+		TaskType:  TaskTypeReportGeneration,
+		Reason:    PromotionReasonWorkflowRequired,
+	})
+	if err != nil {
+		t.Fatalf("Promote() error = %v", err)
+	}
+
+	created.Status = StatusFailed
+	created.ErrorReason = "boom"
+	if _, err := svc.UpdateTask(context.Background(), created); err != nil {
+		t.Fatalf("UpdateTask() error = %v", err)
+	}
+
+	got, err := svc.RetryTask(context.Background(), created.ID, "operator-2")
+	if err != nil {
+		t.Fatalf("RetryTask() error = %v", err)
+	}
+	if got.Status != StatusQueued {
+		t.Fatalf("Status = %q, want %q", got.Status, StatusQueued)
+	}
+	if got.ErrorReason != "" {
+		t.Fatalf("ErrorReason = %q, want empty", got.ErrorReason)
+	}
+	if got.AuditRef != "retry:operator-2" {
+		t.Fatalf("AuditRef = %q, want %q", got.AuditRef, "retry:operator-2")
+	}
+}

@@ -84,6 +84,8 @@ func (e *PlaceholderExecutor) Execute(_ context.Context, task Task) (ExecutionRe
 	switch task.TaskType {
 	case TaskTypeReportGeneration:
 		return ExecutionResult{AuditRef: "worker:placeholder_report_generation"}, nil
+	case TaskTypeApprovedToolExecution:
+		return ExecutionResult{AuditRef: "worker:placeholder_approved_tool_execution"}, nil
 	default:
 		return ExecutionResult{AuditRef: "worker:placeholder_failed"}, fmt.Errorf("unsupported task type: %s", task.TaskType)
 	}

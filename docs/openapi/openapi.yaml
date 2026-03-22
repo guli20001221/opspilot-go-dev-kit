@@ -260,6 +260,92 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
+  /api/v1/tasks/{task_id}/approve:
+    post:
+      summary: Approve a waiting task
+      description: |
+        Resumes a `waiting_approval` task back into the queued state so the worker can execute it.
+      operationId: approveTask
+      parameters:
+        - name: task_id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ApproveTaskRequest'
+      responses:
+        '200':
+          description: Task approved and re-queued.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Task'
+        '400':
+          description: Request body was invalid JSON.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Task not found.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '409':
+          description: Task is not in a valid state for approval.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+  /api/v1/tasks/{task_id}/retry:
+    post:
+      summary: Retry a failed task
+      description: |
+        Re-queues a `failed` task for another worker attempt and clears the prior error reason.
+      operationId: retryTask
+      parameters:
+        - name: task_id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RetryTaskRequest'
+      responses:
+        '200':
+          description: Task re-queued for retry.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Task'
+        '400':
+          description: Request body was invalid JSON.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Task not found.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '409':
+          description: Task is not in a valid state for retry.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
 components:
   schemas:
     StatusResponse:
@@ -362,6 +448,16 @@ components:
             - approval_required
         requires_approval:
           type: boolean
+    ApproveTaskRequest:
+      type: object
+      properties:
+        approved_by:
+          type: string
+    RetryTaskRequest:
+      type: object
+      properties:
+        retried_by:
+          type: string
     Task:
       type: object
       required:

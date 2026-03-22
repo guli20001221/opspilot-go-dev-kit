@@ -40,4 +40,5 @@ Current Milestone 1 slice:
 - `GET /api/v1/sessions/{session_id}/messages` for message listing
 - `POST /api/v1/tasks` for PostgreSQL-backed task creation
 - `GET /api/v1/tasks/{task_id}` for persisted task status lookup
+- `POST /api/v1/tasks/{task_id}/approve` and `POST /api/v1/tasks/{task_id}/retry` for minimal task actions
 - `POST /api/v1/chat/stream` with optional SSE `plan`, `retrieval`, `tool`, and `task_promoted` events ahead of `state -> done`

@@ -10,6 +10,9 @@ import (
 // ErrTaskNotFound identifies missing workflow task records.
 var ErrTaskNotFound = errors.New("workflow task not found")
 
+// ErrInvalidTaskTransition identifies unsupported task state changes.
+var ErrInvalidTaskTransition = errors.New("invalid workflow task transition")
+
 // TaskStore persists workflow task records.
 type TaskStore interface {
 	SaveTask(ctx context.Context, task Task) (Task, error)
@@ -74,4 +77,38 @@ func (s *Service) ClaimQueuedTasks(ctx context.Context, limit int) ([]Task, erro
 func (s *Service) UpdateTask(ctx context.Context, task Task) (Task, error) {
 	task.UpdatedAt = time.Now().UTC()
 	return s.store.UpdateTask(ctx, task)
+}
+
+// ApproveTask resumes a waiting-approval task into the queued state.
+func (s *Service) ApproveTask(ctx context.Context, taskID string, approvedBy string) (Task, error) {
+	task, err := s.store.GetTask(ctx, taskID)
+	if err != nil {
+		return Task{}, err
+	}
+	if task.Status != StatusWaitingApproval {
+		return Task{}, fmt.Errorf("%w: approve from %s", ErrInvalidTaskTransition, task.Status)
+	}
+
+	task.Status = StatusQueued
+	task.ErrorReason = ""
+	task.AuditRef = fmt.Sprintf("approval:%s", approvedBy)
+
+	return s.UpdateTask(ctx, task)
+}
+
+// RetryTask re-queues a failed task for another worker attempt.
+func (s *Service) RetryTask(ctx context.Context, taskID string, retriedBy string) (Task, error) {
+	task, err := s.store.GetTask(ctx, taskID)
+	if err != nil {
+		return Task{}, err
+	}
+	if task.Status != StatusFailed {
+		return Task{}, fmt.Errorf("%w: retry from %s", ErrInvalidTaskTransition, task.Status)
+	}
+
+	task.Status = StatusQueued
+	task.ErrorReason = ""
+	task.AuditRef = fmt.Sprintf("retry:%s", retriedBy)
+
+	return s.UpdateTask(ctx, task)
 }

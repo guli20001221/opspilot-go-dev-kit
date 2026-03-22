@@ -37,6 +37,7 @@ Keep the HTTP surface explicit, documented, stable, and friendly to streaming ag
 6. Update OpenAPI and handler tests together.
 7. If asynchronous job creation is involved, return stable job ids and status endpoints.
 8. If sync flows can promote work into async tasks, keep the task id stable across SSE events and REST lookup endpoints.
+9. Task action endpoints such as approve or retry should surface invalid state transitions as explicit 409-style contract errors.
 
 ## Output contract
 When you finish, always report:

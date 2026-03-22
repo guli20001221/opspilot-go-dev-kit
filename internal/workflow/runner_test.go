@@ -103,3 +103,35 @@ func TestRunnerSkipsWaitingApprovalTasks(t *testing.T) {
 		t.Fatalf("Status = %q, want %q", got.Status, StatusWaitingApproval)
 	}
 }
+
+func TestRunnerProcessesApprovedTaskAfterApproval(t *testing.T) {
+	svc := NewService()
+	runner := NewRunner(svc, NewPlaceholderExecutor())
+
+	created, err := svc.Promote(context.Background(), PromoteRequest{
+		RequestID:        "req-4",
+		TenantID:         "tenant-1",
+		SessionID:        "session-1",
+		TaskType:         TaskTypeApprovedToolExecution,
+		Reason:           PromotionReasonApprovalRequired,
+		RequiresApproval: true,
+	})
+	if err != nil {
+		t.Fatalf("Promote() error = %v", err)
+	}
+
+	if _, err := svc.ApproveTask(context.Background(), created.ID, "operator-1"); err != nil {
+		t.Fatalf("ApproveTask() error = %v", err)
+	}
+	if _, err := runner.ProcessNextBatch(context.Background(), 10); err != nil {
+		t.Fatalf("ProcessNextBatch() error = %v", err)
+	}
+
+	got, err := svc.GetTask(context.Background(), created.ID)
+	if err != nil {
+		t.Fatalf("GetTask() error = %v", err)
+	}
+	if got.Status != StatusSucceeded {
+		t.Fatalf("Status = %q, want %q", got.Status, StatusSucceeded)
+	}
+}

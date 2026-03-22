@@ -43,10 +43,13 @@ The current HTTP layer also exposes the same PostgreSQL-backed workflow records 
 
 - `POST /api/v1/tasks` for explicit async task creation
 - `GET /api/v1/tasks/{task_id}` for task status lookup
+- `POST /api/v1/tasks/{task_id}/approve` to resume approval-gated tasks
+- `POST /api/v1/tasks/{task_id}/retry` to re-queue failed tasks
 
 The current worker path advances supported queued tasks through:
 
 - `queued -> running -> succeeded` for placeholder report generation
+- `waiting_approval -> queued -> running -> succeeded` for placeholder approved tool execution after approval
 - `queued -> running -> failed` for unsupported task types
 - `waiting_approval` tasks remain paused until a later approval flow lands
 

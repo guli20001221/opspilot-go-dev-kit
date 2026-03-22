@@ -41,6 +41,7 @@ Move long-running, retryable, or approval-gated work into a durable workflow lay
 8. Document recovery and replay procedures in runbooks.
 9. Before full Temporal execution exists, land durable task records in storage so async promotion is externally visible.
 10. If using a placeholder worker before Temporal, make task-state progression explicit and observable rather than leaving tasks stuck in queued.
+11. Approval and retry endpoints should reject invalid task states explicitly rather than silently rewriting state.
 
 ## Output contract
 When you finish, always report:
