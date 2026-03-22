@@ -3,6 +3,7 @@ package workflow
 import (
 	"context"
 	"fmt"
+	"time"
 )
 
 // ExecutionResult captures the worker-visible outcome metadata.
@@ -44,16 +45,6 @@ func (r *Runner) ProcessNextBatch(ctx context.Context, limit int) (int, error) {
 	}
 
 	for _, task := range tasks {
-		if _, err := r.service.store.AppendTaskEvent(ctx, AuditEvent{
-			TaskID:    task.ID,
-			Action:    AuditActionClaimed,
-			Actor:     "worker",
-			Detail:    task.Status,
-			CreatedAt: task.UpdatedAt,
-		}); err != nil {
-			return 0, err
-		}
-
 		result, execErr := r.executor.Execute(ctx, task)
 		action := AuditActionSucceeded
 		if execErr != nil {
@@ -67,16 +58,13 @@ func (r *Runner) ProcessNextBatch(ctx context.Context, limit int) (int, error) {
 			task.AuditRef = fallbackAuditRef(result.AuditRef, "worker:placeholder_succeeded")
 		}
 
-		updated, err := r.service.UpdateTask(ctx, task)
-		if err != nil {
-			return 0, err
-		}
-		if _, err := r.service.store.AppendTaskEvent(ctx, AuditEvent{
-			TaskID:    updated.ID,
+		task.UpdatedAt = time.Now().UTC()
+		if _, err := r.service.store.UpdateTaskWithEvent(ctx, task, AuditEvent{
+			TaskID:    task.ID,
 			Action:    action,
 			Actor:     "worker",
-			Detail:    fallbackAuditRef(updated.ErrorReason, updated.Status),
-			CreatedAt: updated.UpdatedAt,
+			Detail:    fallbackAuditRef(task.ErrorReason, task.Status),
+			CreatedAt: task.UpdatedAt,
 		}); err != nil {
 			return 0, err
 		}

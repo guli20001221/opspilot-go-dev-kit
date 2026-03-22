@@ -16,9 +16,11 @@ var ErrInvalidTaskTransition = errors.New("invalid workflow task transition")
 // TaskStore persists workflow task records.
 type TaskStore interface {
 	SaveTask(ctx context.Context, task Task) (Task, error)
+	CreateTaskWithEvent(ctx context.Context, task Task, event AuditEvent) (Task, error)
 	GetTask(ctx context.Context, taskID string) (Task, error)
 	ClaimQueuedTasks(ctx context.Context, limit int) ([]Task, error)
 	UpdateTask(ctx context.Context, task Task) (Task, error)
+	UpdateTaskWithEvent(ctx context.Context, task Task, event AuditEvent) (Task, error)
 	AppendTaskEvent(ctx context.Context, event AuditEvent) (AuditEvent, error)
 	ListTaskEvents(ctx context.Context, taskID string) ([]AuditEvent, error)
 }
@@ -62,18 +64,14 @@ func (s *Service) Promote(ctx context.Context, req PromoteRequest) (Task, error)
 		task.Status = StatusWaitingApproval
 	}
 
-	created, err := s.store.SaveTask(ctx, task)
-	if err != nil {
-		return Task{}, err
-	}
-
-	if _, err := s.store.AppendTaskEvent(ctx, AuditEvent{
-		TaskID:    created.ID,
+	created, err := s.store.CreateTaskWithEvent(ctx, task, AuditEvent{
+		TaskID:    task.ID,
 		Action:    AuditActionCreated,
 		Actor:     "api",
-		Detail:    created.Status,
+		Detail:    task.Status,
 		CreatedAt: now,
-	}); err != nil {
+	})
+	if err != nil {
 		return Task{}, err
 	}
 
@@ -110,18 +108,15 @@ func (s *Service) ApproveTask(ctx context.Context, taskID string, approvedBy str
 	task.ErrorReason = ""
 	task.AuditRef = fmt.Sprintf("approval:%s", approvedBy)
 
-	updated, err := s.UpdateTask(ctx, task)
-	if err != nil {
-		return Task{}, err
-	}
-
-	if _, err := s.store.AppendTaskEvent(ctx, AuditEvent{
-		TaskID:    updated.ID,
+	task.UpdatedAt = time.Now().UTC()
+	updated, err := s.store.UpdateTaskWithEvent(ctx, task, AuditEvent{
+		TaskID:    task.ID,
 		Action:    AuditActionApproved,
 		Actor:     approvedBy,
-		Detail:    updated.Status,
-		CreatedAt: updated.UpdatedAt,
-	}); err != nil {
+		Detail:    task.Status,
+		CreatedAt: task.UpdatedAt,
+	})
+	if err != nil {
 		return Task{}, err
 	}
 
@@ -142,18 +137,15 @@ func (s *Service) RetryTask(ctx context.Context, taskID string, retriedBy string
 	task.ErrorReason = ""
 	task.AuditRef = fmt.Sprintf("retry:%s", retriedBy)
 
-	updated, err := s.UpdateTask(ctx, task)
-	if err != nil {
-		return Task{}, err
-	}
-
-	if _, err := s.store.AppendTaskEvent(ctx, AuditEvent{
-		TaskID:    updated.ID,
+	task.UpdatedAt = time.Now().UTC()
+	updated, err := s.store.UpdateTaskWithEvent(ctx, task, AuditEvent{
+		TaskID:    task.ID,
 		Action:    AuditActionRetried,
 		Actor:     retriedBy,
-		Detail:    updated.Status,
-		CreatedAt: updated.UpdatedAt,
-	}); err != nil {
+		Detail:    task.Status,
+		CreatedAt: task.UpdatedAt,
+	})
+	if err != nil {
 		return Task{}, err
 	}
 

@@ -26,8 +26,8 @@ func TestWorkflowTaskStoreRoundTrip(t *testing.T) {
 	defer pool.Close()
 
 	applyMigration(t, ctx, pool)
-	if _, err := pool.Exec(ctx, "TRUNCATE workflow_tasks"); err != nil {
-		t.Fatalf("TRUNCATE workflow_tasks error = %v", err)
+	if _, err := pool.Exec(ctx, "TRUNCATE workflow_task_events, workflow_tasks RESTART IDENTITY"); err != nil {
+		t.Fatalf("TRUNCATE workflow_task_events, workflow_tasks error = %v", err)
 	}
 
 	store := NewWorkflowTaskStore(pool)
@@ -81,8 +81,8 @@ func TestWorkflowTaskStoreClaimAndUpdate(t *testing.T) {
 	defer pool.Close()
 
 	applyMigration(t, ctx, pool)
-	if _, err := pool.Exec(ctx, "TRUNCATE workflow_tasks"); err != nil {
-		t.Fatalf("TRUNCATE workflow_tasks error = %v", err)
+	if _, err := pool.Exec(ctx, "TRUNCATE workflow_task_events, workflow_tasks RESTART IDENTITY"); err != nil {
+		t.Fatalf("TRUNCATE workflow_task_events, workflow_tasks error = %v", err)
 	}
 
 	store := NewWorkflowTaskStore(pool)
@@ -214,6 +214,178 @@ func TestWorkflowTaskStoreAppendAndListTaskEvents(t *testing.T) {
 	}
 	if events[1].Action != workflow.AuditActionSucceeded {
 		t.Fatalf("events[1].Action = %q, want %q", events[1].Action, workflow.AuditActionSucceeded)
+	}
+}
+
+func TestWorkflowTaskStoreCreateTaskWithEventPersistsBoth(t *testing.T) {
+	dsn := os.Getenv("OPSPILOT_TEST_POSTGRES_DSN")
+	if dsn == "" {
+		t.Skip("OPSPILOT_TEST_POSTGRES_DSN not set")
+	}
+
+	ctx := context.Background()
+	pool, err := OpenPool(ctx, dsn)
+	if err != nil {
+		t.Fatalf("OpenPool() error = %v", err)
+	}
+	defer pool.Close()
+
+	applyMigration(t, ctx, pool)
+	if _, err := pool.Exec(ctx, "TRUNCATE workflow_task_events, workflow_tasks RESTART IDENTITY"); err != nil {
+		t.Fatalf("TRUNCATE workflow_task_events, workflow_tasks error = %v", err)
+	}
+
+	store := NewWorkflowTaskStore(pool)
+	task := workflow.Task{
+		ID:               "task-create-with-event",
+		RequestID:        "req-create-with-event",
+		TenantID:         "tenant-1",
+		SessionID:        "session-1",
+		TaskType:         workflow.TaskTypeReportGeneration,
+		Status:           workflow.StatusQueued,
+		Reason:           workflow.PromotionReasonWorkflowRequired,
+		RequiresApproval: false,
+		CreatedAt:        time.Unix(1700000020, 0).UTC(),
+		UpdatedAt:        time.Unix(1700000020, 0).UTC(),
+	}
+	event := workflow.AuditEvent{
+		TaskID:    task.ID,
+		Action:    workflow.AuditActionCreated,
+		Actor:     "api",
+		Detail:    workflow.StatusQueued,
+		CreatedAt: task.CreatedAt,
+	}
+
+	if _, err := store.CreateTaskWithEvent(ctx, task, event); err != nil {
+		t.Fatalf("CreateTaskWithEvent() error = %v", err)
+	}
+
+	events, err := store.ListTaskEvents(ctx, task.ID)
+	if err != nil {
+		t.Fatalf("ListTaskEvents() error = %v", err)
+	}
+	if len(events) != 1 {
+		t.Fatalf("len(events) = %d, want %d", len(events), 1)
+	}
+}
+
+func TestWorkflowTaskStoreUpdateTaskWithEventPersistsBoth(t *testing.T) {
+	dsn := os.Getenv("OPSPILOT_TEST_POSTGRES_DSN")
+	if dsn == "" {
+		t.Skip("OPSPILOT_TEST_POSTGRES_DSN not set")
+	}
+
+	ctx := context.Background()
+	pool, err := OpenPool(ctx, dsn)
+	if err != nil {
+		t.Fatalf("OpenPool() error = %v", err)
+	}
+	defer pool.Close()
+
+	applyMigration(t, ctx, pool)
+	if _, err := pool.Exec(ctx, "TRUNCATE workflow_task_events, workflow_tasks RESTART IDENTITY"); err != nil {
+		t.Fatalf("TRUNCATE workflow_task_events, workflow_tasks error = %v", err)
+	}
+
+	store := NewWorkflowTaskStore(pool)
+	task := workflow.Task{
+		ID:               "task-update-with-event",
+		RequestID:        "req-update-with-event",
+		TenantID:         "tenant-1",
+		SessionID:        "session-1",
+		TaskType:         workflow.TaskTypeReportGeneration,
+		Status:           workflow.StatusQueued,
+		Reason:           workflow.PromotionReasonWorkflowRequired,
+		RequiresApproval: false,
+		CreatedAt:        time.Unix(1700000030, 0).UTC(),
+		UpdatedAt:        time.Unix(1700000030, 0).UTC(),
+	}
+	if _, err := store.SaveTask(ctx, task); err != nil {
+		t.Fatalf("SaveTask() error = %v", err)
+	}
+
+	task.Status = workflow.StatusSucceeded
+	task.UpdatedAt = time.Unix(1700000031, 0).UTC()
+	event := workflow.AuditEvent{
+		TaskID:    task.ID,
+		Action:    workflow.AuditActionSucceeded,
+		Actor:     "worker",
+		Detail:    workflow.StatusSucceeded,
+		CreatedAt: task.UpdatedAt,
+	}
+
+	if _, err := store.UpdateTaskWithEvent(ctx, task, event); err != nil {
+		t.Fatalf("UpdateTaskWithEvent() error = %v", err)
+	}
+
+	loaded, err := store.GetTask(ctx, task.ID)
+	if err != nil {
+		t.Fatalf("GetTask() error = %v", err)
+	}
+	if loaded.Status != workflow.StatusSucceeded {
+		t.Fatalf("loaded.Status = %q, want %q", loaded.Status, workflow.StatusSucceeded)
+	}
+	events, err := store.ListTaskEvents(ctx, task.ID)
+	if err != nil {
+		t.Fatalf("ListTaskEvents() error = %v", err)
+	}
+	if len(events) != 1 {
+		t.Fatalf("len(events) = %d, want %d", len(events), 1)
+	}
+}
+
+func TestWorkflowTaskStoreClaimQueuedTasksAppendsClaimedEvent(t *testing.T) {
+	dsn := os.Getenv("OPSPILOT_TEST_POSTGRES_DSN")
+	if dsn == "" {
+		t.Skip("OPSPILOT_TEST_POSTGRES_DSN not set")
+	}
+
+	ctx := context.Background()
+	pool, err := OpenPool(ctx, dsn)
+	if err != nil {
+		t.Fatalf("OpenPool() error = %v", err)
+	}
+	defer pool.Close()
+
+	applyMigration(t, ctx, pool)
+	if _, err := pool.Exec(ctx, "TRUNCATE workflow_task_events, workflow_tasks RESTART IDENTITY"); err != nil {
+		t.Fatalf("TRUNCATE workflow_task_events, workflow_tasks error = %v", err)
+	}
+
+	store := NewWorkflowTaskStore(pool)
+	task := workflow.Task{
+		ID:               "task-claim-with-event",
+		RequestID:        "req-claim-with-event",
+		TenantID:         "tenant-1",
+		SessionID:        "session-1",
+		TaskType:         workflow.TaskTypeReportGeneration,
+		Status:           workflow.StatusQueued,
+		Reason:           workflow.PromotionReasonWorkflowRequired,
+		RequiresApproval: false,
+		CreatedAt:        time.Unix(1700000040, 0).UTC(),
+		UpdatedAt:        time.Unix(1700000040, 0).UTC(),
+	}
+	if _, err := store.SaveTask(ctx, task); err != nil {
+		t.Fatalf("SaveTask() error = %v", err)
+	}
+
+	claimed, err := store.ClaimQueuedTasks(ctx, 1)
+	if err != nil {
+		t.Fatalf("ClaimQueuedTasks() error = %v", err)
+	}
+	if len(claimed) != 1 {
+		t.Fatalf("len(claimed) = %d, want %d", len(claimed), 1)
+	}
+
+	events, err := store.ListTaskEvents(ctx, task.ID)
+	if err != nil {
+		t.Fatalf("ListTaskEvents() error = %v", err)
+	}
+	if len(events) != 1 {
+		t.Fatalf("len(events) = %d, want %d", len(events), 1)
+	}
+	if events[0].Action != workflow.AuditActionClaimed {
+		t.Fatalf("events[0].Action = %q, want %q", events[0].Action, workflow.AuditActionClaimed)
 	}
 }
 

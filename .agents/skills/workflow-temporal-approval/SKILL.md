@@ -43,6 +43,7 @@ Move long-running, retryable, or approval-gated work into a durable workflow lay
 10. If using a placeholder worker before Temporal, make task-state progression explicit and observable rather than leaving tasks stuck in queued.
 11. Approval and retry endpoints should reject invalid task states explicitly rather than silently rewriting state.
 12. Prefer structured task audit events over opaque audit strings when exposing operator-facing task history.
+13. When task status changes and task audit events are both persisted, write them in one storage transaction rather than as separate best-effort calls.
 
 ## Output contract
 When you finish, always report:

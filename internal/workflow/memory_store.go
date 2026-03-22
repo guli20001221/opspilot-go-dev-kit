@@ -33,6 +33,18 @@ func (s *MemoryStore) SaveTask(_ context.Context, task Task) (Task, error) {
 	return task, nil
 }
 
+// CreateTaskWithEvent writes a task and its initial audit event atomically.
+func (s *MemoryStore) CreateTaskWithEvent(_ context.Context, task Task, event AuditEvent) (Task, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	s.tasks[task.ID] = task
+	s.nextEventID++
+	event.ID = s.nextEventID
+	s.events[event.TaskID] = append(s.events[event.TaskID], event)
+	return task, nil
+}
+
 // GetTask loads a task from the in-memory store.
 func (s *MemoryStore) GetTask(_ context.Context, taskID string) (Task, error) {
 	s.mu.RLock()
@@ -75,6 +87,15 @@ func (s *MemoryStore) ClaimQueuedTasks(_ context.Context, limit int) ([]Task, er
 		queued[i].Status = StatusRunning
 		queued[i].UpdatedAt = now
 		s.tasks[queued[i].ID] = queued[i]
+		s.nextEventID++
+		s.events[queued[i].ID] = append(s.events[queued[i].ID], AuditEvent{
+			ID:        s.nextEventID,
+			TaskID:    queued[i].ID,
+			Action:    AuditActionClaimed,
+			Actor:     "worker",
+			Detail:    queued[i].Status,
+			CreatedAt: queued[i].UpdatedAt,
+		})
 	}
 
 	return queued, nil
@@ -90,6 +111,22 @@ func (s *MemoryStore) UpdateTask(_ context.Context, task Task) (Task, error) {
 	}
 
 	s.tasks[task.ID] = task
+	return task, nil
+}
+
+// UpdateTaskWithEvent overwrites a task and appends an audit event atomically.
+func (s *MemoryStore) UpdateTaskWithEvent(_ context.Context, task Task, event AuditEvent) (Task, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	if _, ok := s.tasks[task.ID]; !ok {
+		return Task{}, fmt.Errorf("%w: %s", ErrTaskNotFound, task.ID)
+	}
+
+	s.tasks[task.ID] = task
+	s.nextEventID++
+	event.ID = s.nextEventID
+	s.events[event.TaskID] = append(s.events[event.TaskID], event)
 	return task, nil
 }
 
