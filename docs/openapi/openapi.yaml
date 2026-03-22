@@ -223,6 +223,18 @@ paths:
           required: false
           schema:
             type: boolean
+        - name: created_after
+          in: query
+          required: false
+          schema:
+            type: string
+            format: date-time
+        - name: created_before
+          in: query
+          required: false
+          schema:
+            type: string
+            format: date-time
         - name: limit
           in: query
           required: false

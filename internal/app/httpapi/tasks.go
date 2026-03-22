@@ -259,6 +259,20 @@ func parseTaskListFilter(r *http.Request) (workflow.TaskListFilter, error) {
 		}
 		filter.RequiresApproval = &requiresApproval
 	}
+	if rawCreatedAfter := r.URL.Query().Get("created_after"); rawCreatedAfter != "" {
+		createdAfter, err := time.Parse(time.RFC3339Nano, rawCreatedAfter)
+		if err != nil {
+			return workflow.TaskListFilter{}, errors.New("created_after must be an RFC3339 timestamp")
+		}
+		filter.CreatedAfter = &createdAfter
+	}
+	if rawCreatedBefore := r.URL.Query().Get("created_before"); rawCreatedBefore != "" {
+		createdBefore, err := time.Parse(time.RFC3339Nano, rawCreatedBefore)
+		if err != nil {
+			return workflow.TaskListFilter{}, errors.New("created_before must be an RFC3339 timestamp")
+		}
+		filter.CreatedBefore = &createdBefore
+	}
 
 	return filter, nil
 }

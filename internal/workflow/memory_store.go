@@ -183,6 +183,12 @@ func (s *MemoryStore) ListTasks(_ context.Context, filter TaskListFilter) (TaskL
 		if filter.RequiresApproval != nil && task.RequiresApproval != *filter.RequiresApproval {
 			continue
 		}
+		if filter.CreatedAfter != nil && !task.CreatedAt.After(*filter.CreatedAfter) {
+			continue
+		}
+		if filter.CreatedBefore != nil && !task.CreatedAt.Before(*filter.CreatedBefore) {
+			continue
+		}
 		out = append(out, task)
 	}
 

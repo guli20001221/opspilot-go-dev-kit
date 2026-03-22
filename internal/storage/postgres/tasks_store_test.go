@@ -305,6 +305,86 @@ func TestWorkflowTaskStoreListTasksSupportsReasonAndApprovalFilters(t *testing.T
 	}
 }
 
+func TestWorkflowTaskStoreListTasksSupportsCreatedAtWindowFilters(t *testing.T) {
+	dsn := os.Getenv("OPSPILOT_TEST_POSTGRES_DSN")
+	if dsn == "" {
+		t.Skip("OPSPILOT_TEST_POSTGRES_DSN not set")
+	}
+
+	ctx := context.Background()
+	pool, err := OpenPool(ctx, dsn)
+	if err != nil {
+		t.Fatalf("OpenPool() error = %v", err)
+	}
+	defer pool.Close()
+
+	applyMigration(t, ctx, pool)
+	if _, err := pool.Exec(ctx, "TRUNCATE workflow_task_events, workflow_tasks RESTART IDENTITY"); err != nil {
+		t.Fatalf("TRUNCATE workflow_task_events, workflow_tasks error = %v", err)
+	}
+
+	store := NewWorkflowTaskStore(pool)
+	firstCreatedAt := time.Unix(1700000400, 0).UTC()
+	secondCreatedAt := time.Unix(1700000401, 0).UTC()
+	thirdCreatedAt := time.Unix(1700000402, 0).UTC()
+	tasks := []workflow.Task{
+		{
+			ID:        "task-time-1",
+			RequestID: "req-time-1",
+			TenantID:  "tenant-time",
+			SessionID: "session-time-1",
+			TaskType:  workflow.TaskTypeReportGeneration,
+			Status:    workflow.StatusQueued,
+			Reason:    workflow.PromotionReasonWorkflowRequired,
+			CreatedAt: firstCreatedAt,
+			UpdatedAt: firstCreatedAt,
+		},
+		{
+			ID:        "task-time-2",
+			RequestID: "req-time-2",
+			TenantID:  "tenant-time",
+			SessionID: "session-time-2",
+			TaskType:  workflow.TaskTypeApprovedToolExecution,
+			Status:    workflow.StatusQueued,
+			Reason:    workflow.PromotionReasonApprovalRequired,
+			CreatedAt: secondCreatedAt,
+			UpdatedAt: secondCreatedAt,
+		},
+		{
+			ID:        "task-time-3",
+			RequestID: "req-time-3",
+			TenantID:  "tenant-time",
+			SessionID: "session-time-3",
+			TaskType:  workflow.TaskTypeReportGeneration,
+			Status:    workflow.StatusQueued,
+			Reason:    workflow.PromotionReasonWorkflowRequired,
+			CreatedAt: thirdCreatedAt,
+			UpdatedAt: thirdCreatedAt,
+		},
+	}
+	for _, task := range tasks {
+		if _, err := store.SaveTask(ctx, task); err != nil {
+			t.Fatalf("SaveTask(%s) error = %v", task.ID, err)
+		}
+	}
+
+	got, err := store.ListTasks(ctx, workflow.TaskListFilter{
+		TenantID:      "tenant-time",
+		CreatedAfter:  timePtr(firstCreatedAt),
+		CreatedBefore: timePtr(thirdCreatedAt),
+		Limit:         10,
+	})
+	if err != nil {
+		t.Fatalf("ListTasks() error = %v", err)
+	}
+	if len(got.Tasks) != 1 {
+		t.Fatalf("len(ListTasks().Tasks) = %d, want %d", len(got.Tasks), 1)
+	}
+	if got.Tasks[0].ID != "task-time-2" {
+		t.Fatalf("ListTasks().Tasks[0].ID = %q, want %q", got.Tasks[0].ID, "task-time-2")
+	}
+}
+
 func TestWorkflowTaskStoreListTasksSupportsOffsetPagination(t *testing.T) {
 	dsn := os.Getenv("OPSPILOT_TEST_POSTGRES_DSN")
 	if dsn == "" {
@@ -649,5 +729,9 @@ func applyMigration(t *testing.T, ctx context.Context, pool *pgxpool.Pool) {
 }
 
 func boolPtr(v bool) *bool {
+	return &v
+}
+
+func timePtr(v time.Time) *time.Time {
 	return &v
 }

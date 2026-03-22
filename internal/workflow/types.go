@@ -90,6 +90,8 @@ type TaskListFilter struct {
 	TaskType         string
 	Reason           string
 	RequiresApproval *bool
+	CreatedAfter     *time.Time
+	CreatedBefore    *time.Time
 	Limit            int
 	Offset           int
 }
