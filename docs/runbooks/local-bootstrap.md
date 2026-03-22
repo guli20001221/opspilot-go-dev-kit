@@ -49,6 +49,7 @@ The current chat stream implementation is a Milestone 1 skeleton:
 - `report_generation` is executed through a Temporal workflow on the `opspilot-report-tasks` queue when Temporal is enabled
 - `approved_tool_execution` now starts a waiting Temporal workflow at task creation time and is resumed by the worker after the approval action updates the task row
 - if `approved_tool_execution` fails after approval, the current Temporal run closes, the task row moves to `failed`, and `POST /api/v1/tasks/{task_id}/retry` starts a new failed-only Temporal run for the same task
+- set `OPSPILOT_APPROVED_TOOL_FAIL_ON_APPROVE=true` on the worker to force the first approval attempt to fail while keeping retry successful
 - approval-gated tasks can be resumed through the approval action endpoint
 - failed tasks can be re-queued through the retry action endpoint
 - task responses now include structured `audit_events`
@@ -81,6 +82,13 @@ The expected progression is:
 - the worker claims it again
 - the Temporal run referenced by `audit_ref` changes to a new run ID for the same `task_id`
 - `audit_events` grows with `retried`, `claimed`, and the terminal action
+
+To force this path locally without changing code, recreate only the worker with:
+
+```powershell
+$env:OPSPILOT_APPROVED_TOOL_FAIL_ON_APPROVE = "true"
+docker compose up -d --force-recreate worker
+```
 
 ## Current gaps
 

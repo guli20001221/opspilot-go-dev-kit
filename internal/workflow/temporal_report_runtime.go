@@ -46,6 +46,13 @@ type ApprovedToolWorkflowInput struct {
 	SessionID string
 }
 
+// ApprovedToolActivityInput carries workflow identity plus the current action
+// into the approved-tool activity.
+type ApprovedToolActivityInput struct {
+	Workflow ApprovedToolWorkflowInput
+	Signal   ApprovedToolSignal
+}
+
 // ApprovedToolSignal carries the approval or retry signal actor into the workflow.
 type ApprovedToolSignal struct {
 	Action string
@@ -85,8 +92,9 @@ type TemporalReportRunner struct {
 
 // TemporalApprovedToolRunner manages approval-gated tool workflows in Temporal.
 type TemporalApprovedToolRunner struct {
-	client    temporalclient.Client
-	taskQueue string
+	client     temporalclient.Client
+	taskQueue  string
+	activities *ApprovedToolActivities
 }
 
 // NewTemporalReportRunner constructs a Temporal-backed report runner.
@@ -99,9 +107,20 @@ func NewTemporalReportRunner(client temporalclient.Client, taskQueue string) *Te
 
 // NewTemporalApprovedToolRunner constructs a Temporal-backed approval workflow runner.
 func NewTemporalApprovedToolRunner(client temporalclient.Client, taskQueue string) *TemporalApprovedToolRunner {
+	return NewTemporalApprovedToolRunnerWithActivities(client, taskQueue, &ApprovedToolActivities{})
+}
+
+// NewTemporalApprovedToolRunnerWithActivities constructs a Temporal-backed
+// approval workflow runner with caller-provided activity behavior.
+func NewTemporalApprovedToolRunnerWithActivities(client temporalclient.Client, taskQueue string, activities *ApprovedToolActivities) *TemporalApprovedToolRunner {
+	if activities == nil {
+		activities = &ApprovedToolActivities{}
+	}
+
 	return &TemporalApprovedToolRunner{
-		client:    client,
-		taskQueue: taskQueue,
+		client:     client,
+		taskQueue:  taskQueue,
+		activities: activities,
 	}
 }
 
@@ -191,7 +210,7 @@ func (r *TemporalApprovedToolRunner) ContinueApprovedToolWorkflow(ctx context.Co
 // Register registers the approval-gated workflow and its activities on a Temporal worker.
 func (r *TemporalApprovedToolRunner) Register(w temporalworker.Worker) {
 	w.RegisterWorkflow(ApprovedToolExecutionWorkflow)
-	w.RegisterActivity((&ApprovedToolActivities{}).ExecuteApprovedTool)
+	w.RegisterActivity(r.activities.ExecuteApprovedTool)
 }
 
 // NewTemporalWorker constructs a Temporal worker for the configured task queue.
@@ -250,7 +269,10 @@ func ApprovedToolExecutionWorkflow(ctx temporalworkflow.Context, input ApprovedT
 
 	var activities *ApprovedToolActivities
 	var result ApprovedToolWorkflowResult
-	if err := temporalworkflow.ExecuteActivity(ctx, activities.ExecuteApprovedTool, input).Get(ctx, &result); err != nil {
+	if err := temporalworkflow.ExecuteActivity(ctx, activities.ExecuteApprovedTool, ApprovedToolActivityInput{
+		Workflow: input,
+		Signal:   signal,
+	}).Get(ctx, &result); err != nil {
 		return ApprovedToolWorkflowResult{}, err
 	}
 
@@ -258,12 +280,22 @@ func ApprovedToolExecutionWorkflow(ctx temporalworkflow.Context, input ApprovedT
 }
 
 // ApprovedToolActivities contains the activity implementations for approved-tool workflows.
-type ApprovedToolActivities struct{}
+type ApprovedToolActivities struct {
+	FailOnApprove bool
+}
 
 // ExecuteApprovedTool is the placeholder approved-tool activity.
-func (a *ApprovedToolActivities) ExecuteApprovedTool(_ context.Context, input ApprovedToolWorkflowInput) (ApprovedToolWorkflowResult, error) {
+func (a *ApprovedToolActivities) ExecuteApprovedTool(_ context.Context, input ApprovedToolActivityInput) (ApprovedToolWorkflowResult, error) {
+	if a.FailOnApprove && input.Signal.Action == "approve" {
+		return ApprovedToolWorkflowResult{}, temporal.NewNonRetryableApplicationError(
+			fmt.Sprintf("fault injection: approved tool failed on %s for %s", input.Signal.Action, input.Workflow.TaskID),
+			"approved_tool_fault_injection",
+			nil,
+		)
+	}
+
 	return ApprovedToolWorkflowResult{
-		Executed: fmt.Sprintf("approved-tool:%s", input.TaskID),
+		Executed: fmt.Sprintf("approved-tool:%s", input.Workflow.TaskID),
 	}, nil
 }
 

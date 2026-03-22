@@ -53,7 +53,9 @@ func main() {
 		defer temporalClient.Close()
 
 		reportRunner := workflow.NewTemporalReportRunner(temporalClient, cfg.TemporalTaskQueue)
-		approvedToolRunner := workflow.NewTemporalApprovedToolRunner(temporalClient, cfg.TemporalTaskQueue)
+		approvedToolRunner := workflow.NewTemporalApprovedToolRunnerWithActivities(temporalClient, cfg.TemporalTaskQueue, &workflow.ApprovedToolActivities{
+			FailOnApprove: cfg.ApprovedToolFailOnApprove,
+		})
 		temporalWorker = workflow.NewTemporalWorker(temporalClient, cfg.TemporalTaskQueue, reportRunner, approvedToolRunner)
 		if err := temporalWorker.Start(); err != nil {
 			logger.Error("start temporal worker", slog.Any("error", err))
@@ -66,6 +68,7 @@ func main() {
 			slog.String("address", cfg.TemporalAddress),
 			slog.String("namespace", cfg.TemporalNamespace),
 			slog.String("task_queue", cfg.TemporalTaskQueue),
+			slog.Bool("approved_tool_fail_on_approve", cfg.ApprovedToolFailOnApprove),
 		)
 	}
 

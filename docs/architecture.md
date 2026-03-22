@@ -32,6 +32,7 @@ The current Milestone 1 slice adds:
 - `internal/app/httpapi` as a thin transport layer over the session and chat services
 - `cmd/api` for task creation plus Temporal-backed approval-workflow initialization
 - `cmd/worker` plus `internal/workflow.Runner` for PostgreSQL-backed task claiming, Temporal report execution, and Temporal approval-workflow continuation and recovery
+- the worker can optionally enable a dev-only approved-tool fault-injection path through configuration to verify failure and retry recovery
 
 The current synchronous chat stream now surfaces internal runtime milestones over SSE:
 

@@ -8,45 +8,48 @@ import (
 )
 
 const (
-	defaultEnv                   = "development"
-	defaultLogLevel              = "INFO"
-	defaultAPIListenAddr         = ":8080"
-	defaultPostgresDSN           = "postgres://opspilot:opspilot@localhost:5432/opspilot?sslmode=disable"
-	defaultTemporalEnabled       = false
-	defaultTemporalAddress       = "localhost:7233"
-	defaultTemporalNamespace     = "default"
-	defaultTemporalTaskQueue     = "opspilot-report-tasks"
-	defaultWorkerPollInterval    = 1 * time.Second
-	defaultWorkerShutdownTimeout = 10 * time.Second
+	defaultEnv                       = "development"
+	defaultLogLevel                  = "INFO"
+	defaultAPIListenAddr             = ":8080"
+	defaultPostgresDSN               = "postgres://opspilot:opspilot@localhost:5432/opspilot?sslmode=disable"
+	defaultTemporalEnabled           = false
+	defaultTemporalAddress           = "localhost:7233"
+	defaultTemporalNamespace         = "default"
+	defaultTemporalTaskQueue         = "opspilot-report-tasks"
+	defaultApprovedToolFailOnApprove = false
+	defaultWorkerPollInterval        = 1 * time.Second
+	defaultWorkerShutdownTimeout     = 10 * time.Second
 )
 
 // Config holds the minimum process configuration required by the foundation slice.
 type Config struct {
-	Env                   string
-	LogLevel              string
-	APIListenAddr         string
-	PostgresDSN           string
-	TemporalEnabled       bool
-	TemporalAddress       string
-	TemporalNamespace     string
-	TemporalTaskQueue     string
-	WorkerPollInterval    time.Duration
-	WorkerShutdownTimeout time.Duration
+	Env                       string
+	LogLevel                  string
+	APIListenAddr             string
+	PostgresDSN               string
+	TemporalEnabled           bool
+	TemporalAddress           string
+	TemporalNamespace         string
+	TemporalTaskQueue         string
+	ApprovedToolFailOnApprove bool
+	WorkerPollInterval        time.Duration
+	WorkerShutdownTimeout     time.Duration
 }
 
 // Load reads process configuration from environment variables and applies safe defaults.
 func Load() (Config, error) {
 	cfg := Config{
-		Env:                   getEnv("OPSPILOT_ENV", defaultEnv),
-		LogLevel:              getEnv("OPSPILOT_LOG_LEVEL", defaultLogLevel),
-		APIListenAddr:         getEnv("OPSPILOT_API_LISTEN_ADDR", defaultAPIListenAddr),
-		PostgresDSN:           getEnv("OPSPILOT_POSTGRES_DSN", defaultPostgresDSN),
-		TemporalEnabled:       defaultTemporalEnabled,
-		TemporalAddress:       getEnv("OPSPILOT_TEMPORAL_ADDRESS", defaultTemporalAddress),
-		TemporalNamespace:     getEnv("OPSPILOT_TEMPORAL_NAMESPACE", defaultTemporalNamespace),
-		TemporalTaskQueue:     getEnv("OPSPILOT_TEMPORAL_TASK_QUEUE", defaultTemporalTaskQueue),
-		WorkerPollInterval:    defaultWorkerPollInterval,
-		WorkerShutdownTimeout: defaultWorkerShutdownTimeout,
+		Env:                       getEnv("OPSPILOT_ENV", defaultEnv),
+		LogLevel:                  getEnv("OPSPILOT_LOG_LEVEL", defaultLogLevel),
+		APIListenAddr:             getEnv("OPSPILOT_API_LISTEN_ADDR", defaultAPIListenAddr),
+		PostgresDSN:               getEnv("OPSPILOT_POSTGRES_DSN", defaultPostgresDSN),
+		TemporalEnabled:           defaultTemporalEnabled,
+		TemporalAddress:           getEnv("OPSPILOT_TEMPORAL_ADDRESS", defaultTemporalAddress),
+		TemporalNamespace:         getEnv("OPSPILOT_TEMPORAL_NAMESPACE", defaultTemporalNamespace),
+		TemporalTaskQueue:         getEnv("OPSPILOT_TEMPORAL_TASK_QUEUE", defaultTemporalTaskQueue),
+		ApprovedToolFailOnApprove: defaultApprovedToolFailOnApprove,
+		WorkerPollInterval:        defaultWorkerPollInterval,
+		WorkerShutdownTimeout:     defaultWorkerShutdownTimeout,
 	}
 
 	if raw := os.Getenv("OPSPILOT_TEMPORAL_ENABLED"); raw != "" {
@@ -55,6 +58,13 @@ func Load() (Config, error) {
 			return Config{}, fmt.Errorf("parse OPSPILOT_TEMPORAL_ENABLED: %w", err)
 		}
 		cfg.TemporalEnabled = enabled
+	}
+	if raw := os.Getenv("OPSPILOT_APPROVED_TOOL_FAIL_ON_APPROVE"); raw != "" {
+		enabled, err := strconv.ParseBool(raw)
+		if err != nil {
+			return Config{}, fmt.Errorf("parse OPSPILOT_APPROVED_TOOL_FAIL_ON_APPROVE: %w", err)
+		}
+		cfg.ApprovedToolFailOnApprove = enabled
 	}
 
 	if raw := os.Getenv("OPSPILOT_WORKER_POLL_INTERVAL"); raw != "" {

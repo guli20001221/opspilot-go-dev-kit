@@ -42,6 +42,9 @@ func TestLoadUsesDefaults(t *testing.T) {
 	if cfg.TemporalTaskQueue != "opspilot-report-tasks" {
 		t.Fatalf("TemporalTaskQueue = %q, want %q", cfg.TemporalTaskQueue, "opspilot-report-tasks")
 	}
+	if cfg.ApprovedToolFailOnApprove {
+		t.Fatal("ApprovedToolFailOnApprove = true, want false")
+	}
 	if cfg.WorkerPollInterval != 1*time.Second {
 		t.Fatalf("WorkerPollInterval = %s, want %s", cfg.WorkerPollInterval, 1*time.Second)
 	}
@@ -59,6 +62,7 @@ func TestLoadUsesEnvOverrides(t *testing.T) {
 	t.Setenv("OPSPILOT_TEMPORAL_ADDRESS", "temporal:7233")
 	t.Setenv("OPSPILOT_TEMPORAL_NAMESPACE", "opspilot")
 	t.Setenv("OPSPILOT_TEMPORAL_TASK_QUEUE", "opspilot-runtime")
+	t.Setenv("OPSPILOT_APPROVED_TOOL_FAIL_ON_APPROVE", "true")
 	t.Setenv("OPSPILOT_WORKER_POLL_INTERVAL", "3s")
 	t.Setenv("OPSPILOT_WORKER_SHUTDOWN_TIMEOUT", "25s")
 
@@ -91,6 +95,9 @@ func TestLoadUsesEnvOverrides(t *testing.T) {
 	if cfg.TemporalTaskQueue != "opspilot-runtime" {
 		t.Fatalf("TemporalTaskQueue = %q, want %q", cfg.TemporalTaskQueue, "opspilot-runtime")
 	}
+	if !cfg.ApprovedToolFailOnApprove {
+		t.Fatal("ApprovedToolFailOnApprove = false, want true")
+	}
 	if cfg.WorkerPollInterval != 3*time.Second {
 		t.Fatalf("WorkerPollInterval = %s, want %s", cfg.WorkerPollInterval, 3*time.Second)
 	}
@@ -117,6 +124,14 @@ func TestLoadRejectsInvalidPollInterval(t *testing.T) {
 
 func TestLoadRejectsInvalidTemporalEnabled(t *testing.T) {
 	t.Setenv("OPSPILOT_TEMPORAL_ENABLED", "not-a-bool")
+
+	if _, err := Load(); err == nil {
+		t.Fatal("Load() error = nil, want non-nil")
+	}
+}
+
+func TestLoadRejectsInvalidApprovedToolFailOnApprove(t *testing.T) {
+	t.Setenv("OPSPILOT_APPROVED_TOOL_FAIL_ON_APPROVE", "not-a-bool")
 
 	if _, err := Load(); err == nil {
 		t.Fatal("Load() error = nil, want non-nil")
