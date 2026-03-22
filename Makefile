@@ -12,6 +12,7 @@ build:
 	@mkdir -p bin
 	$(GO) build -o ./bin/api ./cmd/api
 	$(GO) build -o ./bin/worker ./cmd/worker
+	$(GO) build -o ./bin/ticketapi ./cmd/ticketapi
 
 check: fmt test build
 

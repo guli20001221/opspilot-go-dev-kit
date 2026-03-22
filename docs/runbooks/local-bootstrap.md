@@ -7,7 +7,7 @@ This runbook covers the current foundation slice only:
 - Go module bootstrap
 - API binary with `/healthz` and `/readyz`
 - worker bootstrap
-- local Docker Compose stack for PostgreSQL, Redis, Temporal, API, and worker
+- local Docker Compose stack for PostgreSQL, Redis, Temporal, fake ticket API, API, and worker
 - Make targets for format, test, build, and check
 
 It does not yet wire real DB access from the app code or a real OpenTelemetry exporter.
@@ -29,6 +29,7 @@ It does not yet wire real DB access from the app code or a real OpenTelemetry ex
 6. Check `http://localhost:18080/healthz`.
 7. Check `http://localhost:18080/readyz`.
 8. Check Temporal UI at `http://localhost:8088`.
+9. Check the fake ticket API at `http://localhost:19090/tickets/search?q=INC-100` with header `Authorization: Bearer local-dev-ticket-token` if you want to verify the HTTP adapter boundary directly.
 
 Successful build artifacts are emitted under `bin/`.
 
@@ -51,7 +52,8 @@ The current chat stream implementation is a Milestone 1 skeleton:
 - if `approved_tool_execution` fails after approval, the current Temporal run closes, the task row moves to `failed`, and `POST /api/v1/tasks/{task_id}/retry` starts a new failed-only Temporal run for the same task
 - set `OPSPILOT_APPROVED_TOOL_FAIL_ON_APPROVE=true` on the worker to force the first approval attempt to fail while keeping retry successful
 - approval tasks promoted from chat now carry an internal tool payload so worker-side approved execution can run the registered tool after approval; manually created approval tasks without payload still use the compatibility path
-- set `OPSPILOT_TICKET_API_BASE_URL` to route the default ticket tools through a real HTTP boundary; leave it empty to keep the deterministic local ticket adapters
+- the local compose stack now starts a fake ticket API and routes the default ticket tools through `http://ticket-api:8090`
+- set `OPSPILOT_TICKET_API_BASE_URL` yourself only when you want to override that default and target a different ticket service; outside compose, leaving it empty keeps the deterministic local ticket adapters
 - approval-gated tasks can be resumed through the approval action endpoint
 - failed tasks can be re-queued through the retry action endpoint
 - task responses now include structured `audit_events`
@@ -75,7 +77,7 @@ If you change Compose environment variables such as `OPSPILOT_POSTGRES_DSN`, `OP
 docker compose up -d --force-recreate api worker
 ```
 
-To exercise the HTTP ticket adapter locally, point both app processes at the same ticket API and recreate them:
+To override the built-in fake ticket API and point both app processes at a different ticket API, recreate them with:
 
 ```powershell
 $env:OPSPILOT_TICKET_API_BASE_URL = "http://host.docker.internal:19090"

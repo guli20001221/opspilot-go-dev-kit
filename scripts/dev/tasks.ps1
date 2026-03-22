@@ -21,6 +21,7 @@ try {
             New-Item -ItemType Directory -Force -Path bin | Out-Null
             go build -o ./bin/api.exe ./cmd/api
             go build -o ./bin/worker.exe ./cmd/worker
+            go build -o ./bin/ticketapi.exe ./cmd/ticketapi
         }
         "check" {
             & $PSCommandPath -Task fmt

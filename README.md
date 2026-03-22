@@ -17,9 +17,11 @@ Current foundation slice:
 - `go.mod` with the initial Go module bootstrap
 - `cmd/api` serving `/healthz` and `/readyz`
 - `cmd/worker` process bootstrap and graceful shutdown wiring
+- `cmd/ticketapi` for a dev-only fake ticket API used by the local compose stack
 - shared config and `slog` logging packages under `internal/app`
 - a first SQL migration scaffold under `db/migrations`
 - `compose.yaml` for local PostgreSQL, Redis, Temporal, API, and worker bootstrapping
+- the local compose stack now also includes a fake ticket API so the configurable HTTP ticket adapters can be exercised end-to-end without an external system
 - API container published on host port `18080` to avoid common local `8080` conflicts
 - `Makefile` targets for `fmt`, `test`, `build`, and `check`
 - `scripts/dev/tasks.ps1` as the verified PowerShell fallback when `make` is unavailable

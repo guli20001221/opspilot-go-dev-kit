@@ -26,6 +26,7 @@ The current Milestone 1 slice adds:
 - `internal/agent/planner` for deterministic typed execution plans
 - `internal/retrieval` for deterministic structured-query retrieval and provenance-bearing evidence blocks
 - `internal/agent/tool`, `internal/tools/registry`, and `internal/tools/http` for deterministic typed tool execution, request validation, and approval gating
+- `cmd/ticketapi` plus `internal/tools/http/tickets.NewFakeHandler` for the dev-only fake ticket API used to validate the HTTP adapter path locally
 - `internal/agent/critic` for deterministic structured verdicts over draft answers, retrieval, and tool results
 - `internal/workflow` for store-backed promoted task records and the current Temporal bridge layer
 - approval-gated workflow tasks now carry an internal tool payload for worker-side approved execution
