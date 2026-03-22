@@ -30,6 +30,7 @@ It does not yet wire real DB access from the app code or a real OpenTelemetry ex
 7. Check `http://localhost:18080/readyz`.
 8. Check Temporal UI at `http://localhost:8088`.
 9. Check the fake ticket API at `http://localhost:19090/tickets/search?q=INC-100` with header `Authorization: Bearer local-dev-ticket-token` if you want to verify the HTTP adapter boundary directly.
+10. Open `http://localhost:18080/admin/task-board` to inspect the embedded operator page against the local admin read model.
 
 Successful build artifacts are emitted under `bin/`.
 
@@ -43,6 +44,7 @@ Successful build artifacts are emitted under `bin/`.
 - `POST /api/v1/tasks/{task_id}/approve`
 - `POST /api/v1/tasks/{task_id}/retry`
 - `GET /api/v1/admin/task-board`
+- `GET /admin/task-board`
 - `POST /api/v1/chat/stream`
 
 The current chat stream implementation is a Milestone 1 skeleton:
@@ -61,6 +63,7 @@ The current chat stream implementation is a Milestone 1 skeleton:
 - task responses now include structured `audit_events`
 - `GET /api/v1/tasks` now supports `tenant_id`, `status`, `task_type`, `reason`, `requires_approval`, `created_after`, `created_before`, `updated_after`, `updated_before`, `limit`, and `offset` filters for operator listing, with the time filters parsed as RFC3339 values, and returns `has_more` plus `next_offset` while keeping per-task `audit_events` only on `GET /api/v1/tasks/{task_id}`
 - `GET /api/v1/admin/task-board` reuses the same filters but returns a backend task-board read model with visible-slice summary counts for the current page
+- `GET /admin/task-board` is the first embedded operator UI and mirrors the same filters in a simple browser form while keeping all summary logic on the backend
 - the last successful `audit_event.detail` now carries an execution summary, such as which ticket comment was created
 - failed `audit_event.detail` values now carry a coarse category prefix, such as `validation_error:` or `authorization_error:`
 - failed tasks expose a summarized `error_reason` instead of the full wrapped Temporal error chain

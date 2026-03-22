@@ -1,0 +1,732 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>OpsPilot Task Board</title>
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='16' fill='%230f766e'/%3E%3Cpath d='M18 21h28v6H18zm0 16h20v6H18zm0-8h28v6H18z' fill='%23fff'/%3E%3C/svg%3E">
+  <style>
+    :root {
+      --bg: #f3efe5;
+      --panel: rgba(255, 252, 245, 0.88);
+      --panel-strong: rgba(255, 249, 238, 0.98);
+      --ink: #172026;
+      --muted: #5b6770;
+      --line: rgba(23, 32, 38, 0.12);
+      --accent: #0f766e;
+      --accent-soft: rgba(15, 118, 110, 0.14);
+      --warn: #a16207;
+      --danger: #b42318;
+      --success: #166534;
+      --shadow: 0 18px 48px rgba(59, 53, 40, 0.12);
+      --radius-lg: 24px;
+      --radius-md: 18px;
+      --radius-sm: 12px;
+      --font-sans: "Segoe UI Variable", "Aptos", "IBM Plex Sans", "Helvetica Neue", sans-serif;
+      --font-serif: "Iowan Old Style", "Georgia", serif;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      min-height: 100vh;
+      font-family: var(--font-sans);
+      color: var(--ink);
+      background:
+        radial-gradient(circle at top left, rgba(15, 118, 110, 0.18), transparent 28%),
+        radial-gradient(circle at top right, rgba(180, 35, 24, 0.12), transparent 24%),
+        linear-gradient(180deg, #f7f2e8 0%, var(--bg) 44%, #efe7d8 100%);
+    }
+
+    .page {
+      width: min(1200px, calc(100% - 32px));
+      margin: 0 auto;
+      padding: 28px 0 40px;
+    }
+
+    .hero,
+    .panel {
+      background: var(--panel);
+      border: 1px solid rgba(255, 255, 255, 0.75);
+      box-shadow: var(--shadow);
+      backdrop-filter: blur(18px);
+    }
+
+    .hero {
+      position: relative;
+      overflow: hidden;
+      padding: 28px;
+      border-radius: 32px;
+      margin-bottom: 18px;
+    }
+
+    .hero::after {
+      content: "";
+      position: absolute;
+      right: -52px;
+      bottom: -62px;
+      width: 220px;
+      height: 220px;
+      border-radius: 50%;
+      background: radial-gradient(circle, rgba(15, 118, 110, 0.2), rgba(15, 118, 110, 0));
+    }
+
+    .eyebrow {
+      margin: 0 0 12px;
+      font-size: 12px;
+      font-weight: 700;
+      letter-spacing: 0.18em;
+      text-transform: uppercase;
+      color: var(--accent);
+    }
+
+    h1 {
+      margin: 0 0 10px;
+      font-family: var(--font-serif);
+      font-size: clamp(2.1rem, 4vw, 3.4rem);
+      line-height: 0.95;
+      letter-spacing: -0.04em;
+    }
+
+    .lead {
+      max-width: 720px;
+      margin: 0;
+      color: var(--muted);
+      font-size: 1rem;
+      line-height: 1.6;
+    }
+
+    .hero-meta {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      margin-top: 18px;
+    }
+
+    .hero-chip {
+      padding: 8px 12px;
+      border-radius: 999px;
+      background: rgba(255, 255, 255, 0.76);
+      border: 1px solid rgba(23, 32, 38, 0.08);
+      color: var(--muted);
+      font-size: 0.92rem;
+    }
+
+    .layout {
+      display: grid;
+      gap: 18px;
+      grid-template-columns: minmax(280px, 320px) minmax(0, 1fr);
+      align-items: start;
+    }
+
+    .panel {
+      border-radius: var(--radius-lg);
+      padding: 20px;
+    }
+
+    .panel h2 {
+      margin: 0 0 8px;
+      font-size: 1rem;
+      letter-spacing: -0.02em;
+    }
+
+    .panel-copy {
+      margin: 0 0 18px;
+      color: var(--muted);
+      font-size: 0.92rem;
+      line-height: 1.5;
+    }
+
+    .filters {
+      display: grid;
+      gap: 12px;
+    }
+
+    .field {
+      display: grid;
+      gap: 6px;
+    }
+
+    .field label {
+      font-size: 0.82rem;
+      font-weight: 700;
+      color: var(--muted);
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+    }
+
+    .field input,
+    .field select {
+      width: 100%;
+      border: 1px solid var(--line);
+      border-radius: var(--radius-sm);
+      padding: 11px 12px;
+      background: rgba(255, 255, 255, 0.92);
+      color: var(--ink);
+      font: inherit;
+    }
+
+    .field input:focus,
+    .field select:focus,
+    button:focus {
+      outline: 2px solid rgba(15, 118, 110, 0.25);
+      outline-offset: 2px;
+    }
+
+    .actions {
+      display: flex;
+      gap: 10px;
+      margin-top: 6px;
+    }
+
+    button {
+      border: none;
+      border-radius: 999px;
+      padding: 12px 18px;
+      font: inherit;
+      font-weight: 700;
+      cursor: pointer;
+      transition: transform 120ms ease, box-shadow 120ms ease, background 120ms ease;
+    }
+
+    button:hover {
+      transform: translateY(-1px);
+    }
+
+    .primary {
+      background: linear-gradient(135deg, #0f766e, #155e75);
+      color: #fff;
+      box-shadow: 0 12px 24px rgba(15, 118, 110, 0.22);
+    }
+
+    .ghost {
+      background: rgba(255, 255, 255, 0.72);
+      color: var(--ink);
+      border: 1px solid rgba(23, 32, 38, 0.08);
+    }
+
+    .summary-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+      gap: 12px;
+      margin-bottom: 18px;
+    }
+
+    .summary-card {
+      min-height: 120px;
+      padding: 16px;
+      border-radius: var(--radius-md);
+      background: linear-gradient(180deg, rgba(255,255,255,0.84), rgba(255,255,255,0.62));
+      border: 1px solid rgba(23, 32, 38, 0.08);
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+    }
+
+    .summary-card small {
+      color: var(--muted);
+      text-transform: uppercase;
+      letter-spacing: 0.09em;
+      font-size: 0.74rem;
+      font-weight: 700;
+    }
+
+    .summary-card strong {
+      font-size: 2rem;
+      line-height: 1;
+      letter-spacing: -0.04em;
+      margin-top: 14px;
+    }
+
+    .summary-card span {
+      color: var(--muted);
+      font-size: 0.92rem;
+      line-height: 1.5;
+    }
+
+    .summary-card.accent {
+      background: linear-gradient(180deg, rgba(15, 118, 110, 0.18), rgba(255, 255, 255, 0.78));
+    }
+
+    .summary-card.warn {
+      background: linear-gradient(180deg, rgba(161, 98, 7, 0.18), rgba(255, 255, 255, 0.78));
+    }
+
+    .summary-card.danger {
+      background: linear-gradient(180deg, rgba(180, 35, 24, 0.18), rgba(255, 255, 255, 0.78));
+    }
+
+    .summary-card.success {
+      background: linear-gradient(180deg, rgba(22, 101, 52, 0.16), rgba(255, 255, 255, 0.78));
+    }
+
+    .inline-meta {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      margin-bottom: 14px;
+    }
+
+    .pill {
+      border-radius: 999px;
+      padding: 8px 12px;
+      font-size: 0.88rem;
+      background: rgba(15, 118, 110, 0.08);
+      color: var(--muted);
+    }
+
+    .status {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      border-radius: 999px;
+      padding: 7px 12px;
+      font-size: 0.82rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      background: rgba(23, 32, 38, 0.06);
+      color: var(--ink);
+    }
+
+    .status::before {
+      content: "";
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: currentColor;
+    }
+
+    .status.succeeded { color: var(--success); background: rgba(22, 101, 52, 0.12); }
+    .status.failed { color: var(--danger); background: rgba(180, 35, 24, 0.12); }
+    .status.waiting_approval { color: var(--warn); background: rgba(161, 98, 7, 0.16); }
+    .status.running { color: #1d4ed8; background: rgba(29, 78, 216, 0.12); }
+    .status.queued { color: #475467; background: rgba(71, 84, 103, 0.12); }
+
+    .banner {
+      display: none;
+      margin-bottom: 16px;
+      padding: 14px 16px;
+      border-radius: var(--radius-md);
+      border: 1px solid rgba(180, 35, 24, 0.14);
+      background: rgba(180, 35, 24, 0.08);
+      color: var(--danger);
+      font-size: 0.95rem;
+    }
+
+    .table-wrap {
+      overflow: auto;
+      border-radius: 18px;
+      border: 1px solid rgba(23, 32, 38, 0.08);
+      background: rgba(255, 255, 255, 0.7);
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      min-width: 820px;
+    }
+
+    th,
+    td {
+      padding: 14px 16px;
+      vertical-align: top;
+      text-align: left;
+      border-bottom: 1px solid rgba(23, 32, 38, 0.08);
+    }
+
+    th {
+      font-size: 0.78rem;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: var(--muted);
+      background: rgba(255, 255, 255, 0.82);
+      position: sticky;
+      top: 0;
+      z-index: 1;
+    }
+
+    td strong {
+      display: block;
+      margin-bottom: 6px;
+      font-size: 0.96rem;
+    }
+
+    td small {
+      color: var(--muted);
+      font-size: 0.84rem;
+      line-height: 1.45;
+    }
+
+    .empty,
+    .loading {
+      padding: 26px 18px;
+      text-align: center;
+      color: var(--muted);
+      font-size: 0.95rem;
+    }
+
+    .footer-actions {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 14px;
+      margin-top: 16px;
+      flex-wrap: wrap;
+    }
+
+    .footnote {
+      color: var(--muted);
+      font-size: 0.88rem;
+    }
+
+    @media (max-width: 980px) {
+      .layout {
+        grid-template-columns: 1fr;
+      }
+    }
+  </style>
+</head>
+<body>
+  <main class="page">
+    <section class="hero">
+      <p class="eyebrow">OpsPilot Admin</p>
+      <h1>Task Board</h1>
+      <p class="lead">
+        Operator-facing view over async workflow tasks. This page stays contract-first:
+        summaries come from <code>/api/v1/admin/task-board</code>, while task detail remains in
+        the existing task lookup APIs.
+      </p>
+      <div class="hero-meta">
+        <span class="hero-chip">Read model: backend authoritative</span>
+        <span class="hero-chip">Supports filter, offset, and visible-slice summary</span>
+        <span class="hero-chip">No task mutation from this page</span>
+      </div>
+    </section>
+
+    <section class="layout">
+      <aside class="panel">
+        <h2>Filters</h2>
+        <p class="panel-copy">
+          Narrow to a tenant, state, workflow reason, or approval lane. Query parameters are mirrored into the URL
+          so operators can share a board view directly.
+        </p>
+        <form id="filters" class="filters">
+          <div class="field">
+            <label for="tenant_id">Tenant</label>
+            <input id="tenant_id" name="tenant_id" placeholder="tenant-admin-example">
+          </div>
+          <div class="field">
+            <label for="status">Status</label>
+            <select id="status" name="status">
+              <option value="">All statuses</option>
+              <option value="queued">Queued</option>
+              <option value="running">Running</option>
+              <option value="succeeded">Succeeded</option>
+              <option value="failed">Failed</option>
+              <option value="waiting_approval">Waiting approval</option>
+            </select>
+          </div>
+          <div class="field">
+            <label for="task_type">Task Type</label>
+            <select id="task_type" name="task_type">
+              <option value="">All task types</option>
+              <option value="report_generation">Report generation</option>
+              <option value="approved_tool_execution">Approved tool execution</option>
+            </select>
+          </div>
+          <div class="field">
+            <label for="reason">Reason</label>
+            <select id="reason" name="reason">
+              <option value="">All reasons</option>
+              <option value="workflow_required">Workflow required</option>
+              <option value="approval_required">Approval required</option>
+            </select>
+          </div>
+          <div class="field">
+            <label for="requires_approval">Requires Approval</label>
+            <select id="requires_approval" name="requires_approval">
+              <option value="">Any</option>
+              <option value="true">Only approval-gated</option>
+              <option value="false">Only non-approval</option>
+            </select>
+          </div>
+          <div class="field">
+            <label for="limit">Page Size</label>
+            <input id="limit" name="limit" type="number" min="1" max="100" value="20">
+          </div>
+          <div class="field">
+            <label for="offset">Offset</label>
+            <input id="offset" name="offset" type="number" min="0" value="0">
+          </div>
+          <div class="actions">
+            <button class="primary" type="submit">Load board</button>
+            <button class="ghost" type="button" id="reset">Reset</button>
+          </div>
+        </form>
+      </aside>
+
+      <section class="panel">
+        <h2>Visible Slice</h2>
+        <p class="panel-copy">
+          Counts below describe the current filtered page, not the whole dataset. That keeps the backend contract
+          fast and explicit for the first admin slice.
+        </p>
+
+        <div class="banner" id="errorBanner" role="alert"></div>
+
+        <div class="summary-grid" id="summaryGrid">
+          <article class="summary-card accent">
+            <small>Visible tasks</small>
+            <strong id="visibleCount">0</strong>
+            <span>Current filtered rows returned by the board read model.</span>
+          </article>
+          <article class="summary-card warn">
+            <small>Waiting approval</small>
+            <strong id="waitingApprovalCount">0</strong>
+            <span>Approval-gated tasks still paused for operator input.</span>
+          </article>
+          <article class="summary-card success">
+            <small>Succeeded</small>
+            <strong id="succeededCount">0</strong>
+            <span>Tasks that reached a clean terminal state in this slice.</span>
+          </article>
+          <article class="summary-card danger">
+            <small>Latest failure</small>
+            <strong id="latestFailureReason">None</strong>
+            <span>Most recent failure reason returned by the board summary.</span>
+          </article>
+        </div>
+
+        <div class="inline-meta">
+          <span class="pill" id="summaryReasons">Reasons: none</span>
+          <span class="pill" id="summaryTypes">Task types: none</span>
+          <span class="pill" id="summaryUpdated">Latest update: unknown</span>
+        </div>
+
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th scope="col">Task</th>
+                <th scope="col">Status</th>
+                <th scope="col">Tenant</th>
+                <th scope="col">Reason</th>
+                <th scope="col">Updated</th>
+                <th scope="col">Failure / Audit</th>
+              </tr>
+            </thead>
+            <tbody id="taskRows">
+              <tr><td class="loading" colspan="6">Loading task board…</td></tr>
+            </tbody>
+          </table>
+        </div>
+
+        <div class="footer-actions">
+          <p class="footnote" id="pageMeta">Page offset 0. Waiting for data.</p>
+          <div class="actions">
+            <button class="ghost" type="button" id="prevPage">Previous</button>
+            <button class="ghost" type="button" id="nextPage">Next</button>
+          </div>
+        </div>
+      </section>
+    </section>
+  </main>
+
+  <script>
+    const endpoint = "/api/v1/admin/task-board";
+    const form = document.getElementById("filters");
+    const resetButton = document.getElementById("reset");
+    const prevButton = document.getElementById("prevPage");
+    const nextButton = document.getElementById("nextPage");
+    const taskRows = document.getElementById("taskRows");
+    const errorBanner = document.getElementById("errorBanner");
+
+    const fields = ["tenant_id", "status", "task_type", "reason", "requires_approval", "limit", "offset"];
+
+    function readParamsFromURL() {
+      const params = new URLSearchParams(window.location.search);
+      for (const name of fields) {
+        const field = form.elements.namedItem(name);
+        if (!field) {
+          continue;
+        }
+        field.value = params.get(name) || (name === "limit" ? "20" : name === "offset" ? "0" : "");
+      }
+    }
+
+    function buildParams() {
+      const params = new URLSearchParams();
+      for (const name of fields) {
+        const value = (form.elements.namedItem(name)?.value || "").trim();
+        if (value !== "") {
+          params.set(name, value);
+        }
+      }
+      return params;
+    }
+
+    function syncURL(params) {
+      const target = params.toString() ? `${window.location.pathname}?${params.toString()}` : window.location.pathname;
+      window.history.replaceState({}, "", target);
+    }
+
+    function renderError(message) {
+      errorBanner.style.display = "block";
+      errorBanner.textContent = message;
+    }
+
+    function clearError() {
+      errorBanner.style.display = "none";
+      errorBanner.textContent = "";
+    }
+
+    function statusClass(status) {
+      return `status ${status || ""}`;
+    }
+
+    function fmtDate(value) {
+      if (!value) {
+        return "Unknown";
+      }
+      const date = new Date(value);
+      if (Number.isNaN(date.valueOf())) {
+        return value;
+      }
+      return new Intl.DateTimeFormat(undefined, {
+        year: "numeric",
+        month: "short",
+        day: "2-digit",
+        hour: "2-digit",
+        minute: "2-digit",
+        second: "2-digit"
+      }).format(date);
+    }
+
+    function renderSummary(summary) {
+      document.getElementById("visibleCount").textContent = String(summary.visible_count ?? 0);
+      document.getElementById("waitingApprovalCount").textContent = String(summary.requires_approval_count ?? 0);
+      document.getElementById("succeededCount").textContent = String(summary.status_counts?.succeeded ?? 0);
+      document.getElementById("latestFailureReason").textContent = summary.latest_failure_reason || "None";
+      document.getElementById("summaryReasons").textContent =
+        `Reasons: workflow ${summary.reason_counts?.workflow_required ?? 0}, approval ${summary.reason_counts?.approval_required ?? 0}`;
+      document.getElementById("summaryTypes").textContent =
+        `Task types: report ${summary.task_type_counts?.report_generation ?? 0}, approved-tool ${summary.task_type_counts?.approved_tool_execution ?? 0}`;
+      document.getElementById("summaryUpdated").textContent =
+        `Latest update: ${summary.latest_updated_at ? fmtDate(summary.latest_updated_at) : "unknown"}`;
+    }
+
+    function renderTasks(items) {
+      if (!items || items.length === 0) {
+        taskRows.innerHTML = '<tr><td class="empty" colspan="6">No tasks matched the current filter set.</td></tr>';
+        return;
+      }
+
+      taskRows.innerHTML = items.map((item) => `
+        <tr>
+          <td>
+            <strong>${item.task_id}</strong>
+            <small>${item.task_type}${item.session_id ? `<br>session: ${item.session_id}` : ""}</small>
+          </td>
+          <td>
+            <span class="${statusClass(item.status)}">${item.status.replaceAll("_", " ")}</span>
+          </td>
+          <td>
+            <strong>${item.tenant_id}</strong>
+            <small>${item.request_id ? `request: ${item.request_id}` : "No request id"}</small>
+          </td>
+          <td>
+            <strong>${item.reason.replaceAll("_", " ")}</strong>
+            <small>requires approval: ${item.requires_approval ? "yes" : "no"}</small>
+          </td>
+          <td>
+            <strong>${fmtDate(item.updated_at)}</strong>
+            <small>created ${fmtDate(item.created_at)}</small>
+          </td>
+          <td>
+            <strong>${item.error_reason || item.audit_ref || "No failure or audit ref"}</strong>
+            <small>${item.audit_ref ? `audit ref: ${item.audit_ref}` : "Awaiting more execution detail"}</small>
+          </td>
+        </tr>
+      `).join("");
+    }
+
+    function renderPage(page, params) {
+      const offset = Number.parseInt(params.get("offset") || "0", 10) || 0;
+      document.getElementById("pageMeta").textContent =
+        `Page offset ${offset}. ${page.has_more ? `More rows available; next offset ${page.next_offset}.` : "No additional rows after this slice."}`;
+      prevButton.disabled = offset <= 0;
+      nextButton.disabled = !page.has_more;
+      prevButton.dataset.offset = String(Math.max(0, offset - (Number.parseInt(params.get("limit") || "20", 10) || 20)));
+      nextButton.dataset.offset = String(page.next_offset ?? offset);
+    }
+
+    async function loadBoard() {
+      const params = buildParams();
+      syncURL(params);
+      clearError();
+      taskRows.innerHTML = '<tr><td class="loading" colspan="6">Loading task board…</td></tr>';
+
+      try {
+        const response = await fetch(`${endpoint}?${params.toString()}`, {
+          headers: { "Accept": "application/json" }
+        });
+        if (!response.ok) {
+          let detail = response.statusText;
+          try {
+            const errorPayload = await response.json();
+            detail = errorPayload.message || detail;
+          } catch (_) {}
+          throw new Error(`Task board request failed: ${detail}`);
+        }
+
+        const board = await response.json();
+        renderSummary(board.summary || {});
+        renderTasks(board.items || []);
+        renderPage(board.page || { has_more: false }, params);
+      } catch (error) {
+        renderError(error.message || "Task board request failed.");
+        taskRows.innerHTML = '<tr><td class="empty" colspan="6">Unable to load task board data.</td></tr>';
+        renderSummary({
+          visible_count: 0,
+          requires_approval_count: 0,
+          latest_failure_reason: "",
+          status_counts: {},
+          reason_counts: {},
+          task_type_counts: {}
+        });
+        renderPage({ has_more: false }, buildParams());
+      }
+    }
+
+    form.addEventListener("submit", (event) => {
+      event.preventDefault();
+      form.elements.namedItem("offset").value = "0";
+      loadBoard();
+    });
+
+    resetButton.addEventListener("click", () => {
+      form.reset();
+      form.elements.namedItem("limit").value = "20";
+      form.elements.namedItem("offset").value = "0";
+      loadBoard();
+    });
+
+    prevButton.addEventListener("click", () => {
+      form.elements.namedItem("offset").value = prevButton.dataset.offset || "0";
+      loadBoard();
+    });
+
+    nextButton.addEventListener("click", () => {
+      form.elements.namedItem("offset").value = nextButton.dataset.offset || "0";
+      loadBoard();
+    });
+
+    readParamsFromURL();
+    loadBoard();
+  </script>
+</body>
+</html>

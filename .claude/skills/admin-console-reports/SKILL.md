@@ -29,10 +29,11 @@ Provide a practical operator UI for evaluation and runtime analysis while keepin
 1. Start from stable backend contracts.
 2. Design the minimum page flow for operators: tasks, cases, reports, version comparison, trace links.
 3. Prefer backend read models, such as task-board aggregations or `/api/v1/admin/task-board`, over recomputing status summaries in the UI.
-4. Keep frontend state simple and derived from backend data where possible.
-5. Surface reproducibility data such as prompt version, model version, dataset id, and trace ids.
-6. Add empty, loading, and failure states.
-7. If contract changes are necessary, change backend and docs first, then UI.
+4. For early slices, prefer embedded pages under `web/admin` or similarly low-overhead delivery before introducing a separate frontend toolchain.
+5. Keep frontend state simple and derived from backend data where possible.
+6. Surface reproducibility data such as prompt version, model version, dataset id, and trace ids.
+7. Add empty, loading, and failure states.
+8. If contract changes are necessary, change backend and docs first, then UI.
 
 ## Output contract
 When you finish, always report:

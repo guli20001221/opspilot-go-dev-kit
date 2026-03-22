@@ -32,6 +32,7 @@ Current Milestone 1 slice:
 - in-memory session and message persistence under `internal/session`
 - typed chat application service under `internal/app/chat`
 - `internal/app/admin/taskboard` as the first admin-facing task board read model, with visible-slice status and reason summaries for future `web/admin` task views
+- `web/admin` now ships the first embedded operator task board page, served by the API at `/admin/task-board`
 - deterministic context assembly under `internal/contextengine`
 - deterministic typed planning under `internal/agent/planner`
 - deterministic typed retrieval under `internal/retrieval`
@@ -47,6 +48,7 @@ Current Milestone 1 slice:
 - `GET /api/v1/tasks/{task_id}` for persisted task status lookup
 - `POST /api/v1/tasks/{task_id}/approve` and `POST /api/v1/tasks/{task_id}/retry` for minimal task actions
 - `GET /api/v1/admin/task-board` for the first backend task-board read model that returns items, page metadata, and visible-slice summary counts for future `web/admin` task views
+- `GET /admin/task-board` for the first embedded operator page consuming the backend task-board read model
 - structured `audit_events` on task responses for create, claim, approve, retry, succeed, and fail
 - list-task responses intentionally omit `audit_events` so the operator list view stays lightweight while single-task lookup remains the detailed drill-down surface, and now return `has_more` plus `next_offset` for simple offset pagination
 - workflow task row changes and matching `audit_events` now commit atomically in the PostgreSQL-backed runtime paths
