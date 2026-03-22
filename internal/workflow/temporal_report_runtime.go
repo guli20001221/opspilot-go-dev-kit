@@ -154,6 +154,7 @@ func (r *TemporalReportRunner) RunReportWorkflow(ctx context.Context, task Task)
 	if err := workflowRun.Get(ctx, &workflowResult); err != nil {
 		return result, fmt.Errorf("get temporal report workflow result: %w", err)
 	}
+	result.Detail = workflowResult.Generated
 
 	return result, nil
 }
@@ -213,6 +214,7 @@ func (r *TemporalApprovedToolRunner) ContinueApprovedToolWorkflow(ctx context.Co
 	if err := workflowRun.Get(ctx, &workflowResult); err != nil {
 		return result, fmt.Errorf("get approved tool workflow result: %w", err)
 	}
+	result.Detail = workflowResult.Executed
 
 	return result, nil
 }
@@ -342,8 +344,32 @@ func (a *ApprovedToolActivities) ExecuteApprovedTool(_ context.Context, input Ap
 	}
 
 	return ApprovedToolWorkflowResult{
-		Executed: fmt.Sprintf("approved-tool:%s", input.Workflow.TaskID),
+		Executed: summarizeApprovedToolResult(input.Workflow.ToolName, result.StructuredData),
 	}, nil
+}
+
+func summarizeApprovedToolResult(toolName string, structuredData json.RawMessage) string {
+	switch toolName {
+	case "ticket_comment_create":
+		var payload struct {
+			TicketID string `json:"ticket_id"`
+			Status   string `json:"status"`
+		}
+		if err := json.Unmarshal(structuredData, &payload); err == nil && payload.TicketID != "" && payload.Status != "" {
+			return fmt.Sprintf("%s %s for %s", toolName, payload.Status, strings.ToUpper(payload.TicketID))
+		}
+	case "ticket_search":
+		var payload struct {
+			Matches []struct {
+				TicketID string `json:"ticket_id"`
+			} `json:"matches"`
+		}
+		if err := json.Unmarshal(structuredData, &payload); err == nil {
+			return fmt.Sprintf("%s returned %d matches", toolName, len(payload.Matches))
+		}
+	}
+
+	return toolName + " completed"
 }
 
 func formatTemporalAuditRef(workflowID string, runID string) string {

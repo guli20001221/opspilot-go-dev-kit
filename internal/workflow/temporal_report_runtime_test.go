@@ -134,8 +134,8 @@ func TestApprovedToolActivitiesExecuteApprovedToolFromPayload(t *testing.T) {
 	if err != nil {
 		t.Fatalf("ExecuteApprovedTool() error = %v", err)
 	}
-	if got.Executed != "approved-tool:task-approved-runtime" {
-		t.Fatalf("Executed = %q, want %q", got.Executed, "approved-tool:task-approved-runtime")
+	if got.Executed != "ticket_comment_create comment_created for INC-100" {
+		t.Fatalf("Executed = %q, want %q", got.Executed, "ticket_comment_create comment_created for INC-100")
 	}
 }
 

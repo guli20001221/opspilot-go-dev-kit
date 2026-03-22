@@ -10,6 +10,7 @@ import (
 // ExecutionResult captures the worker-visible outcome metadata.
 type ExecutionResult struct {
 	AuditRef string
+	Detail   string
 }
 
 // Executor performs the side-effecting task body behind the workflow orchestration.
@@ -64,7 +65,7 @@ func (r *Runner) ProcessNextBatch(ctx context.Context, limit int) (int, error) {
 			TaskID:    task.ID,
 			Action:    action,
 			Actor:     "worker",
-			Detail:    fallbackAuditRef(task.ErrorReason, task.Status),
+			Detail:    successOrFailureDetail(action, result.Detail, task.ErrorReason, task.Status),
 			CreatedAt: task.UpdatedAt,
 		}); err != nil {
 			return 0, err
@@ -102,6 +103,14 @@ func summarizeExecutionError(err error) string {
 	return strings.TrimSpace(message)
 }
 
+func successOrFailureDetail(action string, successDetail string, failureDetail string, fallback string) string {
+	if action == AuditActionSucceeded {
+		return fallbackAuditRef(successDetail, fallback)
+	}
+
+	return fallbackAuditRef(failureDetail, fallback)
+}
+
 // PlaceholderExecutor advances known task types without external side effects.
 type PlaceholderExecutor struct{}
 
@@ -114,9 +123,15 @@ func NewPlaceholderExecutor() *PlaceholderExecutor {
 func (e *PlaceholderExecutor) Execute(_ context.Context, task Task) (ExecutionResult, error) {
 	switch task.TaskType {
 	case TaskTypeReportGeneration:
-		return ExecutionResult{AuditRef: "worker:placeholder_report_generation"}, nil
+		return ExecutionResult{
+			AuditRef: "worker:placeholder_report_generation",
+			Detail:   "report_generation completed",
+		}, nil
 	case TaskTypeApprovedToolExecution:
-		return ExecutionResult{AuditRef: "worker:placeholder_approved_tool_execution"}, nil
+		return ExecutionResult{
+			AuditRef: "worker:placeholder_approved_tool_execution",
+			Detail:   "approved_tool_execution completed",
+		}, nil
 	default:
 		return ExecutionResult{AuditRef: "worker:placeholder_failed"}, fmt.Errorf("unsupported task type: %s", task.TaskType)
 	}

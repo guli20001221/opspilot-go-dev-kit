@@ -145,6 +145,42 @@ func TestRunnerProcessesApprovedTaskAfterApproval(t *testing.T) {
 	}
 }
 
+func TestRunnerWritesExecutionSummaryIntoSucceededAuditEvent(t *testing.T) {
+	svc := NewService()
+	runner := NewRunner(svc, &fakeRunnerExecutor{
+		result: ExecutionResult{
+			AuditRef: "worker:summary",
+			Detail:   "ticket_comment_create comment_created for INC-222",
+		},
+	})
+
+	created, err := svc.Promote(context.Background(), PromoteRequest{
+		RequestID: "req-4b",
+		TenantID:  "tenant-1",
+		SessionID: "session-1",
+		TaskType:  TaskTypeReportGeneration,
+		Reason:    PromotionReasonWorkflowRequired,
+	})
+	if err != nil {
+		t.Fatalf("Promote() error = %v", err)
+	}
+
+	if _, err := runner.ProcessNextBatch(context.Background(), 10); err != nil {
+		t.Fatalf("ProcessNextBatch() error = %v", err)
+	}
+
+	events, err := svc.ListTaskEvents(context.Background(), created.ID)
+	if err != nil {
+		t.Fatalf("ListTaskEvents() error = %v", err)
+	}
+	if events[len(events)-1].Action != AuditActionSucceeded {
+		t.Fatalf("events[last].Action = %q, want %q", events[len(events)-1].Action, AuditActionSucceeded)
+	}
+	if events[len(events)-1].Detail != "ticket_comment_create comment_created for INC-222" {
+		t.Fatalf("events[last].Detail = %q, want execution summary", events[len(events)-1].Detail)
+	}
+}
+
 func TestRunnerSummarizesTemporalExecutionFailure(t *testing.T) {
 	svc := NewService()
 	runner := NewRunner(svc, &fakeRunnerExecutor{

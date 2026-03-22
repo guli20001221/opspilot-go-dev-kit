@@ -46,6 +46,7 @@ Current Milestone 1 slice:
 - `POST /api/v1/tasks/{task_id}/approve` and `POST /api/v1/tasks/{task_id}/retry` for minimal task actions
 - structured `audit_events` on task responses for create, claim, approve, retry, succeed, and fail
 - workflow task row changes and matching `audit_events` now commit atomically in the PostgreSQL-backed runtime paths
+- successful task audit events now carry an operator-facing execution summary, so approved-tool tasks show what action completed instead of only `succeeded`
 - the local worker uses Temporal for `report_generation` while keeping PostgreSQL task rows as the current operator-facing status surface
 - the local API also uses a Temporal client to initialize waiting approval workflows for `approved_tool_execution`, while worker-side retry uses Temporal failed-only ID reuse for recovery
 - the local worker also supports a dev-only `OPSPILOT_APPROVED_TOOL_FAIL_ON_APPROVE` toggle so the approval failure and retry path can be verified end-to-end without changing public APIs
