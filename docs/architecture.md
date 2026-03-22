@@ -22,6 +22,7 @@ The current Milestone 1 slice adds:
 
 - `internal/session` for in-memory session and message persistence
 - `internal/app/chat` as the application boundary for the synchronous chat skeleton
+- `internal/app/admin/taskboard` as the first admin read model that converts workflow task pages into operator-facing task board summaries for future `web/admin` flows
 - `internal/contextengine` for deterministic block assembly and assembly logging
 - `internal/agent/planner` for deterministic typed execution plans
 - `internal/retrieval` for deterministic structured-query retrieval and provenance-bearing evidence blocks

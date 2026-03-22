@@ -31,6 +31,7 @@ Current foundation slice:
 Current Milestone 1 slice:
 - in-memory session and message persistence under `internal/session`
 - typed chat application service under `internal/app/chat`
+- `internal/app/admin/taskboard` as the first admin-facing task board read model, with visible-slice status and reason summaries for future `web/admin` task views
 - deterministic context assembly under `internal/contextengine`
 - deterministic typed planning under `internal/agent/planner`
 - deterministic typed retrieval under `internal/retrieval`
