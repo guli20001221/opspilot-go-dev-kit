@@ -40,6 +40,7 @@ Model operational, retrieval, and audit data in PostgreSQL using additive migrat
 7. For vector-backed tables, preserve source metadata, chunk ids, versions, and permission scope.
 8. Add integration tests for the query behavior that matters.
 9. Workflow task tables should carry tenant scope, status, timestamps, and operator-facing failure fields from the start.
+10. Audit-heavy workflow features should preserve structured event history, not only the latest summary field.
 
 ## Output contract
 When you finish, always report:

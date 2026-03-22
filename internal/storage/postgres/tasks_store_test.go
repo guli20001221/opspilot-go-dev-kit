@@ -148,16 +148,90 @@ func TestWorkflowTaskStoreClaimAndUpdate(t *testing.T) {
 	}
 }
 
+func TestWorkflowTaskStoreAppendAndListTaskEvents(t *testing.T) {
+	dsn := os.Getenv("OPSPILOT_TEST_POSTGRES_DSN")
+	if dsn == "" {
+		t.Skip("OPSPILOT_TEST_POSTGRES_DSN not set")
+	}
+
+	ctx := context.Background()
+	pool, err := OpenPool(ctx, dsn)
+	if err != nil {
+		t.Fatalf("OpenPool() error = %v", err)
+	}
+	defer pool.Close()
+
+	applyMigration(t, ctx, pool)
+	if _, err := pool.Exec(ctx, "TRUNCATE workflow_task_events, workflow_tasks RESTART IDENTITY"); err != nil {
+		t.Fatalf("TRUNCATE workflow_task_events, workflow_tasks error = %v", err)
+	}
+
+	store := NewWorkflowTaskStore(pool)
+	task := workflow.Task{
+		ID:               "task-events-1",
+		RequestID:        "req-events-1",
+		TenantID:         "tenant-1",
+		SessionID:        "session-1",
+		TaskType:         workflow.TaskTypeReportGeneration,
+		Status:           workflow.StatusQueued,
+		Reason:           workflow.PromotionReasonWorkflowRequired,
+		RequiresApproval: false,
+		CreatedAt:        time.Unix(1700000010, 0).UTC(),
+		UpdatedAt:        time.Unix(1700000010, 0).UTC(),
+	}
+	if _, err := store.SaveTask(ctx, task); err != nil {
+		t.Fatalf("SaveTask() error = %v", err)
+	}
+
+	if _, err := store.AppendTaskEvent(ctx, workflow.AuditEvent{
+		TaskID:    task.ID,
+		Action:    workflow.AuditActionCreated,
+		Actor:     "api",
+		Detail:    workflow.StatusQueued,
+		CreatedAt: time.Unix(1700000010, 0).UTC(),
+	}); err != nil {
+		t.Fatalf("AppendTaskEvent(created) error = %v", err)
+	}
+	if _, err := store.AppendTaskEvent(ctx, workflow.AuditEvent{
+		TaskID:    task.ID,
+		Action:    workflow.AuditActionSucceeded,
+		Actor:     "worker",
+		Detail:    workflow.StatusSucceeded,
+		CreatedAt: time.Unix(1700000011, 0).UTC(),
+	}); err != nil {
+		t.Fatalf("AppendTaskEvent(succeeded) error = %v", err)
+	}
+
+	events, err := store.ListTaskEvents(ctx, task.ID)
+	if err != nil {
+		t.Fatalf("ListTaskEvents() error = %v", err)
+	}
+	if len(events) != 2 {
+		t.Fatalf("len(events) = %d, want %d", len(events), 2)
+	}
+	if events[0].Action != workflow.AuditActionCreated {
+		t.Fatalf("events[0].Action = %q, want %q", events[0].Action, workflow.AuditActionCreated)
+	}
+	if events[1].Action != workflow.AuditActionSucceeded {
+		t.Fatalf("events[1].Action = %q, want %q", events[1].Action, workflow.AuditActionSucceeded)
+	}
+}
+
 func applyMigration(t *testing.T, ctx context.Context, pool *pgxpool.Pool) {
 	t.Helper()
 
-	path := filepath.Join("..", "..", "..", "db", "migrations", "000002_workflow_tasks.sql")
-	sql, err := os.ReadFile(path)
-	if err != nil {
-		t.Fatalf("ReadFile(%q) error = %v", path, err)
-	}
+	for _, name := range []string{
+		"000002_workflow_tasks.sql",
+		"000003_workflow_task_events.sql",
+	} {
+		path := filepath.Join("..", "..", "..", "db", "migrations", name)
+		sql, err := os.ReadFile(path)
+		if err != nil {
+			t.Fatalf("ReadFile(%q) error = %v", path, err)
+		}
 
-	if _, err := pool.Exec(ctx, string(sql)); err != nil {
-		t.Fatalf("apply migration error = %v", err)
+		if _, err := pool.Exec(ctx, string(sql)); err != nil {
+			t.Fatalf("apply migration %q error = %v", name, err)
+		}
 	}
 }

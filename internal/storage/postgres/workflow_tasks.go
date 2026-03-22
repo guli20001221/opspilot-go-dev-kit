@@ -192,6 +192,63 @@ RETURNING
 	return updated, nil
 }
 
+// AppendTaskEvent inserts a structured task audit record.
+func (s *WorkflowTaskStore) AppendTaskEvent(ctx context.Context, event workflow.AuditEvent) (workflow.AuditEvent, error) {
+	const query = `
+INSERT INTO workflow_task_events (
+    task_id,
+    action,
+    actor,
+    detail,
+    created_at
+) VALUES (
+    $1, $2, $3, $4, $5
+)
+RETURNING id`
+
+	err := s.pool.QueryRow(ctx, query, event.TaskID, event.Action, event.Actor, event.Detail, event.CreatedAt).Scan(&event.ID)
+	if err != nil {
+		return workflow.AuditEvent{}, fmt.Errorf("insert workflow task event: %w", err)
+	}
+
+	return event, nil
+}
+
+// ListTaskEvents returns the audit history for a task.
+func (s *WorkflowTaskStore) ListTaskEvents(ctx context.Context, taskID string) ([]workflow.AuditEvent, error) {
+	const query = `
+SELECT
+    id,
+    task_id,
+    action,
+    actor,
+    detail,
+    created_at
+FROM workflow_task_events
+WHERE task_id = $1
+ORDER BY created_at, id`
+
+	rows, err := s.pool.Query(ctx, query, taskID)
+	if err != nil {
+		return nil, fmt.Errorf("select workflow task events: %w", err)
+	}
+	defer rows.Close()
+
+	var events []workflow.AuditEvent
+	for rows.Next() {
+		var event workflow.AuditEvent
+		if err := rows.Scan(&event.ID, &event.TaskID, &event.Action, &event.Actor, &event.Detail, &event.CreatedAt); err != nil {
+			return nil, fmt.Errorf("scan workflow task event: %w", err)
+		}
+		events = append(events, event)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("iterate workflow task events: %w", err)
+	}
+
+	return events, nil
+}
+
 type taskScanner interface {
 	Scan(dest ...any) error
 }

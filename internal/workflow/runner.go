@@ -44,18 +44,40 @@ func (r *Runner) ProcessNextBatch(ctx context.Context, limit int) (int, error) {
 	}
 
 	for _, task := range tasks {
+		if _, err := r.service.store.AppendTaskEvent(ctx, AuditEvent{
+			TaskID:    task.ID,
+			Action:    AuditActionClaimed,
+			Actor:     "worker",
+			Detail:    task.Status,
+			CreatedAt: task.UpdatedAt,
+		}); err != nil {
+			return 0, err
+		}
+
 		result, execErr := r.executor.Execute(ctx, task)
+		action := AuditActionSucceeded
 		if execErr != nil {
 			task.Status = StatusFailed
 			task.ErrorReason = execErr.Error()
 			task.AuditRef = fallbackAuditRef(result.AuditRef, "worker:placeholder_failed")
+			action = AuditActionFailed
 		} else {
 			task.Status = StatusSucceeded
 			task.ErrorReason = ""
 			task.AuditRef = fallbackAuditRef(result.AuditRef, "worker:placeholder_succeeded")
 		}
 
-		if _, err := r.service.UpdateTask(ctx, task); err != nil {
+		updated, err := r.service.UpdateTask(ctx, task)
+		if err != nil {
+			return 0, err
+		}
+		if _, err := r.service.store.AppendTaskEvent(ctx, AuditEvent{
+			TaskID:    updated.ID,
+			Action:    action,
+			Actor:     "worker",
+			Detail:    fallbackAuditRef(updated.ErrorReason, updated.Status),
+			CreatedAt: updated.UpdatedAt,
+		}); err != nil {
 			return 0, err
 		}
 	}

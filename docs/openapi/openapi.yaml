@@ -508,3 +508,32 @@ components:
         updated_at:
           type: string
           format: date-time
+        audit_events:
+          type: array
+          items:
+            $ref: '#/components/schemas/TaskAuditEvent'
+    TaskAuditEvent:
+      type: object
+      required:
+        - id
+        - action
+        - created_at
+      properties:
+        id:
+          type: integer
+        action:
+          type: string
+          enum:
+            - created
+            - claimed
+            - approved
+            - retried
+            - succeeded
+            - failed
+        actor:
+          type: string
+        detail:
+          type: string
+        created_at:
+          type: string
+          format: date-time

@@ -64,12 +64,18 @@ func TestGetTaskEndpoint(t *testing.T) {
 		t.Fatalf("StatusCode = %d, want %d", resp.StatusCode, http.StatusOK)
 	}
 
-	var got taskResponse
+	var got struct {
+		taskResponse
+		AuditEvents []map[string]any `json:"audit_events"`
+	}
 	if err := json.NewDecoder(resp.Body).Decode(&got); err != nil {
 		t.Fatalf("Decode() error = %v", err)
 	}
 	if got.TaskID != created.TaskID {
 		t.Fatalf("task_id = %q, want %q", got.TaskID, created.TaskID)
+	}
+	if len(got.AuditEvents) == 0 {
+		t.Fatal("audit_events is empty")
 	}
 }
 

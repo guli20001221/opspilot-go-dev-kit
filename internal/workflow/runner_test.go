@@ -38,6 +38,14 @@ func TestRunnerProcessesQueuedTaskToSucceeded(t *testing.T) {
 	if got.AuditRef == "" {
 		t.Fatal("AuditRef is empty")
 	}
+
+	events, err := svc.ListTaskEvents(context.Background(), created.ID)
+	if err != nil {
+		t.Fatalf("ListTaskEvents() error = %v", err)
+	}
+	if events[len(events)-1].Action != AuditActionSucceeded {
+		t.Fatalf("events[last].Action = %q, want %q", events[len(events)-1].Action, AuditActionSucceeded)
+	}
 }
 
 func TestRunnerMarksUnsupportedTaskAsFailed(t *testing.T) {

@@ -27,18 +27,27 @@ type retryTaskRequest struct {
 }
 
 type taskResponse struct {
-	TaskID           string `json:"task_id"`
-	RequestID        string `json:"request_id,omitempty"`
-	TenantID         string `json:"tenant_id"`
-	SessionID        string `json:"session_id,omitempty"`
-	TaskType         string `json:"task_type"`
-	Status           string `json:"status"`
-	Reason           string `json:"reason"`
-	ErrorReason      string `json:"error_reason,omitempty"`
-	AuditRef         string `json:"audit_ref,omitempty"`
-	RequiresApproval bool   `json:"requires_approval"`
-	CreatedAt        string `json:"created_at"`
-	UpdatedAt        string `json:"updated_at"`
+	TaskID           string               `json:"task_id"`
+	RequestID        string               `json:"request_id,omitempty"`
+	TenantID         string               `json:"tenant_id"`
+	SessionID        string               `json:"session_id,omitempty"`
+	TaskType         string               `json:"task_type"`
+	Status           string               `json:"status"`
+	Reason           string               `json:"reason"`
+	ErrorReason      string               `json:"error_reason,omitempty"`
+	AuditRef         string               `json:"audit_ref,omitempty"`
+	RequiresApproval bool                 `json:"requires_approval"`
+	CreatedAt        string               `json:"created_at"`
+	UpdatedAt        string               `json:"updated_at"`
+	AuditEvents      []auditEventResponse `json:"audit_events,omitempty"`
+}
+
+type auditEventResponse struct {
+	ID        int64  `json:"id"`
+	Action    string `json:"action"`
+	Actor     string `json:"actor,omitempty"`
+	Detail    string `json:"detail,omitempty"`
+	CreatedAt string `json:"created_at"`
 }
 
 func (a *appHandler) handleTasks(w http.ResponseWriter, r *http.Request) {
@@ -66,7 +75,7 @@ func (a *appHandler) handleTasks(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	writeJSON(w, http.StatusCreated, newTaskResponse(task))
+	writeTaskResponse(w, http.StatusCreated, a.workflows, r, task)
 }
 
 func (a *appHandler) handleTaskByID(w http.ResponseWriter, r *http.Request) {
@@ -113,7 +122,7 @@ func (a *appHandler) handleGetTask(w http.ResponseWriter, r *http.Request, taskI
 		return
 	}
 
-	writeJSON(w, http.StatusOK, newTaskResponse(task))
+	writeTaskResponse(w, http.StatusOK, a.workflows, r, task)
 }
 
 func (a *appHandler) handleApproveTask(w http.ResponseWriter, r *http.Request, taskID string) {
@@ -129,7 +138,7 @@ func (a *appHandler) handleApproveTask(w http.ResponseWriter, r *http.Request, t
 		return
 	}
 
-	writeJSON(w, http.StatusOK, newTaskResponse(task))
+	writeTaskResponse(w, http.StatusOK, a.workflows, r, task)
 }
 
 func (a *appHandler) handleRetryTask(w http.ResponseWriter, r *http.Request, taskID string) {
@@ -145,7 +154,7 @@ func (a *appHandler) handleRetryTask(w http.ResponseWriter, r *http.Request, tas
 		return
 	}
 
-	writeJSON(w, http.StatusOK, newTaskResponse(task))
+	writeTaskResponse(w, http.StatusOK, a.workflows, r, task)
 }
 
 func writeTaskActionError(w http.ResponseWriter, err error) {
@@ -197,4 +206,27 @@ func newTaskResponse(task workflow.Task) taskResponse {
 		CreatedAt:        task.CreatedAt.Format(time.RFC3339Nano),
 		UpdatedAt:        task.UpdatedAt.Format(time.RFC3339Nano),
 	}
+}
+
+func writeTaskResponse(w http.ResponseWriter, status int, workflows *workflow.Service, r *http.Request, task workflow.Task) {
+	resp := newTaskResponse(task)
+	events, err := workflows.ListTaskEvents(r.Context(), task.ID)
+	if err == nil {
+		resp.AuditEvents = toAuditEventResponses(events)
+	}
+	writeJSON(w, status, resp)
+}
+
+func toAuditEventResponses(events []workflow.AuditEvent) []auditEventResponse {
+	out := make([]auditEventResponse, 0, len(events))
+	for _, event := range events {
+		out = append(out, auditEventResponse{
+			ID:        event.ID,
+			Action:    event.Action,
+			Actor:     event.Actor,
+			Detail:    event.Detail,
+			CreatedAt: event.CreatedAt.Format(time.RFC3339Nano),
+		})
+	}
+	return out
 }

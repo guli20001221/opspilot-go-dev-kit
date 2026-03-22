@@ -25,6 +25,19 @@ const (
 	PromotionReasonWorkflowRequired = "workflow_required"
 	// PromotionReasonApprovalRequired identifies approval-driven promotion.
 	PromotionReasonApprovalRequired = "approval_required"
+
+	// AuditActionCreated identifies task creation events.
+	AuditActionCreated = "created"
+	// AuditActionClaimed identifies worker claim events.
+	AuditActionClaimed = "claimed"
+	// AuditActionApproved identifies approval resume events.
+	AuditActionApproved = "approved"
+	// AuditActionRetried identifies retry request events.
+	AuditActionRetried = "retried"
+	// AuditActionSucceeded identifies worker success events.
+	AuditActionSucceeded = "succeeded"
+	// AuditActionFailed identifies worker failure events.
+	AuditActionFailed = "failed"
 )
 
 // PromoteRequest is the typed async-promotion request.
@@ -51,4 +64,14 @@ type Task struct {
 	RequiresApproval bool
 	CreatedAt        time.Time
 	UpdatedAt        time.Time
+}
+
+// AuditEvent is a structured task audit record.
+type AuditEvent struct {
+	ID        int64
+	TaskID    string
+	Action    string
+	Actor     string
+	Detail    string
+	CreatedAt time.Time
 }

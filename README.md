@@ -41,4 +41,5 @@ Current Milestone 1 slice:
 - `POST /api/v1/tasks` for PostgreSQL-backed task creation
 - `GET /api/v1/tasks/{task_id}` for persisted task status lookup
 - `POST /api/v1/tasks/{task_id}/approve` and `POST /api/v1/tasks/{task_id}/retry` for minimal task actions
+- structured `audit_events` on task responses for create, claim, approve, retry, succeed, and fail
 - `POST /api/v1/chat/stream` with optional SSE `plan`, `retrieval`, `tool`, and `task_promoted` events ahead of `state -> done`

@@ -45,6 +45,7 @@ The current HTTP layer also exposes the same PostgreSQL-backed workflow records 
 - `GET /api/v1/tasks/{task_id}` for task status lookup
 - `POST /api/v1/tasks/{task_id}/approve` to resume approval-gated tasks
 - `POST /api/v1/tasks/{task_id}/retry` to re-queue failed tasks
+- `audit_events` embedded in task responses as the current structured operator audit view
 
 The current worker path advances supported queued tasks through:
 

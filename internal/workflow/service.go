@@ -19,6 +19,8 @@ type TaskStore interface {
 	GetTask(ctx context.Context, taskID string) (Task, error)
 	ClaimQueuedTasks(ctx context.Context, limit int) ([]Task, error)
 	UpdateTask(ctx context.Context, task Task) (Task, error)
+	AppendTaskEvent(ctx context.Context, event AuditEvent) (AuditEvent, error)
+	ListTaskEvents(ctx context.Context, taskID string) ([]AuditEvent, error)
 }
 
 // Service persists promoted tasks through a caller-provided store.
@@ -60,7 +62,22 @@ func (s *Service) Promote(ctx context.Context, req PromoteRequest) (Task, error)
 		task.Status = StatusWaitingApproval
 	}
 
-	return s.store.SaveTask(ctx, task)
+	created, err := s.store.SaveTask(ctx, task)
+	if err != nil {
+		return Task{}, err
+	}
+
+	if _, err := s.store.AppendTaskEvent(ctx, AuditEvent{
+		TaskID:    created.ID,
+		Action:    AuditActionCreated,
+		Actor:     "api",
+		Detail:    created.Status,
+		CreatedAt: now,
+	}); err != nil {
+		return Task{}, err
+	}
+
+	return created, nil
 }
 
 // GetTask returns a promoted task by ID.
@@ -93,7 +110,22 @@ func (s *Service) ApproveTask(ctx context.Context, taskID string, approvedBy str
 	task.ErrorReason = ""
 	task.AuditRef = fmt.Sprintf("approval:%s", approvedBy)
 
-	return s.UpdateTask(ctx, task)
+	updated, err := s.UpdateTask(ctx, task)
+	if err != nil {
+		return Task{}, err
+	}
+
+	if _, err := s.store.AppendTaskEvent(ctx, AuditEvent{
+		TaskID:    updated.ID,
+		Action:    AuditActionApproved,
+		Actor:     approvedBy,
+		Detail:    updated.Status,
+		CreatedAt: updated.UpdatedAt,
+	}); err != nil {
+		return Task{}, err
+	}
+
+	return updated, nil
 }
 
 // RetryTask re-queues a failed task for another worker attempt.
@@ -110,5 +142,25 @@ func (s *Service) RetryTask(ctx context.Context, taskID string, retriedBy string
 	task.ErrorReason = ""
 	task.AuditRef = fmt.Sprintf("retry:%s", retriedBy)
 
-	return s.UpdateTask(ctx, task)
+	updated, err := s.UpdateTask(ctx, task)
+	if err != nil {
+		return Task{}, err
+	}
+
+	if _, err := s.store.AppendTaskEvent(ctx, AuditEvent{
+		TaskID:    updated.ID,
+		Action:    AuditActionRetried,
+		Actor:     retriedBy,
+		Detail:    updated.Status,
+		CreatedAt: updated.UpdatedAt,
+	}); err != nil {
+		return Task{}, err
+	}
+
+	return updated, nil
+}
+
+// ListTaskEvents returns the structured audit history for a task.
+func (s *Service) ListTaskEvents(ctx context.Context, taskID string) ([]AuditEvent, error) {
+	return s.store.ListTaskEvents(ctx, taskID)
 }

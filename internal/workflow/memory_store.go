@@ -10,14 +10,17 @@ import (
 
 // MemoryStore stores workflow task records in memory for tests and offline use.
 type MemoryStore struct {
-	mu    sync.RWMutex
-	tasks map[string]Task
+	mu          sync.RWMutex
+	tasks       map[string]Task
+	events      map[string][]AuditEvent
+	nextEventID int64
 }
 
 // NewMemoryStore constructs an in-memory workflow task store.
 func NewMemoryStore() *MemoryStore {
 	return &MemoryStore{
-		tasks: make(map[string]Task),
+		tasks:  make(map[string]Task),
+		events: make(map[string][]AuditEvent),
 	}
 }
 
@@ -88,4 +91,26 @@ func (s *MemoryStore) UpdateTask(_ context.Context, task Task) (Task, error) {
 
 	s.tasks[task.ID] = task
 	return task, nil
+}
+
+// AppendTaskEvent appends a structured audit event to the in-memory store.
+func (s *MemoryStore) AppendTaskEvent(_ context.Context, event AuditEvent) (AuditEvent, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	s.nextEventID++
+	event.ID = s.nextEventID
+	s.events[event.TaskID] = append(s.events[event.TaskID], event)
+	return event, nil
+}
+
+// ListTaskEvents returns the in-memory audit history for a task.
+func (s *MemoryStore) ListTaskEvents(_ context.Context, taskID string) ([]AuditEvent, error) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	events := s.events[taskID]
+	out := make([]AuditEvent, len(events))
+	copy(out, events)
+	return out, nil
 }

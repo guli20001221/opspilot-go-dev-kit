@@ -48,6 +48,7 @@ The current chat stream implementation is a Milestone 1 skeleton:
 - the worker process polls queued tasks and advances supported task types to terminal states
 - approval-gated tasks can be resumed through the approval action endpoint
 - failed tasks can be re-queued through the retry action endpoint
+- task responses now include structured `audit_events`
 - SSE always emits `meta`, `plan`, `state`, and `done`
 - SSE may also emit `retrieval`, `tool`, and `task_promoted` depending on the internal runtime path
 - assistant output is a fixed placeholder response

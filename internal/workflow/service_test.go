@@ -137,3 +137,39 @@ func TestServiceRetryTaskTransitionsFailedToQueued(t *testing.T) {
 		t.Fatalf("AuditRef = %q, want %q", got.AuditRef, "retry:operator-2")
 	}
 }
+
+func TestServiceListTaskEventsReturnsStructuredHistory(t *testing.T) {
+	svc := NewService()
+
+	created, err := svc.Promote(context.Background(), PromoteRequest{
+		RequestID:        "req-6",
+		TenantID:         "tenant-1",
+		SessionID:        "session-1",
+		TaskType:         TaskTypeApprovedToolExecution,
+		Reason:           PromotionReasonApprovalRequired,
+		RequiresApproval: true,
+	})
+	if err != nil {
+		t.Fatalf("Promote() error = %v", err)
+	}
+	if _, err := svc.ApproveTask(context.Background(), created.ID, "operator-1"); err != nil {
+		t.Fatalf("ApproveTask() error = %v", err)
+	}
+
+	events, err := svc.ListTaskEvents(context.Background(), created.ID)
+	if err != nil {
+		t.Fatalf("ListTaskEvents() error = %v", err)
+	}
+	if len(events) < 2 {
+		t.Fatalf("len(events) = %d, want at least %d", len(events), 2)
+	}
+	if events[0].Action != AuditActionCreated {
+		t.Fatalf("events[0].Action = %q, want %q", events[0].Action, AuditActionCreated)
+	}
+	if events[len(events)-1].Action != AuditActionApproved {
+		t.Fatalf("events[last].Action = %q, want %q", events[len(events)-1].Action, AuditActionApproved)
+	}
+	if events[len(events)-1].Actor != "operator-1" {
+		t.Fatalf("events[last].Actor = %q, want %q", events[len(events)-1].Actor, "operator-1")
+	}
+}
