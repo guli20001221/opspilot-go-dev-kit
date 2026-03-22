@@ -3,6 +3,7 @@ package config
 import (
 	"fmt"
 	"os"
+	"strconv"
 	"time"
 )
 
@@ -11,6 +12,10 @@ const (
 	defaultLogLevel              = "INFO"
 	defaultAPIListenAddr         = ":8080"
 	defaultPostgresDSN           = "postgres://opspilot:opspilot@localhost:5432/opspilot?sslmode=disable"
+	defaultTemporalEnabled       = false
+	defaultTemporalAddress       = "localhost:7233"
+	defaultTemporalNamespace     = "default"
+	defaultTemporalTaskQueue     = "opspilot-report-tasks"
 	defaultWorkerPollInterval    = 1 * time.Second
 	defaultWorkerShutdownTimeout = 10 * time.Second
 )
@@ -21,6 +26,10 @@ type Config struct {
 	LogLevel              string
 	APIListenAddr         string
 	PostgresDSN           string
+	TemporalEnabled       bool
+	TemporalAddress       string
+	TemporalNamespace     string
+	TemporalTaskQueue     string
 	WorkerPollInterval    time.Duration
 	WorkerShutdownTimeout time.Duration
 }
@@ -32,8 +41,20 @@ func Load() (Config, error) {
 		LogLevel:              getEnv("OPSPILOT_LOG_LEVEL", defaultLogLevel),
 		APIListenAddr:         getEnv("OPSPILOT_API_LISTEN_ADDR", defaultAPIListenAddr),
 		PostgresDSN:           getEnv("OPSPILOT_POSTGRES_DSN", defaultPostgresDSN),
+		TemporalEnabled:       defaultTemporalEnabled,
+		TemporalAddress:       getEnv("OPSPILOT_TEMPORAL_ADDRESS", defaultTemporalAddress),
+		TemporalNamespace:     getEnv("OPSPILOT_TEMPORAL_NAMESPACE", defaultTemporalNamespace),
+		TemporalTaskQueue:     getEnv("OPSPILOT_TEMPORAL_TASK_QUEUE", defaultTemporalTaskQueue),
 		WorkerPollInterval:    defaultWorkerPollInterval,
 		WorkerShutdownTimeout: defaultWorkerShutdownTimeout,
+	}
+
+	if raw := os.Getenv("OPSPILOT_TEMPORAL_ENABLED"); raw != "" {
+		enabled, err := strconv.ParseBool(raw)
+		if err != nil {
+			return Config{}, fmt.Errorf("parse OPSPILOT_TEMPORAL_ENABLED: %w", err)
+		}
+		cfg.TemporalEnabled = enabled
 	}
 
 	if raw := os.Getenv("OPSPILOT_WORKER_POLL_INTERVAL"); raw != "" {
@@ -57,6 +78,15 @@ func Load() (Config, error) {
 	}
 	if cfg.PostgresDSN == "" {
 		return Config{}, fmt.Errorf("OPSPILOT_POSTGRES_DSN must not be empty")
+	}
+	if cfg.TemporalAddress == "" {
+		return Config{}, fmt.Errorf("OPSPILOT_TEMPORAL_ADDRESS must not be empty")
+	}
+	if cfg.TemporalNamespace == "" {
+		return Config{}, fmt.Errorf("OPSPILOT_TEMPORAL_NAMESPACE must not be empty")
+	}
+	if cfg.TemporalTaskQueue == "" {
+		return Config{}, fmt.Errorf("OPSPILOT_TEMPORAL_TASK_QUEUE must not be empty")
 	}
 	if cfg.WorkerPollInterval <= 0 {
 		return Config{}, fmt.Errorf("OPSPILOT_WORKER_POLL_INTERVAL must be positive")

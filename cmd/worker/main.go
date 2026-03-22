@@ -12,6 +12,8 @@ import (
 	"opspilot-go/internal/app/logging"
 	storagepostgres "opspilot-go/internal/storage/postgres"
 	"opspilot-go/internal/workflow"
+
+	temporalworker "go.temporal.io/sdk/worker"
 )
 
 func main() {
@@ -35,7 +37,38 @@ func main() {
 	defer pool.Close()
 
 	service := workflow.NewServiceWithStore(storagepostgres.NewWorkflowTaskStore(pool))
-	runner := workflow.NewRunner(service, workflow.NewPlaceholderExecutor())
+	executor := workflow.Executor(workflow.NewPlaceholderExecutor())
+
+	var temporalWorker temporalworker.Worker
+	if cfg.TemporalEnabled {
+		temporalClient, err := workflow.DialTemporalClient(workflow.TemporalOptions{
+			Address:   cfg.TemporalAddress,
+			Namespace: cfg.TemporalNamespace,
+			TaskQueue: cfg.TemporalTaskQueue,
+		})
+		if err != nil {
+			logger.Error("dial temporal client", slog.Any("error", err))
+			os.Exit(1)
+		}
+		defer temporalClient.Close()
+
+		reportRunner := workflow.NewTemporalReportRunner(temporalClient, cfg.TemporalTaskQueue)
+		temporalWorker = workflow.NewTemporalWorker(temporalClient, cfg.TemporalTaskQueue, reportRunner)
+		if err := temporalWorker.Start(); err != nil {
+			logger.Error("start temporal worker", slog.Any("error", err))
+			os.Exit(1)
+		}
+		defer temporalWorker.Stop()
+
+		executor = workflow.NewTemporalExecutor(reportRunner, executor)
+		logger.Info("temporal worker booted",
+			slog.String("address", cfg.TemporalAddress),
+			slog.String("namespace", cfg.TemporalNamespace),
+			slog.String("task_queue", cfg.TemporalTaskQueue),
+		)
+	}
+
+	runner := workflow.NewRunner(service, executor)
 
 	logger.Info("worker booted",
 		slog.String("env", cfg.Env),

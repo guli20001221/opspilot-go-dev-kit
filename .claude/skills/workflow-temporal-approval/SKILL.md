@@ -44,6 +44,7 @@ Move long-running, retryable, or approval-gated work into a durable workflow lay
 11. Approval and retry endpoints should reject invalid task states explicitly rather than silently rewriting state.
 12. Prefer structured task audit events over opaque audit strings when exposing operator-facing task history.
 13. When task status changes and task audit events are both persisted, write them in one storage transaction rather than as separate best-effort calls.
+14. During gradual migration to Temporal, it is acceptable to keep PostgreSQL task rows as the operator-facing status surface and move one task type at a time behind Temporal execution.
 
 ## Output contract
 When you finish, always report:

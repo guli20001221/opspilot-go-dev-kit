@@ -46,6 +46,7 @@ The current chat stream implementation is a Milestone 1 skeleton:
 - session storage is in-memory
 - task storage is PostgreSQL-backed in the API runtime
 - the worker process polls queued tasks and advances supported task types to terminal states
+- `report_generation` is executed through a Temporal workflow on the `opspilot-report-tasks` queue when Temporal is enabled
 - approval-gated tasks can be resumed through the approval action endpoint
 - failed tasks can be re-queued through the retry action endpoint
 - task responses now include structured `audit_events`
@@ -60,7 +61,7 @@ If your local PostgreSQL volume predates `db/migrations/000002_workflow_tasks.sq
 docker compose exec -T postgres psql -U opspilot -d opspilot -f /docker-entrypoint-initdb.d/000002_workflow_tasks.sql
 ```
 
-If you change Compose environment variables such as `OPSPILOT_POSTGRES_DSN` or `OPSPILOT_WORKER_POLL_INTERVAL`, recreate the app containers instead of only restarting them:
+If you change Compose environment variables such as `OPSPILOT_POSTGRES_DSN`, `OPSPILOT_TEMPORAL_ENABLED`, or `OPSPILOT_WORKER_POLL_INTERVAL`, recreate the app containers instead of only restarting them:
 
 ```powershell
 docker compose up -d --force-recreate api worker
@@ -69,6 +70,6 @@ docker compose up -d --force-recreate api worker
 ## Current gaps
 
 - In the current Windows shell, `make` may be unavailable; use `scripts/dev/tasks.ps1` as the verified fallback.
-- The application opens PostgreSQL for workflow task persistence, but Redis and Temporal are not yet wired into runtime code paths.
-- The API process opens PostgreSQL for workflow task persistence; the worker currently uses a placeholder poller rather than Temporal orchestration.
+- Redis is still present only as future infrastructure; no runtime code path uses it yet.
+- The API process still exposes PostgreSQL task rows as the external task-status surface; only `report_generation` is Temporal-backed so far.
 - No trace exporter exists yet; only request-scoped IDs are logged.

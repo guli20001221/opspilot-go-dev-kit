@@ -30,7 +30,7 @@ The current Milestone 1 slice adds:
 - `internal/workflow` for store-backed promoted task records before Temporal-backed workflows land
 - `internal/storage/postgres` for the current PostgreSQL task repository and connection pool wiring
 - `internal/app/httpapi` as a thin transport layer over the session and chat services
-- `cmd/worker` plus `internal/workflow.Runner` for placeholder queued-task progression before Temporal orchestration lands
+- `cmd/worker` plus `internal/workflow.Runner` for PostgreSQL-backed task claiming and the first Temporal bridge for report-generation execution
 
 The current synchronous chat stream now surfaces internal runtime milestones over SSE:
 
@@ -53,7 +53,7 @@ success, and failure paths.
 
 The current worker path advances supported queued tasks through:
 
-- `queued -> running -> succeeded` for placeholder report generation
+- `queued -> running -> succeeded` for report generation, with the execution body now running inside a Temporal workflow and activity
 - `waiting_approval -> queued -> running -> succeeded` for placeholder approved tool execution after approval
 - `queued -> running -> failed` for unsupported task types
 - `waiting_approval` tasks remain paused until a later approval flow lands

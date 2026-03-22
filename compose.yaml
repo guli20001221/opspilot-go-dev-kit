@@ -110,6 +110,10 @@ services:
       OPSPILOT_LOG_LEVEL: INFO
       OPSPILOT_API_LISTEN_ADDR: :8080
       OPSPILOT_POSTGRES_DSN: postgres://opspilot:opspilot@postgres:5432/opspilot?sslmode=disable
+      OPSPILOT_TEMPORAL_ENABLED: "true"
+      OPSPILOT_TEMPORAL_ADDRESS: temporal:7233
+      OPSPILOT_TEMPORAL_NAMESPACE: default
+      OPSPILOT_TEMPORAL_TASK_QUEUE: opspilot-report-tasks
       OPSPILOT_WORKER_POLL_INTERVAL: 1s
       OPSPILOT_WORKER_SHUTDOWN_TIMEOUT: 10s
     volumes:

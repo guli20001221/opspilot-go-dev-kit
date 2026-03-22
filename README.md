@@ -35,7 +35,7 @@ Current Milestone 1 slice:
 - deterministic typed tool execution under `internal/agent/tool` and `internal/tools/registry`
 - deterministic typed critic review under `internal/agent/critic`
 - PostgreSQL-backed async promotion records under `internal/workflow` for the API runtime
-- worker-side placeholder task progression from `queued` to `running/succeeded/failed`
+- worker-side task progression from `queued` to `running/succeeded/failed`, with `report_generation` now bridged through Temporal workflow execution
 - `POST /api/v1/sessions` for session creation
 - `GET /api/v1/sessions/{session_id}/messages` for message listing
 - `POST /api/v1/tasks` for PostgreSQL-backed task creation
@@ -43,4 +43,5 @@ Current Milestone 1 slice:
 - `POST /api/v1/tasks/{task_id}/approve` and `POST /api/v1/tasks/{task_id}/retry` for minimal task actions
 - structured `audit_events` on task responses for create, claim, approve, retry, succeed, and fail
 - workflow task row changes and matching `audit_events` now commit atomically in the PostgreSQL-backed runtime paths
+- the local worker uses Temporal for `report_generation` while keeping PostgreSQL task rows as the current operator-facing status surface
 - `POST /api/v1/chat/stream` with optional SSE `plan`, `retrieval`, `tool`, and `task_promoted` events ahead of `state -> done`

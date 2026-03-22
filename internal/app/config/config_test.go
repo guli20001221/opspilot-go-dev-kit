@@ -30,6 +30,18 @@ func TestLoadUsesDefaults(t *testing.T) {
 	if cfg.PostgresDSN != "postgres://opspilot:opspilot@localhost:5432/opspilot?sslmode=disable" {
 		t.Fatalf("PostgresDSN = %q, want %q", cfg.PostgresDSN, "postgres://opspilot:opspilot@localhost:5432/opspilot?sslmode=disable")
 	}
+	if cfg.TemporalEnabled {
+		t.Fatal("TemporalEnabled = true, want false")
+	}
+	if cfg.TemporalAddress != "localhost:7233" {
+		t.Fatalf("TemporalAddress = %q, want %q", cfg.TemporalAddress, "localhost:7233")
+	}
+	if cfg.TemporalNamespace != "default" {
+		t.Fatalf("TemporalNamespace = %q, want %q", cfg.TemporalNamespace, "default")
+	}
+	if cfg.TemporalTaskQueue != "opspilot-report-tasks" {
+		t.Fatalf("TemporalTaskQueue = %q, want %q", cfg.TemporalTaskQueue, "opspilot-report-tasks")
+	}
 	if cfg.WorkerPollInterval != 1*time.Second {
 		t.Fatalf("WorkerPollInterval = %s, want %s", cfg.WorkerPollInterval, 1*time.Second)
 	}
@@ -43,6 +55,10 @@ func TestLoadUsesEnvOverrides(t *testing.T) {
 	t.Setenv("OPSPILOT_LOG_LEVEL", "DEBUG")
 	t.Setenv("OPSPILOT_API_LISTEN_ADDR", ":18080")
 	t.Setenv("OPSPILOT_POSTGRES_DSN", "postgres://custom")
+	t.Setenv("OPSPILOT_TEMPORAL_ENABLED", "true")
+	t.Setenv("OPSPILOT_TEMPORAL_ADDRESS", "temporal:7233")
+	t.Setenv("OPSPILOT_TEMPORAL_NAMESPACE", "opspilot")
+	t.Setenv("OPSPILOT_TEMPORAL_TASK_QUEUE", "opspilot-runtime")
 	t.Setenv("OPSPILOT_WORKER_POLL_INTERVAL", "3s")
 	t.Setenv("OPSPILOT_WORKER_SHUTDOWN_TIMEOUT", "25s")
 
@@ -63,6 +79,18 @@ func TestLoadUsesEnvOverrides(t *testing.T) {
 	if cfg.PostgresDSN != "postgres://custom" {
 		t.Fatalf("PostgresDSN = %q, want %q", cfg.PostgresDSN, "postgres://custom")
 	}
+	if !cfg.TemporalEnabled {
+		t.Fatal("TemporalEnabled = false, want true")
+	}
+	if cfg.TemporalAddress != "temporal:7233" {
+		t.Fatalf("TemporalAddress = %q, want %q", cfg.TemporalAddress, "temporal:7233")
+	}
+	if cfg.TemporalNamespace != "opspilot" {
+		t.Fatalf("TemporalNamespace = %q, want %q", cfg.TemporalNamespace, "opspilot")
+	}
+	if cfg.TemporalTaskQueue != "opspilot-runtime" {
+		t.Fatalf("TemporalTaskQueue = %q, want %q", cfg.TemporalTaskQueue, "opspilot-runtime")
+	}
 	if cfg.WorkerPollInterval != 3*time.Second {
 		t.Fatalf("WorkerPollInterval = %s, want %s", cfg.WorkerPollInterval, 3*time.Second)
 	}
@@ -81,6 +109,14 @@ func TestLoadRejectsInvalidTimeout(t *testing.T) {
 
 func TestLoadRejectsInvalidPollInterval(t *testing.T) {
 	t.Setenv("OPSPILOT_WORKER_POLL_INTERVAL", "not-a-duration")
+
+	if _, err := Load(); err == nil {
+		t.Fatal("Load() error = nil, want non-nil")
+	}
+}
+
+func TestLoadRejectsInvalidTemporalEnabled(t *testing.T) {
+	t.Setenv("OPSPILOT_TEMPORAL_ENABLED", "not-a-bool")
 
 	if _, err := Load(); err == nil {
 		t.Fatal("Load() error = nil, want non-nil")
