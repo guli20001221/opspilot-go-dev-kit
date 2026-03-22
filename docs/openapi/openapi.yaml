@@ -391,6 +391,9 @@ components:
           type: string
           enum:
             - queued
+            - running
+            - succeeded
+            - failed
             - waiting_approval
         reason:
           type: string

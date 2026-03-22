@@ -30,6 +30,7 @@ The current Milestone 1 slice adds:
 - `internal/workflow` for store-backed promoted task records before Temporal-backed workflows land
 - `internal/storage/postgres` for the current PostgreSQL task repository and connection pool wiring
 - `internal/app/httpapi` as a thin transport layer over the session and chat services
+- `cmd/worker` plus `internal/workflow.Runner` for placeholder queued-task progression before Temporal orchestration lands
 
 The current synchronous chat stream now surfaces internal runtime milestones over SSE:
 
@@ -42,6 +43,12 @@ The current HTTP layer also exposes the same PostgreSQL-backed workflow records 
 
 - `POST /api/v1/tasks` for explicit async task creation
 - `GET /api/v1/tasks/{task_id}` for task status lookup
+
+The current worker path advances supported queued tasks through:
+
+- `queued -> running -> succeeded` for placeholder report generation
+- `queued -> running -> failed` for unsupported task types
+- `waiting_approval` tasks remain paused until a later approval flow lands
 
 This file is intentionally brief in the AI development kit.
 Promote it to the main repository and expand it as implementation begins.

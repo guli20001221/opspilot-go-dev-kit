@@ -3,7 +3,9 @@ package workflow
 import (
 	"context"
 	"fmt"
+	"sort"
 	"sync"
+	"time"
 )
 
 // MemoryStore stores workflow task records in memory for tests and offline use.
@@ -38,5 +40,52 @@ func (s *MemoryStore) GetTask(_ context.Context, taskID string) (Task, error) {
 		return Task{}, fmt.Errorf("%w: %s", ErrTaskNotFound, taskID)
 	}
 
+	return task, nil
+}
+
+// ClaimQueuedTasks marks queued tasks as running and returns them in creation order.
+func (s *MemoryStore) ClaimQueuedTasks(_ context.Context, limit int) ([]Task, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	if limit <= 0 {
+		return nil, nil
+	}
+
+	queued := make([]Task, 0, len(s.tasks))
+	for _, task := range s.tasks {
+		if task.Status == StatusQueued {
+			queued = append(queued, task)
+		}
+	}
+
+	sort.Slice(queued, func(i, j int) bool {
+		return queued[i].CreatedAt.Before(queued[j].CreatedAt)
+	})
+
+	if len(queued) > limit {
+		queued = queued[:limit]
+	}
+
+	now := time.Now().UTC()
+	for i := range queued {
+		queued[i].Status = StatusRunning
+		queued[i].UpdatedAt = now
+		s.tasks[queued[i].ID] = queued[i]
+	}
+
+	return queued, nil
+}
+
+// UpdateTask overwrites an existing task in the in-memory store.
+func (s *MemoryStore) UpdateTask(_ context.Context, task Task) (Task, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	if _, ok := s.tasks[task.ID]; !ok {
+		return Task{}, fmt.Errorf("%w: %s", ErrTaskNotFound, task.ID)
+	}
+
+	s.tasks[task.ID] = task
 	return task, nil
 }

@@ -14,6 +14,8 @@ var ErrTaskNotFound = errors.New("workflow task not found")
 type TaskStore interface {
 	SaveTask(ctx context.Context, task Task) (Task, error)
 	GetTask(ctx context.Context, taskID string) (Task, error)
+	ClaimQueuedTasks(ctx context.Context, limit int) ([]Task, error)
+	UpdateTask(ctx context.Context, task Task) (Task, error)
 }
 
 // Service persists promoted tasks through a caller-provided store.
@@ -61,4 +63,15 @@ func (s *Service) Promote(ctx context.Context, req PromoteRequest) (Task, error)
 // GetTask returns a promoted task by ID.
 func (s *Service) GetTask(ctx context.Context, taskID string) (Task, error) {
 	return s.store.GetTask(ctx, taskID)
+}
+
+// ClaimQueuedTasks marks queued tasks as running and returns them to a worker.
+func (s *Service) ClaimQueuedTasks(ctx context.Context, limit int) ([]Task, error) {
+	return s.store.ClaimQueuedTasks(ctx, limit)
+}
+
+// UpdateTask persists task state after worker processing.
+func (s *Service) UpdateTask(ctx context.Context, task Task) (Task, error) {
+	task.UpdatedAt = time.Now().UTC()
+	return s.store.UpdateTask(ctx, task)
 }

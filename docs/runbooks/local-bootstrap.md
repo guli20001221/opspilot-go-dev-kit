@@ -43,6 +43,7 @@ Successful build artifacts are emitted under `bin/`.
 The current chat stream implementation is a Milestone 1 skeleton:
 - session storage is in-memory
 - task storage is PostgreSQL-backed in the API runtime
+- the worker process polls queued tasks and advances supported task types to terminal states
 - SSE always emits `meta`, `plan`, `state`, and `done`
 - SSE may also emit `retrieval`, `tool`, and `task_promoted` depending on the internal runtime path
 - assistant output is a fixed placeholder response
@@ -54,9 +55,15 @@ If your local PostgreSQL volume predates `db/migrations/000002_workflow_tasks.sq
 docker compose exec -T postgres psql -U opspilot -d opspilot -f /docker-entrypoint-initdb.d/000002_workflow_tasks.sql
 ```
 
+If you change Compose environment variables such as `OPSPILOT_POSTGRES_DSN` or `OPSPILOT_WORKER_POLL_INTERVAL`, recreate the app containers instead of only restarting them:
+
+```powershell
+docker compose up -d --force-recreate api worker
+```
+
 ## Current gaps
 
 - In the current Windows shell, `make` may be unavailable; use `scripts/dev/tasks.ps1` as the verified fallback.
-- The application does not yet open PostgreSQL, Redis, or Temporal connections.
-- The API process opens PostgreSQL for workflow task persistence; worker-side durable workflow execution is not wired yet.
+- The application opens PostgreSQL for workflow task persistence, but Redis and Temporal are not yet wired into runtime code paths.
+- The API process opens PostgreSQL for workflow task persistence; the worker currently uses a placeholder poller rather than Temporal orchestration.
 - No trace exporter exists yet; only request-scoped IDs are logged.

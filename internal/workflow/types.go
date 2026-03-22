@@ -7,6 +7,12 @@ const (
 	StatusDraft = "draft"
 	// StatusQueued identifies a task accepted into the workflow layer.
 	StatusQueued = "queued"
+	// StatusRunning identifies a task currently being processed by a worker.
+	StatusRunning = "running"
+	// StatusSucceeded identifies a task completed successfully.
+	StatusSucceeded = "succeeded"
+	// StatusFailed identifies a task completed with failure details.
+	StatusFailed = "failed"
 	// StatusWaitingApproval identifies a task paused for manual approval.
 	StatusWaitingApproval = "waiting_approval"
 

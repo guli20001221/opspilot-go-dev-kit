@@ -35,6 +35,7 @@ Current Milestone 1 slice:
 - deterministic typed tool execution under `internal/agent/tool` and `internal/tools/registry`
 - deterministic typed critic review under `internal/agent/critic`
 - PostgreSQL-backed async promotion records under `internal/workflow` for the API runtime
+- worker-side placeholder task progression from `queued` to `running/succeeded/failed`
 - `POST /api/v1/sessions` for session creation
 - `GET /api/v1/sessions/{session_id}/messages` for message listing
 - `POST /api/v1/tasks` for PostgreSQL-backed task creation

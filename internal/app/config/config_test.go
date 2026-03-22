@@ -10,6 +10,7 @@ func TestLoadUsesDefaults(t *testing.T) {
 	t.Setenv("OPSPILOT_LOG_LEVEL", "")
 	t.Setenv("OPSPILOT_API_LISTEN_ADDR", "")
 	t.Setenv("OPSPILOT_POSTGRES_DSN", "")
+	t.Setenv("OPSPILOT_WORKER_POLL_INTERVAL", "")
 	t.Setenv("OPSPILOT_WORKER_SHUTDOWN_TIMEOUT", "")
 
 	cfg, err := Load()
@@ -29,6 +30,9 @@ func TestLoadUsesDefaults(t *testing.T) {
 	if cfg.PostgresDSN != "postgres://opspilot:opspilot@localhost:5432/opspilot?sslmode=disable" {
 		t.Fatalf("PostgresDSN = %q, want %q", cfg.PostgresDSN, "postgres://opspilot:opspilot@localhost:5432/opspilot?sslmode=disable")
 	}
+	if cfg.WorkerPollInterval != 1*time.Second {
+		t.Fatalf("WorkerPollInterval = %s, want %s", cfg.WorkerPollInterval, 1*time.Second)
+	}
 	if cfg.WorkerShutdownTimeout != 10*time.Second {
 		t.Fatalf("WorkerShutdownTimeout = %s, want %s", cfg.WorkerShutdownTimeout, 10*time.Second)
 	}
@@ -39,6 +43,7 @@ func TestLoadUsesEnvOverrides(t *testing.T) {
 	t.Setenv("OPSPILOT_LOG_LEVEL", "DEBUG")
 	t.Setenv("OPSPILOT_API_LISTEN_ADDR", ":18080")
 	t.Setenv("OPSPILOT_POSTGRES_DSN", "postgres://custom")
+	t.Setenv("OPSPILOT_WORKER_POLL_INTERVAL", "3s")
 	t.Setenv("OPSPILOT_WORKER_SHUTDOWN_TIMEOUT", "25s")
 
 	cfg, err := Load()
@@ -58,6 +63,9 @@ func TestLoadUsesEnvOverrides(t *testing.T) {
 	if cfg.PostgresDSN != "postgres://custom" {
 		t.Fatalf("PostgresDSN = %q, want %q", cfg.PostgresDSN, "postgres://custom")
 	}
+	if cfg.WorkerPollInterval != 3*time.Second {
+		t.Fatalf("WorkerPollInterval = %s, want %s", cfg.WorkerPollInterval, 3*time.Second)
+	}
 	if cfg.WorkerShutdownTimeout != 25*time.Second {
 		t.Fatalf("WorkerShutdownTimeout = %s, want %s", cfg.WorkerShutdownTimeout, 25*time.Second)
 	}
@@ -65,6 +73,14 @@ func TestLoadUsesEnvOverrides(t *testing.T) {
 
 func TestLoadRejectsInvalidTimeout(t *testing.T) {
 	t.Setenv("OPSPILOT_WORKER_SHUTDOWN_TIMEOUT", "not-a-duration")
+
+	if _, err := Load(); err == nil {
+		t.Fatal("Load() error = nil, want non-nil")
+	}
+}
+
+func TestLoadRejectsInvalidPollInterval(t *testing.T) {
+	t.Setenv("OPSPILOT_WORKER_POLL_INTERVAL", "not-a-duration")
 
 	if _, err := Load(); err == nil {
 		t.Fatal("Load() error = nil, want non-nil")
