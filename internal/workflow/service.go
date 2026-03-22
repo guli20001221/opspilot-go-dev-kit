@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"sync/atomic"
 	"time"
 )
 
@@ -12,6 +13,8 @@ var ErrTaskNotFound = errors.New("workflow task not found")
 
 // ErrInvalidTaskTransition identifies unsupported task state changes.
 var ErrInvalidTaskTransition = errors.New("invalid workflow task transition")
+
+var taskIDSequence atomic.Uint64
 
 // TaskStore persists workflow task records.
 type TaskStore interface {
@@ -23,6 +26,7 @@ type TaskStore interface {
 	UpdateTaskWithEvent(ctx context.Context, task Task, event AuditEvent) (Task, error)
 	AppendTaskEvent(ctx context.Context, event AuditEvent) (AuditEvent, error)
 	ListTaskEvents(ctx context.Context, taskID string) ([]AuditEvent, error)
+	ListTasks(ctx context.Context, filter TaskListFilter) ([]Task, error)
 }
 
 // TaskStarter starts external workflow execution for tasks that must be
@@ -65,7 +69,7 @@ func NewServiceWithHooks(store TaskStore, starter TaskStarter) *Service {
 func (s *Service) Promote(ctx context.Context, req PromoteRequest) (Task, error) {
 	now := time.Now().UTC()
 	task := Task{
-		ID:               fmt.Sprintf("task-%d", now.UnixNano()),
+		ID:               newTaskID(now),
 		RequestID:        req.RequestID,
 		TenantID:         req.TenantID,
 		SessionID:        req.SessionID,
@@ -196,6 +200,15 @@ func (s *Service) ListTaskEvents(ctx context.Context, taskID string) ([]AuditEve
 	return s.store.ListTaskEvents(ctx, taskID)
 }
 
+// ListTasks returns operator-facing task rows for the provided filter.
+func (s *Service) ListTasks(ctx context.Context, filter TaskListFilter) ([]Task, error) {
+	return s.store.ListTasks(ctx, filter)
+}
+
 func shouldStartTaskOnPromote(task Task) bool {
 	return task.TaskType == TaskTypeApprovedToolExecution && task.RequiresApproval
+}
+
+func newTaskID(now time.Time) string {
+	return fmt.Sprintf("task-%d-%d", now.UnixNano(), taskIDSequence.Add(1))
 }

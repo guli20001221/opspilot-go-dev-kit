@@ -38,6 +38,7 @@ Keep the HTTP surface explicit, documented, stable, and friendly to streaming ag
 7. If asynchronous job creation is involved, return stable job ids and status endpoints.
 8. If sync flows can promote work into async tasks, keep the task id stable across SSE events and REST lookup endpoints.
 9. Task action endpoints such as approve or retry should surface invalid state transitions as explicit 409-style contract errors.
+10. List endpoints for async jobs should document supported filters and keep heavy per-item detail, such as audit history, off the summary response unless explicitly needed.
 
 ## Output contract
 When you finish, always report:

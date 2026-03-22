@@ -38,6 +38,7 @@ Successful build artifacts are emitted under `bin/`.
 - `POST /api/v1/sessions`
 - `GET /api/v1/sessions/{session_id}/messages`
 - `POST /api/v1/tasks`
+- `GET /api/v1/tasks`
 - `GET /api/v1/tasks/{task_id}`
 - `POST /api/v1/tasks/{task_id}/approve`
 - `POST /api/v1/tasks/{task_id}/retry`
@@ -57,6 +58,7 @@ The current chat stream implementation is a Milestone 1 skeleton:
 - approval-gated tasks can be resumed through the approval action endpoint
 - failed tasks can be re-queued through the retry action endpoint
 - task responses now include structured `audit_events`
+- `GET /api/v1/tasks` now supports `tenant_id`, `status`, `task_type`, and `limit` filters for operator listing, while keeping per-task `audit_events` only on `GET /api/v1/tasks/{task_id}`
 - the last successful `audit_event.detail` now carries an execution summary, such as which ticket comment was created
 - failed `audit_event.detail` values now carry a coarse category prefix, such as `validation_error:` or `authorization_error:`
 - failed tasks expose a summarized `error_reason` instead of the full wrapped Temporal error chain

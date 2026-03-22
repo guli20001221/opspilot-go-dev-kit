@@ -196,6 +196,57 @@ ORDER BY created_at, id`
 	return events, nil
 }
 
+// ListTasks returns filtered task rows for operator-facing task lists.
+func (s *WorkflowTaskStore) ListTasks(ctx context.Context, filter workflow.TaskListFilter) ([]workflow.Task, error) {
+	limit := filter.Limit
+	if limit <= 0 {
+		limit = 20
+	}
+
+	const query = `
+SELECT
+    id,
+    request_id,
+    tenant_id,
+    session_id,
+    task_type,
+    tool_name,
+    tool_arguments,
+    status,
+    reason,
+    error_reason,
+    audit_ref,
+    requires_approval,
+    created_at,
+    updated_at
+FROM workflow_tasks
+WHERE ($1 = '' OR tenant_id = $1)
+  AND ($2 = '' OR status = $2)
+  AND ($3 = '' OR task_type = $3)
+ORDER BY updated_at DESC, created_at DESC
+LIMIT $4`
+
+	rows, err := s.pool.Query(ctx, query, filter.TenantID, filter.Status, filter.TaskType, limit)
+	if err != nil {
+		return nil, fmt.Errorf("select workflow tasks: %w", err)
+	}
+	defer rows.Close()
+
+	var tasks []workflow.Task
+	for rows.Next() {
+		task, err := scanTask(rows)
+		if err != nil {
+			return nil, err
+		}
+		tasks = append(tasks, task)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("iterate workflow tasks: %w", err)
+	}
+
+	return tasks, nil
+}
+
 const claimQueuedTasksQuery = `
 WITH next_tasks AS (
     SELECT id

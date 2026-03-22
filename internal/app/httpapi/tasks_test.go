@@ -39,6 +39,109 @@ func TestCreateTaskEndpoint(t *testing.T) {
 	}
 }
 
+func TestListTasksEndpointSupportsFiltersAndLimit(t *testing.T) {
+	workflowService := workflow.NewService()
+
+	task1, err := workflowService.Promote(context.Background(), workflow.PromoteRequest{
+		RequestID: "req-list-1",
+		TenantID:  "tenant-1",
+		SessionID: "session-1",
+		TaskType:  workflow.TaskTypeReportGeneration,
+		Reason:    workflow.PromotionReasonWorkflowRequired,
+	})
+	if err != nil {
+		t.Fatalf("Promote(task1) error = %v", err)
+	}
+	task2, err := workflowService.Promote(context.Background(), workflow.PromoteRequest{
+		RequestID:        "req-list-2",
+		TenantID:         "tenant-1",
+		SessionID:        "session-2",
+		TaskType:         workflow.TaskTypeApprovedToolExecution,
+		Reason:           workflow.PromotionReasonApprovalRequired,
+		RequiresApproval: true,
+	})
+	if err != nil {
+		t.Fatalf("Promote(task2) error = %v", err)
+	}
+	task3, err := workflowService.Promote(context.Background(), workflow.PromoteRequest{
+		RequestID: "req-list-3",
+		TenantID:  "tenant-2",
+		SessionID: "session-3",
+		TaskType:  workflow.TaskTypeReportGeneration,
+		Reason:    workflow.PromotionReasonWorkflowRequired,
+	})
+	if err != nil {
+		t.Fatalf("Promote(task3) error = %v", err)
+	}
+
+	task1.Status = workflow.StatusSucceeded
+	if _, err := workflowService.UpdateTask(context.Background(), task1); err != nil {
+		t.Fatalf("UpdateTask(task1) error = %v", err)
+	}
+	task2.Status = workflow.StatusFailed
+	task2.ErrorReason = "boom"
+	if _, err := workflowService.UpdateTask(context.Background(), task2); err != nil {
+		t.Fatalf("UpdateTask(task2) error = %v", err)
+	}
+	task3.Status = workflow.StatusFailed
+	task3.ErrorReason = "boom"
+	if _, err := workflowService.UpdateTask(context.Background(), task3); err != nil {
+		t.Fatalf("UpdateTask(task3) error = %v", err)
+	}
+
+	server := httptest.NewServer(NewHandlerWithDependencies(Dependencies{Workflows: workflowService}))
+	defer server.Close()
+
+	resp, err := http.Get(server.URL + "/api/v1/tasks?tenant_id=tenant-1&status=failed&task_type=approved_tool_execution&limit=1")
+	if err != nil {
+		t.Fatalf("Get() error = %v", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("StatusCode = %d, want %d", resp.StatusCode, http.StatusOK)
+	}
+
+	var got struct {
+		Tasks []taskResponse `json:"tasks"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&got); err != nil {
+		t.Fatalf("Decode() error = %v", err)
+	}
+	if len(got.Tasks) != 1 {
+		t.Fatalf("len(Tasks) = %d, want %d", len(got.Tasks), 1)
+	}
+	if got.Tasks[0].TaskID != task2.ID {
+		t.Fatalf("Tasks[0].TaskID = %q, want %q", got.Tasks[0].TaskID, task2.ID)
+	}
+	if len(got.Tasks[0].AuditEvents) != 0 {
+		t.Fatalf("Tasks[0].AuditEvents = %#v, want omitted", got.Tasks[0].AuditEvents)
+	}
+}
+
+func TestListTasksEndpointRejectsInvalidLimit(t *testing.T) {
+	server := httptest.NewServer(NewHandler())
+	defer server.Close()
+
+	resp, err := http.Get(server.URL + "/api/v1/tasks?limit=0")
+	if err != nil {
+		t.Fatalf("Get() error = %v", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusBadRequest {
+		t.Fatalf("StatusCode = %d, want %d", resp.StatusCode, http.StatusBadRequest)
+	}
+
+	var got errorResponse
+	if err := json.NewDecoder(resp.Body).Decode(&got); err != nil {
+		t.Fatalf("Decode() error = %v", err)
+	}
+	if got.Code != "invalid_query" {
+		t.Fatalf("Code = %q, want %q", got.Code, "invalid_query")
+	}
+}
+
 func TestGetTaskEndpoint(t *testing.T) {
 	server := httptest.NewServer(NewHandler())
 	defer server.Close()

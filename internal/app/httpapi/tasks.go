@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 	"net/http"
+	"strconv"
 	"strings"
 	"time"
 
@@ -50,12 +51,22 @@ type auditEventResponse struct {
 	CreatedAt string `json:"created_at"`
 }
 
-func (a *appHandler) handleTasks(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodPost {
-		writeError(w, http.StatusMethodNotAllowed, "method_not_allowed", "method not allowed")
-		return
-	}
+type listTasksResponse struct {
+	Tasks []taskResponse `json:"tasks"`
+}
 
+func (a *appHandler) handleTasks(w http.ResponseWriter, r *http.Request) {
+	switch r.Method {
+	case http.MethodGet:
+		a.handleListTasks(w, r)
+	case http.MethodPost:
+		a.handleCreateTask(w, r)
+	default:
+		writeError(w, http.StatusMethodNotAllowed, "method_not_allowed", "method not allowed")
+	}
+}
+
+func (a *appHandler) handleCreateTask(w http.ResponseWriter, r *http.Request) {
 	var req createTaskRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		writeError(w, http.StatusBadRequest, "invalid_json", "invalid json body")
@@ -76,6 +87,26 @@ func (a *appHandler) handleTasks(w http.ResponseWriter, r *http.Request) {
 	}
 
 	writeTaskResponse(w, http.StatusCreated, a.workflows, r, task)
+}
+
+func (a *appHandler) handleListTasks(w http.ResponseWriter, r *http.Request) {
+	filter, err := parseTaskListFilter(r)
+	if err != nil {
+		writeError(w, http.StatusBadRequest, "invalid_query", err.Error())
+		return
+	}
+
+	tasks, err := a.workflows.ListTasks(r.Context(), filter)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "task_list_failed", err.Error())
+		return
+	}
+
+	resp := listTasksResponse{Tasks: make([]taskResponse, 0, len(tasks))}
+	for _, task := range tasks {
+		resp.Tasks = append(resp.Tasks, newTaskResponse(task))
+	}
+	writeJSON(w, http.StatusOK, resp)
 }
 
 func (a *appHandler) handleTaskByID(w http.ResponseWriter, r *http.Request) {
@@ -189,6 +220,24 @@ func parseTaskPath(path string) (taskID string, action string, ok bool) {
 	default:
 		return "", "", false
 	}
+}
+
+func parseTaskListFilter(r *http.Request) (workflow.TaskListFilter, error) {
+	filter := workflow.TaskListFilter{
+		TenantID: r.URL.Query().Get("tenant_id"),
+		Status:   r.URL.Query().Get("status"),
+		TaskType: r.URL.Query().Get("task_type"),
+		Limit:    20,
+	}
+	if rawLimit := r.URL.Query().Get("limit"); rawLimit != "" {
+		limit, err := strconv.Atoi(rawLimit)
+		if err != nil || limit <= 0 {
+			return workflow.TaskListFilter{}, errors.New("limit must be a positive integer")
+		}
+		filter.Limit = limit
+	}
+
+	return filter, nil
 }
 
 func newTaskResponse(task workflow.Task) taskResponse {

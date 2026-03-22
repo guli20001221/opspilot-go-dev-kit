@@ -157,6 +157,84 @@ func TestWorkflowTaskStoreClaimAndUpdate(t *testing.T) {
 	}
 }
 
+func TestWorkflowTaskStoreListTasksSupportsFiltersAndLimit(t *testing.T) {
+	dsn := os.Getenv("OPSPILOT_TEST_POSTGRES_DSN")
+	if dsn == "" {
+		t.Skip("OPSPILOT_TEST_POSTGRES_DSN not set")
+	}
+
+	ctx := context.Background()
+	pool, err := OpenPool(ctx, dsn)
+	if err != nil {
+		t.Fatalf("OpenPool() error = %v", err)
+	}
+	defer pool.Close()
+
+	applyMigration(t, ctx, pool)
+	if _, err := pool.Exec(ctx, "TRUNCATE workflow_task_events, workflow_tasks RESTART IDENTITY"); err != nil {
+		t.Fatalf("TRUNCATE workflow_task_events, workflow_tasks error = %v", err)
+	}
+
+	store := NewWorkflowTaskStore(pool)
+	tasks := []workflow.Task{
+		{
+			ID:        "task-list-1",
+			RequestID: "req-list-1",
+			TenantID:  "tenant-1",
+			SessionID: "session-1",
+			TaskType:  workflow.TaskTypeReportGeneration,
+			Status:    workflow.StatusSucceeded,
+			Reason:    workflow.PromotionReasonWorkflowRequired,
+			CreatedAt: time.Unix(1700000100, 0).UTC(),
+			UpdatedAt: time.Unix(1700000101, 0).UTC(),
+		},
+		{
+			ID:               "task-list-2",
+			RequestID:        "req-list-2",
+			TenantID:         "tenant-1",
+			SessionID:        "session-2",
+			TaskType:         workflow.TaskTypeApprovedToolExecution,
+			Status:           workflow.StatusFailed,
+			Reason:           workflow.PromotionReasonApprovalRequired,
+			RequiresApproval: true,
+			CreatedAt:        time.Unix(1700000102, 0).UTC(),
+			UpdatedAt:        time.Unix(1700000103, 0).UTC(),
+		},
+		{
+			ID:        "task-list-3",
+			RequestID: "req-list-3",
+			TenantID:  "tenant-2",
+			SessionID: "session-3",
+			TaskType:  workflow.TaskTypeApprovedToolExecution,
+			Status:    workflow.StatusFailed,
+			Reason:    workflow.PromotionReasonApprovalRequired,
+			CreatedAt: time.Unix(1700000104, 0).UTC(),
+			UpdatedAt: time.Unix(1700000105, 0).UTC(),
+		},
+	}
+	for _, task := range tasks {
+		if _, err := store.SaveTask(ctx, task); err != nil {
+			t.Fatalf("SaveTask(%s) error = %v", task.ID, err)
+		}
+	}
+
+	got, err := store.ListTasks(ctx, workflow.TaskListFilter{
+		TenantID: "tenant-1",
+		Status:   workflow.StatusFailed,
+		TaskType: workflow.TaskTypeApprovedToolExecution,
+		Limit:    1,
+	})
+	if err != nil {
+		t.Fatalf("ListTasks() error = %v", err)
+	}
+	if len(got) != 1 {
+		t.Fatalf("len(ListTasks()) = %d, want %d", len(got), 1)
+	}
+	if got[0].ID != "task-list-2" {
+		t.Fatalf("ListTasks()[0].ID = %q, want %q", got[0].ID, "task-list-2")
+	}
+}
+
 func TestWorkflowTaskStoreAppendAndListTaskEvents(t *testing.T) {
 	dsn := os.Getenv("OPSPILOT_TEST_POSTGRES_DSN")
 	if dsn == "" {

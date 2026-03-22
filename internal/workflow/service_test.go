@@ -3,6 +3,7 @@ package workflow
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"testing"
 )
 
@@ -28,6 +29,31 @@ func TestServicePromoteCreatesQueuedTask(t *testing.T) {
 	}
 	if got.Reason != PromotionReasonWorkflowRequired {
 		t.Fatalf("Reason = %q, want %q", got.Reason, PromotionReasonWorkflowRequired)
+	}
+}
+
+func TestServicePromoteGeneratesUniqueTaskIDsAcrossRapidCalls(t *testing.T) {
+	svc := NewService()
+
+	seen := make(map[string]struct{}, 32)
+	for i := 0; i < 32; i++ {
+		got, err := svc.Promote(context.Background(), PromoteRequest{
+			RequestID: fmt.Sprintf("req-unique-%d", i),
+			TenantID:  "tenant-1",
+			SessionID: "session-1",
+			TaskType:  TaskTypeReportGeneration,
+			Reason:    PromotionReasonWorkflowRequired,
+		})
+		if err != nil {
+			t.Fatalf("Promote() error = %v", err)
+		}
+		if _, exists := seen[got.ID]; exists {
+			t.Fatalf("duplicate task ID generated: %q", got.ID)
+		}
+		seen[got.ID] = struct{}{}
+	}
+	if len(seen) != 32 {
+		t.Fatalf("len(seen) = %d, want %d", len(seen), 32)
 	}
 }
 

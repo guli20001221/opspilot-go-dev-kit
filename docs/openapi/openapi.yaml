@@ -179,6 +179,69 @@ paths:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
   /api/v1/tasks:
+    get:
+      summary: List async task records
+      description: |
+        Returns operator-facing task rows ordered by `updated_at` descending.
+        The list surface is intentionally lighter than `GET /api/v1/tasks/{task_id}` and omits `audit_events`.
+      operationId: listTasks
+      parameters:
+        - name: tenant_id
+          in: query
+          required: false
+          schema:
+            type: string
+        - name: status
+          in: query
+          required: false
+          schema:
+            type: string
+            enum:
+              - queued
+              - running
+              - succeeded
+              - failed
+              - waiting_approval
+        - name: task_type
+          in: query
+          required: false
+          schema:
+            type: string
+            enum:
+              - report_generation
+              - approved_tool_execution
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            default: 20
+      responses:
+        '200':
+          description: Filtered task rows returned.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TaskListResponse'
+        '400':
+          description: Query parameters were invalid.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '405':
+          description: Method not allowed.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Task listing failed.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
     post:
       summary: Create an async task record
       description: |
@@ -458,7 +521,7 @@ components:
       properties:
         retried_by:
           type: string
-    Task:
+    TaskSummary:
       type: object
       required:
         - task_id
@@ -508,10 +571,24 @@ components:
         updated_at:
           type: string
           format: date-time
-        audit_events:
+    TaskListResponse:
+      type: object
+      required:
+        - tasks
+      properties:
+        tasks:
           type: array
           items:
-            $ref: '#/components/schemas/TaskAuditEvent'
+            $ref: '#/components/schemas/TaskSummary'
+    Task:
+      allOf:
+        - $ref: '#/components/schemas/TaskSummary'
+        - type: object
+          properties:
+            audit_events:
+              type: array
+              items:
+                $ref: '#/components/schemas/TaskAuditEvent'
     TaskAuditEvent:
       type: object
       required:

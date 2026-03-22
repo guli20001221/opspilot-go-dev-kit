@@ -42,9 +42,11 @@ Current Milestone 1 slice:
 - `POST /api/v1/sessions` for session creation
 - `GET /api/v1/sessions/{session_id}/messages` for message listing
 - `POST /api/v1/tasks` for PostgreSQL-backed task creation
+- `GET /api/v1/tasks` for operator-facing task listing with `tenant_id`, `status`, `task_type`, and `limit` filters
 - `GET /api/v1/tasks/{task_id}` for persisted task status lookup
 - `POST /api/v1/tasks/{task_id}/approve` and `POST /api/v1/tasks/{task_id}/retry` for minimal task actions
 - structured `audit_events` on task responses for create, claim, approve, retry, succeed, and fail
+- list-task responses intentionally omit `audit_events` so the operator list view stays lightweight while single-task lookup remains the detailed drill-down surface
 - workflow task row changes and matching `audit_events` now commit atomically in the PostgreSQL-backed runtime paths
 - successful task audit events now carry an operator-facing execution summary, so approved-tool tasks show what action completed instead of only `succeeded`
 - failed task audit events now carry categorized detail strings such as `validation_error:` or `authorization_error:` while `error_reason` stays as the shorter root-cause summary

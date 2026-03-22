@@ -82,3 +82,11 @@ type AuditEvent struct {
 	Detail    string
 	CreatedAt time.Time
 }
+
+// TaskListFilter narrows task list queries for operator-facing views.
+type TaskListFilter struct {
+	TenantID string
+	Status   string
+	TaskType string
+	Limit    int
+}

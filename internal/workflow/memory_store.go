@@ -151,3 +151,40 @@ func (s *MemoryStore) ListTaskEvents(_ context.Context, taskID string) ([]AuditE
 	copy(out, events)
 	return out, nil
 }
+
+// ListTasks returns filtered in-memory tasks ordered by newest update first.
+func (s *MemoryStore) ListTasks(_ context.Context, filter TaskListFilter) ([]Task, error) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	limit := filter.Limit
+	if limit <= 0 {
+		limit = 20
+	}
+
+	out := make([]Task, 0, len(s.tasks))
+	for _, task := range s.tasks {
+		if filter.TenantID != "" && task.TenantID != filter.TenantID {
+			continue
+		}
+		if filter.Status != "" && task.Status != filter.Status {
+			continue
+		}
+		if filter.TaskType != "" && task.TaskType != filter.TaskType {
+			continue
+		}
+		out = append(out, task)
+	}
+
+	sort.Slice(out, func(i, j int) bool {
+		if out[i].UpdatedAt.Equal(out[j].UpdatedAt) {
+			return out[i].CreatedAt.After(out[j].CreatedAt)
+		}
+		return out[i].UpdatedAt.After(out[j].UpdatedAt)
+	})
+	if len(out) > limit {
+		out = out[:limit]
+	}
+
+	return out, nil
+}
