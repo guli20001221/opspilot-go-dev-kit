@@ -7,6 +7,7 @@ import (
 
 	appchat "opspilot-go/internal/app/chat"
 	"opspilot-go/internal/session"
+	toolregistry "opspilot-go/internal/tools/registry"
 	"opspilot-go/internal/workflow"
 )
 
@@ -50,7 +51,7 @@ type errorResponse struct {
 	Message string `json:"message"`
 }
 
-func newAppHandler(workflowService *workflow.Service) *appHandler {
+func newAppHandler(workflowService *workflow.Service, registry *toolregistry.Registry) *appHandler {
 	sessionService := session.NewService()
 	if workflowService == nil {
 		workflowService = workflow.NewService()
@@ -59,7 +60,7 @@ func newAppHandler(workflowService *workflow.Service) *appHandler {
 	return &appHandler{
 		sessions:  sessionService,
 		workflows: workflowService,
-		chat:      appchat.NewServiceWithWorkflow(sessionService, workflowService),
+		chat:      appchat.NewServiceWithRegistry(sessionService, workflowService, registry),
 	}
 }
 

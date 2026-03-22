@@ -36,7 +36,8 @@ Integrate external systems cleanly without leaking vendor-specific chaos into th
 5. Add approval or dry-run controls for write-capable tools.
 6. Emit audit records for external actions.
 7. Start with deterministic typed adapters when the real external system is not wired yet; validate request payloads instead of returning fixed success blobs.
-8. Add tests with fakes or local harnesses instead of live network calls when possible.
+8. When a real external boundary is added, wire it behind the same typed executor contract and keep a deterministic fallback for local development when feasible.
+9. Add tests with fakes or local harnesses instead of live network calls when possible.
 
 ## Output contract
 When you finish, always report:
@@ -49,6 +50,7 @@ When you finish, always report:
 ## Done checklist
 - tool contract is typed and documented
 - deterministic local adapters validate arguments before any live integration exists
+- config-driven adapter selection does not leak vendor behavior into the agent runtime
 - read-only versus write-capable behavior is explicit
 - errors are normalized
 - approvals exist where needed

@@ -50,4 +50,5 @@ Current Milestone 1 slice:
 - failed task `error_reason` values are now normalized to short operator-facing summaries instead of full wrapped Temporal error strings
 - approval tasks promoted from chat now persist an internal tool payload so the Temporal approved-tool activity can execute a typed registered tool after approval instead of always using a placeholder path
 - the default ticket tools now validate request payloads and return argument-dependent structured results through deterministic typed adapters instead of fixed stub JSON
+- if `OPSPILOT_TICKET_API_BASE_URL` is configured, the API and worker switch the default ticket tools from deterministic local adapters to a real HTTP boundary while preserving the same internal tool contracts
 - `POST /api/v1/chat/stream` with optional SSE `plan`, `retrieval`, `tool`, and `task_promoted` events ahead of `state -> done`

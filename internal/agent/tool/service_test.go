@@ -205,3 +205,28 @@ func TestServiceExecuteApprovedToolRejectsInvalidArguments(t *testing.T) {
 		t.Fatalf("Execute() error = %v, want message containing %q", err, "ticket_id")
 	}
 }
+
+func TestServiceExecuteReadOnlyToolUsesInjectedHTTPRegistry(t *testing.T) {
+	registry := toolregistry.NewDefaultRegistryWithOptions(toolregistry.Options{
+		TicketAPIBaseURL: "http://127.0.0.1:1",
+	})
+
+	svc := NewService(registry)
+	_, err := svc.Execute(context.Background(), ToolInvocation{
+		RequestID:   "req-6",
+		TraceID:     "trace-6",
+		TenantID:    "tenant-1",
+		SessionID:   "session-1",
+		PlanID:      "plan-6",
+		StepID:      "step-6",
+		ToolName:    "ticket_search",
+		ActionClass: ActionClassRead,
+		Arguments:   json.RawMessage(`{"query":"db issue"}`),
+	})
+	if err == nil {
+		t.Fatal("Execute() error = nil, want non-nil from configured HTTP adapter")
+	}
+	if !strings.Contains(err.Error(), "ticket_search") {
+		t.Fatalf("Execute() error = %v, want message containing %q", err, "ticket_search")
+	}
+}

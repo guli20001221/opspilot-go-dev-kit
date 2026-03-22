@@ -51,6 +51,7 @@ The current chat stream implementation is a Milestone 1 skeleton:
 - if `approved_tool_execution` fails after approval, the current Temporal run closes, the task row moves to `failed`, and `POST /api/v1/tasks/{task_id}/retry` starts a new failed-only Temporal run for the same task
 - set `OPSPILOT_APPROVED_TOOL_FAIL_ON_APPROVE=true` on the worker to force the first approval attempt to fail while keeping retry successful
 - approval tasks promoted from chat now carry an internal tool payload so worker-side approved execution can run the registered tool after approval; manually created approval tasks without payload still use the compatibility path
+- set `OPSPILOT_TICKET_API_BASE_URL` to route the default ticket tools through a real HTTP boundary; leave it empty to keep the deterministic local ticket adapters
 - approval-gated tasks can be resumed through the approval action endpoint
 - failed tasks can be re-queued through the retry action endpoint
 - task responses now include structured `audit_events`
@@ -71,6 +72,14 @@ docker compose exec -T postgres psql -U opspilot -d opspilot -f /docker-entrypoi
 If you change Compose environment variables such as `OPSPILOT_POSTGRES_DSN`, `OPSPILOT_TEMPORAL_ENABLED`, or `OPSPILOT_WORKER_POLL_INTERVAL`, recreate the app containers instead of only restarting them:
 
 ```powershell
+docker compose up -d --force-recreate api worker
+```
+
+To exercise the HTTP ticket adapter locally, point both app processes at the same ticket API and recreate them:
+
+```powershell
+$env:OPSPILOT_TICKET_API_BASE_URL = "http://host.docker.internal:19090"
+$env:OPSPILOT_TICKET_API_TOKEN = "secret-token"
 docker compose up -d --force-recreate api worker
 ```
 

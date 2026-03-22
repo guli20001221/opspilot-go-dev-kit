@@ -37,16 +37,23 @@ type Service struct {
 
 // NewService constructs a chat service with the required downstream dependencies.
 func NewService(sessions SessionService) *Service {
-	return NewServiceWithWorkflow(sessions, workflow.NewService())
+	return NewServiceWithRegistry(sessions, workflow.NewService(), toolregistry.NewDefaultRegistry())
 }
 
 // NewServiceWithWorkflow constructs a chat service with a caller-provided workflow service.
 func NewServiceWithWorkflow(sessions SessionService, workflows *workflow.Service) *Service {
+	return NewServiceWithRegistry(sessions, workflows, toolregistry.NewDefaultRegistry())
+}
+
+// NewServiceWithRegistry constructs a chat service with caller-provided workflow
+// service and tool registry.
+func NewServiceWithRegistry(sessions SessionService, workflows *workflow.Service, registry *toolregistry.Registry) *Service {
 	if workflows == nil {
 		workflows = workflow.NewService()
 	}
-
-	registry := toolregistry.NewDefaultRegistry()
+	if registry == nil {
+		registry = toolregistry.NewDefaultRegistry()
+	}
 
 	return &Service{
 		sessions:  sessions,

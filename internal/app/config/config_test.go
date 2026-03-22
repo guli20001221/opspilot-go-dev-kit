@@ -62,6 +62,8 @@ func TestLoadUsesEnvOverrides(t *testing.T) {
 	t.Setenv("OPSPILOT_TEMPORAL_ADDRESS", "temporal:7233")
 	t.Setenv("OPSPILOT_TEMPORAL_NAMESPACE", "opspilot")
 	t.Setenv("OPSPILOT_TEMPORAL_TASK_QUEUE", "opspilot-runtime")
+	t.Setenv("OPSPILOT_TICKET_API_BASE_URL", "http://tickets.internal")
+	t.Setenv("OPSPILOT_TICKET_API_TOKEN", "secret-token")
 	t.Setenv("OPSPILOT_APPROVED_TOOL_FAIL_ON_APPROVE", "true")
 	t.Setenv("OPSPILOT_WORKER_POLL_INTERVAL", "3s")
 	t.Setenv("OPSPILOT_WORKER_SHUTDOWN_TIMEOUT", "25s")
@@ -94,6 +96,12 @@ func TestLoadUsesEnvOverrides(t *testing.T) {
 	}
 	if cfg.TemporalTaskQueue != "opspilot-runtime" {
 		t.Fatalf("TemporalTaskQueue = %q, want %q", cfg.TemporalTaskQueue, "opspilot-runtime")
+	}
+	if cfg.TicketAPIBaseURL != "http://tickets.internal" {
+		t.Fatalf("TicketAPIBaseURL = %q, want %q", cfg.TicketAPIBaseURL, "http://tickets.internal")
+	}
+	if cfg.TicketAPIToken != "secret-token" {
+		t.Fatalf("TicketAPIToken = %q, want %q", cfg.TicketAPIToken, "secret-token")
 	}
 	if !cfg.ApprovedToolFailOnApprove {
 		t.Fatal("ApprovedToolFailOnApprove = false, want true")

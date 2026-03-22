@@ -31,6 +31,8 @@ type Config struct {
 	TemporalAddress           string
 	TemporalNamespace         string
 	TemporalTaskQueue         string
+	TicketAPIBaseURL          string
+	TicketAPIToken            string
 	ApprovedToolFailOnApprove bool
 	WorkerPollInterval        time.Duration
 	WorkerShutdownTimeout     time.Duration
@@ -47,6 +49,8 @@ func Load() (Config, error) {
 		TemporalAddress:           getEnv("OPSPILOT_TEMPORAL_ADDRESS", defaultTemporalAddress),
 		TemporalNamespace:         getEnv("OPSPILOT_TEMPORAL_NAMESPACE", defaultTemporalNamespace),
 		TemporalTaskQueue:         getEnv("OPSPILOT_TEMPORAL_TASK_QUEUE", defaultTemporalTaskQueue),
+		TicketAPIBaseURL:          getEnv("OPSPILOT_TICKET_API_BASE_URL", ""),
+		TicketAPIToken:            getEnv("OPSPILOT_TICKET_API_TOKEN", ""),
 		ApprovedToolFailOnApprove: defaultApprovedToolFailOnApprove,
 		WorkerPollInterval:        defaultWorkerPollInterval,
 		WorkerShutdownTimeout:     defaultWorkerShutdownTimeout,

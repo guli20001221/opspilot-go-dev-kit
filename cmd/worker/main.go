@@ -8,9 +8,11 @@ import (
 	"syscall"
 	"time"
 
+	agenttool "opspilot-go/internal/agent/tool"
 	"opspilot-go/internal/app/config"
 	"opspilot-go/internal/app/logging"
 	storagepostgres "opspilot-go/internal/storage/postgres"
+	toolregistry "opspilot-go/internal/tools/registry"
 	"opspilot-go/internal/workflow"
 
 	temporalworker "go.temporal.io/sdk/worker"
@@ -38,6 +40,11 @@ func main() {
 
 	service := workflow.NewServiceWithStore(storagepostgres.NewWorkflowTaskStore(pool))
 	executor := workflow.Executor(workflow.NewPlaceholderExecutor())
+	registry := toolregistry.NewDefaultRegistryWithOptions(toolregistry.Options{
+		TicketAPIBaseURL: cfg.TicketAPIBaseURL,
+		TicketAPIToken:   cfg.TicketAPIToken,
+	})
+	tools := agenttool.NewService(registry)
 
 	var temporalWorker temporalworker.Worker
 	if cfg.TemporalEnabled {
@@ -53,9 +60,9 @@ func main() {
 		defer temporalClient.Close()
 
 		reportRunner := workflow.NewTemporalReportRunner(temporalClient, cfg.TemporalTaskQueue)
-		approvedToolRunner := workflow.NewTemporalApprovedToolRunnerWithActivities(temporalClient, cfg.TemporalTaskQueue, &workflow.ApprovedToolActivities{
-			FailOnApprove: cfg.ApprovedToolFailOnApprove,
-		})
+		activities := workflow.NewApprovedToolActivities(tools)
+		activities.FailOnApprove = cfg.ApprovedToolFailOnApprove
+		approvedToolRunner := workflow.NewTemporalApprovedToolRunnerWithActivities(temporalClient, cfg.TemporalTaskQueue, activities)
 		temporalWorker = workflow.NewTemporalWorker(temporalClient, cfg.TemporalTaskQueue, reportRunner, approvedToolRunner)
 		if err := temporalWorker.Start(); err != nil {
 			logger.Error("start temporal worker", slog.Any("error", err))
