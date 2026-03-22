@@ -46,6 +46,7 @@ Current Milestone 1 slice:
 - `GET /api/v1/tasks` for operator-facing task listing with `tenant_id`, `status`, `task_type`, `reason`, `requires_approval`, `created_after`, `created_before`, `updated_after`, `updated_before`, `limit`, and `offset` filters
 - `GET /api/v1/tasks/{task_id}` for persisted task status lookup
 - `POST /api/v1/tasks/{task_id}/approve` and `POST /api/v1/tasks/{task_id}/retry` for minimal task actions
+- `GET /api/v1/admin/task-board` for the first backend task-board read model that returns items, page metadata, and visible-slice summary counts for future `web/admin` task views
 - structured `audit_events` on task responses for create, claim, approve, retry, succeed, and fail
 - list-task responses intentionally omit `audit_events` so the operator list view stays lightweight while single-task lookup remains the detailed drill-down surface, and now return `has_more` plus `next_offset` for simple offset pagination
 - workflow task row changes and matching `audit_events` now commit atomically in the PostgreSQL-backed runtime paths

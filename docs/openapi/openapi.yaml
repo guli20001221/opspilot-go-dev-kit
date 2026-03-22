@@ -453,6 +453,114 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
+  /api/v1/admin/task-board:
+    get:
+      summary: Get the admin task board view
+      description: |
+        Returns an operator-facing task board read model built from the current filtered task page.
+        This endpoint keeps summary counts and pagination metadata on the backend so `web/admin` can stay contract-driven.
+      operationId: getAdminTaskBoard
+      parameters:
+        - name: tenant_id
+          in: query
+          required: false
+          schema:
+            type: string
+        - name: status
+          in: query
+          required: false
+          schema:
+            type: string
+            enum:
+              - queued
+              - running
+              - succeeded
+              - failed
+              - waiting_approval
+        - name: task_type
+          in: query
+          required: false
+          schema:
+            type: string
+            enum:
+              - report_generation
+              - approved_tool_execution
+        - name: reason
+          in: query
+          required: false
+          schema:
+            type: string
+            enum:
+              - workflow_required
+              - approval_required
+        - name: requires_approval
+          in: query
+          required: false
+          schema:
+            type: boolean
+        - name: created_after
+          in: query
+          required: false
+          schema:
+            type: string
+            format: date-time
+        - name: created_before
+          in: query
+          required: false
+          schema:
+            type: string
+            format: date-time
+        - name: updated_after
+          in: query
+          required: false
+          schema:
+            type: string
+            format: date-time
+        - name: updated_before
+          in: query
+          required: false
+          schema:
+            type: string
+            format: date-time
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            default: 20
+        - name: offset
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 0
+            default: 0
+      responses:
+        '200':
+          description: Admin task board returned.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminTaskBoard'
+        '400':
+          description: Query parameters were invalid.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '405':
+          description: Method not allowed.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Task board query failed.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
 components:
   schemas:
     StatusResponse:
@@ -664,3 +772,91 @@ components:
         created_at:
           type: string
           format: date-time
+    AdminTaskBoard:
+      type: object
+      required:
+        - items
+        - page
+        - summary
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/TaskSummary'
+        page:
+          $ref: '#/components/schemas/AdminTaskBoardPage'
+        summary:
+          $ref: '#/components/schemas/AdminTaskBoardSummary'
+    AdminTaskBoardPage:
+      type: object
+      required:
+        - has_more
+      properties:
+        has_more:
+          type: boolean
+        next_offset:
+          type: integer
+          minimum: 0
+    AdminTaskBoardSummary:
+      type: object
+      required:
+        - visible_count
+        - requires_approval_count
+        - status_counts
+        - reason_counts
+        - task_type_counts
+      properties:
+        visible_count:
+          type: integer
+        requires_approval_count:
+          type: integer
+        latest_updated_at:
+          type: string
+          format: date-time
+        latest_failure_reason:
+          type: string
+        status_counts:
+          $ref: '#/components/schemas/AdminTaskBoardStatusCounts'
+        reason_counts:
+          $ref: '#/components/schemas/AdminTaskBoardReasonCounts'
+        task_type_counts:
+          $ref: '#/components/schemas/AdminTaskBoardTaskTypeCounts'
+    AdminTaskBoardStatusCounts:
+      type: object
+      required:
+        - queued
+        - running
+        - succeeded
+        - failed
+        - waiting_approval
+      properties:
+        queued:
+          type: integer
+        running:
+          type: integer
+        succeeded:
+          type: integer
+        failed:
+          type: integer
+        waiting_approval:
+          type: integer
+    AdminTaskBoardReasonCounts:
+      type: object
+      required:
+        - workflow_required
+        - approval_required
+      properties:
+        workflow_required:
+          type: integer
+        approval_required:
+          type: integer
+    AdminTaskBoardTaskTypeCounts:
+      type: object
+      required:
+        - report_generation
+        - approved_tool_execution
+      properties:
+        report_generation:
+          type: integer
+        approved_tool_execution:
+          type: integer

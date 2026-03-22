@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"strings"
 
+	admintaskboard "opspilot-go/internal/app/admin/taskboard"
 	appchat "opspilot-go/internal/app/chat"
 	"opspilot-go/internal/session"
 	toolregistry "opspilot-go/internal/tools/registry"
@@ -12,9 +13,10 @@ import (
 )
 
 type appHandler struct {
-	sessions  *session.Service
-	workflows *workflow.Service
-	chat      *appchat.Service
+	adminTaskBoard *admintaskboard.Service
+	sessions       *session.Service
+	workflows      *workflow.Service
+	chat           *appchat.Service
 }
 
 type createSessionRequest struct {
@@ -58,15 +60,17 @@ func newAppHandler(workflowService *workflow.Service, registry *toolregistry.Reg
 	}
 
 	return &appHandler{
-		sessions:  sessionService,
-		workflows: workflowService,
-		chat:      appchat.NewServiceWithRegistry(sessionService, workflowService, registry),
+		adminTaskBoard: admintaskboard.NewService(workflowService),
+		sessions:       sessionService,
+		workflows:      workflowService,
+		chat:           appchat.NewServiceWithRegistry(sessionService, workflowService, registry),
 	}
 }
 
 func (a *appHandler) registerRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("/api/v1/sessions", a.handleSessions)
 	mux.HandleFunc("/api/v1/sessions/", a.handleSessionMessages)
+	mux.HandleFunc("/api/v1/admin/task-board", a.handleAdminTaskBoard)
 	mux.HandleFunc("/api/v1/tasks", a.handleTasks)
 	mux.HandleFunc("/api/v1/tasks/", a.handleTaskByID)
 	mux.HandleFunc("/api/v1/chat/stream", a.handleChatStream)
