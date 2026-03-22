@@ -206,3 +206,43 @@ func TestApproveTaskRejectsWrongState(t *testing.T) {
 		t.Fatalf("StatusCode = %d, want %d", resp.StatusCode, http.StatusConflict)
 	}
 }
+
+func TestGetTaskReturnsSummarizedFailureReason(t *testing.T) {
+	workflowService := workflow.NewService()
+	created, err := workflowService.Promote(context.Background(), workflow.PromoteRequest{
+		RequestID: "req-failure-summary",
+		TenantID:  "tenant-1",
+		SessionID: "session-1",
+		TaskType:  workflow.TaskTypeApprovedToolExecution,
+		Reason:    workflow.PromotionReasonApprovalRequired,
+	})
+	if err != nil {
+		t.Fatalf("Promote() error = %v", err)
+	}
+	created.Status = workflow.StatusFailed
+	created.ErrorReason = "fault injection: approved tool failed on approve for task-1"
+	if _, err := workflowService.UpdateTask(context.Background(), created); err != nil {
+		t.Fatalf("UpdateTask() error = %v", err)
+	}
+
+	server := httptest.NewServer(NewHandlerWithDependencies(Dependencies{Workflows: workflowService}))
+	defer server.Close()
+
+	resp, err := http.Get(server.URL + "/api/v1/tasks/" + created.ID)
+	if err != nil {
+		t.Fatalf("Get() error = %v", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("StatusCode = %d, want %d", resp.StatusCode, http.StatusOK)
+	}
+
+	var got taskResponse
+	if err := json.NewDecoder(resp.Body).Decode(&got); err != nil {
+		t.Fatalf("Decode() error = %v", err)
+	}
+	if got.ErrorReason != "fault injection: approved tool failed on approve for task-1" {
+		t.Fatalf("ErrorReason = %q, want summarized failure reason", got.ErrorReason)
+	}
+}

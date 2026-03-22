@@ -48,6 +48,7 @@ The current HTTP layer also exposes the same PostgreSQL-backed workflow records 
 - `POST /api/v1/tasks/{task_id}/approve` to resume approval-gated tasks
 - `POST /api/v1/tasks/{task_id}/retry` to re-queue failed tasks
 - `audit_events` embedded in task responses as the current structured operator audit view
+- `error_reason` normalized to an operator-facing summary while deep Temporal detail remains in worker logs
 
 Within the current PostgreSQL-backed workflow runtime, task-state changes and their matching
 audit-event inserts now commit in the same transaction for create, claim, approve, retry,

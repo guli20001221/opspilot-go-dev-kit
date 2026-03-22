@@ -3,6 +3,7 @@ package workflow
 import (
 	"context"
 	"fmt"
+	"strings"
 	"time"
 )
 
@@ -49,7 +50,7 @@ func (r *Runner) ProcessNextBatch(ctx context.Context, limit int) (int, error) {
 		action := AuditActionSucceeded
 		if execErr != nil {
 			task.Status = StatusFailed
-			task.ErrorReason = execErr.Error()
+			task.ErrorReason = summarizeExecutionError(execErr)
 			task.AuditRef = fallbackAuditRef(result.AuditRef, "worker:placeholder_failed")
 			action = AuditActionFailed
 		} else {
@@ -79,6 +80,26 @@ func fallbackAuditRef(value string, fallback string) string {
 	}
 
 	return fallback
+}
+
+func summarizeExecutionError(err error) string {
+	if err == nil {
+		return ""
+	}
+
+	message := strings.TrimSpace(err.Error())
+	if message == "" {
+		return ""
+	}
+
+	if idx := strings.LastIndex(message, "): "); idx >= 0 && idx+3 < len(message) {
+		message = message[idx+3:]
+	}
+	if idx := strings.Index(message, " (type: "); idx >= 0 {
+		message = message[:idx]
+	}
+
+	return strings.TrimSpace(message)
 }
 
 // PlaceholderExecutor advances known task types without external side effects.

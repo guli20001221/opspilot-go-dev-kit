@@ -2,6 +2,7 @@ package workflow
 
 import (
 	"context"
+	"errors"
 	"testing"
 )
 
@@ -142,4 +143,57 @@ func TestRunnerProcessesApprovedTaskAfterApproval(t *testing.T) {
 	if got.Status != StatusSucceeded {
 		t.Fatalf("Status = %q, want %q", got.Status, StatusSucceeded)
 	}
+}
+
+func TestRunnerSummarizesTemporalExecutionFailure(t *testing.T) {
+	svc := NewService()
+	runner := NewRunner(svc, &fakeRunnerExecutor{
+		err: errors.New("get approved tool workflow result: workflow execution error (type: ApprovedToolExecutionWorkflow, workflowID: task-1, runID: run-1): activity error (type: ExecuteApprovedTool, scheduledEventID: 9, startedEventID: 10, identity: worker): fault injection: approved tool failed on approve for task-1 (type: approved_tool_fault_injection, retryable: false)"),
+		result: ExecutionResult{
+			AuditRef: "temporal:workflow:task-1/run-1",
+		},
+	})
+
+	created, err := svc.Promote(context.Background(), PromoteRequest{
+		RequestID: "req-5",
+		TenantID:  "tenant-1",
+		SessionID: "session-1",
+		TaskType:  TaskTypeReportGeneration,
+		Reason:    PromotionReasonWorkflowRequired,
+	})
+	if err != nil {
+		t.Fatalf("Promote() error = %v", err)
+	}
+
+	if _, err := runner.ProcessNextBatch(context.Background(), 10); err != nil {
+		t.Fatalf("ProcessNextBatch() error = %v", err)
+	}
+
+	got, err := svc.GetTask(context.Background(), created.ID)
+	if err != nil {
+		t.Fatalf("GetTask() error = %v", err)
+	}
+	if got.Status != StatusFailed {
+		t.Fatalf("Status = %q, want %q", got.Status, StatusFailed)
+	}
+	if got.ErrorReason != "fault injection: approved tool failed on approve for task-1" {
+		t.Fatalf("ErrorReason = %q, want summarized root cause", got.ErrorReason)
+	}
+
+	events, err := svc.ListTaskEvents(context.Background(), created.ID)
+	if err != nil {
+		t.Fatalf("ListTaskEvents() error = %v", err)
+	}
+	if events[len(events)-1].Detail != "fault injection: approved tool failed on approve for task-1" {
+		t.Fatalf("events[last].Detail = %q, want summarized root cause", events[len(events)-1].Detail)
+	}
+}
+
+type fakeRunnerExecutor struct {
+	result ExecutionResult
+	err    error
+}
+
+func (f *fakeRunnerExecutor) Execute(_ context.Context, _ Task) (ExecutionResult, error) {
+	return f.result, f.err
 }
