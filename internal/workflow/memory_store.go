@@ -189,6 +189,12 @@ func (s *MemoryStore) ListTasks(_ context.Context, filter TaskListFilter) (TaskL
 		if filter.CreatedBefore != nil && !task.CreatedAt.Before(*filter.CreatedBefore) {
 			continue
 		}
+		if filter.UpdatedAfter != nil && !task.UpdatedAt.After(*filter.UpdatedAfter) {
+			continue
+		}
+		if filter.UpdatedBefore != nil && !task.UpdatedAt.Before(*filter.UpdatedBefore) {
+			continue
+		}
 		out = append(out, task)
 	}
 

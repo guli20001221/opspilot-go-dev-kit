@@ -247,6 +247,70 @@ func TestListTasksEndpointSupportsCreatedAtWindowFilters(t *testing.T) {
 	}
 }
 
+func TestListTasksEndpointSupportsUpdatedAtWindowFilters(t *testing.T) {
+	workflowService := workflow.NewService()
+
+	first, err := workflowService.Promote(context.Background(), workflow.PromoteRequest{
+		RequestID: "req-updated-1",
+		TenantID:  "tenant-updated",
+		SessionID: "session-updated-1",
+		TaskType:  workflow.TaskTypeReportGeneration,
+		Reason:    workflow.PromotionReasonWorkflowRequired,
+	})
+	if err != nil {
+		t.Fatalf("Promote(first) error = %v", err)
+	}
+	time.Sleep(time.Millisecond)
+	second, err := workflowService.Promote(context.Background(), workflow.PromoteRequest{
+		RequestID: "req-updated-2",
+		TenantID:  "tenant-updated",
+		SessionID: "session-updated-2",
+		TaskType:  workflow.TaskTypeApprovedToolExecution,
+		Reason:    workflow.PromotionReasonApprovalRequired,
+	})
+	if err != nil {
+		t.Fatalf("Promote(second) error = %v", err)
+	}
+	time.Sleep(time.Millisecond)
+	third, err := workflowService.Promote(context.Background(), workflow.PromoteRequest{
+		RequestID: "req-updated-3",
+		TenantID:  "tenant-updated",
+		SessionID: "session-updated-3",
+		TaskType:  workflow.TaskTypeReportGeneration,
+		Reason:    workflow.PromotionReasonWorkflowRequired,
+	})
+	if err != nil {
+		t.Fatalf("Promote(third) error = %v", err)
+	}
+
+	server := httptest.NewServer(NewHandlerWithDependencies(Dependencies{Workflows: workflowService}))
+	defer server.Close()
+
+	url := server.URL + "/api/v1/tasks?tenant_id=tenant-updated&updated_after=" + first.UpdatedAt.Format(time.RFC3339Nano) + "&updated_before=" + third.UpdatedAt.Format(time.RFC3339Nano)
+	resp, err := http.Get(url)
+	if err != nil {
+		t.Fatalf("Get() error = %v", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("StatusCode = %d, want %d", resp.StatusCode, http.StatusOK)
+	}
+
+	var got struct {
+		Tasks []taskResponse `json:"tasks"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&got); err != nil {
+		t.Fatalf("Decode() error = %v", err)
+	}
+	if len(got.Tasks) != 1 {
+		t.Fatalf("len(Tasks) = %d, want %d", len(got.Tasks), 1)
+	}
+	if got.Tasks[0].TaskID != second.ID {
+		t.Fatalf("Tasks[0].TaskID = %q, want %q", got.Tasks[0].TaskID, second.ID)
+	}
+}
+
 func TestListTasksEndpointSupportsOffsetPagination(t *testing.T) {
 	workflowService := workflow.NewService()
 
@@ -410,6 +474,29 @@ func TestListTasksEndpointRejectsInvalidCreatedAfter(t *testing.T) {
 	defer server.Close()
 
 	resp, err := http.Get(server.URL + "/api/v1/tasks?created_after=not-a-time")
+	if err != nil {
+		t.Fatalf("Get() error = %v", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusBadRequest {
+		t.Fatalf("StatusCode = %d, want %d", resp.StatusCode, http.StatusBadRequest)
+	}
+
+	var got errorResponse
+	if err := json.NewDecoder(resp.Body).Decode(&got); err != nil {
+		t.Fatalf("Decode() error = %v", err)
+	}
+	if got.Code != "invalid_query" {
+		t.Fatalf("Code = %q, want %q", got.Code, "invalid_query")
+	}
+}
+
+func TestListTasksEndpointRejectsInvalidUpdatedAfter(t *testing.T) {
+	server := httptest.NewServer(NewHandler())
+	defer server.Close()
+
+	resp, err := http.Get(server.URL + "/api/v1/tasks?updated_after=not-a-time")
 	if err != nil {
 		t.Fatalf("Get() error = %v", err)
 	}

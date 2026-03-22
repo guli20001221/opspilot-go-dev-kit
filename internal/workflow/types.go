@@ -92,6 +92,8 @@ type TaskListFilter struct {
 	RequiresApproval *bool
 	CreatedAfter     *time.Time
 	CreatedBefore    *time.Time
+	UpdatedAfter     *time.Time
+	UpdatedBefore    *time.Time
 	Limit            int
 	Offset           int
 }

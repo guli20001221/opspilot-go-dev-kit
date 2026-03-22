@@ -239,8 +239,10 @@ WHERE ($1 = '' OR tenant_id = $1)
   AND ($5 = '' OR requires_approval = CAST($5 AS boolean))
   AND ($6::timestamptz IS NULL OR created_at > $6)
   AND ($7::timestamptz IS NULL OR created_at < $7)
+  AND ($8::timestamptz IS NULL OR updated_at > $8)
+  AND ($9::timestamptz IS NULL OR updated_at < $9)
 ORDER BY updated_at DESC, created_at DESC
-LIMIT $8 OFFSET $9`
+LIMIT $10 OFFSET $11`
 
 	rows, err := s.pool.Query(
 		ctx,
@@ -252,6 +254,8 @@ LIMIT $8 OFFSET $9`
 		requiresApproval,
 		filter.CreatedAfter,
 		filter.CreatedBefore,
+		filter.UpdatedAfter,
+		filter.UpdatedBefore,
 		limit+1,
 		offset,
 	)

@@ -235,6 +235,18 @@ paths:
           schema:
             type: string
             format: date-time
+        - name: updated_after
+          in: query
+          required: false
+          schema:
+            type: string
+            format: date-time
+        - name: updated_before
+          in: query
+          required: false
+          schema:
+            type: string
+            format: date-time
         - name: limit
           in: query
           required: false

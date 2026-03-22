@@ -385,6 +385,86 @@ func TestWorkflowTaskStoreListTasksSupportsCreatedAtWindowFilters(t *testing.T) 
 	}
 }
 
+func TestWorkflowTaskStoreListTasksSupportsUpdatedAtWindowFilters(t *testing.T) {
+	dsn := os.Getenv("OPSPILOT_TEST_POSTGRES_DSN")
+	if dsn == "" {
+		t.Skip("OPSPILOT_TEST_POSTGRES_DSN not set")
+	}
+
+	ctx := context.Background()
+	pool, err := OpenPool(ctx, dsn)
+	if err != nil {
+		t.Fatalf("OpenPool() error = %v", err)
+	}
+	defer pool.Close()
+
+	applyMigration(t, ctx, pool)
+	if _, err := pool.Exec(ctx, "TRUNCATE workflow_task_events, workflow_tasks RESTART IDENTITY"); err != nil {
+		t.Fatalf("TRUNCATE workflow_task_events, workflow_tasks error = %v", err)
+	}
+
+	store := NewWorkflowTaskStore(pool)
+	firstUpdatedAt := time.Unix(1700000500, 0).UTC()
+	secondUpdatedAt := time.Unix(1700000501, 0).UTC()
+	thirdUpdatedAt := time.Unix(1700000502, 0).UTC()
+	tasks := []workflow.Task{
+		{
+			ID:        "task-updated-1",
+			RequestID: "req-updated-1",
+			TenantID:  "tenant-updated",
+			SessionID: "session-updated-1",
+			TaskType:  workflow.TaskTypeReportGeneration,
+			Status:    workflow.StatusQueued,
+			Reason:    workflow.PromotionReasonWorkflowRequired,
+			CreatedAt: time.Unix(1700000490, 0).UTC(),
+			UpdatedAt: firstUpdatedAt,
+		},
+		{
+			ID:        "task-updated-2",
+			RequestID: "req-updated-2",
+			TenantID:  "tenant-updated",
+			SessionID: "session-updated-2",
+			TaskType:  workflow.TaskTypeApprovedToolExecution,
+			Status:    workflow.StatusQueued,
+			Reason:    workflow.PromotionReasonApprovalRequired,
+			CreatedAt: time.Unix(1700000491, 0).UTC(),
+			UpdatedAt: secondUpdatedAt,
+		},
+		{
+			ID:        "task-updated-3",
+			RequestID: "req-updated-3",
+			TenantID:  "tenant-updated",
+			SessionID: "session-updated-3",
+			TaskType:  workflow.TaskTypeReportGeneration,
+			Status:    workflow.StatusQueued,
+			Reason:    workflow.PromotionReasonWorkflowRequired,
+			CreatedAt: time.Unix(1700000492, 0).UTC(),
+			UpdatedAt: thirdUpdatedAt,
+		},
+	}
+	for _, task := range tasks {
+		if _, err := store.SaveTask(ctx, task); err != nil {
+			t.Fatalf("SaveTask(%s) error = %v", task.ID, err)
+		}
+	}
+
+	got, err := store.ListTasks(ctx, workflow.TaskListFilter{
+		TenantID:      "tenant-updated",
+		UpdatedAfter:  timePtr(firstUpdatedAt),
+		UpdatedBefore: timePtr(thirdUpdatedAt),
+		Limit:         10,
+	})
+	if err != nil {
+		t.Fatalf("ListTasks() error = %v", err)
+	}
+	if len(got.Tasks) != 1 {
+		t.Fatalf("len(ListTasks().Tasks) = %d, want %d", len(got.Tasks), 1)
+	}
+	if got.Tasks[0].ID != "task-updated-2" {
+		t.Fatalf("ListTasks().Tasks[0].ID = %q, want %q", got.Tasks[0].ID, "task-updated-2")
+	}
+}
+
 func TestWorkflowTaskStoreListTasksSupportsOffsetPagination(t *testing.T) {
 	dsn := os.Getenv("OPSPILOT_TEST_POSTGRES_DSN")
 	if dsn == "" {
