@@ -58,6 +58,7 @@ The current chat stream implementation is a Milestone 1 skeleton:
 - failed tasks can be re-queued through the retry action endpoint
 - task responses now include structured `audit_events`
 - the last successful `audit_event.detail` now carries an execution summary, such as which ticket comment was created
+- failed `audit_event.detail` values now carry a coarse category prefix, such as `validation_error:` or `authorization_error:`
 - failed tasks expose a summarized `error_reason` instead of the full wrapped Temporal error chain
 - SSE always emits `meta`, `plan`, `state`, and `done`
 - SSE may also emit `retrieval`, `tool`, and `task_promoted` depending on the internal runtime path

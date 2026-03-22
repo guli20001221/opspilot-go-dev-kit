@@ -220,8 +220,41 @@ func TestRunnerSummarizesTemporalExecutionFailure(t *testing.T) {
 	if err != nil {
 		t.Fatalf("ListTaskEvents() error = %v", err)
 	}
-	if events[len(events)-1].Detail != "fault injection: approved tool failed on approve for task-1" {
-		t.Fatalf("events[last].Detail = %q, want summarized root cause", events[len(events)-1].Detail)
+	if events[len(events)-1].Detail != "injected_failure: fault injection: approved tool failed on approve for task-1" {
+		t.Fatalf("events[last].Detail = %q, want categorized root cause", events[len(events)-1].Detail)
+	}
+}
+
+func TestRunnerClassifiesValidationFailureInAuditDetail(t *testing.T) {
+	svc := NewService()
+	runner := NewRunner(svc, &fakeRunnerExecutor{
+		err: errors.New("execute ticket_comment_create: ticket_comment_create requires ticket_id"),
+		result: ExecutionResult{
+			AuditRef: "worker:validation_failed",
+		},
+	})
+
+	created, err := svc.Promote(context.Background(), PromoteRequest{
+		RequestID: "req-6",
+		TenantID:  "tenant-1",
+		SessionID: "session-1",
+		TaskType:  TaskTypeApprovedToolExecution,
+		Reason:    PromotionReasonApprovalRequired,
+	})
+	if err != nil {
+		t.Fatalf("Promote() error = %v", err)
+	}
+
+	if _, err := runner.ProcessNextBatch(context.Background(), 10); err != nil {
+		t.Fatalf("ProcessNextBatch() error = %v", err)
+	}
+
+	events, err := svc.ListTaskEvents(context.Background(), created.ID)
+	if err != nil {
+		t.Fatalf("ListTaskEvents() error = %v", err)
+	}
+	if events[len(events)-1].Detail != "validation_error: execute ticket_comment_create: ticket_comment_create requires ticket_id" {
+		t.Fatalf("events[last].Detail = %q, want categorized validation summary", events[len(events)-1].Detail)
 	}
 }
 

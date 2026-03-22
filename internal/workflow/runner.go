@@ -108,7 +108,30 @@ func successOrFailureDetail(action string, successDetail string, failureDetail s
 		return fallbackAuditRef(successDetail, fallback)
 	}
 
-	return fallbackAuditRef(failureDetail, fallback)
+	return fallbackAuditRef(classifyExecutionFailure(failureDetail), fallback)
+}
+
+func classifyExecutionFailure(summary string) string {
+	summary = strings.TrimSpace(summary)
+	if summary == "" {
+		return ""
+	}
+
+	lower := strings.ToLower(summary)
+	switch {
+	case strings.Contains(lower, "fault injection"):
+		return "injected_failure: " + summary
+	case strings.Contains(lower, "requires ticket_"), strings.Contains(lower, "requires comment"), strings.Contains(lower, "requires query"), strings.Contains(lower, "decode ticket_"):
+		return "validation_error: " + summary
+	case strings.Contains(lower, "status 401"), strings.Contains(lower, "status 403"), strings.Contains(lower, "unauthorized"):
+		return "authorization_error: " + summary
+	case strings.Contains(lower, "status 4"):
+		return "request_error: " + summary
+	case strings.Contains(lower, "status 5"), strings.Contains(lower, "call ticket_"):
+		return "upstream_error: " + summary
+	default:
+		return "execution_error: " + summary
+	}
 }
 
 // PlaceholderExecutor advances known task types without external side effects.

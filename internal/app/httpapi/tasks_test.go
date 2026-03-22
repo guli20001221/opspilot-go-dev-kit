@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -292,6 +293,51 @@ func TestGetTaskReturnsSucceededAuditSummary(t *testing.T) {
 	}
 	if last.Detail != "ticket_comment_create comment_created for INC-222" {
 		t.Fatalf("last.Detail = %q, want execution summary", last.Detail)
+	}
+}
+
+func TestGetTaskReturnsCategorizedFailureAuditDetail(t *testing.T) {
+	workflowService := workflow.NewService()
+	runner := workflow.NewRunner(workflowService, &fakeHTTPTaskExecutor{
+		err: errors.New("execute ticket_comment_create: ticket_comment_create requires ticket_id"),
+		result: workflow.ExecutionResult{
+			AuditRef: "worker:validation_failed",
+		},
+	})
+
+	created, err := workflowService.Promote(context.Background(), workflow.PromoteRequest{
+		RequestID: "req-failure-detail",
+		TenantID:  "tenant-1",
+		SessionID: "session-1",
+		TaskType:  workflow.TaskTypeApprovedToolExecution,
+		Reason:    workflow.PromotionReasonApprovalRequired,
+	})
+	if err != nil {
+		t.Fatalf("Promote() error = %v", err)
+	}
+	if _, err := runner.ProcessNextBatch(context.Background(), 10); err != nil {
+		t.Fatalf("ProcessNextBatch() error = %v", err)
+	}
+
+	server := httptest.NewServer(NewHandlerWithDependencies(Dependencies{Workflows: workflowService}))
+	defer server.Close()
+
+	resp, err := http.Get(server.URL + "/api/v1/tasks/" + created.ID)
+	if err != nil {
+		t.Fatalf("Get() error = %v", err)
+	}
+	defer resp.Body.Close()
+
+	var got taskResponse
+	if err := json.NewDecoder(resp.Body).Decode(&got); err != nil {
+		t.Fatalf("Decode() error = %v", err)
+	}
+	last := got.AuditEvents[len(got.AuditEvents)-1]
+	if last.Action != workflow.AuditActionFailed {
+		t.Fatalf("last.Action = %q, want %q", last.Action, workflow.AuditActionFailed)
+	}
+	if last.Detail != "validation_error: execute ticket_comment_create: ticket_comment_create requires ticket_id" {
+		t.Fatalf("last.Detail = %q, want categorized failure detail", last.Detail)
 	}
 }
 

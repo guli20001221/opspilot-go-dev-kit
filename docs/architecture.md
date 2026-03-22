@@ -65,6 +65,7 @@ The current worker path advances supported queued tasks through:
 - the default ticket adapters now execute through typed request/response contracts, so approved-tool runs can reject invalid payloads instead of silently succeeding on fixed stub output
 - registry construction is now config-driven: without a ticket API base URL it uses deterministic local adapters, and with one it switches both API and worker to the HTTP ticket adapter through the same typed executor hook
 - task success audit events now carry execution summaries from the executor path, which gives operators a concise description of what completed without changing the task response schema
+- task failure audit events now use categorized detail prefixes while leaving `error_reason` as the shorter root-cause string
 - `queued -> running -> failed` for unsupported task types
 
 This file is intentionally brief in the AI development kit.
