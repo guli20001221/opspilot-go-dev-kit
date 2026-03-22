@@ -217,9 +217,16 @@ paths:
             type: integer
             minimum: 1
             default: 20
+        - name: offset
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 0
+            default: 0
       responses:
         '200':
-          description: Filtered task rows returned.
+          description: Filtered task rows returned with offset pagination metadata.
           content:
             application/json:
               schema:
@@ -575,11 +582,17 @@ components:
       type: object
       required:
         - tasks
+        - has_more
       properties:
         tasks:
           type: array
           items:
             $ref: '#/components/schemas/TaskSummary'
+        has_more:
+          type: boolean
+        next_offset:
+          type: integer
+          minimum: 0
     Task:
       allOf:
         - $ref: '#/components/schemas/TaskSummary'

@@ -26,7 +26,7 @@ type TaskStore interface {
 	UpdateTaskWithEvent(ctx context.Context, task Task, event AuditEvent) (Task, error)
 	AppendTaskEvent(ctx context.Context, event AuditEvent) (AuditEvent, error)
 	ListTaskEvents(ctx context.Context, taskID string) ([]AuditEvent, error)
-	ListTasks(ctx context.Context, filter TaskListFilter) ([]Task, error)
+	ListTasks(ctx context.Context, filter TaskListFilter) (TaskListPage, error)
 }
 
 // TaskStarter starts external workflow execution for tasks that must be
@@ -201,7 +201,7 @@ func (s *Service) ListTaskEvents(ctx context.Context, taskID string) ([]AuditEve
 }
 
 // ListTasks returns operator-facing task rows for the provided filter.
-func (s *Service) ListTasks(ctx context.Context, filter TaskListFilter) ([]Task, error) {
+func (s *Service) ListTasks(ctx context.Context, filter TaskListFilter) (TaskListPage, error) {
 	return s.store.ListTasks(ctx, filter)
 }
 

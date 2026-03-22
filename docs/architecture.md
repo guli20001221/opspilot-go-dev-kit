@@ -46,12 +46,12 @@ The current synchronous chat stream now surfaces internal runtime milestones ove
 The current HTTP layer also exposes the same PostgreSQL-backed workflow records over REST:
 
 - `POST /api/v1/tasks` for explicit async task creation
-- `GET /api/v1/tasks` for operator-facing filtered task listing
+- `GET /api/v1/tasks` for operator-facing filtered task listing with offset pagination metadata
 - `GET /api/v1/tasks/{task_id}` for task status lookup
 - `POST /api/v1/tasks/{task_id}/approve` to resume approval-gated tasks
 - `POST /api/v1/tasks/{task_id}/retry` to re-queue failed tasks
 - `audit_events` embedded in task responses as the current structured operator audit view
-- the list endpoint intentionally omits `audit_events`, so the summary surface stays cheap while the single-task endpoint remains the detailed audit drill-down
+- the list endpoint intentionally omits `audit_events`, so the summary surface stays cheap while the single-task endpoint remains the detailed audit drill-down, and it returns `has_more` plus `next_offset` for simple operator pagination
 - `error_reason` normalized to an operator-facing summary while deep Temporal detail remains in worker logs
 
 Within the current PostgreSQL-backed workflow runtime, task-state changes and their matching

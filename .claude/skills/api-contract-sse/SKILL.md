@@ -36,7 +36,7 @@ Keep the HTTP surface explicit, documented, stable, and friendly to streaming ag
 5. Add request validation and tenancy enforcement at the boundary.
 6. Update OpenAPI and handler tests together.
 7. If asynchronous job creation is involved, return stable job ids and status endpoints.
-8. List endpoints for async jobs should document supported filters and keep heavy per-item detail, such as audit history, off the summary response unless explicitly needed.
+8. List endpoints for async jobs should document supported filters and pagination semantics, and keep heavy per-item detail, such as audit history, off the summary response unless explicitly needed.
 
 ## Output contract
 When you finish, always report:

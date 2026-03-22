@@ -52,7 +52,9 @@ type auditEventResponse struct {
 }
 
 type listTasksResponse struct {
-	Tasks []taskResponse `json:"tasks"`
+	Tasks      []taskResponse `json:"tasks"`
+	HasMore    bool           `json:"has_more"`
+	NextOffset *int           `json:"next_offset,omitempty"`
 }
 
 func (a *appHandler) handleTasks(w http.ResponseWriter, r *http.Request) {
@@ -96,14 +98,20 @@ func (a *appHandler) handleListTasks(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	tasks, err := a.workflows.ListTasks(r.Context(), filter)
+	page, err := a.workflows.ListTasks(r.Context(), filter)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "task_list_failed", err.Error())
 		return
 	}
 
-	resp := listTasksResponse{Tasks: make([]taskResponse, 0, len(tasks))}
-	for _, task := range tasks {
+	resp := listTasksResponse{
+		Tasks:   make([]taskResponse, 0, len(page.Tasks)),
+		HasMore: page.HasMore,
+	}
+	if page.HasMore {
+		resp.NextOffset = &page.NextOffset
+	}
+	for _, task := range page.Tasks {
 		resp.Tasks = append(resp.Tasks, newTaskResponse(task))
 	}
 	writeJSON(w, http.StatusOK, resp)
@@ -235,6 +243,13 @@ func parseTaskListFilter(r *http.Request) (workflow.TaskListFilter, error) {
 			return workflow.TaskListFilter{}, errors.New("limit must be a positive integer")
 		}
 		filter.Limit = limit
+	}
+	if rawOffset := r.URL.Query().Get("offset"); rawOffset != "" {
+		offset, err := strconv.Atoi(rawOffset)
+		if err != nil || offset < 0 {
+			return workflow.TaskListFilter{}, errors.New("offset must be a non-negative integer")
+		}
+		filter.Offset = offset
 	}
 
 	return filter, nil

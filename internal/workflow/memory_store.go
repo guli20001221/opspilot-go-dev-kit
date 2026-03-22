@@ -153,13 +153,17 @@ func (s *MemoryStore) ListTaskEvents(_ context.Context, taskID string) ([]AuditE
 }
 
 // ListTasks returns filtered in-memory tasks ordered by newest update first.
-func (s *MemoryStore) ListTasks(_ context.Context, filter TaskListFilter) ([]Task, error) {
+func (s *MemoryStore) ListTasks(_ context.Context, filter TaskListFilter) (TaskListPage, error) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 
 	limit := filter.Limit
 	if limit <= 0 {
 		limit = 20
+	}
+	offset := filter.Offset
+	if offset < 0 {
+		offset = 0
 	}
 
 	out := make([]Task, 0, len(s.tasks))
@@ -182,9 +186,26 @@ func (s *MemoryStore) ListTasks(_ context.Context, filter TaskListFilter) ([]Tas
 		}
 		return out[i].UpdatedAt.After(out[j].UpdatedAt)
 	})
-	if len(out) > limit {
-		out = out[:limit]
+	if offset >= len(out) {
+		return TaskListPage{Tasks: []Task{}}, nil
 	}
 
-	return out, nil
+	end := offset + limit
+	hasMore := end < len(out)
+	if end > len(out) {
+		end = len(out)
+	}
+
+	page := make([]Task, end-offset)
+	copy(page, out[offset:end])
+
+	result := TaskListPage{
+		Tasks:   page,
+		HasMore: hasMore,
+	}
+	if hasMore {
+		result.NextOffset = end
+	}
+
+	return result, nil
 }

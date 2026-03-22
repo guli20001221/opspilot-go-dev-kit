@@ -7,8 +7,9 @@ Add a minimal operator-facing `GET /api/v1/tasks` endpoint so the current workfl
 ## Scope
 
 - add `GET /api/v1/tasks`
-- support `tenant_id`, `status`, `task_type`, and `limit` filters
+- support `tenant_id`, `status`, `task_type`, `limit`, and `offset` filters
 - keep list payloads lightweight by omitting `audit_events`
+- return `has_more` and `next_offset` so operators can page through results without switching to a heavy drill-down endpoint
 - preserve newest-first ordering by `updated_at`
 - cover both in-memory and PostgreSQL-backed workflow stores
 - update OpenAPI, README, runbook, architecture notes, and API contract skills

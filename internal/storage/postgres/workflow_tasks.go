@@ -197,10 +197,14 @@ ORDER BY created_at, id`
 }
 
 // ListTasks returns filtered task rows for operator-facing task lists.
-func (s *WorkflowTaskStore) ListTasks(ctx context.Context, filter workflow.TaskListFilter) ([]workflow.Task, error) {
+func (s *WorkflowTaskStore) ListTasks(ctx context.Context, filter workflow.TaskListFilter) (workflow.TaskListPage, error) {
 	limit := filter.Limit
 	if limit <= 0 {
 		limit = 20
+	}
+	offset := filter.Offset
+	if offset < 0 {
+		offset = 0
 	}
 
 	const query = `
@@ -224,11 +228,11 @@ WHERE ($1 = '' OR tenant_id = $1)
   AND ($2 = '' OR status = $2)
   AND ($3 = '' OR task_type = $3)
 ORDER BY updated_at DESC, created_at DESC
-LIMIT $4`
+LIMIT $4 OFFSET $5`
 
-	rows, err := s.pool.Query(ctx, query, filter.TenantID, filter.Status, filter.TaskType, limit)
+	rows, err := s.pool.Query(ctx, query, filter.TenantID, filter.Status, filter.TaskType, limit+1, offset)
 	if err != nil {
-		return nil, fmt.Errorf("select workflow tasks: %w", err)
+		return workflow.TaskListPage{}, fmt.Errorf("select workflow tasks: %w", err)
 	}
 	defer rows.Close()
 
@@ -236,15 +240,28 @@ LIMIT $4`
 	for rows.Next() {
 		task, err := scanTask(rows)
 		if err != nil {
-			return nil, err
+			return workflow.TaskListPage{}, err
 		}
 		tasks = append(tasks, task)
 	}
 	if err := rows.Err(); err != nil {
-		return nil, fmt.Errorf("iterate workflow tasks: %w", err)
+		return workflow.TaskListPage{}, fmt.Errorf("iterate workflow tasks: %w", err)
 	}
 
-	return tasks, nil
+	hasMore := len(tasks) > limit
+	if hasMore {
+		tasks = tasks[:limit]
+	}
+
+	page := workflow.TaskListPage{
+		Tasks:   tasks,
+		HasMore: hasMore,
+	}
+	if hasMore {
+		page.NextOffset = offset + len(tasks)
+	}
+
+	return page, nil
 }
 
 const claimQueuedTasksQuery = `

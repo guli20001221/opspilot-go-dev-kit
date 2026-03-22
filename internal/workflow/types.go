@@ -89,4 +89,12 @@ type TaskListFilter struct {
 	Status   string
 	TaskType string
 	Limit    int
+	Offset   int
+}
+
+// TaskListPage is the paginated operator-facing task list result.
+type TaskListPage struct {
+	Tasks      []Task
+	HasMore    bool
+	NextOffset int
 }

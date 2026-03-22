@@ -103,7 +103,9 @@ func TestListTasksEndpointSupportsFiltersAndLimit(t *testing.T) {
 	}
 
 	var got struct {
-		Tasks []taskResponse `json:"tasks"`
+		Tasks      []taskResponse `json:"tasks"`
+		HasMore    bool           `json:"has_more"`
+		NextOffset *int           `json:"next_offset"`
 	}
 	if err := json.NewDecoder(resp.Body).Decode(&got); err != nil {
 		t.Fatalf("Decode() error = %v", err)
@@ -117,6 +119,101 @@ func TestListTasksEndpointSupportsFiltersAndLimit(t *testing.T) {
 	if len(got.Tasks[0].AuditEvents) != 0 {
 		t.Fatalf("Tasks[0].AuditEvents = %#v, want omitted", got.Tasks[0].AuditEvents)
 	}
+	if got.HasMore {
+		t.Fatal("HasMore = true, want false")
+	}
+	if got.NextOffset != nil {
+		t.Fatalf("NextOffset = %v, want nil", *got.NextOffset)
+	}
+}
+
+func TestListTasksEndpointSupportsOffsetPagination(t *testing.T) {
+	workflowService := workflow.NewService()
+
+	for i := 0; i < 3; i++ {
+		created, err := workflowService.Promote(context.Background(), workflow.PromoteRequest{
+			RequestID: "req-page",
+			TenantID:  "tenant-page",
+			SessionID: "session-page",
+			TaskType:  workflow.TaskTypeReportGeneration,
+			Reason:    workflow.PromotionReasonWorkflowRequired,
+		})
+		if err != nil {
+			t.Fatalf("Promote(%d) error = %v", i, err)
+		}
+		created.Status = workflow.StatusSucceeded
+		if _, err := workflowService.UpdateTask(context.Background(), created); err != nil {
+			t.Fatalf("UpdateTask(%d) error = %v", i, err)
+		}
+	}
+
+	server := httptest.NewServer(NewHandlerWithDependencies(Dependencies{Workflows: workflowService}))
+	defer server.Close()
+
+	firstResp, err := http.Get(server.URL + "/api/v1/tasks?tenant_id=tenant-page&limit=1")
+	if err != nil {
+		t.Fatalf("Get() error = %v", err)
+	}
+	defer firstResp.Body.Close()
+
+	if firstResp.StatusCode != http.StatusOK {
+		t.Fatalf("firstResp.StatusCode = %d, want %d", firstResp.StatusCode, http.StatusOK)
+	}
+
+	var firstPage struct {
+		Tasks      []taskResponse `json:"tasks"`
+		HasMore    bool           `json:"has_more"`
+		NextOffset *int           `json:"next_offset"`
+	}
+	if err := json.NewDecoder(firstResp.Body).Decode(&firstPage); err != nil {
+		t.Fatalf("Decode() error = %v", err)
+	}
+	if len(firstPage.Tasks) != 1 {
+		t.Fatalf("len(firstPage.Tasks) = %d, want %d", len(firstPage.Tasks), 1)
+	}
+	if !firstPage.HasMore {
+		t.Fatal("firstPage.HasMore = false, want true")
+	}
+	if firstPage.NextOffset == nil || *firstPage.NextOffset != 1 {
+		if firstPage.NextOffset == nil {
+			t.Fatal("firstPage.NextOffset = nil, want 1")
+		}
+		t.Fatalf("firstPage.NextOffset = %d, want %d", *firstPage.NextOffset, 1)
+	}
+
+	secondResp, err := http.Get(server.URL + "/api/v1/tasks?tenant_id=tenant-page&limit=1&offset=1")
+	if err != nil {
+		t.Fatalf("Get(offset=1) error = %v", err)
+	}
+	defer secondResp.Body.Close()
+
+	if secondResp.StatusCode != http.StatusOK {
+		t.Fatalf("secondResp.StatusCode = %d, want %d", secondResp.StatusCode, http.StatusOK)
+	}
+
+	var secondPage struct {
+		Tasks      []taskResponse `json:"tasks"`
+		HasMore    bool           `json:"has_more"`
+		NextOffset *int           `json:"next_offset"`
+	}
+	if err := json.NewDecoder(secondResp.Body).Decode(&secondPage); err != nil {
+		t.Fatalf("Decode(secondPage) error = %v", err)
+	}
+	if len(secondPage.Tasks) != 1 {
+		t.Fatalf("len(secondPage.Tasks) = %d, want %d", len(secondPage.Tasks), 1)
+	}
+	if secondPage.Tasks[0].TaskID == firstPage.Tasks[0].TaskID {
+		t.Fatalf("secondPage.Tasks[0].TaskID = %q, want a different task from first page", secondPage.Tasks[0].TaskID)
+	}
+	if !secondPage.HasMore {
+		t.Fatal("secondPage.HasMore = false, want true")
+	}
+	if secondPage.NextOffset == nil || *secondPage.NextOffset != 2 {
+		if secondPage.NextOffset == nil {
+			t.Fatal("secondPage.NextOffset = nil, want 2")
+		}
+		t.Fatalf("secondPage.NextOffset = %d, want %d", *secondPage.NextOffset, 2)
+	}
 }
 
 func TestListTasksEndpointRejectsInvalidLimit(t *testing.T) {
@@ -124,6 +221,29 @@ func TestListTasksEndpointRejectsInvalidLimit(t *testing.T) {
 	defer server.Close()
 
 	resp, err := http.Get(server.URL + "/api/v1/tasks?limit=0")
+	if err != nil {
+		t.Fatalf("Get() error = %v", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusBadRequest {
+		t.Fatalf("StatusCode = %d, want %d", resp.StatusCode, http.StatusBadRequest)
+	}
+
+	var got errorResponse
+	if err := json.NewDecoder(resp.Body).Decode(&got); err != nil {
+		t.Fatalf("Decode() error = %v", err)
+	}
+	if got.Code != "invalid_query" {
+		t.Fatalf("Code = %q, want %q", got.Code, "invalid_query")
+	}
+}
+
+func TestListTasksEndpointRejectsInvalidOffset(t *testing.T) {
+	server := httptest.NewServer(NewHandler())
+	defer server.Close()
+
+	resp, err := http.Get(server.URL + "/api/v1/tasks?offset=-1")
 	if err != nil {
 		t.Fatalf("Get() error = %v", err)
 	}

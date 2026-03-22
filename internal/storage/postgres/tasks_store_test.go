@@ -227,11 +227,96 @@ func TestWorkflowTaskStoreListTasksSupportsFiltersAndLimit(t *testing.T) {
 	if err != nil {
 		t.Fatalf("ListTasks() error = %v", err)
 	}
-	if len(got) != 1 {
-		t.Fatalf("len(ListTasks()) = %d, want %d", len(got), 1)
+	if len(got.Tasks) != 1 {
+		t.Fatalf("len(ListTasks().Tasks) = %d, want %d", len(got.Tasks), 1)
 	}
-	if got[0].ID != "task-list-2" {
-		t.Fatalf("ListTasks()[0].ID = %q, want %q", got[0].ID, "task-list-2")
+	if got.Tasks[0].ID != "task-list-2" {
+		t.Fatalf("ListTasks().Tasks[0].ID = %q, want %q", got.Tasks[0].ID, "task-list-2")
+	}
+	if got.HasMore {
+		t.Fatal("HasMore = true, want false")
+	}
+}
+
+func TestWorkflowTaskStoreListTasksSupportsOffsetPagination(t *testing.T) {
+	dsn := os.Getenv("OPSPILOT_TEST_POSTGRES_DSN")
+	if dsn == "" {
+		t.Skip("OPSPILOT_TEST_POSTGRES_DSN not set")
+	}
+
+	ctx := context.Background()
+	pool, err := OpenPool(ctx, dsn)
+	if err != nil {
+		t.Fatalf("OpenPool() error = %v", err)
+	}
+	defer pool.Close()
+
+	applyMigration(t, ctx, pool)
+	if _, err := pool.Exec(ctx, "TRUNCATE workflow_task_events, workflow_tasks RESTART IDENTITY"); err != nil {
+		t.Fatalf("TRUNCATE workflow_task_events, workflow_tasks error = %v", err)
+	}
+
+	store := NewWorkflowTaskStore(pool)
+	tasks := []workflow.Task{
+		{
+			ID:        "task-page-1",
+			RequestID: "req-page-1",
+			TenantID:  "tenant-page",
+			SessionID: "session-page",
+			TaskType:  workflow.TaskTypeReportGeneration,
+			Status:    workflow.StatusSucceeded,
+			Reason:    workflow.PromotionReasonWorkflowRequired,
+			CreatedAt: time.Unix(1700000200, 0).UTC(),
+			UpdatedAt: time.Unix(1700000201, 0).UTC(),
+		},
+		{
+			ID:        "task-page-2",
+			RequestID: "req-page-2",
+			TenantID:  "tenant-page",
+			SessionID: "session-page",
+			TaskType:  workflow.TaskTypeReportGeneration,
+			Status:    workflow.StatusSucceeded,
+			Reason:    workflow.PromotionReasonWorkflowRequired,
+			CreatedAt: time.Unix(1700000202, 0).UTC(),
+			UpdatedAt: time.Unix(1700000203, 0).UTC(),
+		},
+		{
+			ID:        "task-page-3",
+			RequestID: "req-page-3",
+			TenantID:  "tenant-page",
+			SessionID: "session-page",
+			TaskType:  workflow.TaskTypeReportGeneration,
+			Status:    workflow.StatusSucceeded,
+			Reason:    workflow.PromotionReasonWorkflowRequired,
+			CreatedAt: time.Unix(1700000204, 0).UTC(),
+			UpdatedAt: time.Unix(1700000205, 0).UTC(),
+		},
+	}
+	for _, task := range tasks {
+		if _, err := store.SaveTask(ctx, task); err != nil {
+			t.Fatalf("SaveTask(%s) error = %v", task.ID, err)
+		}
+	}
+
+	got, err := store.ListTasks(ctx, workflow.TaskListFilter{
+		TenantID: "tenant-page",
+		Limit:    1,
+		Offset:   1,
+	})
+	if err != nil {
+		t.Fatalf("ListTasks() error = %v", err)
+	}
+	if len(got.Tasks) != 1 {
+		t.Fatalf("len(ListTasks().Tasks) = %d, want %d", len(got.Tasks), 1)
+	}
+	if got.Tasks[0].ID != "task-page-2" {
+		t.Fatalf("ListTasks().Tasks[0].ID = %q, want %q", got.Tasks[0].ID, "task-page-2")
+	}
+	if !got.HasMore {
+		t.Fatal("HasMore = false, want true")
+	}
+	if got.NextOffset != 2 {
+		t.Fatalf("NextOffset = %d, want %d", got.NextOffset, 2)
 	}
 }
 
