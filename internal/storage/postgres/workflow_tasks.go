@@ -206,6 +206,14 @@ func (s *WorkflowTaskStore) ListTasks(ctx context.Context, filter workflow.TaskL
 	if offset < 0 {
 		offset = 0
 	}
+	requiresApproval := ""
+	if filter.RequiresApproval != nil {
+		if *filter.RequiresApproval {
+			requiresApproval = "true"
+		} else {
+			requiresApproval = "false"
+		}
+	}
 
 	const query = `
 SELECT
@@ -227,10 +235,22 @@ FROM workflow_tasks
 WHERE ($1 = '' OR tenant_id = $1)
   AND ($2 = '' OR status = $2)
   AND ($3 = '' OR task_type = $3)
+  AND ($4 = '' OR reason = $4)
+  AND ($5 = '' OR requires_approval = CAST($5 AS boolean))
 ORDER BY updated_at DESC, created_at DESC
-LIMIT $4 OFFSET $5`
+LIMIT $6 OFFSET $7`
 
-	rows, err := s.pool.Query(ctx, query, filter.TenantID, filter.Status, filter.TaskType, limit+1, offset)
+	rows, err := s.pool.Query(
+		ctx,
+		query,
+		filter.TenantID,
+		filter.Status,
+		filter.TaskType,
+		filter.Reason,
+		requiresApproval,
+		limit+1,
+		offset,
+	)
 	if err != nil {
 		return workflow.TaskListPage{}, fmt.Errorf("select workflow tasks: %w", err)
 	}

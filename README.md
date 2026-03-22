@@ -42,7 +42,7 @@ Current Milestone 1 slice:
 - `POST /api/v1/sessions` for session creation
 - `GET /api/v1/sessions/{session_id}/messages` for message listing
 - `POST /api/v1/tasks` for PostgreSQL-backed task creation
-- `GET /api/v1/tasks` for operator-facing task listing with `tenant_id`, `status`, `task_type`, `limit`, and `offset` filters
+- `GET /api/v1/tasks` for operator-facing task listing with `tenant_id`, `status`, `task_type`, `reason`, `requires_approval`, `limit`, and `offset` filters
 - `GET /api/v1/tasks/{task_id}` for persisted task status lookup
 - `POST /api/v1/tasks/{task_id}/approve` and `POST /api/v1/tasks/{task_id}/retry` for minimal task actions
 - structured `audit_events` on task responses for create, claim, approve, retry, succeed, and fail

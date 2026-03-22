@@ -235,6 +235,7 @@ func parseTaskListFilter(r *http.Request) (workflow.TaskListFilter, error) {
 		TenantID: r.URL.Query().Get("tenant_id"),
 		Status:   r.URL.Query().Get("status"),
 		TaskType: r.URL.Query().Get("task_type"),
+		Reason:   r.URL.Query().Get("reason"),
 		Limit:    20,
 	}
 	if rawLimit := r.URL.Query().Get("limit"); rawLimit != "" {
@@ -250,6 +251,13 @@ func parseTaskListFilter(r *http.Request) (workflow.TaskListFilter, error) {
 			return workflow.TaskListFilter{}, errors.New("offset must be a non-negative integer")
 		}
 		filter.Offset = offset
+	}
+	if rawRequiresApproval := r.URL.Query().Get("requires_approval"); rawRequiresApproval != "" {
+		requiresApproval, err := strconv.ParseBool(rawRequiresApproval)
+		if err != nil {
+			return workflow.TaskListFilter{}, errors.New("requires_approval must be a boolean")
+		}
+		filter.RequiresApproval = &requiresApproval
 	}
 
 	return filter, nil

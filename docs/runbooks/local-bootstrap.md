@@ -58,7 +58,7 @@ The current chat stream implementation is a Milestone 1 skeleton:
 - approval-gated tasks can be resumed through the approval action endpoint
 - failed tasks can be re-queued through the retry action endpoint
 - task responses now include structured `audit_events`
-- `GET /api/v1/tasks` now supports `tenant_id`, `status`, `task_type`, `limit`, and `offset` filters for operator listing, and returns `has_more` plus `next_offset` while keeping per-task `audit_events` only on `GET /api/v1/tasks/{task_id}`
+- `GET /api/v1/tasks` now supports `tenant_id`, `status`, `task_type`, `reason`, `requires_approval`, `limit`, and `offset` filters for operator listing, and returns `has_more` plus `next_offset` while keeping per-task `audit_events` only on `GET /api/v1/tasks/{task_id}`
 - the last successful `audit_event.detail` now carries an execution summary, such as which ticket comment was created
 - failed `audit_event.detail` values now carry a coarse category prefix, such as `validation_error:` or `authorization_error:`
 - failed tasks expose a summarized `error_reason` instead of the full wrapped Temporal error chain

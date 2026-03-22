@@ -46,7 +46,7 @@ The current synchronous chat stream now surfaces internal runtime milestones ove
 The current HTTP layer also exposes the same PostgreSQL-backed workflow records over REST:
 
 - `POST /api/v1/tasks` for explicit async task creation
-- `GET /api/v1/tasks` for operator-facing filtered task listing with offset pagination metadata
+- `GET /api/v1/tasks` for operator-facing filtered task listing with offset pagination metadata, including approval and promotion-reason filters
 - `GET /api/v1/tasks/{task_id}` for task status lookup
 - `POST /api/v1/tasks/{task_id}/approve` to resume approval-gated tasks
 - `POST /api/v1/tasks/{task_id}/retry` to re-queue failed tasks

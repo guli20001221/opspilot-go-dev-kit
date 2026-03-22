@@ -210,6 +210,19 @@ paths:
             enum:
               - report_generation
               - approved_tool_execution
+        - name: reason
+          in: query
+          required: false
+          schema:
+            type: string
+            enum:
+              - workflow_required
+              - approval_required
+        - name: requires_approval
+          in: query
+          required: false
+          schema:
+            type: boolean
         - name: limit
           in: query
           required: false

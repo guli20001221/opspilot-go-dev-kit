@@ -177,6 +177,12 @@ func (s *MemoryStore) ListTasks(_ context.Context, filter TaskListFilter) (TaskL
 		if filter.TaskType != "" && task.TaskType != filter.TaskType {
 			continue
 		}
+		if filter.Reason != "" && task.Reason != filter.Reason {
+			continue
+		}
+		if filter.RequiresApproval != nil && task.RequiresApproval != *filter.RequiresApproval {
+			continue
+		}
 		out = append(out, task)
 	}
 

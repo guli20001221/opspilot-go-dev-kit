@@ -238,6 +238,73 @@ func TestWorkflowTaskStoreListTasksSupportsFiltersAndLimit(t *testing.T) {
 	}
 }
 
+func TestWorkflowTaskStoreListTasksSupportsReasonAndApprovalFilters(t *testing.T) {
+	dsn := os.Getenv("OPSPILOT_TEST_POSTGRES_DSN")
+	if dsn == "" {
+		t.Skip("OPSPILOT_TEST_POSTGRES_DSN not set")
+	}
+
+	ctx := context.Background()
+	pool, err := OpenPool(ctx, dsn)
+	if err != nil {
+		t.Fatalf("OpenPool() error = %v", err)
+	}
+	defer pool.Close()
+
+	applyMigration(t, ctx, pool)
+	if _, err := pool.Exec(ctx, "TRUNCATE workflow_task_events, workflow_tasks RESTART IDENTITY"); err != nil {
+		t.Fatalf("TRUNCATE workflow_task_events, workflow_tasks error = %v", err)
+	}
+
+	store := NewWorkflowTaskStore(pool)
+	tasks := []workflow.Task{
+		{
+			ID:        "task-filter-1",
+			RequestID: "req-filter-1",
+			TenantID:  "tenant-filter",
+			SessionID: "session-filter-1",
+			TaskType:  workflow.TaskTypeReportGeneration,
+			Status:    workflow.StatusQueued,
+			Reason:    workflow.PromotionReasonWorkflowRequired,
+			CreatedAt: time.Unix(1700000300, 0).UTC(),
+			UpdatedAt: time.Unix(1700000301, 0).UTC(),
+		},
+		{
+			ID:               "task-filter-2",
+			RequestID:        "req-filter-2",
+			TenantID:         "tenant-filter",
+			SessionID:        "session-filter-2",
+			TaskType:         workflow.TaskTypeApprovedToolExecution,
+			Status:           workflow.StatusWaitingApproval,
+			Reason:           workflow.PromotionReasonApprovalRequired,
+			RequiresApproval: true,
+			CreatedAt:        time.Unix(1700000302, 0).UTC(),
+			UpdatedAt:        time.Unix(1700000303, 0).UTC(),
+		},
+	}
+	for _, task := range tasks {
+		if _, err := store.SaveTask(ctx, task); err != nil {
+			t.Fatalf("SaveTask(%s) error = %v", task.ID, err)
+		}
+	}
+
+	got, err := store.ListTasks(ctx, workflow.TaskListFilter{
+		TenantID:         "tenant-filter",
+		Reason:           workflow.PromotionReasonApprovalRequired,
+		RequiresApproval: boolPtr(true),
+		Limit:            10,
+	})
+	if err != nil {
+		t.Fatalf("ListTasks() error = %v", err)
+	}
+	if len(got.Tasks) != 1 {
+		t.Fatalf("len(ListTasks().Tasks) = %d, want %d", len(got.Tasks), 1)
+	}
+	if got.Tasks[0].ID != "task-filter-2" {
+		t.Fatalf("ListTasks().Tasks[0].ID = %q, want %q", got.Tasks[0].ID, "task-filter-2")
+	}
+}
+
 func TestWorkflowTaskStoreListTasksSupportsOffsetPagination(t *testing.T) {
 	dsn := os.Getenv("OPSPILOT_TEST_POSTGRES_DSN")
 	if dsn == "" {
@@ -579,4 +646,8 @@ func applyMigration(t *testing.T, ctx context.Context, pool *pgxpool.Pool) {
 			t.Fatalf("apply migration %q error = %v", name, err)
 		}
 	}
+}
+
+func boolPtr(v bool) *bool {
+	return &v
 }

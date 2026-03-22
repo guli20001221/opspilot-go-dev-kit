@@ -127,6 +127,61 @@ func TestListTasksEndpointSupportsFiltersAndLimit(t *testing.T) {
 	}
 }
 
+func TestListTasksEndpointSupportsReasonAndApprovalFilters(t *testing.T) {
+	workflowService := workflow.NewService()
+
+	reportTask, err := workflowService.Promote(context.Background(), workflow.PromoteRequest{
+		RequestID: "req-filter-report",
+		TenantID:  "tenant-filter",
+		SessionID: "session-filter-1",
+		TaskType:  workflow.TaskTypeReportGeneration,
+		Reason:    workflow.PromotionReasonWorkflowRequired,
+	})
+	if err != nil {
+		t.Fatalf("Promote(reportTask) error = %v", err)
+	}
+	approvalTask, err := workflowService.Promote(context.Background(), workflow.PromoteRequest{
+		RequestID:        "req-filter-approval",
+		TenantID:         "tenant-filter",
+		SessionID:        "session-filter-2",
+		TaskType:         workflow.TaskTypeApprovedToolExecution,
+		Reason:           workflow.PromotionReasonApprovalRequired,
+		RequiresApproval: true,
+	})
+	if err != nil {
+		t.Fatalf("Promote(approvalTask) error = %v", err)
+	}
+
+	server := httptest.NewServer(NewHandlerWithDependencies(Dependencies{Workflows: workflowService}))
+	defer server.Close()
+
+	resp, err := http.Get(server.URL + "/api/v1/tasks?tenant_id=tenant-filter&reason=approval_required&requires_approval=true")
+	if err != nil {
+		t.Fatalf("Get() error = %v", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("StatusCode = %d, want %d", resp.StatusCode, http.StatusOK)
+	}
+
+	var got struct {
+		Tasks []taskResponse `json:"tasks"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&got); err != nil {
+		t.Fatalf("Decode() error = %v", err)
+	}
+	if len(got.Tasks) != 1 {
+		t.Fatalf("len(Tasks) = %d, want %d", len(got.Tasks), 1)
+	}
+	if got.Tasks[0].TaskID != approvalTask.ID {
+		t.Fatalf("Tasks[0].TaskID = %q, want %q", got.Tasks[0].TaskID, approvalTask.ID)
+	}
+	if got.Tasks[0].TaskID == reportTask.ID {
+		t.Fatalf("Tasks[0].TaskID = %q, did not expect report task", got.Tasks[0].TaskID)
+	}
+}
+
 func TestListTasksEndpointSupportsOffsetPagination(t *testing.T) {
 	workflowService := workflow.NewService()
 
@@ -244,6 +299,29 @@ func TestListTasksEndpointRejectsInvalidOffset(t *testing.T) {
 	defer server.Close()
 
 	resp, err := http.Get(server.URL + "/api/v1/tasks?offset=-1")
+	if err != nil {
+		t.Fatalf("Get() error = %v", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusBadRequest {
+		t.Fatalf("StatusCode = %d, want %d", resp.StatusCode, http.StatusBadRequest)
+	}
+
+	var got errorResponse
+	if err := json.NewDecoder(resp.Body).Decode(&got); err != nil {
+		t.Fatalf("Decode() error = %v", err)
+	}
+	if got.Code != "invalid_query" {
+		t.Fatalf("Code = %q, want %q", got.Code, "invalid_query")
+	}
+}
+
+func TestListTasksEndpointRejectsInvalidRequiresApproval(t *testing.T) {
+	server := httptest.NewServer(NewHandler())
+	defer server.Close()
+
+	resp, err := http.Get(server.URL + "/api/v1/tasks?requires_approval=maybe")
 	if err != nil {
 		t.Fatalf("Get() error = %v", err)
 	}
