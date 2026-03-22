@@ -27,10 +27,11 @@ The current Milestone 1 slice adds:
 - `internal/retrieval` for deterministic structured-query retrieval and provenance-bearing evidence blocks
 - `internal/agent/tool` and `internal/tools/registry` for deterministic stub tool execution and approval gating
 - `internal/agent/critic` for deterministic structured verdicts over draft answers, retrieval, and tool results
-- `internal/workflow` for store-backed promoted task records before Temporal-backed workflows land
+- `internal/workflow` for store-backed promoted task records and the current Temporal bridge layer
 - `internal/storage/postgres` for the current PostgreSQL task repository and connection pool wiring
 - `internal/app/httpapi` as a thin transport layer over the session and chat services
-- `cmd/worker` plus `internal/workflow.Runner` for PostgreSQL-backed task claiming and the first Temporal bridge for report-generation execution
+- `cmd/api` for task creation plus Temporal-backed approval-workflow initialization
+- `cmd/worker` plus `internal/workflow.Runner` for PostgreSQL-backed task claiming, Temporal report execution, and Temporal approval-workflow continuation
 
 The current synchronous chat stream now surfaces internal runtime milestones over SSE:
 
@@ -54,9 +55,8 @@ success, and failure paths.
 The current worker path advances supported queued tasks through:
 
 - `queued -> running -> succeeded` for report generation, with the execution body now running inside a Temporal workflow and activity
-- `waiting_approval -> queued -> running -> succeeded` for placeholder approved tool execution after approval
+- `waiting_approval -> queued -> running -> succeeded` for approved tool execution, with the waiting phase and resume signal now tracked in Temporal
 - `queued -> running -> failed` for unsupported task types
-- `waiting_approval` tasks remain paused until a later approval flow lands
 
 This file is intentionally brief in the AI development kit.
 Promote it to the main repository and expand it as implementation begins.

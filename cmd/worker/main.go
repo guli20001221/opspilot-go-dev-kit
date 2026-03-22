@@ -53,14 +53,15 @@ func main() {
 		defer temporalClient.Close()
 
 		reportRunner := workflow.NewTemporalReportRunner(temporalClient, cfg.TemporalTaskQueue)
-		temporalWorker = workflow.NewTemporalWorker(temporalClient, cfg.TemporalTaskQueue, reportRunner)
+		approvedToolRunner := workflow.NewTemporalApprovedToolRunner(temporalClient, cfg.TemporalTaskQueue)
+		temporalWorker = workflow.NewTemporalWorker(temporalClient, cfg.TemporalTaskQueue, reportRunner, approvedToolRunner)
 		if err := temporalWorker.Start(); err != nil {
 			logger.Error("start temporal worker", slog.Any("error", err))
 			os.Exit(1)
 		}
 		defer temporalWorker.Stop()
 
-		executor = workflow.NewTemporalExecutor(reportRunner, executor)
+		executor = workflow.NewTemporalExecutor(reportRunner, approvedToolRunner, executor)
 		logger.Info("temporal worker booted",
 			slog.String("address", cfg.TemporalAddress),
 			slog.String("namespace", cfg.TemporalNamespace),

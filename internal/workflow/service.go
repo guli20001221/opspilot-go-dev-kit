@@ -25,24 +25,40 @@ type TaskStore interface {
 	ListTaskEvents(ctx context.Context, taskID string) ([]AuditEvent, error)
 }
 
+// TaskStarter starts external workflow execution for tasks that must be
+// initialized before worker-side processing.
+type TaskStarter interface {
+	StartTask(ctx context.Context, task Task) error
+}
+
 // Service persists promoted tasks through a caller-provided store.
 type Service struct {
-	store TaskStore
+	store   TaskStore
+	starter TaskStarter
 }
 
 // NewService constructs the workflow promotion service.
 func NewService() *Service {
-	return NewServiceWithStore(NewMemoryStore())
+	return NewServiceWithStore(nil)
 }
 
 // NewServiceWithStore constructs the workflow promotion service with a
 // caller-provided task store.
 func NewServiceWithStore(store TaskStore) *Service {
+	return NewServiceWithHooks(store, nil)
+}
+
+// NewServiceWithHooks constructs the workflow promotion service with optional
+// runtime hooks.
+func NewServiceWithHooks(store TaskStore, starter TaskStarter) *Service {
 	if store == nil {
 		store = NewMemoryStore()
 	}
 
-	return &Service{store: store}
+	return &Service{
+		store:   store,
+		starter: starter,
+	}
 }
 
 // Promote creates a new async task record from the current synchronous request.
@@ -73,6 +89,27 @@ func (s *Service) Promote(ctx context.Context, req PromoteRequest) (Task, error)
 	})
 	if err != nil {
 		return Task{}, err
+	}
+	if shouldStartTaskOnPromote(created) && s.starter != nil {
+		if err := s.starter.StartTask(ctx, created); err != nil {
+			created.Status = StatusFailed
+			created.ErrorReason = err.Error()
+			created.AuditRef = "temporal:start_failed"
+			created.UpdatedAt = time.Now().UTC()
+
+			failed, updateErr := s.store.UpdateTaskWithEvent(ctx, created, AuditEvent{
+				TaskID:    created.ID,
+				Action:    AuditActionFailed,
+				Actor:     "api",
+				Detail:    created.ErrorReason,
+				CreatedAt: created.UpdatedAt,
+			})
+			if updateErr != nil {
+				return Task{}, updateErr
+			}
+
+			return failed, nil
+		}
 	}
 
 	return created, nil
@@ -155,4 +192,8 @@ func (s *Service) RetryTask(ctx context.Context, taskID string, retriedBy string
 // ListTaskEvents returns the structured audit history for a task.
 func (s *Service) ListTaskEvents(ctx context.Context, taskID string) ([]AuditEvent, error) {
 	return s.store.ListTaskEvents(ctx, taskID)
+}
+
+func shouldStartTaskOnPromote(task Task) bool {
+	return task.TaskType == TaskTypeApprovedToolExecution && task.RequiresApproval
 }

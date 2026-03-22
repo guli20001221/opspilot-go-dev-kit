@@ -3,6 +3,7 @@ package workflow
 import (
 	"context"
 	"fmt"
+	"strings"
 	"time"
 
 	temporalclient "go.temporal.io/sdk/client"
@@ -15,6 +16,7 @@ const (
 	defaultReportWorkflowExecutionTimeout = 2 * time.Minute
 	defaultReportWorkflowTaskTimeout      = 10 * time.Second
 	defaultReportActivityTimeout          = 30 * time.Second
+	approvedToolContinueSignalName        = "approved-tool-continue"
 )
 
 // TemporalOptions configures the Temporal client and worker task queue.
@@ -34,6 +36,24 @@ type ReportWorkflowInput struct {
 // ReportWorkflowResult captures the placeholder report workflow outcome.
 type ReportWorkflowResult struct {
 	Generated string
+}
+
+// ApprovedToolWorkflowInput carries the approval-gated task identity into Temporal.
+type ApprovedToolWorkflowInput struct {
+	TaskID    string
+	TenantID  string
+	SessionID string
+}
+
+// ApprovedToolSignal carries the approval or retry signal actor into the workflow.
+type ApprovedToolSignal struct {
+	Action string
+	Actor  string
+}
+
+// ApprovedToolWorkflowResult captures the placeholder approved-tool workflow outcome.
+type ApprovedToolWorkflowResult struct {
+	Executed string
 }
 
 // DialTemporalClient opens a Temporal client for the configured address and namespace.
@@ -62,9 +82,23 @@ type TemporalReportRunner struct {
 	taskQueue string
 }
 
+// TemporalApprovedToolRunner manages approval-gated tool workflows in Temporal.
+type TemporalApprovedToolRunner struct {
+	client    temporalclient.Client
+	taskQueue string
+}
+
 // NewTemporalReportRunner constructs a Temporal-backed report runner.
 func NewTemporalReportRunner(client temporalclient.Client, taskQueue string) *TemporalReportRunner {
 	return &TemporalReportRunner{
+		client:    client,
+		taskQueue: taskQueue,
+	}
+}
+
+// NewTemporalApprovedToolRunner constructs a Temporal-backed approval workflow runner.
+func NewTemporalApprovedToolRunner(client temporalclient.Client, taskQueue string) *TemporalApprovedToolRunner {
+	return &TemporalApprovedToolRunner{
 		client:    client,
 		taskQueue: taskQueue,
 	}
@@ -104,11 +138,79 @@ func (r *TemporalReportRunner) Register(w temporalworker.Worker) {
 	w.RegisterActivity((&ReportActivities{}).GenerateReport)
 }
 
+// StartTask starts the waiting approval workflow on promote.
+func (r *TemporalApprovedToolRunner) StartTask(ctx context.Context, task Task) error {
+	_, err := r.client.ExecuteWorkflow(ctx, temporalclient.StartWorkflowOptions{
+		ID:                       task.ID,
+		TaskQueue:                r.taskQueue,
+		WorkflowExecutionTimeout: defaultReportWorkflowExecutionTimeout,
+		WorkflowTaskTimeout:      defaultReportWorkflowTaskTimeout,
+	}, ApprovedToolExecutionWorkflow, ApprovedToolWorkflowInput{
+		TaskID:    task.ID,
+		TenantID:  task.TenantID,
+		SessionID: task.SessionID,
+	})
+	if err != nil {
+		return fmt.Errorf("execute temporal approved tool workflow: %w", err)
+	}
+
+	return nil
+}
+
+// ContinueApprovedToolWorkflow signals the waiting approval workflow and waits
+// for its completion.
+func (r *TemporalApprovedToolRunner) ContinueApprovedToolWorkflow(ctx context.Context, task Task) (ExecutionResult, error) {
+	signal := ApprovedToolSignal{
+		Action: approvedToolSignalAction(task),
+		Actor:  signalActorFromAuditRef(task.AuditRef),
+	}
+	workflowRun, err := r.client.SignalWithStartWorkflow(ctx,
+		task.ID,
+		approvedToolContinueSignalName,
+		signal,
+		temporalclient.StartWorkflowOptions{
+			ID:                       task.ID,
+			TaskQueue:                r.taskQueue,
+			WorkflowExecutionTimeout: defaultReportWorkflowExecutionTimeout,
+			WorkflowTaskTimeout:      defaultReportWorkflowTaskTimeout,
+		},
+		ApprovedToolExecutionWorkflow,
+		ApprovedToolWorkflowInput{
+			TaskID:    task.ID,
+			TenantID:  task.TenantID,
+			SessionID: task.SessionID,
+		},
+	)
+	if err != nil {
+		return ExecutionResult{}, fmt.Errorf("signal approved tool workflow: %w", err)
+	}
+
+	result := ExecutionResult{
+		AuditRef: formatTemporalAuditRef(workflowRun.GetID(), workflowRun.GetRunID()),
+	}
+
+	var workflowResult ApprovedToolWorkflowResult
+	if err := workflowRun.Get(ctx, &workflowResult); err != nil {
+		return result, fmt.Errorf("get approved tool workflow result: %w", err)
+	}
+
+	return result, nil
+}
+
+// Register registers the approval-gated workflow and its activities on a Temporal worker.
+func (r *TemporalApprovedToolRunner) Register(w temporalworker.Worker) {
+	w.RegisterWorkflow(ApprovedToolExecutionWorkflow)
+	w.RegisterActivity((&ApprovedToolActivities{}).ExecuteApprovedTool)
+}
+
 // NewTemporalWorker constructs a Temporal worker for the configured task queue.
-func NewTemporalWorker(client temporalclient.Client, taskQueue string, reportRunner *TemporalReportRunner) temporalworker.Worker {
+func NewTemporalWorker(client temporalclient.Client, taskQueue string, reportRunner *TemporalReportRunner, approvedToolRunner *TemporalApprovedToolRunner) temporalworker.Worker {
 	w := temporalworker.New(client, taskQueue, temporalworker.Options{})
 	if reportRunner != nil {
 		reportRunner.Register(w)
+	}
+	if approvedToolRunner != nil {
+		approvedToolRunner.Register(w)
 	}
 
 	return w
@@ -142,6 +244,55 @@ func (a *ReportActivities) GenerateReport(_ context.Context, input ReportWorkflo
 	}, nil
 }
 
+// ApprovedToolExecutionWorkflow is the first approval-gated Temporal workflow.
+func ApprovedToolExecutionWorkflow(ctx temporalworkflow.Context, input ApprovedToolWorkflowInput) (ApprovedToolWorkflowResult, error) {
+	ctx = temporalworkflow.WithActivityOptions(ctx, temporalworkflow.ActivityOptions{
+		StartToCloseTimeout: defaultReportActivityTimeout,
+		RetryPolicy: &temporal.RetryPolicy{
+			MaximumAttempts: 3,
+		},
+	})
+
+	signalChannel := temporalworkflow.GetSignalChannel(ctx, approvedToolContinueSignalName)
+	for {
+		var signal ApprovedToolSignal
+		signalChannel.Receive(ctx, &signal)
+
+		var activities *ApprovedToolActivities
+		var result ApprovedToolWorkflowResult
+		err := temporalworkflow.ExecuteActivity(ctx, activities.ExecuteApprovedTool, input).Get(ctx, &result)
+		if err == nil {
+			return result, nil
+		}
+	}
+}
+
+// ApprovedToolActivities contains the activity implementations for approved-tool workflows.
+type ApprovedToolActivities struct{}
+
+// ExecuteApprovedTool is the placeholder approved-tool activity.
+func (a *ApprovedToolActivities) ExecuteApprovedTool(_ context.Context, input ApprovedToolWorkflowInput) (ApprovedToolWorkflowResult, error) {
+	return ApprovedToolWorkflowResult{
+		Executed: fmt.Sprintf("approved-tool:%s", input.TaskID),
+	}, nil
+}
+
 func formatTemporalAuditRef(workflowID string, runID string) string {
 	return fmt.Sprintf("temporal:workflow:%s/%s", workflowID, runID)
+}
+
+func approvedToolSignalAction(task Task) string {
+	if strings.HasPrefix(task.AuditRef, "retry:") {
+		return "retry"
+	}
+
+	return "approve"
+}
+
+func signalActorFromAuditRef(auditRef string) string {
+	if idx := strings.IndexByte(auditRef, ':'); idx >= 0 && idx < len(auditRef)-1 {
+		return auditRef[idx+1:]
+	}
+
+	return ""
 }

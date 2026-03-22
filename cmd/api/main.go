@@ -34,7 +34,28 @@ func main() {
 	}
 	defer pool.Close()
 
-	workflowService := workflow.NewServiceWithStore(storagepostgres.NewWorkflowTaskStore(pool))
+	var taskStarter workflow.TaskStarter
+	if cfg.TemporalEnabled {
+		temporalClient, err := workflow.DialTemporalClient(workflow.TemporalOptions{
+			Address:   cfg.TemporalAddress,
+			Namespace: cfg.TemporalNamespace,
+			TaskQueue: cfg.TemporalTaskQueue,
+		})
+		if err != nil {
+			logger.Error("dial temporal client", slog.Any("error", err))
+			os.Exit(1)
+		}
+		defer temporalClient.Close()
+
+		taskStarter = workflow.NewTemporalApprovedToolRunner(temporalClient, cfg.TemporalTaskQueue)
+		logger.Info("api temporal client booted",
+			slog.String("address", cfg.TemporalAddress),
+			slog.String("namespace", cfg.TemporalNamespace),
+			slog.String("task_queue", cfg.TemporalTaskQueue),
+		)
+	}
+
+	workflowService := workflow.NewServiceWithHooks(storagepostgres.NewWorkflowTaskStore(pool), taskStarter)
 
 	server := &http.Server{
 		Addr:              cfg.APIListenAddr,

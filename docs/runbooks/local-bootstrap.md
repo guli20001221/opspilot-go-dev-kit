@@ -47,6 +47,7 @@ The current chat stream implementation is a Milestone 1 skeleton:
 - task storage is PostgreSQL-backed in the API runtime
 - the worker process polls queued tasks and advances supported task types to terminal states
 - `report_generation` is executed through a Temporal workflow on the `opspilot-report-tasks` queue when Temporal is enabled
+- `approved_tool_execution` now starts a waiting Temporal workflow at task creation time and is resumed by the worker after the approval action updates the task row
 - approval-gated tasks can be resumed through the approval action endpoint
 - failed tasks can be re-queued through the retry action endpoint
 - task responses now include structured `audit_events`
@@ -71,5 +72,5 @@ docker compose up -d --force-recreate api worker
 
 - In the current Windows shell, `make` may be unavailable; use `scripts/dev/tasks.ps1` as the verified fallback.
 - Redis is still present only as future infrastructure; no runtime code path uses it yet.
-- The API process still exposes PostgreSQL task rows as the external task-status surface; only `report_generation` is Temporal-backed so far.
+- The API process still exposes PostgreSQL task rows as the external task-status surface even when Temporal is driving report execution and approval waiting.
 - No trace exporter exists yet; only request-scoped IDs are logged.

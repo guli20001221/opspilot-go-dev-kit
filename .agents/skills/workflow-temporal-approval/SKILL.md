@@ -45,6 +45,7 @@ Move long-running, retryable, or approval-gated work into a durable workflow lay
 12. Prefer structured task audit events over opaque audit strings when exposing operator-facing task history.
 13. When task status changes and task audit events are both persisted, write them in one storage transaction rather than as separate best-effort calls.
 14. During gradual migration to Temporal, it is acceptable to keep PostgreSQL task rows as the operator-facing status surface and move one task type at a time behind Temporal execution.
+15. Approval-gated migrations can use the API to start a waiting workflow and the worker to signal-and-wait after approval, as long as the pause/resume path remains explicit and operator-visible.
 
 ## Output contract
 When you finish, always report:

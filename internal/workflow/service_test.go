@@ -53,6 +53,47 @@ func TestServicePromoteCreatesWaitingApprovalTask(t *testing.T) {
 	}
 }
 
+func TestServicePromoteStartsApprovalWorkflowForWaitingApprovalTask(t *testing.T) {
+	starter := &fakeTaskStarter{}
+	svc := NewServiceWithHooks(NewMemoryStore(), starter)
+
+	created, err := svc.Promote(context.Background(), PromoteRequest{
+		RequestID:        "req-promote-start",
+		TenantID:         "tenant-1",
+		SessionID:        "session-1",
+		TaskType:         TaskTypeApprovedToolExecution,
+		Reason:           PromotionReasonApprovalRequired,
+		RequiresApproval: true,
+	})
+	if err != nil {
+		t.Fatalf("Promote() error = %v", err)
+	}
+	if starter.calls != 1 {
+		t.Fatalf("starter.calls = %d, want %d", starter.calls, 1)
+	}
+	if starter.lastTask.ID != created.ID {
+		t.Fatalf("starter.lastTask.ID = %q, want %q", starter.lastTask.ID, created.ID)
+	}
+}
+
+func TestServicePromoteSkipsApprovalWorkflowStarterForReportTask(t *testing.T) {
+	starter := &fakeTaskStarter{}
+	svc := NewServiceWithHooks(NewMemoryStore(), starter)
+
+	if _, err := svc.Promote(context.Background(), PromoteRequest{
+		RequestID: "req-promote-report",
+		TenantID:  "tenant-1",
+		SessionID: "session-1",
+		TaskType:  TaskTypeReportGeneration,
+		Reason:    PromotionReasonWorkflowRequired,
+	}); err != nil {
+		t.Fatalf("Promote() error = %v", err)
+	}
+	if starter.calls != 0 {
+		t.Fatalf("starter.calls = %d, want %d", starter.calls, 0)
+	}
+}
+
 func TestServiceGetTaskReturnsStoredTask(t *testing.T) {
 	svc := NewService()
 
@@ -172,4 +213,15 @@ func TestServiceListTaskEventsReturnsStructuredHistory(t *testing.T) {
 	if events[len(events)-1].Actor != "operator-1" {
 		t.Fatalf("events[last].Actor = %q, want %q", events[len(events)-1].Actor, "operator-1")
 	}
+}
+
+type fakeTaskStarter struct {
+	lastTask Task
+	calls    int
+}
+
+func (f *fakeTaskStarter) StartTask(_ context.Context, task Task) error {
+	f.calls++
+	f.lastTask = task
+	return nil
 }
