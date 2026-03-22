@@ -1,5 +1,7 @@
 package registry
 
+import tickettools "opspilot-go/internal/tools/http/tickets"
+
 // NewDefaultRegistry constructs the shared default tool registry used by the
 // current chat and workflow skeletons.
 func NewDefaultRegistry() *Registry {
@@ -9,21 +11,14 @@ func NewDefaultRegistry() *Registry {
 		ActionClass:      "read",
 		ReadOnly:         true,
 		RequiresApproval: false,
-		StubResponse: map[string]any{
-			"matches": []map[string]string{
-				{"ticket_id": "INC-100", "summary": "database incident"},
-			},
-		},
+		Executor:         tickettools.SearchExecutor,
 	})
 	registry.Register(Definition{
 		Name:             "ticket_comment_create",
 		ActionClass:      "write",
 		ReadOnly:         false,
 		RequiresApproval: true,
-		StubResponse: map[string]any{
-			"ticket_id": "INC-100",
-			"status":    "comment_created",
-		},
+		Executor:         tickettools.CommentCreateExecutor,
 	})
 
 	return registry

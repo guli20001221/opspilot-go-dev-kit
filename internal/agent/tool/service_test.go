@@ -3,6 +3,7 @@ package tool
 import (
 	"context"
 	"encoding/json"
+	"strings"
 	"testing"
 
 	toolregistry "opspilot-go/internal/tools/registry"
@@ -134,5 +135,73 @@ func TestServiceExecuteWriteToolAfterApproval(t *testing.T) {
 	}
 	if len(got.StructuredData) == 0 {
 		t.Fatal("StructuredData is empty")
+	}
+}
+
+func TestServiceExecuteApprovedToolUsesTypedDefaultAdapter(t *testing.T) {
+	svc := NewService(toolregistry.NewDefaultRegistry())
+
+	got, err := svc.Execute(context.Background(), ToolInvocation{
+		RequestID:        "req-4",
+		TraceID:          "trace-4",
+		TenantID:         "tenant-1",
+		SessionID:        "session-1",
+		TaskID:           "task-typed-1",
+		PlanID:           "plan-4",
+		StepID:           "step-4",
+		ToolName:         "ticket_comment_create",
+		ActionClass:      ActionClassWrite,
+		RequiresApproval: true,
+		ApprovalGranted:  true,
+		Arguments:        json.RawMessage(`{"ticket_id":"INC-200","comment":"approved typed comment"}`),
+	})
+	if err != nil {
+		t.Fatalf("Execute() error = %v", err)
+	}
+	if got.Status != StatusSucceeded {
+		t.Fatalf("Status = %q, want %q", got.Status, StatusSucceeded)
+	}
+
+	var payload struct {
+		TicketID string `json:"ticket_id"`
+		Status   string `json:"status"`
+		Comment  string `json:"comment"`
+	}
+	if err := json.Unmarshal(got.StructuredData, &payload); err != nil {
+		t.Fatalf("json.Unmarshal(StructuredData) error = %v", err)
+	}
+	if payload.TicketID != "INC-200" {
+		t.Fatalf("TicketID = %q, want %q", payload.TicketID, "INC-200")
+	}
+	if payload.Comment != "approved typed comment" {
+		t.Fatalf("Comment = %q, want %q", payload.Comment, "approved typed comment")
+	}
+	if payload.Status != "comment_created" {
+		t.Fatalf("Status = %q, want %q", payload.Status, "comment_created")
+	}
+}
+
+func TestServiceExecuteApprovedToolRejectsInvalidArguments(t *testing.T) {
+	svc := NewService(toolregistry.NewDefaultRegistry())
+
+	_, err := svc.Execute(context.Background(), ToolInvocation{
+		RequestID:        "req-5",
+		TraceID:          "trace-5",
+		TenantID:         "tenant-1",
+		SessionID:        "session-1",
+		TaskID:           "task-typed-2",
+		PlanID:           "plan-5",
+		StepID:           "step-5",
+		ToolName:         "ticket_comment_create",
+		ActionClass:      ActionClassWrite,
+		RequiresApproval: true,
+		ApprovalGranted:  true,
+		Arguments:        json.RawMessage(`{"comment":"missing ticket id"}`),
+	})
+	if err == nil {
+		t.Fatal("Execute() error = nil, want non-nil")
+	}
+	if !strings.Contains(err.Error(), "ticket_id") {
+		t.Fatalf("Execute() error = %v, want message containing %q", err, "ticket_id")
 	}
 }

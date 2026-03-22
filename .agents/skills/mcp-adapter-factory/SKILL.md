@@ -35,7 +35,8 @@ Integrate external systems cleanly without leaking vendor-specific chaos into th
 4. Normalize external errors into internal categories.
 5. Add approval or dry-run controls for write-capable tools.
 6. Emit audit records for external actions.
-7. Add tests with fakes or local harnesses instead of live network calls when possible.
+7. Start with deterministic typed adapters when the real external system is not wired yet; validate request payloads instead of returning fixed success blobs.
+8. Add tests with fakes or local harnesses instead of live network calls when possible.
 
 ## Output contract
 When you finish, always report:
@@ -47,6 +48,7 @@ When you finish, always report:
 
 ## Done checklist
 - tool contract is typed and documented
+- deterministic local adapters validate arguments before any live integration exists
 - read-only versus write-capable behavior is explicit
 - errors are normalized
 - approvals exist where needed

@@ -32,7 +32,7 @@ Current Milestone 1 slice:
 - deterministic context assembly under `internal/contextengine`
 - deterministic typed planning under `internal/agent/planner`
 - deterministic typed retrieval under `internal/retrieval`
-- deterministic typed tool execution under `internal/agent/tool` and `internal/tools/registry`
+- deterministic typed tool execution under `internal/agent/tool`, `internal/tools/registry`, and `internal/tools/http`
 - deterministic typed critic review under `internal/agent/critic`
 - PostgreSQL-backed async promotion records under `internal/workflow` for the API runtime
 - worker-side task progression from `queued` to `running/succeeded/failed`, with `report_generation` bridged through Temporal workflow execution
@@ -48,5 +48,6 @@ Current Milestone 1 slice:
 - the local API also uses a Temporal client to initialize waiting approval workflows for `approved_tool_execution`, while worker-side retry uses Temporal failed-only ID reuse for recovery
 - the local worker also supports a dev-only `OPSPILOT_APPROVED_TOOL_FAIL_ON_APPROVE` toggle so the approval failure and retry path can be verified end-to-end without changing public APIs
 - failed task `error_reason` values are now normalized to short operator-facing summaries instead of full wrapped Temporal error strings
-- approval tasks promoted from chat now persist an internal tool payload so the Temporal approved-tool activity can execute the registered tool after approval instead of always using a placeholder path
+- approval tasks promoted from chat now persist an internal tool payload so the Temporal approved-tool activity can execute a typed registered tool after approval instead of always using a placeholder path
+- the default ticket tools now validate request payloads and return argument-dependent structured results through deterministic typed adapters instead of fixed stub JSON
 - `POST /api/v1/chat/stream` with optional SSE `plan`, `retrieval`, `tool`, and `task_promoted` events ahead of `state -> done`

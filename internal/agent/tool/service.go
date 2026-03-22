@@ -19,7 +19,7 @@ func NewService(registry *toolregistry.Registry) *Service {
 }
 
 // Execute resolves a tool definition and returns a normalized execution result.
-func (s *Service) Execute(_ context.Context, inv ToolInvocation) (ToolResult, error) {
+func (s *Service) Execute(ctx context.Context, inv ToolInvocation) (ToolResult, error) {
 	def, ok := s.registry.Lookup(inv.ToolName)
 	if !ok {
 		return ToolResult{}, fmt.Errorf("tool %q not found", inv.ToolName)
@@ -38,13 +38,24 @@ func (s *Service) Execute(_ context.Context, inv ToolInvocation) (ToolResult, er
 		return result, nil
 	}
 
-	data, err := json.Marshal(def.StubResponse)
+	payload := any(def.StubResponse)
+	summary := "stub tool execution completed"
+	if def.Executor != nil {
+		executed, err := def.Executor(ctx, inv.Arguments)
+		if err != nil {
+			return ToolResult{}, fmt.Errorf("execute %s: %w", inv.ToolName, err)
+		}
+		payload = executed
+		summary = "tool execution completed"
+	}
+
+	data, err := json.Marshal(payload)
 	if err != nil {
-		return ToolResult{}, fmt.Errorf("marshal stub response: %w", err)
+		return ToolResult{}, fmt.Errorf("marshal tool response: %w", err)
 	}
 
 	result.Status = StatusSucceeded
-	result.OutputSummary = "stub tool execution completed"
+	result.OutputSummary = summary
 	result.StructuredData = data
 	return result, nil
 }

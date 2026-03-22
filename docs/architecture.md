@@ -25,7 +25,7 @@ The current Milestone 1 slice adds:
 - `internal/contextengine` for deterministic block assembly and assembly logging
 - `internal/agent/planner` for deterministic typed execution plans
 - `internal/retrieval` for deterministic structured-query retrieval and provenance-bearing evidence blocks
-- `internal/agent/tool` and `internal/tools/registry` for deterministic stub tool execution and approval gating
+- `internal/agent/tool`, `internal/tools/registry`, and `internal/tools/http` for deterministic typed tool execution, request validation, and approval gating
 - `internal/agent/critic` for deterministic structured verdicts over draft answers, retrieval, and tool results
 - `internal/workflow` for store-backed promoted task records and the current Temporal bridge layer
 - approval-gated workflow tasks now carry an internal tool payload for worker-side approved execution
@@ -61,6 +61,7 @@ The current worker path advances supported queued tasks through:
 - `waiting_approval -> queued -> running -> succeeded` for approved tool execution, with the waiting phase and resume signal tracked in Temporal
 - `waiting_approval -> queued -> running -> failed -> queued -> running -> succeeded` for approved tool execution recovery, where a failed approval run closes and retry starts a new Temporal run for the same task ID
 - approval tasks promoted from chat carry the selected tool name and typed arguments; legacy tasks without payload keep the older placeholder-compatible execution path
+- the default ticket adapters now execute through typed request/response contracts, so approved-tool runs can reject invalid payloads instead of silently succeeding on fixed stub output
 - `queued -> running -> failed` for unsupported task types
 
 This file is intentionally brief in the AI development kit.

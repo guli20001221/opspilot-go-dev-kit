@@ -1,9 +1,14 @@
 package registry
 
 import (
+	"context"
+	"encoding/json"
 	"sort"
 	"sync"
 )
+
+// Executor executes one registered tool against normalized runtime inputs.
+type Executor func(context.Context, json.RawMessage) (any, error)
 
 // Definition describes one registered tool and its static policy.
 type Definition struct {
@@ -13,6 +18,7 @@ type Definition struct {
 	RequiresApproval bool
 	AsyncOnly        bool
 	StubResponse     map[string]any
+	Executor         Executor
 }
 
 // Registry stores tool definitions keyed by name.
