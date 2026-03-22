@@ -30,6 +30,7 @@ type ToolInvocation struct {
 	ToolName         string
 	ActionClass      string
 	RequiresApproval bool
+	ApprovalGranted  bool
 	Arguments        json.RawMessage
 	DryRun           bool
 }

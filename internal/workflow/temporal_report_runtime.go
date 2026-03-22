@@ -2,6 +2,7 @@ package workflow
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"strings"
 	"time"
@@ -11,6 +12,9 @@ import (
 	"go.temporal.io/sdk/temporal"
 	temporalworker "go.temporal.io/sdk/worker"
 	temporalworkflow "go.temporal.io/sdk/workflow"
+
+	agenttool "opspilot-go/internal/agent/tool"
+	toolregistry "opspilot-go/internal/tools/registry"
 )
 
 const (
@@ -44,6 +48,8 @@ type ApprovedToolWorkflowInput struct {
 	TaskID    string
 	TenantID  string
 	SessionID string
+	ToolName  string
+	Arguments json.RawMessage
 }
 
 // ApprovedToolActivityInput carries workflow identity plus the current action
@@ -107,14 +113,14 @@ func NewTemporalReportRunner(client temporalclient.Client, taskQueue string) *Te
 
 // NewTemporalApprovedToolRunner constructs a Temporal-backed approval workflow runner.
 func NewTemporalApprovedToolRunner(client temporalclient.Client, taskQueue string) *TemporalApprovedToolRunner {
-	return NewTemporalApprovedToolRunnerWithActivities(client, taskQueue, &ApprovedToolActivities{})
+	return NewTemporalApprovedToolRunnerWithActivities(client, taskQueue, nil)
 }
 
 // NewTemporalApprovedToolRunnerWithActivities constructs a Temporal-backed
 // approval workflow runner with caller-provided activity behavior.
 func NewTemporalApprovedToolRunnerWithActivities(client temporalclient.Client, taskQueue string, activities *ApprovedToolActivities) *TemporalApprovedToolRunner {
 	if activities == nil {
-		activities = &ApprovedToolActivities{}
+		activities = NewApprovedToolActivities(nil)
 	}
 
 	return &TemporalApprovedToolRunner{
@@ -164,6 +170,8 @@ func (r *TemporalApprovedToolRunner) StartTask(ctx context.Context, task Task) e
 		TaskID:    task.ID,
 		TenantID:  task.TenantID,
 		SessionID: task.SessionID,
+		ToolName:  task.ToolName,
+		Arguments: task.ToolArguments,
 	})
 	if err != nil {
 		return fmt.Errorf("execute temporal approved tool workflow: %w", err)
@@ -189,6 +197,8 @@ func (r *TemporalApprovedToolRunner) ContinueApprovedToolWorkflow(ctx context.Co
 			TaskID:    task.ID,
 			TenantID:  task.TenantID,
 			SessionID: task.SessionID,
+			ToolName:  task.ToolName,
+			Arguments: task.ToolArguments,
 		},
 	)
 	if err != nil {
@@ -282,6 +292,16 @@ func ApprovedToolExecutionWorkflow(ctx temporalworkflow.Context, input ApprovedT
 // ApprovedToolActivities contains the activity implementations for approved-tool workflows.
 type ApprovedToolActivities struct {
 	FailOnApprove bool
+	tools         *agenttool.Service
+}
+
+// NewApprovedToolActivities constructs the approved-tool activity handler.
+func NewApprovedToolActivities(tools *agenttool.Service) *ApprovedToolActivities {
+	if tools == nil {
+		tools = agenttool.NewService(toolregistry.NewDefaultRegistry())
+	}
+
+	return &ApprovedToolActivities{tools: tools}
 }
 
 // ExecuteApprovedTool is the placeholder approved-tool activity.
@@ -292,6 +312,33 @@ func (a *ApprovedToolActivities) ExecuteApprovedTool(_ context.Context, input Ap
 			"approved_tool_fault_injection",
 			nil,
 		)
+	}
+	if input.Workflow.ToolName == "" {
+		return ApprovedToolWorkflowResult{
+			Executed: fmt.Sprintf("approved-tool:%s", input.Workflow.TaskID),
+		}, nil
+	}
+	if a.tools == nil {
+		a.tools = agenttool.NewService(toolregistry.NewDefaultRegistry())
+	}
+
+	result, err := a.tools.Execute(context.Background(), agenttool.ToolInvocation{
+		TenantID:         input.Workflow.TenantID,
+		SessionID:        input.Workflow.SessionID,
+		TaskID:           input.Workflow.TaskID,
+		PlanID:           "workflow-" + input.Workflow.TaskID,
+		StepID:           "approved-tool",
+		ToolName:         input.Workflow.ToolName,
+		ActionClass:      agenttool.ActionClassWrite,
+		RequiresApproval: true,
+		ApprovalGranted:  true,
+		Arguments:        input.Workflow.Arguments,
+	})
+	if err != nil {
+		return ApprovedToolWorkflowResult{}, err
+	}
+	if result.Status != agenttool.StatusSucceeded {
+		return ApprovedToolWorkflowResult{}, fmt.Errorf("approved tool execution returned %s", result.Status)
 	}
 
 	return ApprovedToolWorkflowResult{

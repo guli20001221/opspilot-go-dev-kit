@@ -60,6 +60,10 @@ func TestServiceExecuteWriteToolRequiresApproval(t *testing.T) {
 		ActionClass:      ActionClassWrite,
 		ReadOnly:         false,
 		RequiresApproval: true,
+		StubResponse: map[string]any{
+			"ticket_id": "INC-100",
+			"status":    "comment_created",
+		},
 	})
 
 	svc := NewService(registry)
@@ -87,5 +91,48 @@ func TestServiceExecuteWriteToolRequiresApproval(t *testing.T) {
 	}
 	if len(got.StructuredData) != 0 {
 		t.Fatalf("StructuredData = %s, want empty", string(got.StructuredData))
+	}
+}
+
+func TestServiceExecuteWriteToolAfterApproval(t *testing.T) {
+	registry := toolregistry.New()
+	registry.Register(toolregistry.Definition{
+		Name:             "ticket_comment_create",
+		ActionClass:      ActionClassWrite,
+		ReadOnly:         false,
+		RequiresApproval: true,
+		StubResponse: map[string]any{
+			"ticket_id": "INC-100",
+			"status":    "comment_created",
+		},
+	})
+
+	svc := NewService(registry)
+	got, err := svc.Execute(context.Background(), ToolInvocation{
+		RequestID:        "req-3",
+		TraceID:          "trace-3",
+		TenantID:         "tenant-1",
+		SessionID:        "session-1",
+		TaskID:           "task-1",
+		PlanID:           "plan-3",
+		StepID:           "step-3",
+		ToolName:         "ticket_comment_create",
+		ActionClass:      ActionClassWrite,
+		RequiresApproval: true,
+		ApprovalGranted:  true,
+		Arguments:        json.RawMessage(`{"ticket_id":"INC-100","comment":"approved"}`),
+	})
+	if err != nil {
+		t.Fatalf("Execute() error = %v", err)
+	}
+
+	if got.Status != StatusSucceeded {
+		t.Fatalf("Status = %q, want %q", got.Status, StatusSucceeded)
+	}
+	if got.ApprovalRef != "" {
+		t.Fatalf("ApprovalRef = %q, want empty", got.ApprovalRef)
+	}
+	if len(got.StructuredData) == 0 {
+		t.Fatal("StructuredData is empty")
 	}
 }

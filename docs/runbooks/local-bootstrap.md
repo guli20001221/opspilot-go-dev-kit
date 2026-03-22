@@ -50,6 +50,7 @@ The current chat stream implementation is a Milestone 1 skeleton:
 - `approved_tool_execution` now starts a waiting Temporal workflow at task creation time and is resumed by the worker after the approval action updates the task row
 - if `approved_tool_execution` fails after approval, the current Temporal run closes, the task row moves to `failed`, and `POST /api/v1/tasks/{task_id}/retry` starts a new failed-only Temporal run for the same task
 - set `OPSPILOT_APPROVED_TOOL_FAIL_ON_APPROVE=true` on the worker to force the first approval attempt to fail while keeping retry successful
+- approval tasks promoted from chat now carry an internal tool payload so worker-side approved execution can run the registered tool after approval; manually created approval tasks without payload still use the compatibility path
 - approval-gated tasks can be resumed through the approval action endpoint
 - failed tasks can be re-queued through the retry action endpoint
 - task responses now include structured `audit_events`
@@ -59,10 +60,12 @@ The current chat stream implementation is a Milestone 1 skeleton:
 - assistant output is a fixed placeholder response
 - the current HTTP contract is documented in `docs/openapi/openapi.yaml`
 
-If your local PostgreSQL volume predates `db/migrations/000002_workflow_tasks.sql`, apply it manually before starting the API:
+If your local PostgreSQL volume predates `db/migrations/000002_workflow_tasks.sql`, `db/migrations/000003_workflow_task_events.sql`, or `db/migrations/000004_workflow_task_payload.sql`, apply them manually before starting the API:
 
 ```powershell
 docker compose exec -T postgres psql -U opspilot -d opspilot -f /docker-entrypoint-initdb.d/000002_workflow_tasks.sql
+docker compose exec -T postgres psql -U opspilot -d opspilot -f /docker-entrypoint-initdb.d/000003_workflow_task_events.sql
+docker compose exec -T postgres psql -U opspilot -d opspilot -f /docker-entrypoint-initdb.d/000004_workflow_task_payload.sql
 ```
 
 If you change Compose environment variables such as `OPSPILOT_POSTGRES_DSN`, `OPSPILOT_TEMPORAL_ENABLED`, or `OPSPILOT_WORKER_POLL_INTERVAL`, recreate the app containers instead of only restarting them:

@@ -3,6 +3,7 @@ package chat
 import (
 	"context"
 	"encoding/json"
+	"regexp"
 	"strconv"
 
 	agentcritic "opspilot-go/internal/agent/critic"
@@ -45,24 +46,7 @@ func NewServiceWithWorkflow(sessions SessionService, workflows *workflow.Service
 		workflows = workflow.NewService()
 	}
 
-	registry := toolregistry.New()
-	registry.Register(toolregistry.Definition{
-		Name:             "ticket_search",
-		ActionClass:      agenttool.ActionClassRead,
-		ReadOnly:         true,
-		RequiresApproval: false,
-		StubResponse: map[string]any{
-			"matches": []map[string]string{
-				{"ticket_id": "INC-100", "summary": "database incident"},
-			},
-		},
-	})
-	registry.Register(toolregistry.Definition{
-		Name:             "ticket_comment_create",
-		ActionClass:      agenttool.ActionClassWrite,
-		ReadOnly:         false,
-		RequiresApproval: true,
-	})
+	registry := toolregistry.NewDefaultRegistry()
 
 	return &Service{
 		sessions:  sessions,
@@ -145,17 +129,18 @@ func (s *Service) Handle(ctx context.Context, req ChatRequestEnvelope) (HandleRe
 	}
 
 	toolResults := make([]agenttool.ToolResult, 0, len(plan.Steps))
+	toolInvocations := make([]agenttool.ToolInvocation, 0, len(plan.Steps))
 	for _, step := range plan.Steps {
 		if step.Kind != planner.StepKindTool {
 			continue
 		}
 
-		args, err := json.Marshal(map[string]string{"query": req.UserMessage})
+		args, err := buildToolArguments(step.ToolName, req.UserMessage)
 		if err != nil {
 			return HandleResult{}, err
 		}
 
-		toolResult, err := s.tools.Execute(ctx, agenttool.ToolInvocation{
+		invocation := agenttool.ToolInvocation{
 			RequestID:        req.RequestID,
 			TraceID:          req.TraceID,
 			TenantID:         req.TenantID,
@@ -166,7 +151,10 @@ func (s *Service) Handle(ctx context.Context, req ChatRequestEnvelope) (HandleRe
 			ActionClass:      actionClassForStep(step),
 			RequiresApproval: step.NeedsApproval,
 			Arguments:        args,
-		})
+		}
+		toolInvocations = append(toolInvocations, invocation)
+
+		toolResult, err := s.tools.Execute(ctx, invocation)
 		if err != nil {
 			return HandleResult{}, err
 		}
@@ -194,6 +182,15 @@ func (s *Service) Handle(ctx context.Context, req ChatRequestEnvelope) (HandleRe
 			requiresApproval = true
 		}
 
+		var toolName string
+		var toolArguments json.RawMessage
+		if requiresApproval {
+			if approvalInvocation, ok := firstApprovalInvocation(toolInvocations, toolResults); ok {
+				toolName = approvalInvocation.ToolName
+				toolArguments = approvalInvocation.Arguments
+			}
+		}
+
 		task, err := s.workflows.Promote(ctx, workflow.PromoteRequest{
 			RequestID:        req.RequestID,
 			TenantID:         req.TenantID,
@@ -201,6 +198,8 @@ func (s *Service) Handle(ctx context.Context, req ChatRequestEnvelope) (HandleRe
 			TaskType:         taskType,
 			Reason:           reason,
 			RequiresApproval: requiresApproval,
+			ToolName:         toolName,
+			ToolArguments:    toolArguments,
 		})
 		if err != nil {
 			return HandleResult{}, err
@@ -226,6 +225,35 @@ func (s *Service) Handle(ctx context.Context, req ChatRequestEnvelope) (HandleRe
 		PromotedTask: promotedTask,
 		Events:       buildEvents(req, sessionID, plan, retrievalResult, toolResults, promotedTask),
 	}, nil
+}
+
+var ticketIDPattern = regexp.MustCompile(`(?i)\b[A-Z]+-\d+\b`)
+
+func buildToolArguments(toolName string, userMessage string) (json.RawMessage, error) {
+	switch toolName {
+	case "ticket_comment_create":
+		payload := map[string]string{
+			"comment": userMessage,
+		}
+		if ticketID := ticketIDPattern.FindString(userMessage); ticketID != "" {
+			payload["ticket_id"] = ticketID
+		}
+		return json.Marshal(payload)
+	default:
+		return json.Marshal(map[string]string{"query": userMessage})
+	}
+}
+
+func firstApprovalInvocation(invocations []agenttool.ToolInvocation, results []agenttool.ToolResult) (agenttool.ToolInvocation, bool) {
+	for _, invocation := range invocations {
+		for _, result := range results {
+			if result.ToolName == invocation.ToolName && result.Status == agenttool.StatusApprovalRequired {
+				return invocation, true
+			}
+		}
+	}
+
+	return agenttool.ToolInvocation{}, false
 }
 
 func toTurns(messages []session.Message) []contextengine.Turn {

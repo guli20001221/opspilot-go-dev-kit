@@ -65,6 +65,8 @@ SELECT
     tenant_id,
     session_id,
     task_type,
+    tool_name,
+    tool_arguments,
     status,
     reason,
     error_reason,
@@ -82,6 +84,8 @@ WHERE id = $1`
 		&task.TenantID,
 		&task.SessionID,
 		&task.TaskType,
+		&task.ToolName,
+		&task.ToolArguments,
 		&task.Status,
 		&task.Reason,
 		&task.ErrorReason,
@@ -211,6 +215,8 @@ RETURNING
     t.tenant_id,
     t.session_id,
     t.task_type,
+    t.tool_name,
+    t.tool_arguments,
     t.status,
     t.reason,
     t.error_reason,
@@ -233,6 +239,8 @@ RETURNING
     tenant_id,
     session_id,
     task_type,
+    tool_name,
+    tool_arguments,
     status,
     reason,
     error_reason,
@@ -260,6 +268,8 @@ INSERT INTO workflow_tasks (
     tenant_id,
     session_id,
     task_type,
+    tool_name,
+    tool_arguments,
     status,
     reason,
     error_reason,
@@ -268,7 +278,7 @@ INSERT INTO workflow_tasks (
     created_at,
     updated_at
 ) VALUES (
-    $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12
+    $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14
 )`
 
 func (s *WorkflowTaskStore) withTx(ctx context.Context, fn func(pgx.Tx) error) error {
@@ -298,6 +308,8 @@ func (s *WorkflowTaskStore) insertTask(ctx context.Context, db taskQuerier, task
 		task.TenantID,
 		task.SessionID,
 		task.TaskType,
+		task.ToolName,
+		task.ToolArguments,
 		task.Status,
 		task.Reason,
 		task.ErrorReason,
@@ -365,6 +377,8 @@ func scanTask(row taskScanner) (workflow.Task, error) {
 		&task.TenantID,
 		&task.SessionID,
 		&task.TaskType,
+		&task.ToolName,
+		&task.ToolArguments,
 		&task.Status,
 		&task.Reason,
 		&task.ErrorReason,

@@ -2,6 +2,7 @@ package chat
 
 import (
 	"context"
+	"encoding/json"
 	"testing"
 	"time"
 
@@ -153,6 +154,43 @@ func TestServiceHandlePromotesTaskModeIntoWorkflowResult(t *testing.T) {
 	}
 	if !foundPromotionEvent {
 		t.Fatal("task_promoted event not found")
+	}
+}
+
+func TestServiceHandlePromotesApprovedToolTaskWithPayload(t *testing.T) {
+	sessionService := session.NewService()
+	svc := NewService(sessionService)
+
+	got, err := svc.Handle(context.Background(), ChatRequestEnvelope{
+		RequestID:   "req-approved-tool",
+		TraceID:     "trace-approved-tool",
+		TenantID:    "tenant-1",
+		UserID:      "user-1",
+		Mode:        "chat",
+		UserMessage: "comment on ticket INC-100 with approved note",
+	})
+	if err != nil {
+		t.Fatalf("Handle() error = %v", err)
+	}
+	if got.PromotedTask == nil {
+		t.Fatal("PromotedTask is nil")
+	}
+	if got.PromotedTask.TaskType != "approved_tool_execution" {
+		t.Fatalf("PromotedTask.TaskType = %q, want %q", got.PromotedTask.TaskType, "approved_tool_execution")
+	}
+	if got.PromotedTask.ToolName != "ticket_comment_create" {
+		t.Fatalf("PromotedTask.ToolName = %q, want %q", got.PromotedTask.ToolName, "ticket_comment_create")
+	}
+
+	var args map[string]string
+	if err := json.Unmarshal(got.PromotedTask.ToolArguments, &args); err != nil {
+		t.Fatalf("Unmarshal(ToolArguments) error = %v", err)
+	}
+	if args["ticket_id"] != "INC-100" {
+		t.Fatalf("ToolArguments.ticket_id = %q, want %q", args["ticket_id"], "INC-100")
+	}
+	if args["comment"] != "comment on ticket INC-100 with approved note" {
+		t.Fatalf("ToolArguments.comment = %q, want original user message", args["comment"])
 	}
 }
 

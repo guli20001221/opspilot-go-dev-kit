@@ -2,6 +2,7 @@ package workflow
 
 import (
 	"context"
+	"encoding/json"
 	"strings"
 	"testing"
 	"time"
@@ -21,6 +22,7 @@ func TestApprovedToolExecutionWorkflowReturnsActivityError(t *testing.T) {
 		TaskID:    "task-approved-error",
 		TenantID:  "tenant-1",
 		SessionID: "session-1",
+		Arguments: json.RawMessage("null"),
 	}
 
 	env.OnActivity(new(ApprovedToolActivities).ExecuteApprovedTool, mock.Anything, ApprovedToolActivityInput{
@@ -110,5 +112,51 @@ func TestApprovedToolActivitiesAllowRetryWhenConfigured(t *testing.T) {
 	}
 	if got.Executed != "approved-tool:task-approved-retry-pass" {
 		t.Fatalf("Executed = %q, want %q", got.Executed, "approved-tool:task-approved-retry-pass")
+	}
+}
+
+func TestApprovedToolActivitiesExecuteApprovedToolFromPayload(t *testing.T) {
+	activities := NewApprovedToolActivities(nil)
+
+	got, err := activities.ExecuteApprovedTool(context.Background(), ApprovedToolActivityInput{
+		Workflow: ApprovedToolWorkflowInput{
+			TaskID:    "task-approved-runtime",
+			TenantID:  "tenant-1",
+			SessionID: "session-1",
+			ToolName:  "ticket_comment_create",
+			Arguments: []byte(`{"ticket_id":"INC-100","comment":"approved comment"}`),
+		},
+		Signal: ApprovedToolSignal{
+			Action: "approve",
+			Actor:  "operator-1",
+		},
+	})
+	if err != nil {
+		t.Fatalf("ExecuteApprovedTool() error = %v", err)
+	}
+	if got.Executed != "approved-tool:task-approved-runtime" {
+		t.Fatalf("Executed = %q, want %q", got.Executed, "approved-tool:task-approved-runtime")
+	}
+}
+
+func TestApprovedToolActivitiesFallbackWithoutToolPayload(t *testing.T) {
+	activities := NewApprovedToolActivities(nil)
+
+	got, err := activities.ExecuteApprovedTool(context.Background(), ApprovedToolActivityInput{
+		Workflow: ApprovedToolWorkflowInput{
+			TaskID:    "task-approved-legacy",
+			TenantID:  "tenant-1",
+			SessionID: "session-1",
+		},
+		Signal: ApprovedToolSignal{
+			Action: "approve",
+			Actor:  "operator-1",
+		},
+	})
+	if err != nil {
+		t.Fatalf("ExecuteApprovedTool() error = %v", err)
+	}
+	if got.Executed != "approved-tool:task-approved-legacy" {
+		t.Fatalf("Executed = %q, want %q", got.Executed, "approved-tool:task-approved-legacy")
 	}
 }

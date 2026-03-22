@@ -70,6 +70,8 @@ func (s *Service) Promote(ctx context.Context, req PromoteRequest) (Task, error)
 		TenantID:         req.TenantID,
 		SessionID:        req.SessionID,
 		TaskType:         req.TaskType,
+		ToolName:         req.ToolName,
+		ToolArguments:    req.ToolArguments,
 		Status:           StatusQueued,
 		Reason:           req.Reason,
 		RequiresApproval: req.RequiresApproval,

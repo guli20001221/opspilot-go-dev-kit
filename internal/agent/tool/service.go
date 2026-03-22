@@ -31,7 +31,7 @@ func (s *Service) Execute(_ context.Context, inv ToolInvocation) (ToolResult, er
 		AuditRef:   fmt.Sprintf("audit-%s-%s", inv.PlanID, inv.StepID),
 	}
 
-	if inv.RequiresApproval || def.RequiresApproval || def.ActionClass == ActionClassWrite || def.ActionClass == ActionClassAdmin {
+	if !inv.ApprovalGranted && (inv.RequiresApproval || def.RequiresApproval || def.ActionClass == ActionClassWrite || def.ActionClass == ActionClassAdmin) {
 		result.Status = StatusApprovalRequired
 		result.OutputSummary = "approval required before tool execution"
 		result.ApprovalRef = fmt.Sprintf("approval-%s-%s", inv.PlanID, inv.StepID)

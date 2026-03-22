@@ -48,4 +48,5 @@ Current Milestone 1 slice:
 - the local API also uses a Temporal client to initialize waiting approval workflows for `approved_tool_execution`, while worker-side retry uses Temporal failed-only ID reuse for recovery
 - the local worker also supports a dev-only `OPSPILOT_APPROVED_TOOL_FAIL_ON_APPROVE` toggle so the approval failure and retry path can be verified end-to-end without changing public APIs
 - failed task `error_reason` values are now normalized to short operator-facing summaries instead of full wrapped Temporal error strings
+- approval tasks promoted from chat now persist an internal tool payload so the Temporal approved-tool activity can execute the registered tool after approval instead of always using a placeholder path
 - `POST /api/v1/chat/stream` with optional SSE `plan`, `retrieval`, `tool`, and `task_promoted` events ahead of `state -> done`

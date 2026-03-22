@@ -2,6 +2,7 @@ package workflow
 
 import (
 	"context"
+	"encoding/json"
 	"testing"
 )
 
@@ -50,6 +51,32 @@ func TestServicePromoteCreatesWaitingApprovalTask(t *testing.T) {
 	}
 	if got.RequiresApproval != true {
 		t.Fatal("RequiresApproval = false, want true")
+	}
+}
+
+func TestServicePromotePersistsApprovedToolPayload(t *testing.T) {
+	svc := NewService()
+	args := json.RawMessage(`{"ticket_id":"INC-100","comment":"approved comment"}`)
+
+	got, err := svc.Promote(context.Background(), PromoteRequest{
+		RequestID:        "req-2b",
+		TenantID:         "tenant-1",
+		SessionID:        "session-1",
+		TaskType:         TaskTypeApprovedToolExecution,
+		Reason:           PromotionReasonApprovalRequired,
+		RequiresApproval: true,
+		ToolName:         "ticket_comment_create",
+		ToolArguments:    args,
+	})
+	if err != nil {
+		t.Fatalf("Promote() error = %v", err)
+	}
+
+	if got.ToolName != "ticket_comment_create" {
+		t.Fatalf("ToolName = %q, want %q", got.ToolName, "ticket_comment_create")
+	}
+	if string(got.ToolArguments) != string(args) {
+		t.Fatalf("ToolArguments = %s, want %s", string(got.ToolArguments), string(args))
 	}
 }
 

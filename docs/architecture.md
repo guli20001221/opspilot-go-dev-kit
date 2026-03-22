@@ -28,6 +28,7 @@ The current Milestone 1 slice adds:
 - `internal/agent/tool` and `internal/tools/registry` for deterministic stub tool execution and approval gating
 - `internal/agent/critic` for deterministic structured verdicts over draft answers, retrieval, and tool results
 - `internal/workflow` for store-backed promoted task records and the current Temporal bridge layer
+- approval-gated workflow tasks now carry an internal tool payload for worker-side approved execution
 - `internal/storage/postgres` for the current PostgreSQL task repository and connection pool wiring
 - `internal/app/httpapi` as a thin transport layer over the session and chat services
 - `cmd/api` for task creation plus Temporal-backed approval-workflow initialization
@@ -59,6 +60,7 @@ The current worker path advances supported queued tasks through:
 - `queued -> running -> succeeded` for report generation, with the execution body now running inside a Temporal workflow and activity
 - `waiting_approval -> queued -> running -> succeeded` for approved tool execution, with the waiting phase and resume signal tracked in Temporal
 - `waiting_approval -> queued -> running -> failed -> queued -> running -> succeeded` for approved tool execution recovery, where a failed approval run closes and retry starts a new Temporal run for the same task ID
+- approval tasks promoted from chat carry the selected tool name and typed arguments; legacy tasks without payload keep the older placeholder-compatible execution path
 - `queued -> running -> failed` for unsupported task types
 
 This file is intentionally brief in the AI development kit.

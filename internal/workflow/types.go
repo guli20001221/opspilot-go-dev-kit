@@ -1,6 +1,9 @@
 package workflow
 
-import "time"
+import (
+	"encoding/json"
+	"time"
+)
 
 const (
 	// StatusDraft identifies a created but not yet queued task.
@@ -48,6 +51,8 @@ type PromoteRequest struct {
 	TaskType         string
 	Reason           string
 	RequiresApproval bool
+	ToolName         string
+	ToolArguments    json.RawMessage
 }
 
 // Task is the typed async task record.
@@ -57,6 +62,8 @@ type Task struct {
 	TenantID         string
 	SessionID        string
 	TaskType         string
+	ToolName         string
+	ToolArguments    json.RawMessage
 	Status           string
 	Reason           string
 	ErrorReason      string

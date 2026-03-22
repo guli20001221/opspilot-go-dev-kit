@@ -36,6 +36,7 @@ Keep the multi-agent runtime explicit, typed, and maintainable while still takin
 5. Normalize tool inputs and outputs through typed schemas.
 6. Version prompts in code, alongside relevant eval cases.
 7. Add unit tests for orchestration decisions and integration tests for happy-path flows.
+8. If the runtime promotes an approval-required tool into async workflow, persist the exact tool name and typed arguments instead of asking the workflow layer to infer them later.
 
 ## Output contract
 When you finish, always report:

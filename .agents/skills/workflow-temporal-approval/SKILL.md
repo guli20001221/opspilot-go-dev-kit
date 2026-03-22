@@ -48,6 +48,7 @@ Move long-running, retryable, or approval-gated work into a durable workflow lay
 15. Approval-gated migrations can use the API to start a waiting workflow and the worker to signal-and-wait after approval, as long as the pause/resume path remains explicit and operator-visible.
 16. If an approval-gated activity attempt fails, let that Temporal run fail and close; use retry to start a new run rather than leaving the worker blocked on a workflow that returned to waiting-for-signal.
 17. For local recovery verification, prefer an explicit fault-injection toggle in activity configuration over ad-hoc code edits or hidden branch logic.
+18. When an approval workflow is meant to execute a real tool after approval, persist the tool name and typed arguments on the task record so the worker activity does not have to reconstruct intent from free-form text.
 
 ## Output contract
 When you finish, always report:

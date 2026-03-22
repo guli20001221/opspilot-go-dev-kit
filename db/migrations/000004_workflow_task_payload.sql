@@ -1,0 +1,3 @@
+ALTER TABLE workflow_tasks
+ADD COLUMN IF NOT EXISTS tool_name TEXT,
+ADD COLUMN IF NOT EXISTS tool_arguments JSONB;

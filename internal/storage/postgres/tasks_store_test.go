@@ -2,6 +2,7 @@ package postgres
 
 import (
 	"context"
+	"encoding/json"
 	"os"
 	"path/filepath"
 	"testing"
@@ -37,6 +38,8 @@ func TestWorkflowTaskStoreRoundTrip(t *testing.T) {
 		TenantID:         "tenant-1",
 		SessionID:        "session-1",
 		TaskType:         workflow.TaskTypeReportGeneration,
+		ToolName:         "ticket_search",
+		ToolArguments:    json.RawMessage(`{"query":"database incident"}`),
 		Status:           workflow.StatusQueued,
 		Reason:           workflow.PromotionReasonWorkflowRequired,
 		RequiresApproval: false,
@@ -64,6 +67,12 @@ func TestWorkflowTaskStoreRoundTrip(t *testing.T) {
 	}
 	if loaded.Status != workflow.StatusQueued {
 		t.Fatalf("GetTask().Status = %q, want %q", loaded.Status, workflow.StatusQueued)
+	}
+	if loaded.ToolName != want.ToolName {
+		t.Fatalf("GetTask().ToolName = %q, want %q", loaded.ToolName, want.ToolName)
+	}
+	if string(loaded.ToolArguments) != string(want.ToolArguments) {
+		t.Fatalf("GetTask().ToolArguments = %s, want %s", string(loaded.ToolArguments), string(want.ToolArguments))
 	}
 }
 
@@ -395,6 +404,7 @@ func applyMigration(t *testing.T, ctx context.Context, pool *pgxpool.Pool) {
 	for _, name := range []string{
 		"000002_workflow_tasks.sql",
 		"000003_workflow_task_events.sql",
+		"000004_workflow_task_payload.sql",
 	} {
 		path := filepath.Join("..", "..", "..", "db", "migrations", name)
 		sql, err := os.ReadFile(path)
