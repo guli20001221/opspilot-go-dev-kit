@@ -26,6 +26,7 @@ The current Milestone 1 slice adds:
 - `internal/app/admin/taskboard` as the first admin read model that converts workflow task pages into operator-facing task board summaries for future `web/admin` flows
 - `web/admin` as the home for embedded operator pages, starting with the task board served directly by the API process
 - the embedded task board page now drills into `GET /api/v1/tasks/{task_id}` for audit history and failure context instead of duplicating detail logic in the browser
+- the same page now reuses `POST /api/v1/tasks/{task_id}/approve` and `POST /api/v1/tasks/{task_id}/retry` for operator actions, so the admin UI does not fork workflow mutation contracts
 - `internal/contextengine` for deterministic block assembly and assembly logging
 - `internal/agent/planner` for deterministic typed execution plans
 - `internal/retrieval` for deterministic structured-query retrieval and provenance-bearing evidence blocks

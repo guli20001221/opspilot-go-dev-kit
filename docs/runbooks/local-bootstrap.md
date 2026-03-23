@@ -66,6 +66,7 @@ The current chat stream implementation is a Milestone 1 skeleton:
 - `GET /api/v1/admin/task-board` reuses the same filters but returns a backend task-board read model with visible-slice summary counts for the current page
 - `GET /admin/task-board` is the first embedded operator UI and mirrors the same filters in a simple browser form while keeping all summary logic on the backend
 - the same page now supports read-only task drill-down, so operators can inspect `audit_events`, `error_reason`, and `audit_ref` without leaving the board
+- the detail panel also surfaces `Approve task` and `Retry task` controls when the current task state allows them, and those controls call the existing task action endpoints with the operator actor you enter on the page
 - the local Compose app services now start from dedicated runtime images, which removes the previous startup dependence on downloading Go modules inside the running container
 - the last successful `audit_event.detail` now carries an execution summary, such as which ticket comment was created
 - failed `audit_event.detail` values now carry a coarse category prefix, such as `validation_error:` or `authorization_error:`

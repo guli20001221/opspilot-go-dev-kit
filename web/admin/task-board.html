@@ -395,6 +395,30 @@
       background: rgba(255, 255, 255, 0.78);
     }
 
+    .detail-actions {
+      display: grid;
+      gap: 12px;
+      margin-bottom: 16px;
+    }
+
+    .detail-actions-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      align-items: end;
+    }
+
+    .detail-actions .field {
+      min-width: 220px;
+      margin: 0;
+    }
+
+    .detail-status-note {
+      color: var(--muted);
+      font-size: 0.88rem;
+      line-height: 1.5;
+    }
+
     .detail-grid {
       display: grid;
       grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
@@ -610,6 +634,21 @@
           <p class="panel-copy" id="taskDetailIntro">
             Pick a task from the board to inspect status, audit events, and failure context without leaving the operator page.
           </p>
+          <div class="detail-actions">
+            <div class="detail-actions-row">
+              <div class="field">
+                <label for="taskActor">Operator Actor</label>
+                <input id="taskActor" name="task_actor" value="task-board-operator" placeholder="operator-1">
+              </div>
+              <div class="actions">
+                <button class="primary" type="button" id="approveTaskButton" hidden>Approve task</button>
+                <button class="ghost" type="button" id="retryTaskButton" hidden>Retry task</button>
+              </div>
+            </div>
+            <div class="detail-status-note" id="detailStatusNote">
+              Select a task to reveal the next operator action.
+            </div>
+          </div>
           <div id="taskDetailContent" class="empty">No task selected yet.</div>
         </section>
       </section>
@@ -627,6 +666,11 @@
     const errorBanner = document.getElementById("errorBanner");
     const detailContent = document.getElementById("taskDetailContent");
     const detailIntro = document.getElementById("taskDetailIntro");
+    const taskActorInput = document.getElementById("taskActor");
+    const approveTaskButton = document.getElementById("approveTaskButton");
+    const retryTaskButton = document.getElementById("retryTaskButton");
+    const detailStatusNote = document.getElementById("detailStatusNote");
+    let currentTaskID = new URLSearchParams(window.location.search).get("task_id") || "";
 
     const fields = ["tenant_id", "status", "task_type", "reason", "requires_approval", "limit", "offset"];
 
@@ -652,7 +696,12 @@
       return params;
     }
 
-    function syncURL(params) {
+    function syncURL(params, taskID = currentTaskID) {
+      if (taskID) {
+        params.set("task_id", taskID);
+      } else {
+        params.delete("task_id");
+      }
       const target = params.toString() ? `${window.location.pathname}?${params.toString()}` : window.location.pathname;
       window.history.replaceState({}, "", target);
     }
@@ -752,6 +801,7 @@
     function renderTaskDetail(task) {
       detailIntro.textContent =
         `Detailed view for ${task.task_id}. This reuses the single-task task API and keeps audit history authoritative on the backend.`;
+      renderTaskActions(task);
 
       const events = Array.isArray(task.audit_events) ? task.audit_events : [];
       const timeline = events.length
@@ -798,17 +848,34 @@
       `;
     }
 
+    function renderTaskActions(task) {
+      approveTaskButton.hidden = task.status !== "waiting_approval";
+      retryTaskButton.hidden = task.status !== "failed";
+
+      if (task.status === "waiting_approval") {
+        detailStatusNote.textContent = "This task is paused for approval. Use the existing approval action endpoint from the board.";
+      } else if (task.status === "failed") {
+        detailStatusNote.textContent = "This task failed and can be re-queued through the existing retry action endpoint.";
+      } else {
+        detailStatusNote.textContent = "No operator action is available for the current task state.";
+      }
+    }
+
     async function loadTaskDetail(taskID) {
+      currentTaskID = taskID || "";
       if (!taskID) {
         detailIntro.textContent =
           "Pick a task from the board to inspect status, audit events, and failure context without leaving the operator page.";
+        detailStatusNote.textContent = "Select a task to reveal the next operator action.";
+        approveTaskButton.hidden = true;
+        retryTaskButton.hidden = true;
         detailContent.innerHTML = '<div class="empty">No task selected yet.</div>';
+        syncURL(buildParams(), "");
         return;
       }
 
       const params = buildParams();
-      params.set("task_id", taskID);
-      syncURL(params);
+      syncURL(params, taskID);
       detailContent.innerHTML = '<div class="loading">Loading task detail...</div>';
 
       try {
@@ -830,6 +897,48 @@
       }
     }
 
+    async function executeTaskAction(action) {
+      if (!currentTaskID) {
+        return;
+      }
+      const actor = (taskActorInput.value || "").trim() || "task-board-operator";
+      const button = action === "approve" ? approveTaskButton : retryTaskButton;
+      const body = action === "approve" ? { approved_by: actor } : { retried_by: actor };
+      const originalText = button.textContent;
+      button.disabled = true;
+      button.textContent = action === "approve" ? "Approving..." : "Retrying...";
+      detailStatusNote.textContent = action === "approve"
+        ? "Submitting approval action..."
+        : "Submitting retry action...";
+
+      try {
+        const response = await fetch(`${taskEndpointBase}${encodeURIComponent(currentTaskID)}/${action}`, {
+          method: "POST",
+          headers: {
+            "Accept": "application/json",
+            "Content-Type": "application/json"
+          },
+          body: JSON.stringify(body)
+        });
+        if (!response.ok) {
+          let detail = response.statusText;
+          try {
+            const payload = await response.json();
+            detail = payload.message || detail;
+          } catch (_) {}
+          throw new Error(detail);
+        }
+
+        await loadBoard();
+        await loadTaskDetail(currentTaskID);
+      } catch (error) {
+        detailStatusNote.textContent = `${action} action failed: ${error.message || "unknown error"}`;
+      } finally {
+        button.disabled = false;
+        button.textContent = originalText;
+      }
+    }
+
     function renderPage(page, params) {
       const offset = Number.parseInt(params.get("offset") || "0", 10) || 0;
       document.getElementById("pageMeta").textContent =
@@ -842,8 +951,8 @@
 
     async function loadBoard() {
       const params = buildParams();
-      const selectedTaskID = new URLSearchParams(window.location.search).get("task_id");
-      syncURL(params);
+      const selectedTaskID = currentTaskID;
+      syncURL(params, selectedTaskID);
       clearError();
       taskRows.innerHTML = '<tr><td class="loading" colspan="7">Loading task board...</td></tr>';
 
@@ -900,7 +1009,7 @@
       form.reset();
       form.elements.namedItem("limit").value = "20";
       form.elements.namedItem("offset").value = "0";
-      const params = new URLSearchParams();
+      currentTaskID = "";
       window.history.replaceState({}, "", window.location.pathname);
       loadBoard();
     });
@@ -922,6 +1031,9 @@
       }
       loadTaskDetail(button.dataset.taskId);
     });
+
+    approveTaskButton.addEventListener("click", () => executeTaskAction("approve"));
+    retryTaskButton.addEventListener("click", () => executeTaskAction("retry"));
 
     readParamsFromURL();
     loadBoard();

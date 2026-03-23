@@ -42,6 +42,12 @@ func TestAdminTaskBoardPageRendersHTML(t *testing.T) {
 	if !strings.Contains(body, "Task detail") {
 		t.Fatal("task detail section missing from page HTML")
 	}
+	if !strings.Contains(body, "Approve task") {
+		t.Fatal("approve task action missing from page HTML")
+	}
+	if !strings.Contains(body, "Retry task") {
+		t.Fatal("retry task action missing from page HTML")
+	}
 }
 
 func TestAdminTaskBoardPageRejectsUnknownSubpath(t *testing.T) {

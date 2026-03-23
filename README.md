@@ -35,6 +35,7 @@ Current Milestone 1 slice:
 - `internal/app/admin/taskboard` as the first admin-facing task board read model, with visible-slice status and reason summaries for future `web/admin` task views
 - `web/admin` now ships the first embedded operator task board page, served by the API at `/admin/task-board`
 - the embedded admin task board page now supports in-page single-task drill-down using the existing `GET /api/v1/tasks/{task_id}` detail contract
+- the same page now exposes `approve` and `retry` controls in the detail panel by reusing the existing task action endpoints instead of adding admin-only mutation APIs
 - deterministic context assembly under `internal/contextengine`
 - deterministic typed planning under `internal/agent/planner`
 - deterministic typed retrieval under `internal/retrieval`

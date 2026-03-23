@@ -34,7 +34,8 @@ Provide a practical operator UI for evaluation and runtime analysis while keepin
 6. Surface reproducibility data such as prompt version, model version, dataset id, and trace ids.
 7. Add empty, loading, and failure states.
 8. Prefer drill-down that reuses existing detail endpoints over inventing parallel admin-only detail contracts.
-9. If contract changes are necessary, change backend and docs first, then UI.
+9. Prefer operator actions that call existing workflow/task endpoints over introducing admin-only write surfaces.
+10. If contract changes are necessary, change backend and docs first, then UI.
 
 ## Output contract
 When you finish, always report:
