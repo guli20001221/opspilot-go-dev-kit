@@ -60,6 +60,9 @@ func TestAdminTaskBoardPageRendersHTML(t *testing.T) {
 	if !strings.Contains(body, "Raw JSON") {
 		t.Fatal("raw json detail controls missing from page HTML")
 	}
+	if !strings.Contains(body, "Copy task link") {
+		t.Fatal("task handoff controls missing from page HTML")
+	}
 }
 
 func TestAdminTaskBoardPageRejectsUnknownSubpath(t *testing.T) {

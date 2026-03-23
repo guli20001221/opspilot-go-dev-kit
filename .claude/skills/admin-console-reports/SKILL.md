@@ -40,6 +40,7 @@ Provide a practical operator UI for evaluation and runtime analysis while keepin
 12. For operator monitoring, prefer lightweight polling against existing read models before inventing new backend watch or subscription contracts.
 13. For high-frequency operator slices, prefer transparent quick-view presets that write back into the existing filter model over a separate frontend-only query state.
 14. When operators need payload-level troubleshooting, prefer exposing the existing detail response as raw JSON over inventing a second admin-only debug contract.
+15. For handoff flows, prefer links and copy actions that point back to existing board or detail contracts over generating separate export endpoints.
 
 ## Output contract
 When you finish, always report:
