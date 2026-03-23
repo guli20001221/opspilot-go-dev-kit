@@ -241,7 +241,7 @@ WHERE ($1 = '' OR tenant_id = $1)
   AND ($7::timestamptz IS NULL OR created_at < $7)
   AND ($8::timestamptz IS NULL OR updated_at > $8)
   AND ($9::timestamptz IS NULL OR updated_at < $9)
-ORDER BY updated_at DESC, created_at DESC
+ORDER BY updated_at DESC, created_at DESC, id DESC
 LIMIT $10 OFFSET $11`
 
 	rows, err := s.pool.Query(

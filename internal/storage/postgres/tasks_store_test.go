@@ -547,6 +547,96 @@ func TestWorkflowTaskStoreListTasksSupportsOffsetPagination(t *testing.T) {
 	}
 }
 
+func TestWorkflowTaskStoreListTasksUsesStableIDTieBreakForPagination(t *testing.T) {
+	dsn := os.Getenv("OPSPILOT_TEST_POSTGRES_DSN")
+	if dsn == "" {
+		t.Skip("OPSPILOT_TEST_POSTGRES_DSN not set")
+	}
+
+	ctx := context.Background()
+	pool, err := OpenPool(ctx, dsn)
+	if err != nil {
+		t.Fatalf("OpenPool() error = %v", err)
+	}
+	defer pool.Close()
+
+	applyMigration(t, ctx, pool)
+	if _, err := pool.Exec(ctx, "TRUNCATE workflow_task_events, workflow_tasks RESTART IDENTITY"); err != nil {
+		t.Fatalf("TRUNCATE workflow_task_events, workflow_tasks error = %v", err)
+	}
+
+	store := NewWorkflowTaskStore(pool)
+	ts := time.Unix(1700000600, 0).UTC()
+	for _, task := range []workflow.Task{
+		{
+			ID:        "task-page-1",
+			RequestID: "req-page-1",
+			TenantID:  "tenant-page",
+			SessionID: "session-page",
+			TaskType:  workflow.TaskTypeReportGeneration,
+			Status:    workflow.StatusSucceeded,
+			Reason:    workflow.PromotionReasonWorkflowRequired,
+			CreatedAt: ts,
+			UpdatedAt: ts,
+		},
+		{
+			ID:        "task-page-2",
+			RequestID: "req-page-2",
+			TenantID:  "tenant-page",
+			SessionID: "session-page",
+			TaskType:  workflow.TaskTypeReportGeneration,
+			Status:    workflow.StatusSucceeded,
+			Reason:    workflow.PromotionReasonWorkflowRequired,
+			CreatedAt: ts,
+			UpdatedAt: ts,
+		},
+		{
+			ID:        "task-page-3",
+			RequestID: "req-page-3",
+			TenantID:  "tenant-page",
+			SessionID: "session-page",
+			TaskType:  workflow.TaskTypeReportGeneration,
+			Status:    workflow.StatusSucceeded,
+			Reason:    workflow.PromotionReasonWorkflowRequired,
+			CreatedAt: ts,
+			UpdatedAt: ts,
+		},
+	} {
+		if _, err := store.SaveTask(ctx, task); err != nil {
+			t.Fatalf("SaveTask(%s) error = %v", task.ID, err)
+		}
+	}
+
+	firstPage, err := store.ListTasks(ctx, workflow.TaskListFilter{
+		TenantID: "tenant-page",
+		Limit:    1,
+	})
+	if err != nil {
+		t.Fatalf("ListTasks(firstPage) error = %v", err)
+	}
+	secondPage, err := store.ListTasks(ctx, workflow.TaskListFilter{
+		TenantID: "tenant-page",
+		Limit:    1,
+		Offset:   1,
+	})
+	if err != nil {
+		t.Fatalf("ListTasks(secondPage) error = %v", err)
+	}
+
+	if len(firstPage.Tasks) != 1 {
+		t.Fatalf("len(firstPage.Tasks) = %d, want %d", len(firstPage.Tasks), 1)
+	}
+	if len(secondPage.Tasks) != 1 {
+		t.Fatalf("len(secondPage.Tasks) = %d, want %d", len(secondPage.Tasks), 1)
+	}
+	if firstPage.Tasks[0].ID != "task-page-3" {
+		t.Fatalf("firstPage.Tasks[0].ID = %q, want %q", firstPage.Tasks[0].ID, "task-page-3")
+	}
+	if secondPage.Tasks[0].ID != "task-page-2" {
+		t.Fatalf("secondPage.Tasks[0].ID = %q, want %q", secondPage.Tasks[0].ID, "task-page-2")
+	}
+}
+
 func TestWorkflowTaskStoreAppendAndListTaskEvents(t *testing.T) {
 	dsn := os.Getenv("OPSPILOT_TEST_POSTGRES_DSN")
 	if dsn == "" {
