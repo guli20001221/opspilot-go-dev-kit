@@ -750,6 +750,7 @@
                 <button class="ghost" type="button" id="toggleJSONButton" hidden>Show raw JSON</button>
                 <button class="ghost" type="button" id="copyJSONButton" hidden>Copy raw JSON</button>
                 <button class="ghost" type="button" id="copyAuditSummaryButton" hidden>Copy audit summary</button>
+                <button class="ghost" type="button" id="createCaseButton" hidden>Create case</button>
                 <button class="ghost" type="button" id="copyTaskLinkButton" hidden>Copy task link</button>
                 <a class="ghost" id="openTaskAPI" href="#" target="_blank" rel="noreferrer" hidden>Open API detail</a>
               </div>
@@ -767,6 +768,7 @@
   <script>
     const boardEndpoint = "/api/v1/admin/task-board";
     const taskEndpointBase = "/api/v1/tasks/";
+    const caseEndpoint = "/api/v1/cases";
     const temporalUIBase = `${window.location.protocol}//${window.location.hostname}:8088`;
     const form = document.getElementById("filters");
     const autoRefreshCheckbox = document.getElementById("autoRefresh");
@@ -792,6 +794,7 @@
     const toggleJSONButton = document.getElementById("toggleJSONButton");
     const copyJSONButton = document.getElementById("copyJSONButton");
     const copyAuditSummaryButton = document.getElementById("copyAuditSummaryButton");
+    const createCaseButton = document.getElementById("createCaseButton");
     const copyTaskLinkButton = document.getElementById("copyTaskLinkButton");
     const openTaskAPILink = document.getElementById("openTaskAPI");
     const detailStatusNote = document.getElementById("detailStatusNote");
@@ -1072,6 +1075,7 @@
       toggleJSONButton.hidden = false;
       copyJSONButton.hidden = false;
       copyAuditSummaryButton.hidden = false;
+      createCaseButton.hidden = false;
       copyTaskLinkButton.hidden = false;
       openTaskAPILink.hidden = false;
       openTaskAPILink.href = `${taskEndpointBase}${encodeURIComponent(task.task_id)}`;
@@ -1167,13 +1171,14 @@
       focusStatusButton.hidden = false;
       approveTaskButton.hidden = task.status !== "waiting_approval";
       retryTaskButton.hidden = task.status !== "failed";
+      createCaseButton.hidden = false;
 
       if (task.status === "waiting_approval") {
         detailStatusNote.textContent = `${slicePosition} This task is paused for approval. Use the existing approval action endpoint from the board.`;
       } else if (task.status === "failed") {
         detailStatusNote.textContent = `${slicePosition} This task failed and can be re-queued through the existing retry action endpoint.`;
       } else {
-        detailStatusNote.textContent = `${slicePosition} No operator action is available for the current task state.`;
+        detailStatusNote.textContent = `${slicePosition} No operator action is available for the current task state, but you can still create a durable case for follow-up.`;
       }
     }
 
@@ -1200,6 +1205,7 @@
         toggleJSONButton.hidden = true;
         copyJSONButton.hidden = true;
         copyAuditSummaryButton.hidden = true;
+        createCaseButton.hidden = true;
         copyTaskLinkButton.hidden = true;
         openTaskAPILink.hidden = true;
         openTaskAPILink.href = "#";
@@ -1318,6 +1324,56 @@
         window.setTimeout(() => {
           copyTaskLinkButton.textContent = originalText;
         }, 1200);
+      }
+    }
+
+    function buildCasePayloadFromTask(task) {
+      const titlePrefix = task.status === "failed" ? "Investigate failed task" : "Follow up task";
+      return {
+        tenant_id: task.tenant_id,
+        title: `${titlePrefix} ${task.task_id}`,
+        summary: `${task.task_type} / ${task.reason}: ${buildExecutionSummary(task)}`,
+        source_task_id: task.task_id,
+        created_by: (taskActorInput.value || "").trim() || "task-board-operator"
+      };
+    }
+
+    async function createCaseFromTask() {
+      if (!currentTaskDetail) {
+        return;
+      }
+
+      const payload = buildCasePayloadFromTask(currentTaskDetail);
+      const originalText = createCaseButton.textContent;
+      createCaseButton.disabled = true;
+      createCaseButton.textContent = "Creating...";
+      detailStatusNote.textContent = `Creating a case for ${currentTaskDetail.task_id}...`;
+
+      try {
+        const response = await fetch(caseEndpoint, {
+          method: "POST",
+          headers: {
+            "Accept": "application/json",
+            "Content-Type": "application/json"
+          },
+          body: JSON.stringify(payload)
+        });
+        if (!response.ok) {
+          let detail = response.statusText;
+          try {
+            const errorPayload = await response.json();
+            detail = errorPayload.message || detail;
+          } catch (_) {}
+          throw new Error(detail);
+        }
+
+        const created = await response.json();
+        window.location.assign(`/admin/cases?tenant_id=${encodeURIComponent(created.tenant_id)}&case_id=${encodeURIComponent(created.case_id)}`);
+      } catch (error) {
+        detailStatusNote.textContent = `Create case failed: ${error.message || "unknown error"}`;
+      } finally {
+        createCaseButton.disabled = false;
+        createCaseButton.textContent = originalText;
       }
     }
 
@@ -1615,6 +1671,7 @@
     });
     copyJSONButton.addEventListener("click", () => copyRawJSON());
     copyAuditSummaryButton.addEventListener("click", () => copyAuditSummary());
+    createCaseButton.addEventListener("click", () => createCaseFromTask());
     copyTaskLinkButton.addEventListener("click", () => copyTaskLink());
 
     readParamsFromURL();

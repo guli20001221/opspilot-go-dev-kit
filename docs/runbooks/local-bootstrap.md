@@ -101,6 +101,7 @@ The current chat stream implementation is a Milestone 1 skeleton:
 - use `GET /api/v1/cases` when you need to inspect the current durable case slice for a tenant, status, or source linkage
 - use `GET /api/v1/cases/{case_id}` when you need the canonical case record for that follow-up object
 - open `http://localhost:18080/admin/cases` when you want the first case-focused operator page, including source task/report handoff links
+- use `Create case` on `/admin/task-board` or `/admin/reports` when you want to promote the currently selected task/report into a durable follow-up object without hand-building the `POST /api/v1/cases` payload
 - successful `report_generation` tasks now finalize the durable report row and task `succeeded` transition together, so `ready_at` and report `metadata.audit_ref` line up with the final task state
 - the local Compose app services now start from dedicated runtime images, which removes the previous startup dependence on downloading Go modules inside the running container
 - the last successful `audit_event.detail` now carries an execution summary, such as which ticket comment was created

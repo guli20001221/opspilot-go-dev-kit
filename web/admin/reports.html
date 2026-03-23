@@ -500,6 +500,7 @@
         <button class="ghost" type="button" id="toggleReportJSONButton" hidden>Show raw report JSON</button>
         <button class="ghost" type="button" id="copyReportJSONButton" hidden>Copy raw report JSON</button>
         <button class="ghost" type="button" id="copyReportSummaryButton" hidden>Copy report summary</button>
+        <button class="ghost" type="button" id="createCaseButton" hidden>Create case</button>
         <button class="ghost" type="button" id="copyReportLinkButton" hidden>Copy report link</button>
       </div>
       <div class="detail-status-note" id="reportDetailStatusNote">Select a report task to reveal shareable handoff actions.</div>
@@ -511,6 +512,7 @@
     const boardEndpoint = "/api/v1/admin/task-board";
     const taskEndpointBase = "/api/v1/tasks/";
     const reportEndpointBase = "/api/v1/reports/";
+    const caseEndpoint = "/api/v1/cases";
     const form = document.getElementById("reportFilters");
     const resetFiltersButton = document.getElementById("resetFilters");
     const reportListState = document.getElementById("reportListState");
@@ -527,6 +529,7 @@
     const toggleReportJSONButton = document.getElementById("toggleReportJSONButton");
     const copyReportJSONButton = document.getElementById("copyReportJSONButton");
     const copyReportSummaryButton = document.getElementById("copyReportSummaryButton");
+    const createCaseButton = document.getElementById("createCaseButton");
     const copyReportLinkButton = document.getElementById("copyReportLinkButton");
     const reportDetailStatusNote = document.getElementById("reportDetailStatusNote");
     const autoRefreshToggle = document.getElementById("autoRefreshToggle");
@@ -538,6 +541,7 @@
     let reportLoadInFlight = false;
     let autoRefreshTimer = null;
     let rawReportJSONVisible = false;
+    let createCaseActor = "reports-operator";
 
     function escapeHTML(value) {
       return String(value ?? "")
@@ -724,6 +728,7 @@
       openBoardForCurrentLink.href = taskBoardURL;
       setReportJSONActionsVisible(Boolean(report));
       copyReportSummaryButton.hidden = false;
+      createCaseButton.hidden = false;
       copyReportLinkButton.hidden = false;
       reportDetailStatusNote.textContent = report
         ? "Current report detail is ready for handoff actions."
@@ -828,6 +833,7 @@
         openBoardForCurrentLink.href = "/admin/task-board";
         setReportJSONActionsVisible(false);
         copyReportSummaryButton.hidden = true;
+        createCaseButton.hidden = true;
         copyReportLinkButton.hidden = true;
         reportDetailStatusNote.textContent = "Select a report task to reveal shareable handoff actions.";
         syncURL("");
@@ -863,6 +869,7 @@
         currentReportDetail = null;
         setReportJSONActionsVisible(false);
         copyReportSummaryButton.hidden = true;
+        createCaseButton.hidden = true;
         copyReportLinkButton.hidden = true;
         reportDetailStatusNote.textContent = "Unable to load the selected report detail.";
         reportDetail.innerHTML = `<div class="empty">${escapeHTML(error.message || "Unable to load report detail.")}</div>`;
@@ -999,6 +1006,59 @@
       }
     }
 
+    function buildCasePayloadFromReport(task, report) {
+      const executionSummary = [...(Array.isArray(task.audit_events) ? task.audit_events : [])]
+        .reverse()
+        .find((event) => event.action === "succeeded")?.detail || task.audit_ref || "No report execution summary recorded.";
+      return {
+        tenant_id: task.tenant_id,
+        title: report?.title || `Follow up report ${reportIDFromTaskID(task.task_id)}`,
+        summary: report?.summary || executionSummary,
+        source_task_id: task.task_id,
+        source_report_id: report?.report_id || "",
+        created_by: createCaseActor
+      };
+    }
+
+    async function createCaseFromReport() {
+      if (!currentTaskDetail) {
+        return;
+      }
+
+      const payload = buildCasePayloadFromReport(currentTaskDetail, currentReportDetail);
+      const originalText = createCaseButton.textContent;
+      createCaseButton.disabled = true;
+      createCaseButton.textContent = "Creating...";
+      reportDetailStatusNote.textContent = `Creating a case from ${payload.source_report_id || currentTaskDetail.task_id}...`;
+
+      try {
+        const response = await fetch(caseEndpoint, {
+          method: "POST",
+          headers: {
+            "Accept": "application/json",
+            "Content-Type": "application/json"
+          },
+          body: JSON.stringify(payload)
+        });
+        if (!response.ok) {
+          let detail = response.statusText;
+          try {
+            const errorPayload = await response.json();
+            detail = errorPayload.message || detail;
+          } catch (_) {}
+          throw new Error(detail);
+        }
+
+        const created = await response.json();
+        window.location.assign(`/admin/cases?tenant_id=${encodeURIComponent(created.tenant_id)}&case_id=${encodeURIComponent(created.case_id)}`);
+      } catch (error) {
+        reportDetailStatusNote.textContent = `Create case failed: ${error.message || "unknown error"}`;
+      } finally {
+        createCaseButton.disabled = false;
+        createCaseButton.textContent = originalText;
+      }
+    }
+
     form.addEventListener("submit", (event) => {
       event.preventDefault();
       form.elements.namedItem("offset").value = "0";
@@ -1031,6 +1091,7 @@
     });
     copyReportJSONButton.addEventListener("click", () => copyReportJSON());
     copyReportSummaryButton.addEventListener("click", () => copyReportSummary());
+    createCaseButton.addEventListener("click", () => createCaseFromReport());
     copyReportLinkButton.addEventListener("click", () => copyReportLink());
     autoRefreshToggle.addEventListener("change", () => syncAutoRefresh());
 

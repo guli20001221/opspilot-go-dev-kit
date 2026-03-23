@@ -93,6 +93,9 @@ func TestAdminTaskBoardPageRendersHTML(t *testing.T) {
 	if !strings.Contains(body, "Copy audit summary") {
 		t.Fatal("audit summary controls missing from page HTML")
 	}
+	if !strings.Contains(body, "Create case") {
+		t.Fatal("case creation control missing from task board HTML")
+	}
 	if !strings.Contains(body, "Previous visible") {
 		t.Fatal("detail navigation controls missing from page HTML")
 	}
@@ -194,6 +197,9 @@ func TestAdminReportsPageRendersHTML(t *testing.T) {
 	}
 	if !strings.Contains(body, "Copy report link") {
 		t.Fatal("report link handoff action missing from reports page HTML")
+	}
+	if !strings.Contains(body, "Create case") {
+		t.Fatal("report-to-case action missing from reports page HTML")
 	}
 	if !strings.Contains(body, "Show raw report JSON") {
 		t.Fatal("report raw json toggle missing from reports page HTML")
