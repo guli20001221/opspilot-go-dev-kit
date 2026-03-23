@@ -495,7 +495,10 @@
       <div class="detail-actions">
         <button class="ghost" type="button" id="prevReportButton" hidden>Previous visible</button>
         <button class="ghost" type="button" id="nextReportButton" hidden>Next visible</button>
+        <button class="ghost" type="button" id="copyReportSummaryButton" hidden>Copy report summary</button>
+        <button class="ghost" type="button" id="copyReportLinkButton" hidden>Copy report link</button>
       </div>
+      <div class="detail-status-note" id="reportDetailStatusNote">Select a report task to reveal shareable handoff actions.</div>
       <div id="reportDetail" class="empty">No report selected yet.</div>
     </section>
   </main>
@@ -516,10 +519,14 @@
     const openBoardForCurrentLink = document.getElementById("openBoardForCurrentLink");
     const prevReportButton = document.getElementById("prevReportButton");
     const nextReportButton = document.getElementById("nextReportButton");
+    const copyReportSummaryButton = document.getElementById("copyReportSummaryButton");
+    const copyReportLinkButton = document.getElementById("copyReportLinkButton");
+    const reportDetailStatusNote = document.getElementById("reportDetailStatusNote");
     const autoRefreshToggle = document.getElementById("autoRefreshToggle");
 
     let currentItems = [];
     let currentTaskID = "";
+    let currentTaskDetail = null;
     let reportLoadInFlight = false;
     let autoRefreshTimer = null;
 
@@ -663,12 +670,34 @@
       nextReportButton.disabled = !visible || index >= currentItems.length - 1;
     }
 
+    function buildReportSummary(task) {
+      const events = Array.isArray(task.audit_events) ? task.audit_events : [];
+      const header = [
+        `Report task: ${task.task_id}`,
+        `Status: ${task.status}`,
+        `Tenant: ${task.tenant_id}`,
+        `Session: ${task.session_id || "none"}`,
+        `Audit ref: ${task.audit_ref || "none"}`,
+        `Error: ${task.error_reason || "none"}`
+      ];
+      const lines = events.map((event) => {
+        const actor = event.actor || "system";
+        const detail = event.detail || "no detail";
+        return `- ${event.action} @ ${event.created_at} by ${actor}: ${detail}`;
+      });
+      return [...header, "Timeline:", ...lines].join("\n");
+    }
+
     function renderDetail(task) {
       currentTaskID = task.task_id;
+      currentTaskDetail = task;
       syncURL(task.task_id);
       const temporal = parseTemporalRef(task.audit_ref);
       const taskBoardURL = `/admin/task-board?tenant_id=${encodeURIComponent(task.tenant_id)}&task_id=${encodeURIComponent(task.task_id)}&status=succeeded&task_type=report_generation&offset=0&limit=${encodeURIComponent(form.elements.namedItem("limit").value || "10")}`;
       openBoardForCurrentLink.href = taskBoardURL;
+      copyReportSummaryButton.hidden = false;
+      copyReportLinkButton.hidden = false;
+      reportDetailStatusNote.textContent = "Current report detail is ready for handoff actions.";
 
       const events = Array.isArray(task.audit_events) ? task.audit_events : [];
       const executionSummary = [...events].reverse().find((event) => event.action === "succeeded")?.detail
@@ -732,8 +761,12 @@
     async function loadDetail(taskID) {
       if (!taskID) {
         currentTaskID = "";
+        currentTaskDetail = null;
         reportDetail.innerHTML = '<div class="empty">No report selected yet.</div>';
         openBoardForCurrentLink.href = "/admin/task-board";
+        copyReportSummaryButton.hidden = true;
+        copyReportLinkButton.hidden = true;
+        reportDetailStatusNote.textContent = "Select a report task to reveal shareable handoff actions.";
         syncURL("");
         syncSelectedRow();
         syncDetailNavigation();
@@ -750,6 +783,10 @@
         }
         renderDetail(await response.json());
       } catch (error) {
+        currentTaskDetail = null;
+        copyReportSummaryButton.hidden = true;
+        copyReportLinkButton.hidden = true;
+        reportDetailStatusNote.textContent = "Unable to load the selected report detail.";
         reportDetail.innerHTML = `<div class="empty">${escapeHTML(error.message || "Unable to load report detail.")}</div>`;
         syncSelectedRow();
         syncDetailNavigation();
@@ -824,6 +861,46 @@
       }, 5000);
     }
 
+    async function copyReportSummary() {
+      if (!currentTaskDetail) {
+        return;
+      }
+
+      const originalText = copyReportSummaryButton.textContent;
+      try {
+        await navigator.clipboard.writeText(buildReportSummary(currentTaskDetail));
+        copyReportSummaryButton.textContent = "Summary copied";
+        reportDetailStatusNote.textContent = "Copied a compact report handoff summary for the current detail.";
+      } catch (error) {
+        copyReportSummaryButton.textContent = "Copy failed";
+        reportDetailStatusNote.textContent = `Unable to copy report summary: ${error.message || "clipboard write failed"}`;
+      } finally {
+        window.setTimeout(() => {
+          copyReportSummaryButton.textContent = originalText;
+        }, 1200);
+      }
+    }
+
+    async function copyReportLink() {
+      if (!currentTaskDetail) {
+        return;
+      }
+
+      const originalText = copyReportLinkButton.textContent;
+      try {
+        await navigator.clipboard.writeText(window.location.href);
+        copyReportLinkButton.textContent = "Link copied";
+        reportDetailStatusNote.textContent = "Copied the current reports URL with the selected report in context.";
+      } catch (error) {
+        copyReportLinkButton.textContent = "Copy failed";
+        reportDetailStatusNote.textContent = `Unable to copy report link: ${error.message || "clipboard write failed"}`;
+      } finally {
+        window.setTimeout(() => {
+          copyReportLinkButton.textContent = originalText;
+        }, 1200);
+      }
+    }
+
     form.addEventListener("submit", (event) => {
       event.preventDefault();
       form.elements.namedItem("offset").value = "0";
@@ -847,6 +924,8 @@
 
     prevReportButton.addEventListener("click", () => navigateVisible(-1));
     nextReportButton.addEventListener("click", () => navigateVisible(1));
+    copyReportSummaryButton.addEventListener("click", () => copyReportSummary());
+    copyReportLinkButton.addEventListener("click", () => copyReportLink());
     autoRefreshToggle.addEventListener("change", () => syncAutoRefresh());
 
     const initialTaskID = populateFiltersFromURL();

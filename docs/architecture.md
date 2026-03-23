@@ -64,6 +64,7 @@ The current HTTP layer also exposes the same PostgreSQL-backed workflow records 
 - `GET /admin/reports` is the first report-focused operator page, fixed to `status=succeeded` and `task_type=report_generation` while still consuming the existing admin read-model endpoint and single-task detail endpoint
 - the same report lane now keeps the selected report row visually synced with the detail pane and supports previous/next navigation within the current visible slice
 - the same report lane now also supports lightweight polling against the existing admin read model, so no report-specific watch contract is needed for basic operator monitoring
+- the same report lane now also supports copyable report summaries and shareable report links derived from the current task detail response, so operator handoff still reuses canonical task contracts
 - the same page can optionally auto-refresh against the existing board and task-detail endpoints, so operator monitoring does not require manual reload loops
 - the board now also includes quick-view presets for common operator slices, but those presets still flow through the same existing filter fields and backend read model
 - the detail panel can now expose the raw single-task JSON payload from the existing detail endpoint, keeping debugging and escalation views contract-first as well
