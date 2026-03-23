@@ -44,6 +44,7 @@ Current Milestone 1 slice:
 - the same task detail panel now supports `Copy audit summary` for a compact, paste-ready task timeline handoff
 - the same detail panel now supports visible-slice task navigation plus digest cards for execution summary and timeline state, so operators can triage adjacent tasks without bouncing back to the table
 - the same detail panel now supports `Focus same lane`, which reapplies the board filters to the selected task's tenant, task type, reason, and approval lane without adding any new backend contract
+- the board now keeps the selected task row visually highlighted and syncs that highlight as detail navigation moves across the current slice, so operators do not lose table context while drilling down
 - deterministic context assembly under `internal/contextengine`
 - deterministic typed planning under `internal/agent/planner`
 - deterministic typed retrieval under `internal/retrieval`
@@ -68,6 +69,7 @@ Current Milestone 1 slice:
 - the same panel now also supports direct handoff into the canonical task detail URL, either by copying the current board link or opening the underlying API JSON directly
 - operators can also copy a compact audit summary derived from the current detail response and its audit timeline for incident notes or handoff messages
 - operators can also refocus the current board onto the selected task lane directly from the detail panel, so related tasks can be triaged without manually re-entering filters
+- the board also now keeps the selected row highlighted while the detail panel changes, preserving list context during adjacent-task navigation
 - structured `audit_events` on task responses for create, claim, approve, retry, succeed, and fail
 - list-task responses intentionally omit `audit_events` so the operator list view stays lightweight while single-task lookup remains the detailed drill-down surface, and now return `has_more` plus `next_offset` for simple offset pagination
 - workflow task row changes and matching `audit_events` now commit atomically in the PostgreSQL-backed runtime paths

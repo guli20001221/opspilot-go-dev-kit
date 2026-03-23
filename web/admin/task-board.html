@@ -384,6 +384,14 @@
       word-break: break-word;
     }
 
+    .task-row-selected td {
+      background: linear-gradient(180deg, rgba(15, 118, 110, 0.12), rgba(255, 255, 255, 0.88));
+    }
+
+    .task-row-selected td:first-child {
+      box-shadow: inset 4px 0 0 var(--accent);
+    }
+
     td small,
     .timeline-item small,
     .timeline-item p {
@@ -921,7 +929,7 @@
       }
 
       taskRows.innerHTML = items.map((item) => `
-        <tr>
+        <tr data-task-row="${escapeHTML(item.task_id)}">
           <td>
             <strong>${escapeHTML(item.task_id)}</strong>
             <small>${escapeHTML(item.task_type)}${item.session_id ? `<br>session: ${escapeHTML(item.session_id)}` : ""}</small>
@@ -950,6 +958,19 @@
           </td>
         </tr>
       `).join("");
+      syncSelectedTaskRow(false);
+    }
+
+    function syncSelectedTaskRow(shouldScroll = true) {
+      const rows = Array.from(taskRows.querySelectorAll("[data-task-row]"));
+      for (const row of rows) {
+        const selected = row.getAttribute("data-task-row") === currentTaskID;
+        row.classList.toggle("task-row-selected", selected);
+        row.setAttribute("aria-current", selected ? "true" : "false");
+        if (selected && shouldScroll) {
+          row.scrollIntoView({ block: "nearest", inline: "nearest" });
+        }
+      }
     }
 
     function findSelectedTaskIndex(taskID) {
@@ -999,6 +1020,7 @@
 
     function renderTaskDetail(task) {
       currentTaskDetail = task;
+      syncSelectedTaskRow(true);
       detailIntro.textContent =
         `Detailed view for ${task.task_id}. This reuses the single-task task API and keeps audit history authoritative on the backend.`;
       renderTaskActions(task);
@@ -1127,6 +1149,7 @@
         openTaskAPILink.hidden = true;
         openTaskAPILink.href = "#";
         detailContent.innerHTML = '<div class="empty">No task selected yet.</div>';
+        syncSelectedTaskRow(false);
         syncURL(buildParams(), "");
         return;
       }
@@ -1156,6 +1179,7 @@
         nextDetailButton.disabled = true;
         focusLaneButton.hidden = true;
         detailContent.innerHTML = `<div class="empty">${escapeHTML(error.message || "Unable to load task detail.")}</div>`;
+        syncSelectedTaskRow(false);
       }
     }
 
