@@ -656,6 +656,7 @@
           <button class="ghost quick-view-button" type="button" data-view="succeeded">Succeeded</button>
           <button class="ghost quick-view-button" type="button" data-view="workflow_required">Workflow required</button>
           <button class="ghost quick-view-button" type="button" data-view="approval_required">Approval required</button>
+          <button class="ghost quick-view-button" type="button" data-view="no_approval">No approval</button>
           <button class="ghost quick-view-button" type="button" data-view="report_generation">Report tasks</button>
           <button class="ghost quick-view-button" type="button" data-view="approved_tool_execution">Approved tools</button>
         </div>
@@ -923,9 +924,11 @@
         form.elements.namedItem("status").value = "succeeded";
       } else if (view === "workflow_required") {
         form.elements.namedItem("reason").value = "workflow_required";
-      } else if (view === "approval_required") {
-        form.elements.namedItem("reason").value = "approval_required";
-      } else if (view === "report_generation") {
+        } else if (view === "approval_required") {
+          form.elements.namedItem("reason").value = "approval_required";
+        } else if (view === "no_approval") {
+          form.elements.namedItem("requires_approval").value = "false";
+        } else if (view === "report_generation") {
         form.elements.namedItem("task_type").value = "report_generation";
       } else if (view === "approved_tool_execution") {
         form.elements.namedItem("task_type").value = "approved_tool_execution";
