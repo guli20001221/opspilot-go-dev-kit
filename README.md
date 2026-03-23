@@ -39,6 +39,7 @@ Current Milestone 1 slice:
 - the same detail panel now derives a Temporal workflow history deep link from `audit_ref` when the task is running on a Temporal-backed execution path
 - the board now offers an optional 5-second auto-refresh mode so operators can watch task transitions without manually reloading the page
 - the board now also offers quick-view presets for common operator slices such as `Needs approval`, `Failed`, and `Running`
+- the same quick-view strip now also supports `Queued`, which reuses the existing `status` filter for pending-work triage
 - the same quick-view strip now also supports `Succeeded`, which reuses the existing `status` filter for terminal success triage
 - the same quick-view strip now also supports `Report tasks` and `Approved tools`, both of which reuse the existing `task_type` filter and URL state
 - the task detail panel now includes a raw JSON view and copy action for direct operator troubleshooting without leaving the page

@@ -649,6 +649,7 @@
         <div class="quick-views" aria-label="Quick views">
           <span class="quick-views-label">Quick views</span>
           <button class="ghost quick-view-button" type="button" data-view="all">All tasks</button>
+          <button class="ghost quick-view-button" type="button" data-view="queued">Queued</button>
           <button class="ghost quick-view-button" type="button" data-view="waiting_approval">Needs approval</button>
           <button class="ghost quick-view-button" type="button" data-view="failed">Failed</button>
           <button class="ghost quick-view-button" type="button" data-view="running">Running</button>
@@ -907,7 +908,9 @@
       form.elements.namedItem("requires_approval").value = "";
       form.elements.namedItem("offset").value = "0";
 
-      if (view === "waiting_approval") {
+      if (view === "queued") {
+        form.elements.namedItem("status").value = "queued";
+      } else if (view === "waiting_approval") {
         form.elements.namedItem("status").value = "waiting_approval";
         form.elements.namedItem("requires_approval").value = "true";
       } else if (view === "failed") {
