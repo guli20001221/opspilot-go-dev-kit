@@ -57,7 +57,7 @@ The current HTTP layer also exposes the same PostgreSQL-backed workflow records 
 - `POST /api/v1/tasks/{task_id}/retry` to re-queue failed tasks
 - `GET /api/v1/admin/task-board` for the first admin read-model endpoint, which keeps visible-slice summaries and pagination metadata on the backend for future `web/admin` task pages
 - `GET /admin/task-board` as the first operator page that renders summary cards, filters, and task rows directly from the admin read-model endpoint
-- the board's quick-view presets now cover pending queues, queue-oriented slices, terminal success slices, reason slices, approval-lane slices, and task-type slices while still writing back into the same filter form and URL state
+- the board's quick-view presets now cover pending queues, queue-oriented slices, terminal success slices, approval-failure slices, reason slices, approval-lane slices, and task-type slices while still writing back into the same filter form and URL state
 - the same page now exposes a task detail panel backed by the existing single-task API, keeping board, audit views, adjacent-task navigation, and existing task actions on one operator surface
 - when a task `audit_ref` points at `temporal:workflow:<workflow_id>/<run_id>`, the detail panel now derives a direct Temporal UI history link without expanding the backend contract
 - the same page can optionally auto-refresh against the existing board and task-detail endpoints, so operator monitoring does not require manual reload loops

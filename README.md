@@ -43,6 +43,7 @@ Current Milestone 1 slice:
 - the same quick-view strip now also supports `Succeeded`, which reuses the existing `status` filter for terminal success triage
 - the same quick-view strip now also supports `Workflow required` and `Approval required`, both of which reuse the existing `reason` filter for routing-level triage
 - the same quick-view strip now also supports `No approval`, which reuses the existing `requires_approval=false` filter for autonomous-lane triage
+- the same quick-view strip now also supports `Failed approvals`, which reuses the existing `status=failed` and `requires_approval=true` filters for approval-lane failure triage
 - the same quick-view strip now also supports `Report tasks` and `Approved tools`, both of which reuse the existing `task_type` filter and URL state
 - the task detail panel now includes a raw JSON view and copy action for direct operator troubleshooting without leaving the page
 - the same task detail panel now supports handoff actions: copy the current task-board URL and open the underlying task API detail in a new tab

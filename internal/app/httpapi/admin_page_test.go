@@ -72,6 +72,9 @@ func TestAdminTaskBoardPageRendersHTML(t *testing.T) {
 	if !strings.Contains(body, "No approval") {
 		t.Fatal("no-approval quick view missing from page HTML")
 	}
+	if !strings.Contains(body, "Failed approvals") {
+		t.Fatal("failed-approvals quick view missing from page HTML")
+	}
 	if !strings.Contains(body, "Report tasks") {
 		t.Fatal("report quick view missing from page HTML")
 	}

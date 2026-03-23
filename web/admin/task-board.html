@@ -652,6 +652,7 @@
           <button class="ghost quick-view-button" type="button" data-view="queued">Queued</button>
           <button class="ghost quick-view-button" type="button" data-view="waiting_approval">Needs approval</button>
           <button class="ghost quick-view-button" type="button" data-view="failed">Failed</button>
+          <button class="ghost quick-view-button" type="button" data-view="failed_approvals">Failed approvals</button>
           <button class="ghost quick-view-button" type="button" data-view="running">Running</button>
           <button class="ghost quick-view-button" type="button" data-view="succeeded">Succeeded</button>
           <button class="ghost quick-view-button" type="button" data-view="workflow_required">Workflow required</button>
@@ -911,15 +912,18 @@
       form.elements.namedItem("requires_approval").value = "";
       form.elements.namedItem("offset").value = "0";
 
-      if (view === "queued") {
-        form.elements.namedItem("status").value = "queued";
-      } else if (view === "waiting_approval") {
-        form.elements.namedItem("status").value = "waiting_approval";
-        form.elements.namedItem("requires_approval").value = "true";
-      } else if (view === "failed") {
-        form.elements.namedItem("status").value = "failed";
-      } else if (view === "running") {
-        form.elements.namedItem("status").value = "running";
+        if (view === "queued") {
+          form.elements.namedItem("status").value = "queued";
+        } else if (view === "waiting_approval") {
+          form.elements.namedItem("status").value = "waiting_approval";
+          form.elements.namedItem("requires_approval").value = "true";
+        } else if (view === "failed") {
+          form.elements.namedItem("status").value = "failed";
+        } else if (view === "failed_approvals") {
+          form.elements.namedItem("status").value = "failed";
+          form.elements.namedItem("requires_approval").value = "true";
+        } else if (view === "running") {
+          form.elements.namedItem("status").value = "running";
       } else if (view === "succeeded") {
         form.elements.namedItem("status").value = "succeeded";
       } else if (view === "workflow_required") {
@@ -942,10 +946,10 @@
 
       if (currentStatus === "waiting_approval" && currentRequiresApproval === "true") {
         activeView = "waiting_approval";
-      } else if (currentStatus === "failed") {
-        activeView = "failed";
-      } else if (currentStatus === "running") {
-        activeView = "running";
+        } else if (currentStatus === "failed") {
+          activeView = currentRequiresApproval === "true" ? "failed_approvals" : "failed";
+        } else if (currentStatus === "running") {
+          activeView = "running";
       }
 
       for (const button of quickViewButtons) {
