@@ -729,6 +729,7 @@
                 <button class="ghost" type="button" id="prevDetailButton" hidden>Previous visible</button>
                 <button class="ghost" type="button" id="nextDetailButton" hidden>Next visible</button>
                 <button class="ghost" type="button" id="focusLaneButton" hidden>Focus same lane</button>
+                <button class="ghost" type="button" id="focusApprovalLaneButton" hidden>Focus approval lane</button>
                 <button class="ghost" type="button" id="focusReasonButton" hidden>Focus same reason</button>
                 <button class="ghost" type="button" id="focusStatusButton" hidden>Focus same status</button>
                 <button class="primary" type="button" id="approveTaskButton" hidden>Approve task</button>
@@ -768,6 +769,7 @@
     const prevDetailButton = document.getElementById("prevDetailButton");
     const nextDetailButton = document.getElementById("nextDetailButton");
     const focusLaneButton = document.getElementById("focusLaneButton");
+    const focusApprovalLaneButton = document.getElementById("focusApprovalLaneButton");
     const focusReasonButton = document.getElementById("focusReasonButton");
     const focusStatusButton = document.getElementById("focusStatusButton");
     const approveTaskButton = document.getElementById("approveTaskButton");
@@ -1119,6 +1121,7 @@
     function renderTaskActions(task) {
       const slicePosition = syncDetailNavigation(task.task_id);
       focusLaneButton.hidden = false;
+      focusApprovalLaneButton.hidden = false;
       focusReasonButton.hidden = false;
       focusStatusButton.hidden = false;
       approveTaskButton.hidden = task.status !== "waiting_approval";
@@ -1146,6 +1149,7 @@
         prevDetailButton.disabled = true;
         nextDetailButton.disabled = true;
         focusLaneButton.hidden = true;
+        focusApprovalLaneButton.hidden = true;
         focusReasonButton.hidden = true;
         focusStatusButton.hidden = true;
         approveTaskButton.hidden = true;
@@ -1186,6 +1190,7 @@
         prevDetailButton.disabled = true;
         nextDetailButton.disabled = true;
         focusLaneButton.hidden = true;
+        focusApprovalLaneButton.hidden = true;
         focusReasonButton.hidden = true;
         focusStatusButton.hidden = true;
         detailContent.innerHTML = `<div class="empty">${escapeHTML(error.message || "Unable to load task detail.")}</div>`;
@@ -1344,6 +1349,18 @@
       loadBoard();
     }
 
+    function focusApprovalLane() {
+      if (!currentTaskDetail) {
+        return;
+      }
+
+      form.elements.namedItem("tenant_id").value = currentTaskDetail.tenant_id || "";
+      form.elements.namedItem("requires_approval").value = currentTaskDetail.requires_approval ? "true" : "false";
+      form.elements.namedItem("offset").value = "0";
+      detailStatusNote.textContent = `Focused the board on ${currentTaskDetail.requires_approval ? "approval-gated" : "non-approval"} work for tenant ${currentTaskDetail.tenant_id}.`;
+      loadBoard();
+    }
+
     function focusSameReason() {
       if (!currentTaskDetail) {
         return;
@@ -1438,6 +1455,7 @@
           prevDetailButton.disabled = true;
           nextDetailButton.disabled = true;
           focusLaneButton.hidden = true;
+          focusApprovalLaneButton.hidden = true;
           focusReasonButton.hidden = true;
           focusStatusButton.hidden = true;
           detailContent.innerHTML = '<div class="empty">Adjust filters or offset to bring that task into view.</div>';
@@ -1511,6 +1529,7 @@
     prevDetailButton.addEventListener("click", () => navigateVisibleTask(-1));
     nextDetailButton.addEventListener("click", () => navigateVisibleTask(1));
     focusLaneButton.addEventListener("click", () => focusSameLane());
+    focusApprovalLaneButton.addEventListener("click", () => focusApprovalLane());
     focusReasonButton.addEventListener("click", () => focusSameReason());
     focusStatusButton.addEventListener("click", () => focusSameStatus());
     toggleJSONButton.addEventListener("click", () => {

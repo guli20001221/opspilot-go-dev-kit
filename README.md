@@ -44,6 +44,7 @@ Current Milestone 1 slice:
 - the same task detail panel now supports `Copy audit summary` for a compact, paste-ready task timeline handoff
 - the same detail panel now supports visible-slice task navigation plus digest cards for execution summary and timeline state, so operators can triage adjacent tasks without bouncing back to the table
 - the same detail panel now supports `Focus same lane`, which reapplies the board filters to the selected task's tenant, task type, reason, and approval lane without adding any new backend contract
+- the same detail panel now also supports `Focus approval lane`, which narrows the board to approval-gated or non-approval work using the existing `requires_approval` filter and URL state
 - the same detail panel now also supports `Focus same reason`, which narrows the board to the selected task reason using the existing `reason` filter and URL state
 - the board now keeps the selected task row visually highlighted and syncs that highlight as detail navigation moves across the current slice, so operators do not lose table context while drilling down
 - the same detail panel now supports `Focus same status`, which narrows the board to the selected task status using the existing `status` filter and URL state
@@ -71,6 +72,7 @@ Current Milestone 1 slice:
 - the same panel now also supports direct handoff into the canonical task detail URL, either by copying the current board link or opening the underlying API JSON directly
 - operators can also copy a compact audit summary derived from the current detail response and its audit timeline for incident notes or handoff messages
 - operators can also refocus the current board onto the selected task lane directly from the detail panel, so related tasks can be triaged without manually re-entering filters
+- operators can also jump straight into the selected task's approval lane, which is useful for reviewing all approval-gated or non-approval work in the current tenant without re-entering the approval filter
 - operators can also pivot straight from a selected task into the matching reason slice, which is useful for reviewing all `workflow_required` or `approval_required` work without re-entering the reason filter
 - the board also now keeps the selected row highlighted while the detail panel changes, preserving list context during adjacent-task navigation
 - operators can also jump straight from a selected task into the matching status slice, which is useful for reviewing all waiting, running, or failed work without re-entering the status filter
