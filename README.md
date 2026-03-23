@@ -36,6 +36,7 @@ Current Milestone 1 slice:
 - `web/admin` now ships the first embedded operator task board page, served by the API at `/admin/task-board`
 - the embedded admin task board page now supports in-page single-task drill-down using the existing `GET /api/v1/tasks/{task_id}` detail contract
 - the same page now exposes `approve` and `retry` controls in the detail panel by reusing the existing task action endpoints instead of adding admin-only mutation APIs
+- the same detail panel now derives a Temporal workflow history deep link from `audit_ref` when the task is running on a Temporal-backed execution path
 - deterministic context assembly under `internal/contextengine`
 - deterministic typed planning under `internal/agent/planner`
 - deterministic typed retrieval under `internal/retrieval`
@@ -53,6 +54,7 @@ Current Milestone 1 slice:
 - `GET /api/v1/admin/task-board` for the first backend task-board read model that returns items, page metadata, and visible-slice summary counts for future `web/admin` task views
 - `GET /admin/task-board` for the first embedded operator page consuming the backend task-board read model
 - the admin page keeps the board summary lightweight while letting operators inspect per-task audit history in a read-only detail panel
+- Temporal-backed tasks now expose a direct workflow-history deep link in that same detail panel, so operators can jump from the board into Temporal UI without a second lookup step
 - structured `audit_events` on task responses for create, claim, approve, retry, succeed, and fail
 - list-task responses intentionally omit `audit_events` so the operator list view stays lightweight while single-task lookup remains the detailed drill-down surface, and now return `has_more` plus `next_offset` for simple offset pagination
 - workflow task row changes and matching `audit_events` now commit atomically in the PostgreSQL-backed runtime paths

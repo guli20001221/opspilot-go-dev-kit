@@ -658,6 +658,7 @@
   <script>
     const boardEndpoint = "/api/v1/admin/task-board";
     const taskEndpointBase = "/api/v1/tasks/";
+    const temporalUIBase = `${window.location.protocol}//${window.location.hostname}:8088`;
     const form = document.getElementById("filters");
     const resetButton = document.getElementById("reset");
     const prevButton = document.getElementById("prevPage");
@@ -727,6 +728,24 @@
 
     function statusClass(status) {
       return `status ${status || ""}`;
+    }
+
+    function parseTemporalAuditRef(auditRef) {
+      const prefix = "temporal:workflow:";
+      if (!auditRef || !auditRef.startsWith(prefix)) {
+        return null;
+      }
+
+      const remainder = auditRef.slice(prefix.length);
+      const splitIndex = remainder.lastIndexOf("/");
+      if (splitIndex <= 0 || splitIndex === remainder.length - 1) {
+        return null;
+      }
+
+      return {
+        workflowID: remainder.slice(0, splitIndex),
+        runID: remainder.slice(splitIndex + 1)
+      };
     }
 
     function fmtDate(value) {
@@ -802,6 +821,23 @@
       detailIntro.textContent =
         `Detailed view for ${task.task_id}. This reuses the single-task task API and keeps audit history authoritative on the backend.`;
       renderTaskActions(task);
+      const temporalRef = parseTemporalAuditRef(task.audit_ref);
+      const temporalExecution = temporalRef
+        ? `
+          <article class="detail-card">
+            <small>Temporal execution</small>
+            <strong>${escapeHTML(temporalRef.workflowID)}</strong>
+            <small>run ${escapeHTML(temporalRef.runID)}</small>
+            <small><a href="${escapeHTML(`${temporalUIBase}/namespaces/default/workflows/${encodeURIComponent(temporalRef.workflowID)}/${encodeURIComponent(temporalRef.runID)}/history`)}" target="_blank" rel="noreferrer">Open workflow history in Temporal UI</a></small>
+          </article>
+        `
+        : `
+          <article class="detail-card">
+            <small>Temporal execution</small>
+            <strong>Not linked</strong>
+            <small>This task's current audit ref does not point at a Temporal workflow run.</small>
+          </article>
+        `;
 
       const events = Array.isArray(task.audit_events) ? task.audit_events : [];
       const timeline = events.length
@@ -839,6 +875,7 @@
             <small>Audit Ref</small>
             <strong>${escapeHTML(task.audit_ref || "None")}</strong>
           </article>
+          ${temporalExecution}
           <article class="detail-card">
             <small>Updated</small>
             <strong>${escapeHTML(fmtDate(task.updated_at))}</strong>

@@ -58,6 +58,7 @@ The current HTTP layer also exposes the same PostgreSQL-backed workflow records 
 - `GET /api/v1/admin/task-board` for the first admin read-model endpoint, which keeps visible-slice summaries and pagination metadata on the backend for future `web/admin` task pages
 - `GET /admin/task-board` as the first operator page that renders summary cards, filters, and task rows directly from the admin read-model endpoint
 - the same page now exposes a read-only task detail panel backed by the existing single-task API, keeping board and audit views on one operator surface
+- when a task `audit_ref` points at `temporal:workflow:<workflow_id>/<run_id>`, the detail panel now derives a direct Temporal UI history link without expanding the backend contract
 - `audit_events` embedded in task responses as the current structured operator audit view
 - the list endpoint intentionally omits `audit_events`, so the summary surface stays cheap while the single-task endpoint remains the detailed audit drill-down, and it returns `has_more` plus `next_offset` for simple operator pagination
 - `error_reason` normalized to an operator-facing summary while deep Temporal detail remains in worker logs

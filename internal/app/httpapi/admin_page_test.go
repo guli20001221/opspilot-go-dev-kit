@@ -48,6 +48,9 @@ func TestAdminTaskBoardPageRendersHTML(t *testing.T) {
 	if !strings.Contains(body, "Retry task") {
 		t.Fatal("retry task action missing from page HTML")
 	}
+	if !strings.Contains(body, "Temporal execution") {
+		t.Fatal("temporal execution panel missing from page HTML")
+	}
 }
 
 func TestAdminTaskBoardPageRejectsUnknownSubpath(t *testing.T) {
