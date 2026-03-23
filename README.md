@@ -41,6 +41,7 @@ Current Milestone 1 slice:
 - the board now also offers quick-view presets for common operator slices such as `Needs approval`, `Failed`, and `Running`
 - the task detail panel now includes a raw JSON view and copy action for direct operator troubleshooting without leaving the page
 - the same task detail panel now supports handoff actions: copy the current task-board URL and open the underlying task API detail in a new tab
+- the same task detail panel now supports `Copy audit summary` for a compact, paste-ready task timeline handoff
 - deterministic context assembly under `internal/contextengine`
 - deterministic typed planning under `internal/agent/planner`
 - deterministic typed retrieval under `internal/retrieval`
@@ -63,6 +64,7 @@ Current Milestone 1 slice:
 - common operator slices can now be applied from quick-view buttons instead of manually composing the same filters each time
 - the detail panel can now reveal the full single-task JSON payload and copy it to the clipboard for debugging and escalation flows
 - the same panel now also supports direct handoff into the canonical task detail URL, either by copying the current board link or opening the underlying API JSON directly
+- operators can also copy a compact audit summary derived from the current detail response and its audit timeline for incident notes or handoff messages
 - structured `audit_events` on task responses for create, claim, approve, retry, succeed, and fail
 - list-task responses intentionally omit `audit_events` so the operator list view stays lightweight while single-task lookup remains the detailed drill-down surface, and now return `has_more` plus `next_offset` for simple offset pagination
 - workflow task row changes and matching `audit_events` now commit atomically in the PostgreSQL-backed runtime paths

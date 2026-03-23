@@ -722,6 +722,7 @@
                 <button class="ghost" type="button" id="retryTaskButton" hidden>Retry task</button>
                 <button class="ghost" type="button" id="toggleJSONButton" hidden>Show raw JSON</button>
                 <button class="ghost" type="button" id="copyJSONButton" hidden>Copy raw JSON</button>
+                <button class="ghost" type="button" id="copyAuditSummaryButton" hidden>Copy audit summary</button>
                 <button class="ghost" type="button" id="copyTaskLinkButton" hidden>Copy task link</button>
                 <a class="ghost" id="openTaskAPI" href="#" target="_blank" rel="noreferrer" hidden>Open API detail</a>
               </div>
@@ -755,6 +756,7 @@
     const retryTaskButton = document.getElementById("retryTaskButton");
     const toggleJSONButton = document.getElementById("toggleJSONButton");
     const copyJSONButton = document.getElementById("copyJSONButton");
+    const copyAuditSummaryButton = document.getElementById("copyAuditSummaryButton");
     const copyTaskLinkButton = document.getElementById("copyTaskLinkButton");
     const openTaskAPILink = document.getElementById("openTaskAPI");
     const detailStatusNote = document.getElementById("detailStatusNote");
@@ -949,6 +951,7 @@
       renderTaskActions(task);
       toggleJSONButton.hidden = false;
       copyJSONButton.hidden = false;
+      copyAuditSummaryButton.hidden = false;
       copyTaskLinkButton.hidden = false;
       openTaskAPILink.hidden = false;
       openTaskAPILink.href = `${taskEndpointBase}${encodeURIComponent(task.task_id)}`;
@@ -1051,6 +1054,7 @@
         retryTaskButton.hidden = true;
         toggleJSONButton.hidden = true;
         copyJSONButton.hidden = true;
+        copyAuditSummaryButton.hidden = true;
         copyTaskLinkButton.hidden = true;
         openTaskAPILink.hidden = true;
         openTaskAPILink.href = "#";
@@ -1098,6 +1102,44 @@
       } finally {
         window.setTimeout(() => {
           copyJSONButton.textContent = originalText;
+        }, 1200);
+      }
+    }
+
+    function buildAuditSummary(task) {
+      const events = Array.isArray(task.audit_events) ? task.audit_events : [];
+      const header = [
+        `Task: ${task.task_id}`,
+        `Status: ${task.status}`,
+        `Reason: ${task.reason}`,
+        `Tenant: ${task.tenant_id}`,
+        `Audit ref: ${task.audit_ref || "none"}`,
+        `Error: ${task.error_reason || "none"}`
+      ];
+      const lines = events.map((event) => {
+        const actor = event.actor || "system";
+        const detail = event.detail || "no detail";
+        return `- ${event.action} @ ${event.created_at} by ${actor}: ${detail}`;
+      });
+      return [...header, "Timeline:", ...lines].join("\n");
+    }
+
+    async function copyAuditSummary() {
+      if (!currentTaskDetail) {
+        return;
+      }
+
+      const originalText = copyAuditSummaryButton.textContent;
+      try {
+        await navigator.clipboard.writeText(buildAuditSummary(currentTaskDetail));
+        copyAuditSummaryButton.textContent = "Summary copied";
+        detailStatusNote.textContent = "Copied a compact audit summary for the current task.";
+      } catch (error) {
+        copyAuditSummaryButton.textContent = "Copy failed";
+        detailStatusNote.textContent = `Unable to copy audit summary: ${error.message || "clipboard write failed"}`;
+      } finally {
+        window.setTimeout(() => {
+          copyAuditSummaryButton.textContent = originalText;
         }, 1200);
       }
     }
@@ -1304,6 +1346,7 @@
       renderTaskDetail(currentTaskDetail);
     });
     copyJSONButton.addEventListener("click", () => copyRawJSON());
+    copyAuditSummaryButton.addEventListener("click", () => copyAuditSummary());
     copyTaskLinkButton.addEventListener("click", () => copyTaskLink());
 
     readParamsFromURL();

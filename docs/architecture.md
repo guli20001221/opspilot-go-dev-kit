@@ -63,6 +63,7 @@ The current HTTP layer also exposes the same PostgreSQL-backed workflow records 
 - the board now also includes quick-view presets for common operator slices, but those presets still flow through the same existing filter fields and backend read model
 - the detail panel can now expose the raw single-task JSON payload from the existing detail endpoint, keeping debugging and escalation views contract-first as well
 - the same detail panel now exposes handoff actions that stay contract-first: copy the selected board URL or open the canonical task-detail JSON in a separate tab
+- the same detail panel can now derive a compact audit-summary string from the selected task response and its audit events, giving operators a contract-first handoff artifact without a new backend surface
 - `audit_events` embedded in task responses as the current structured operator audit view
 - the list endpoint intentionally omits `audit_events`, so the summary surface stays cheap while the single-task endpoint remains the detailed audit drill-down, and it returns `has_more` plus `next_offset` for simple operator pagination
 - `error_reason` normalized to an operator-facing summary while deep Temporal detail remains in worker logs
