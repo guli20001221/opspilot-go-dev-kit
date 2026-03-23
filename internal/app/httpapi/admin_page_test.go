@@ -36,6 +36,12 @@ func TestAdminTaskBoardPageRendersHTML(t *testing.T) {
 	if !strings.Contains(body, "/api/v1/admin/task-board") {
 		t.Fatal("admin task board API path missing from page HTML")
 	}
+	if !strings.Contains(body, "/api/v1/tasks/") {
+		t.Fatal("task detail API path missing from page HTML")
+	}
+	if !strings.Contains(body, "Task detail") {
+		t.Fatal("task detail section missing from page HTML")
+	}
 }
 
 func TestAdminTaskBoardPageRejectsUnknownSubpath(t *testing.T) {

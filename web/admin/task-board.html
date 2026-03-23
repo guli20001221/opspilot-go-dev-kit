@@ -9,12 +9,10 @@
     :root {
       --bg: #f3efe5;
       --panel: rgba(255, 252, 245, 0.88);
-      --panel-strong: rgba(255, 249, 238, 0.98);
       --ink: #172026;
       --muted: #5b6770;
       --line: rgba(23, 32, 38, 0.12);
       --accent: #0f766e;
-      --accent-soft: rgba(15, 118, 110, 0.14);
       --warn: #a16207;
       --danger: #b42318;
       --success: #166534;
@@ -42,7 +40,7 @@
     }
 
     .page {
-      width: min(1200px, calc(100% - 32px));
+      width: min(1280px, calc(100% - 32px));
       margin: 0 auto;
       padding: 28px 0 40px;
     }
@@ -92,21 +90,26 @@
     }
 
     .lead {
-      max-width: 720px;
+      max-width: 760px;
       margin: 0;
       color: var(--muted);
       font-size: 1rem;
       line-height: 1.6;
     }
 
-    .hero-meta {
+    .hero-meta,
+    .inline-meta {
       display: flex;
       flex-wrap: wrap;
       gap: 10px;
+    }
+
+    .hero-meta {
       margin-top: 18px;
     }
 
-    .hero-chip {
+    .hero-chip,
+    .pill {
       padding: 8px 12px;
       border-radius: 999px;
       background: rgba(255, 255, 255, 0.76);
@@ -127,7 +130,8 @@
       padding: 20px;
     }
 
-    .panel h2 {
+    .panel h2,
+    .panel h3 {
       margin: 0 0 8px;
       font-size: 1rem;
       letter-spacing: -0.02em;
@@ -159,6 +163,12 @@
     }
 
     .field input,
+    .field select,
+    button {
+      font: inherit;
+    }
+
+    .field input,
     .field select {
       width: 100%;
       border: 1px solid var(--line);
@@ -166,7 +176,6 @@
       padding: 11px 12px;
       background: rgba(255, 255, 255, 0.92);
       color: var(--ink);
-      font: inherit;
     }
 
     .field input:focus,
@@ -180,13 +189,13 @@
       display: flex;
       gap: 10px;
       margin-top: 6px;
+      flex-wrap: wrap;
     }
 
     button {
       border: none;
       border-radius: 999px;
       padding: 12px 18px;
-      font: inherit;
       font-weight: 700;
       cursor: pointer;
       transition: transform 120ms ease, box-shadow 120ms ease, background 120ms ease;
@@ -226,7 +235,8 @@
       justify-content: space-between;
     }
 
-    .summary-card small {
+    .summary-card small,
+    .detail-card small {
       color: var(--muted);
       text-transform: uppercase;
       letter-spacing: 0.09em;
@@ -264,18 +274,7 @@
     }
 
     .inline-meta {
-      display: flex;
-      flex-wrap: wrap;
-      gap: 10px;
       margin-bottom: 14px;
-    }
-
-    .pill {
-      border-radius: 999px;
-      padding: 8px 12px;
-      font-size: 0.88rem;
-      background: rgba(15, 118, 110, 0.08);
-      color: var(--muted);
     }
 
     .status {
@@ -327,7 +326,7 @@
     table {
       width: 100%;
       border-collapse: collapse;
-      min-width: 820px;
+      min-width: 920px;
     }
 
     th,
@@ -349,16 +348,35 @@
       z-index: 1;
     }
 
-    td strong {
+    td strong,
+    .detail-card strong {
       display: block;
       margin-bottom: 6px;
       font-size: 0.96rem;
+      word-break: break-word;
     }
 
-    td small {
+    td small,
+    .timeline-item small,
+    .timeline-item p {
       color: var(--muted);
       font-size: 0.84rem;
       line-height: 1.45;
+    }
+
+    .inspect-button {
+      padding: 0;
+      border: none;
+      background: transparent;
+      color: var(--accent);
+      font-weight: 700;
+      cursor: pointer;
+      box-shadow: none;
+    }
+
+    .inspect-button:hover {
+      transform: none;
+      text-decoration: underline;
     }
 
     .empty,
@@ -367,6 +385,55 @@
       text-align: center;
       color: var(--muted);
       font-size: 0.95rem;
+    }
+
+    .detail-panel {
+      margin-top: 18px;
+      padding: 18px;
+      border-radius: 18px;
+      border: 1px solid rgba(23, 32, 38, 0.08);
+      background: rgba(255, 255, 255, 0.78);
+    }
+
+    .detail-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+      gap: 12px;
+      margin: 14px 0 18px;
+    }
+
+    .detail-card {
+      padding: 14px;
+      border-radius: 14px;
+      background: rgba(243, 239, 229, 0.76);
+      border: 1px solid rgba(23, 32, 38, 0.08);
+    }
+
+    .timeline {
+      display: grid;
+      gap: 12px;
+      margin-top: 10px;
+    }
+
+    .timeline-item {
+      padding: 14px;
+      border-radius: 16px;
+      border: 1px solid rgba(23, 32, 38, 0.08);
+      background: rgba(255, 255, 255, 0.86);
+    }
+
+    .timeline-item header {
+      display: flex;
+      justify-content: space-between;
+      gap: 12px;
+      flex-wrap: wrap;
+      margin-bottom: 8px;
+    }
+
+    .timeline-item strong {
+      font-size: 0.9rem;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
     }
 
     .footer-actions {
@@ -383,6 +450,10 @@
       font-size: 0.88rem;
     }
 
+    code {
+      font-family: "Cascadia Code", "Consolas", monospace;
+    }
+
     @media (max-width: 980px) {
       .layout {
         grid-template-columns: 1fr;
@@ -397,13 +468,13 @@
       <h1>Task Board</h1>
       <p class="lead">
         Operator-facing view over async workflow tasks. This page stays contract-first:
-        summaries come from <code>/api/v1/admin/task-board</code>, while task detail remains in
-        the existing task lookup APIs.
+        summaries come from <code>/api/v1/admin/task-board</code>, and task drill-down reuses
+        the existing <code>/api/v1/tasks/{task_id}</code> detail surface.
       </p>
       <div class="hero-meta">
         <span class="hero-chip">Read model: backend authoritative</span>
         <span class="hero-chip">Supports filter, offset, and visible-slice summary</span>
-        <span class="hero-chip">No task mutation from this page</span>
+        <span class="hero-chip">Read-only operator page with detail drill-down</span>
       </div>
     </section>
 
@@ -472,13 +543,13 @@
       <section class="panel">
         <h2>Visible Slice</h2>
         <p class="panel-copy">
-          Counts below describe the current filtered page, not the whole dataset. That keeps the backend contract
-          fast and explicit for the first admin slice.
+          Counts below describe the current filtered page, not the whole dataset. The board is for operator navigation;
+          single-task audit remains the detailed truth source.
         </p>
 
         <div class="banner" id="errorBanner" role="alert"></div>
 
-        <div class="summary-grid" id="summaryGrid">
+        <div class="summary-grid">
           <article class="summary-card accent">
             <small>Visible tasks</small>
             <strong id="visibleCount">0</strong>
@@ -517,10 +588,11 @@
                 <th scope="col">Reason</th>
                 <th scope="col">Updated</th>
                 <th scope="col">Failure / Audit</th>
+                <th scope="col">Inspect</th>
               </tr>
             </thead>
             <tbody id="taskRows">
-              <tr><td class="loading" colspan="6">Loading task board…</td></tr>
+              <tr><td class="loading" colspan="7">Loading task board...</td></tr>
             </tbody>
           </table>
         </div>
@@ -532,18 +604,29 @@
             <button class="ghost" type="button" id="nextPage">Next</button>
           </div>
         </div>
+
+        <section class="detail-panel">
+          <h3>Task detail</h3>
+          <p class="panel-copy" id="taskDetailIntro">
+            Pick a task from the board to inspect status, audit events, and failure context without leaving the operator page.
+          </p>
+          <div id="taskDetailContent" class="empty">No task selected yet.</div>
+        </section>
       </section>
     </section>
   </main>
 
   <script>
-    const endpoint = "/api/v1/admin/task-board";
+    const boardEndpoint = "/api/v1/admin/task-board";
+    const taskEndpointBase = "/api/v1/tasks/";
     const form = document.getElementById("filters");
     const resetButton = document.getElementById("reset");
     const prevButton = document.getElementById("prevPage");
     const nextButton = document.getElementById("nextPage");
     const taskRows = document.getElementById("taskRows");
     const errorBanner = document.getElementById("errorBanner");
+    const detailContent = document.getElementById("taskDetailContent");
+    const detailIntro = document.getElementById("taskDetailIntro");
 
     const fields = ["tenant_id", "status", "task_type", "reason", "requires_approval", "limit", "offset"];
 
@@ -584,6 +667,15 @@
       errorBanner.textContent = "";
     }
 
+    function escapeHTML(value) {
+      return String(value ?? "")
+        .replaceAll("&", "&amp;")
+        .replaceAll("<", "&lt;")
+        .replaceAll(">", "&gt;")
+        .replaceAll("\"", "&quot;")
+        .replaceAll("'", "&#39;");
+    }
+
     function statusClass(status) {
       return `status ${status || ""}`;
     }
@@ -621,37 +713,121 @@
 
     function renderTasks(items) {
       if (!items || items.length === 0) {
-        taskRows.innerHTML = '<tr><td class="empty" colspan="6">No tasks matched the current filter set.</td></tr>';
+        taskRows.innerHTML = '<tr><td class="empty" colspan="7">No tasks matched the current filter set.</td></tr>';
         return;
       }
 
       taskRows.innerHTML = items.map((item) => `
         <tr>
           <td>
-            <strong>${item.task_id}</strong>
-            <small>${item.task_type}${item.session_id ? `<br>session: ${item.session_id}` : ""}</small>
+            <strong>${escapeHTML(item.task_id)}</strong>
+            <small>${escapeHTML(item.task_type)}${item.session_id ? `<br>session: ${escapeHTML(item.session_id)}` : ""}</small>
           </td>
           <td>
-            <span class="${statusClass(item.status)}">${item.status.replaceAll("_", " ")}</span>
+            <span class="${statusClass(item.status)}">${escapeHTML(item.status.replaceAll("_", " "))}</span>
           </td>
           <td>
-            <strong>${item.tenant_id}</strong>
-            <small>${item.request_id ? `request: ${item.request_id}` : "No request id"}</small>
+            <strong>${escapeHTML(item.tenant_id)}</strong>
+            <small>${item.request_id ? `request: ${escapeHTML(item.request_id)}` : "No request id"}</small>
           </td>
           <td>
-            <strong>${item.reason.replaceAll("_", " ")}</strong>
+            <strong>${escapeHTML(item.reason.replaceAll("_", " "))}</strong>
             <small>requires approval: ${item.requires_approval ? "yes" : "no"}</small>
           </td>
           <td>
-            <strong>${fmtDate(item.updated_at)}</strong>
-            <small>created ${fmtDate(item.created_at)}</small>
+            <strong>${escapeHTML(fmtDate(item.updated_at))}</strong>
+            <small>created ${escapeHTML(fmtDate(item.created_at))}</small>
           </td>
           <td>
-            <strong>${item.error_reason || item.audit_ref || "No failure or audit ref"}</strong>
-            <small>${item.audit_ref ? `audit ref: ${item.audit_ref}` : "Awaiting more execution detail"}</small>
+            <strong>${escapeHTML(item.error_reason || item.audit_ref || "No failure or audit ref")}</strong>
+            <small>${item.audit_ref ? `audit ref: ${escapeHTML(item.audit_ref)}` : "Awaiting more execution detail"}</small>
+          </td>
+          <td>
+            <button class="inspect-button" type="button" data-task-id="${escapeHTML(item.task_id)}">Inspect</button>
           </td>
         </tr>
       `).join("");
+    }
+
+    function renderTaskDetail(task) {
+      detailIntro.textContent =
+        `Detailed view for ${task.task_id}. This reuses the single-task task API and keeps audit history authoritative on the backend.`;
+
+      const events = Array.isArray(task.audit_events) ? task.audit_events : [];
+      const timeline = events.length
+        ? events.map((event) => `
+            <article class="timeline-item">
+              <header>
+                <strong>${escapeHTML(event.action)}</strong>
+                <small>${escapeHTML(fmtDate(event.created_at))}</small>
+              </header>
+              <p>actor: ${escapeHTML(event.actor || "system")}</p>
+              <p>${escapeHTML(event.detail || "No extra detail recorded.")}</p>
+            </article>
+          `).join("")
+        : '<div class="empty">No audit events recorded for this task yet.</div>';
+
+      detailContent.innerHTML = `
+        <div class="detail-grid">
+          <article class="detail-card">
+            <small>Task ID</small>
+            <strong>${escapeHTML(task.task_id)}</strong>
+          </article>
+          <article class="detail-card">
+            <small>Status</small>
+            <strong>${escapeHTML(task.status.replaceAll("_", " "))}</strong>
+          </article>
+          <article class="detail-card">
+            <small>Reason</small>
+            <strong>${escapeHTML(task.reason.replaceAll("_", " "))}</strong>
+          </article>
+          <article class="detail-card">
+            <small>Error Reason</small>
+            <strong>${escapeHTML(task.error_reason || "None")}</strong>
+          </article>
+          <article class="detail-card">
+            <small>Audit Ref</small>
+            <strong>${escapeHTML(task.audit_ref || "None")}</strong>
+          </article>
+          <article class="detail-card">
+            <small>Updated</small>
+            <strong>${escapeHTML(fmtDate(task.updated_at))}</strong>
+          </article>
+        </div>
+        <div class="timeline">${timeline}</div>
+      `;
+    }
+
+    async function loadTaskDetail(taskID) {
+      if (!taskID) {
+        detailIntro.textContent =
+          "Pick a task from the board to inspect status, audit events, and failure context without leaving the operator page.";
+        detailContent.innerHTML = '<div class="empty">No task selected yet.</div>';
+        return;
+      }
+
+      const params = buildParams();
+      params.set("task_id", taskID);
+      syncURL(params);
+      detailContent.innerHTML = '<div class="loading">Loading task detail...</div>';
+
+      try {
+        const response = await fetch(`${taskEndpointBase}${encodeURIComponent(taskID)}`, {
+          headers: { "Accept": "application/json" }
+        });
+        if (!response.ok) {
+          let detail = response.statusText;
+          try {
+            const payload = await response.json();
+            detail = payload.message || detail;
+          } catch (_) {}
+          throw new Error(`Task detail request failed: ${detail}`);
+        }
+
+        renderTaskDetail(await response.json());
+      } catch (error) {
+        detailContent.innerHTML = `<div class="empty">${escapeHTML(error.message || "Unable to load task detail.")}</div>`;
+      }
     }
 
     function renderPage(page, params) {
@@ -666,12 +842,13 @@
 
     async function loadBoard() {
       const params = buildParams();
+      const selectedTaskID = new URLSearchParams(window.location.search).get("task_id");
       syncURL(params);
       clearError();
-      taskRows.innerHTML = '<tr><td class="loading" colspan="6">Loading task board…</td></tr>';
+      taskRows.innerHTML = '<tr><td class="loading" colspan="7">Loading task board...</td></tr>';
 
       try {
-        const response = await fetch(`${endpoint}?${params.toString()}`, {
+        const response = await fetch(`${boardEndpoint}?${params.toString()}`, {
           headers: { "Accept": "application/json" }
         });
         if (!response.ok) {
@@ -687,9 +864,19 @@
         renderSummary(board.summary || {});
         renderTasks(board.items || []);
         renderPage(board.page || { has_more: false }, params);
+
+        const visibleTaskIDs = new Set((board.items || []).map((item) => item.task_id));
+        if (selectedTaskID && visibleTaskIDs.has(selectedTaskID)) {
+          await loadTaskDetail(selectedTaskID);
+        } else if (selectedTaskID) {
+          detailIntro.textContent = `Task ${selectedTaskID} is not visible in the current board slice.`;
+          detailContent.innerHTML = '<div class="empty">Adjust filters or offset to bring that task into view.</div>';
+        } else {
+          await loadTaskDetail("");
+        }
       } catch (error) {
         renderError(error.message || "Task board request failed.");
-        taskRows.innerHTML = '<tr><td class="empty" colspan="6">Unable to load task board data.</td></tr>';
+        taskRows.innerHTML = '<tr><td class="empty" colspan="7">Unable to load task board data.</td></tr>';
         renderSummary({
           visible_count: 0,
           requires_approval_count: 0,
@@ -699,6 +886,7 @@
           task_type_counts: {}
         });
         renderPage({ has_more: false }, buildParams());
+        await loadTaskDetail("");
       }
     }
 
@@ -712,6 +900,8 @@
       form.reset();
       form.elements.namedItem("limit").value = "20";
       form.elements.namedItem("offset").value = "0";
+      const params = new URLSearchParams();
+      window.history.replaceState({}, "", window.location.pathname);
       loadBoard();
     });
 
@@ -723,6 +913,14 @@
     nextButton.addEventListener("click", () => {
       form.elements.namedItem("offset").value = nextButton.dataset.offset || "0";
       loadBoard();
+    });
+
+    taskRows.addEventListener("click", (event) => {
+      const button = event.target.closest("[data-task-id]");
+      if (!button) {
+        return;
+      }
+      loadTaskDetail(button.dataset.taskId);
     });
 
     readParamsFromURL();

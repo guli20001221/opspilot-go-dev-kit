@@ -24,6 +24,7 @@ The current Milestone 1 slice adds:
 - `internal/app/chat` as the application boundary for the synchronous chat skeleton
 - `internal/app/admin/taskboard` as the first admin read model that converts workflow task pages into operator-facing task board summaries for future `web/admin` flows
 - `web/admin` as the home for embedded operator pages, starting with the task board served directly by the API process
+- the embedded task board page now drills into `GET /api/v1/tasks/{task_id}` for audit history and failure context instead of duplicating detail logic in the browser
 - `internal/contextengine` for deterministic block assembly and assembly logging
 - `internal/agent/planner` for deterministic typed execution plans
 - `internal/retrieval` for deterministic structured-query retrieval and provenance-bearing evidence blocks
@@ -54,6 +55,7 @@ The current HTTP layer also exposes the same PostgreSQL-backed workflow records 
 - `POST /api/v1/tasks/{task_id}/retry` to re-queue failed tasks
 - `GET /api/v1/admin/task-board` for the first admin read-model endpoint, which keeps visible-slice summaries and pagination metadata on the backend for future `web/admin` task pages
 - `GET /admin/task-board` as the first operator page that renders summary cards, filters, and task rows directly from the admin read-model endpoint
+- the same page now exposes a read-only task detail panel backed by the existing single-task API, keeping board and audit views on one operator surface
 - `audit_events` embedded in task responses as the current structured operator audit view
 - the list endpoint intentionally omits `audit_events`, so the summary surface stays cheap while the single-task endpoint remains the detailed audit drill-down, and it returns `has_more` plus `next_offset` for simple operator pagination
 - `error_reason` normalized to an operator-facing summary while deep Temporal detail remains in worker logs
