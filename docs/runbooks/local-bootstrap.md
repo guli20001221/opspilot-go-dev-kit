@@ -75,6 +75,7 @@ The current chat stream implementation is a Milestone 1 skeleton:
 - use `Copy audit summary` when you want a compact text summary of task status, reason, audit reference, and timeline events for an incident note or shift handoff
 - use `Previous visible` and `Next visible` when you want to triage neighboring tasks in the current filtered slice, and rely on the new execution/timeline digest cards at the top of the detail panel for a quick read before dropping into the full audit timeline
 - use `Focus same lane` when you want the board to narrow to the selected task's tenant, task type, reason, and approval lane without manually re-entering those filters
+- use `Focus same queue` when you want the board to narrow to the selected task state plus approval mode without re-entering both `status` and `requires_approval`
 - use `Focus same task type` when you want the board to narrow to report-generation or approved-tool work in the current tenant without re-entering the `task_type` filter
 - use `Focus approval lane` when you want the board to narrow to approval-gated or non-approval work in the current tenant without re-entering the `requires_approval` filter
 - use `Focus same reason` when you want the board to narrow to the selected task reason, for example all `workflow_required` or `approval_required` work in the current tenant
