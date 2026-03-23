@@ -67,6 +67,7 @@ The current HTTP layer also exposes the same PostgreSQL-backed workflow records 
 - the same detail panel now supports previous/next navigation within the current board slice and derives execution/timeline digest cards from the selected task response without introducing extra backend aggregation
 - the same detail panel can now reapply the board filters to the selected task lane by writing back into the existing tenant/task-type/reason/requires-approval filters rather than introducing a separate frontend query model
 - the board now also keeps the selected row highlighted and scroll-synced with the detail panel, so navigation across the current slice does not break table context
+- the same detail panel can also reapply the selected task status back into the existing board filter form, keeping status-based triage inside the same query model
 - `audit_events` embedded in task responses as the current structured operator audit view
 - the list endpoint intentionally omits `audit_events`, so the summary surface stays cheap while the single-task endpoint remains the detailed audit drill-down, and it returns `has_more` plus `next_offset` for simple operator pagination
 - `error_reason` normalized to an operator-facing summary while deep Temporal detail remains in worker logs
