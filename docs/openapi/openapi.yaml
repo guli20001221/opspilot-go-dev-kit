@@ -453,6 +453,44 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
+  /api/v1/reports/{report_id}:
+    get:
+      summary: Get a generated report
+      description: |
+        Returns the durable read model emitted by a successful `report_generation` task.
+        This endpoint is separate from task status so report consumers do not need to infer report metadata from task audit history.
+      operationId: getReport
+      parameters:
+        - name: report_id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Report returned.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Report'
+        '404':
+          description: Report not found.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '405':
+          description: Method not allowed.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Report lookup failed.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
   /api/v1/admin/task-board:
     get:
       summary: Get the admin task board view
@@ -747,6 +785,49 @@ components:
               type: array
               items:
                 $ref: '#/components/schemas/TaskAuditEvent'
+    Report:
+      type: object
+      required:
+        - report_id
+        - tenant_id
+        - source_task_id
+        - report_type
+        - status
+        - title
+        - summary
+        - created_at
+      properties:
+        report_id:
+          type: string
+        tenant_id:
+          type: string
+        source_task_id:
+          type: string
+        report_type:
+          type: string
+          enum:
+            - workflow_summary
+        status:
+          type: string
+          enum:
+            - ready
+        title:
+          type: string
+        summary:
+          type: string
+        content_uri:
+          type: string
+        metadata:
+          type: object
+          additionalProperties: true
+        created_by:
+          type: string
+        created_at:
+          type: string
+          format: date-time
+        ready_at:
+          type: string
+          format: date-time
     TaskAuditEvent:
       type: object
       required:

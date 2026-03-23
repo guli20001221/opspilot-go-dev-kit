@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
+	"reflect"
 	"testing"
 	"time"
 
@@ -27,8 +28,8 @@ func TestWorkflowTaskStoreRoundTrip(t *testing.T) {
 	defer pool.Close()
 
 	applyMigration(t, ctx, pool)
-	if _, err := pool.Exec(ctx, "TRUNCATE workflow_task_events, workflow_tasks RESTART IDENTITY"); err != nil {
-		t.Fatalf("TRUNCATE workflow_task_events, workflow_tasks error = %v", err)
+	if _, err := pool.Exec(ctx, "TRUNCATE reports, workflow_task_events, workflow_tasks RESTART IDENTITY CASCADE"); err != nil {
+		t.Fatalf("TRUNCATE reports, workflow_task_events, workflow_tasks error = %v", err)
 	}
 
 	store := NewWorkflowTaskStore(pool)
@@ -71,7 +72,7 @@ func TestWorkflowTaskStoreRoundTrip(t *testing.T) {
 	if loaded.ToolName != want.ToolName {
 		t.Fatalf("GetTask().ToolName = %q, want %q", loaded.ToolName, want.ToolName)
 	}
-	if string(loaded.ToolArguments) != string(want.ToolArguments) {
+	if !jsonEqual(loaded.ToolArguments, want.ToolArguments) {
 		t.Fatalf("GetTask().ToolArguments = %s, want %s", string(loaded.ToolArguments), string(want.ToolArguments))
 	}
 }
@@ -90,8 +91,8 @@ func TestWorkflowTaskStoreClaimAndUpdate(t *testing.T) {
 	defer pool.Close()
 
 	applyMigration(t, ctx, pool)
-	if _, err := pool.Exec(ctx, "TRUNCATE workflow_task_events, workflow_tasks RESTART IDENTITY"); err != nil {
-		t.Fatalf("TRUNCATE workflow_task_events, workflow_tasks error = %v", err)
+	if _, err := pool.Exec(ctx, "TRUNCATE reports, workflow_task_events, workflow_tasks RESTART IDENTITY CASCADE"); err != nil {
+		t.Fatalf("TRUNCATE reports, workflow_task_events, workflow_tasks error = %v", err)
 	}
 
 	store := NewWorkflowTaskStore(pool)
@@ -171,8 +172,8 @@ func TestWorkflowTaskStoreListTasksSupportsFiltersAndLimit(t *testing.T) {
 	defer pool.Close()
 
 	applyMigration(t, ctx, pool)
-	if _, err := pool.Exec(ctx, "TRUNCATE workflow_task_events, workflow_tasks RESTART IDENTITY"); err != nil {
-		t.Fatalf("TRUNCATE workflow_task_events, workflow_tasks error = %v", err)
+	if _, err := pool.Exec(ctx, "TRUNCATE reports, workflow_task_events, workflow_tasks RESTART IDENTITY CASCADE"); err != nil {
+		t.Fatalf("TRUNCATE reports, workflow_task_events, workflow_tasks error = %v", err)
 	}
 
 	store := NewWorkflowTaskStore(pool)
@@ -252,8 +253,8 @@ func TestWorkflowTaskStoreListTasksSupportsReasonAndApprovalFilters(t *testing.T
 	defer pool.Close()
 
 	applyMigration(t, ctx, pool)
-	if _, err := pool.Exec(ctx, "TRUNCATE workflow_task_events, workflow_tasks RESTART IDENTITY"); err != nil {
-		t.Fatalf("TRUNCATE workflow_task_events, workflow_tasks error = %v", err)
+	if _, err := pool.Exec(ctx, "TRUNCATE reports, workflow_task_events, workflow_tasks RESTART IDENTITY CASCADE"); err != nil {
+		t.Fatalf("TRUNCATE reports, workflow_task_events, workflow_tasks error = %v", err)
 	}
 
 	store := NewWorkflowTaskStore(pool)
@@ -319,8 +320,8 @@ func TestWorkflowTaskStoreListTasksSupportsCreatedAtWindowFilters(t *testing.T) 
 	defer pool.Close()
 
 	applyMigration(t, ctx, pool)
-	if _, err := pool.Exec(ctx, "TRUNCATE workflow_task_events, workflow_tasks RESTART IDENTITY"); err != nil {
-		t.Fatalf("TRUNCATE workflow_task_events, workflow_tasks error = %v", err)
+	if _, err := pool.Exec(ctx, "TRUNCATE reports, workflow_task_events, workflow_tasks RESTART IDENTITY CASCADE"); err != nil {
+		t.Fatalf("TRUNCATE reports, workflow_task_events, workflow_tasks error = %v", err)
 	}
 
 	store := NewWorkflowTaskStore(pool)
@@ -399,8 +400,8 @@ func TestWorkflowTaskStoreListTasksSupportsUpdatedAtWindowFilters(t *testing.T) 
 	defer pool.Close()
 
 	applyMigration(t, ctx, pool)
-	if _, err := pool.Exec(ctx, "TRUNCATE workflow_task_events, workflow_tasks RESTART IDENTITY"); err != nil {
-		t.Fatalf("TRUNCATE workflow_task_events, workflow_tasks error = %v", err)
+	if _, err := pool.Exec(ctx, "TRUNCATE reports, workflow_task_events, workflow_tasks RESTART IDENTITY CASCADE"); err != nil {
+		t.Fatalf("TRUNCATE reports, workflow_task_events, workflow_tasks error = %v", err)
 	}
 
 	store := NewWorkflowTaskStore(pool)
@@ -479,8 +480,8 @@ func TestWorkflowTaskStoreListTasksSupportsOffsetPagination(t *testing.T) {
 	defer pool.Close()
 
 	applyMigration(t, ctx, pool)
-	if _, err := pool.Exec(ctx, "TRUNCATE workflow_task_events, workflow_tasks RESTART IDENTITY"); err != nil {
-		t.Fatalf("TRUNCATE workflow_task_events, workflow_tasks error = %v", err)
+	if _, err := pool.Exec(ctx, "TRUNCATE reports, workflow_task_events, workflow_tasks RESTART IDENTITY CASCADE"); err != nil {
+		t.Fatalf("TRUNCATE reports, workflow_task_events, workflow_tasks error = %v", err)
 	}
 
 	store := NewWorkflowTaskStore(pool)
@@ -561,8 +562,8 @@ func TestWorkflowTaskStoreListTasksUsesStableIDTieBreakForPagination(t *testing.
 	defer pool.Close()
 
 	applyMigration(t, ctx, pool)
-	if _, err := pool.Exec(ctx, "TRUNCATE workflow_task_events, workflow_tasks RESTART IDENTITY"); err != nil {
-		t.Fatalf("TRUNCATE workflow_task_events, workflow_tasks error = %v", err)
+	if _, err := pool.Exec(ctx, "TRUNCATE reports, workflow_task_events, workflow_tasks RESTART IDENTITY CASCADE"); err != nil {
+		t.Fatalf("TRUNCATE reports, workflow_task_events, workflow_tasks error = %v", err)
 	}
 
 	store := NewWorkflowTaskStore(pool)
@@ -651,8 +652,8 @@ func TestWorkflowTaskStoreAppendAndListTaskEvents(t *testing.T) {
 	defer pool.Close()
 
 	applyMigration(t, ctx, pool)
-	if _, err := pool.Exec(ctx, "TRUNCATE workflow_task_events, workflow_tasks RESTART IDENTITY"); err != nil {
-		t.Fatalf("TRUNCATE workflow_task_events, workflow_tasks error = %v", err)
+	if _, err := pool.Exec(ctx, "TRUNCATE reports, workflow_task_events, workflow_tasks RESTART IDENTITY CASCADE"); err != nil {
+		t.Fatalf("TRUNCATE reports, workflow_task_events, workflow_tasks error = %v", err)
 	}
 
 	store := NewWorkflowTaskStore(pool)
@@ -720,8 +721,8 @@ func TestWorkflowTaskStoreCreateTaskWithEventPersistsBoth(t *testing.T) {
 	defer pool.Close()
 
 	applyMigration(t, ctx, pool)
-	if _, err := pool.Exec(ctx, "TRUNCATE workflow_task_events, workflow_tasks RESTART IDENTITY"); err != nil {
-		t.Fatalf("TRUNCATE workflow_task_events, workflow_tasks error = %v", err)
+	if _, err := pool.Exec(ctx, "TRUNCATE reports, workflow_task_events, workflow_tasks RESTART IDENTITY CASCADE"); err != nil {
+		t.Fatalf("TRUNCATE reports, workflow_task_events, workflow_tasks error = %v", err)
 	}
 
 	store := NewWorkflowTaskStore(pool)
@@ -772,8 +773,8 @@ func TestWorkflowTaskStoreUpdateTaskWithEventPersistsBoth(t *testing.T) {
 	defer pool.Close()
 
 	applyMigration(t, ctx, pool)
-	if _, err := pool.Exec(ctx, "TRUNCATE workflow_task_events, workflow_tasks RESTART IDENTITY"); err != nil {
-		t.Fatalf("TRUNCATE workflow_task_events, workflow_tasks error = %v", err)
+	if _, err := pool.Exec(ctx, "TRUNCATE reports, workflow_task_events, workflow_tasks RESTART IDENTITY CASCADE"); err != nil {
+		t.Fatalf("TRUNCATE reports, workflow_task_events, workflow_tasks error = %v", err)
 	}
 
 	store := NewWorkflowTaskStore(pool)
@@ -837,8 +838,8 @@ func TestWorkflowTaskStoreClaimQueuedTasksAppendsClaimedEvent(t *testing.T) {
 	defer pool.Close()
 
 	applyMigration(t, ctx, pool)
-	if _, err := pool.Exec(ctx, "TRUNCATE workflow_task_events, workflow_tasks RESTART IDENTITY"); err != nil {
-		t.Fatalf("TRUNCATE workflow_task_events, workflow_tasks error = %v", err)
+	if _, err := pool.Exec(ctx, "TRUNCATE reports, workflow_task_events, workflow_tasks RESTART IDENTITY CASCADE"); err != nil {
+		t.Fatalf("TRUNCATE reports, workflow_task_events, workflow_tasks error = %v", err)
 	}
 
 	store := NewWorkflowTaskStore(pool)
@@ -885,6 +886,7 @@ func applyMigration(t *testing.T, ctx context.Context, pool *pgxpool.Pool) {
 		"000002_workflow_tasks.sql",
 		"000003_workflow_task_events.sql",
 		"000004_workflow_task_payload.sql",
+		"000005_reports.sql",
 	} {
 		path := filepath.Join("..", "..", "..", "db", "migrations", name)
 		sql, err := os.ReadFile(path)
@@ -896,6 +898,20 @@ func applyMigration(t *testing.T, ctx context.Context, pool *pgxpool.Pool) {
 			t.Fatalf("apply migration %q error = %v", name, err)
 		}
 	}
+}
+
+func jsonEqual(left json.RawMessage, right json.RawMessage) bool {
+	var leftValue any
+	if err := json.Unmarshal(left, &leftValue); err != nil {
+		return false
+	}
+
+	var rightValue any
+	if err := json.Unmarshal(right, &rightValue); err != nil {
+		return false
+	}
+
+	return reflect.DeepEqual(leftValue, rightValue)
 }
 
 func boolPtr(v bool) *bool {

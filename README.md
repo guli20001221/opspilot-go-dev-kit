@@ -65,6 +65,7 @@ Current Milestone 1 slice:
 - deterministic typed critic review under `internal/agent/critic`
 - PostgreSQL-backed async promotion records under `internal/workflow` for the API runtime
 - worker-side task progression from `queued` to `running/succeeded/failed`, with `report_generation` bridged through Temporal workflow execution
+- successful `report_generation` tasks now also persist a durable report read model, separate from task status, under `internal/report`
 - approval-gated `approved_tool_execution` tasks now start a waiting Temporal workflow at promote time, fail the current Temporal run on execution error, and use retry to start a new failed-only Temporal run for the same task
 - `POST /api/v1/sessions` for session creation
 - `GET /api/v1/sessions/{session_id}/messages` for message listing
@@ -81,6 +82,7 @@ Current Milestone 1 slice:
 - the same reports page now supports visible-slice navigation, so operators can step through neighboring successful reports without returning to the task board
 - the same reports page now also supports optional 5-second auto-refresh against the existing admin read model, so operators can watch new successful reports arrive without manual reload
 - the same reports page now supports `Copy report summary` and `Copy report link`, both derived directly from the existing single-task detail response so report handoff stays contract-first
+- `GET /api/v1/reports/{report_id}` now exposes the durable report read model emitted by a successful `report_generation` task
 - common operator slices can now be applied from quick-view buttons instead of manually composing the same filters each time
 - the detail panel can now reveal the full single-task JSON payload and copy it to the clipboard for debugging and escalation flows
 - the same panel now also supports direct handoff into the canonical task detail URL, either by copying the current board link or opening the underlying API JSON directly

@@ -258,6 +258,74 @@ func TestRunnerClassifiesValidationFailureInAuditDetail(t *testing.T) {
 	}
 }
 
+func TestRunnerRecordsGeneratedReportOnSuccess(t *testing.T) {
+	svc := NewService()
+	recorder := &fakeReportRecorder{reportID: "report-task-1"}
+	runner := NewRunnerWithReports(svc, &fakeRunnerExecutor{
+		result: ExecutionResult{
+			AuditRef: "temporal:workflow:task-1/run-1",
+			Detail:   "generated:task-1",
+		},
+	}, recorder)
+
+	created, err := svc.Promote(context.Background(), PromoteRequest{
+		RequestID: "req-report-record",
+		TenantID:  "tenant-1",
+		SessionID: "session-1",
+		TaskType:  TaskTypeReportGeneration,
+		Reason:    PromotionReasonWorkflowRequired,
+	})
+	if err != nil {
+		t.Fatalf("Promote() error = %v", err)
+	}
+
+	if _, err := runner.ProcessNextBatch(context.Background(), 10); err != nil {
+		t.Fatalf("ProcessNextBatch() error = %v", err)
+	}
+	if recorder.calls != 1 {
+		t.Fatalf("recorder.calls = %d, want %d", recorder.calls, 1)
+	}
+	if recorder.lastTaskID != created.ID {
+		t.Fatalf("recorder.lastTaskID = %q, want %q", recorder.lastTaskID, created.ID)
+	}
+}
+
+func TestRunnerFailsTaskWhenReportPersistenceFails(t *testing.T) {
+	svc := NewService()
+	runner := NewRunnerWithReports(svc, &fakeRunnerExecutor{
+		result: ExecutionResult{
+			AuditRef: "temporal:workflow:task-1/run-1",
+			Detail:   "generated:task-1",
+		},
+	}, &fakeReportRecorder{err: errors.New("reports store unavailable")})
+
+	created, err := svc.Promote(context.Background(), PromoteRequest{
+		RequestID: "req-report-record-fail",
+		TenantID:  "tenant-1",
+		SessionID: "session-1",
+		TaskType:  TaskTypeReportGeneration,
+		Reason:    PromotionReasonWorkflowRequired,
+	})
+	if err != nil {
+		t.Fatalf("Promote() error = %v", err)
+	}
+
+	if _, err := runner.ProcessNextBatch(context.Background(), 10); err != nil {
+		t.Fatalf("ProcessNextBatch() error = %v", err)
+	}
+
+	got, err := svc.GetTask(context.Background(), created.ID)
+	if err != nil {
+		t.Fatalf("GetTask() error = %v", err)
+	}
+	if got.Status != StatusFailed {
+		t.Fatalf("Status = %q, want %q", got.Status, StatusFailed)
+	}
+	if got.ErrorReason != "reports store unavailable" {
+		t.Fatalf("ErrorReason = %q, want %q", got.ErrorReason, "reports store unavailable")
+	}
+}
+
 type fakeRunnerExecutor struct {
 	result ExecutionResult
 	err    error
@@ -265,4 +333,21 @@ type fakeRunnerExecutor struct {
 
 func (f *fakeRunnerExecutor) Execute(_ context.Context, _ Task) (ExecutionResult, error) {
 	return f.result, f.err
+}
+
+type fakeReportRecorder struct {
+	reportID   string
+	err        error
+	calls      int
+	lastTaskID string
+}
+
+func (f *fakeReportRecorder) RecordGeneratedReport(_ context.Context, task Task, _ ExecutionResult) (string, error) {
+	f.calls++
+	f.lastTaskID = task.ID
+	if f.err != nil {
+		return "", f.err
+	}
+
+	return f.reportID, nil
 }

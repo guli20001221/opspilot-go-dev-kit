@@ -11,6 +11,7 @@ import (
 	agenttool "opspilot-go/internal/agent/tool"
 	"opspilot-go/internal/app/config"
 	"opspilot-go/internal/app/logging"
+	"opspilot-go/internal/report"
 	storagepostgres "opspilot-go/internal/storage/postgres"
 	toolregistry "opspilot-go/internal/tools/registry"
 	"opspilot-go/internal/workflow"
@@ -39,6 +40,7 @@ func main() {
 	defer pool.Close()
 
 	service := workflow.NewServiceWithStore(storagepostgres.NewWorkflowTaskStore(pool))
+	reportService := report.NewServiceWithStore(storagepostgres.NewReportStore(pool))
 	executor := workflow.Executor(workflow.NewPlaceholderExecutor())
 	registry := toolregistry.NewDefaultRegistryWithOptions(toolregistry.Options{
 		TicketAPIBaseURL: cfg.TicketAPIBaseURL,
@@ -79,7 +81,7 @@ func main() {
 		)
 	}
 
-	runner := workflow.NewRunner(service, executor)
+	runner := workflow.NewRunnerWithReports(service, executor, reportService)
 
 	logger.Info("worker booted",
 		slog.String("env", cfg.Env),

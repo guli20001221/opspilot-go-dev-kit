@@ -18,14 +18,25 @@ type Executor interface {
 	Execute(ctx context.Context, task Task) (ExecutionResult, error)
 }
 
+// ReportRecorder persists durable reports emitted by successful workflow tasks.
+type ReportRecorder interface {
+	RecordGeneratedReport(ctx context.Context, task Task, result ExecutionResult) (string, error)
+}
+
 // Runner claims queued tasks and advances them through the placeholder workflow path.
 type Runner struct {
 	service  *Service
 	executor Executor
+	reports  ReportRecorder
 }
 
 // NewRunner constructs a workflow runner.
 func NewRunner(service *Service, executor Executor) *Runner {
+	return NewRunnerWithReports(service, executor, nil)
+}
+
+// NewRunnerWithReports constructs a workflow runner with optional report persistence.
+func NewRunnerWithReports(service *Service, executor Executor, reports ReportRecorder) *Runner {
 	if service == nil {
 		service = NewService()
 	}
@@ -36,6 +47,7 @@ func NewRunner(service *Service, executor Executor) *Runner {
 	return &Runner{
 		service:  service,
 		executor: executor,
+		reports:  reports,
 	}
 }
 
@@ -49,6 +61,11 @@ func (r *Runner) ProcessNextBatch(ctx context.Context, limit int) (int, error) {
 	for _, task := range tasks {
 		result, execErr := r.executor.Execute(ctx, task)
 		action := AuditActionSucceeded
+		if execErr == nil && task.TaskType == TaskTypeReportGeneration && r.reports != nil {
+			if _, err := r.reports.RecordGeneratedReport(ctx, task, result); err != nil {
+				execErr = err
+			}
+		}
 		if execErr != nil {
 			task.Status = StatusFailed
 			task.ErrorReason = summarizeExecutionError(execErr)

@@ -7,6 +7,7 @@ import (
 
 	admintaskboard "opspilot-go/internal/app/admin/taskboard"
 	appchat "opspilot-go/internal/app/chat"
+	"opspilot-go/internal/report"
 	"opspilot-go/internal/session"
 	toolregistry "opspilot-go/internal/tools/registry"
 	"opspilot-go/internal/workflow"
@@ -15,6 +16,7 @@ import (
 
 type appHandler struct {
 	adminTaskBoard *admintaskboard.Service
+	reports        *report.Service
 	sessions       *session.Service
 	workflows      *workflow.Service
 	chat           *appchat.Service
@@ -54,14 +56,18 @@ type errorResponse struct {
 	Message string `json:"message"`
 }
 
-func newAppHandler(workflowService *workflow.Service, registry *toolregistry.Registry) *appHandler {
+func newAppHandler(workflowService *workflow.Service, reportService *report.Service, registry *toolregistry.Registry) *appHandler {
 	sessionService := session.NewService()
 	if workflowService == nil {
 		workflowService = workflow.NewService()
 	}
+	if reportService == nil {
+		reportService = report.NewService()
+	}
 
 	return &appHandler{
 		adminTaskBoard: admintaskboard.NewService(workflowService),
+		reports:        reportService,
 		sessions:       sessionService,
 		workflows:      workflowService,
 		chat:           appchat.NewServiceWithRegistry(sessionService, workflowService, registry),
@@ -76,6 +82,7 @@ func (a *appHandler) registerRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("/api/v1/admin/task-board", a.handleAdminTaskBoard)
 	mux.HandleFunc("/api/v1/tasks", a.handleTasks)
 	mux.HandleFunc("/api/v1/tasks/", a.handleTaskByID)
+	mux.HandleFunc("/api/v1/reports/", a.handleReportByID)
 	mux.HandleFunc("/api/v1/chat/stream", a.handleChatStream)
 }
 

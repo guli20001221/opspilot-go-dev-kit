@@ -42,6 +42,7 @@ Model operational, retrieval, and audit data in PostgreSQL using additive migrat
 9. Workflow task tables should carry tenant scope, status, timestamps, and operator-facing failure fields from the start.
 10. Audit-heavy workflow features should preserve structured event history, not only the latest summary field.
 11. If a workflow write changes task state and appends a task event, prefer one DB transaction so operator state and audit history cannot diverge.
+12. Workflow-generated durable artifacts such as reports should get their own table keyed by source task identity instead of being flattened into the task-status table.
 
 ## Output contract
 When you finish, always report:

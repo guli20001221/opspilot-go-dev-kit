@@ -28,6 +28,7 @@ The current Milestone 1 slice adds:
 - the embedded task board page now drills into `GET /api/v1/tasks/{task_id}` for audit history and failure context instead of duplicating detail logic in the browser
 - the same page now reuses `POST /api/v1/tasks/{task_id}/approve` and `POST /api/v1/tasks/{task_id}/retry` for operator actions, so the admin UI does not fork workflow mutation contracts
 - the same embedded admin surface now includes `/admin/reports`, a report-lane view derived from the existing task-board and task-detail contracts rather than a new backend read model
+- `internal/report` now holds the first durable report read model, emitted from successful `report_generation` workflow completion rather than inferred only from task audit history
 - `internal/contextengine` for deterministic block assembly and assembly logging
 - `internal/agent/planner` for deterministic typed execution plans
 - `internal/retrieval` for deterministic structured-query retrieval and provenance-bearing evidence blocks
@@ -65,6 +66,7 @@ The current HTTP layer also exposes the same PostgreSQL-backed workflow records 
 - the same report lane now keeps the selected report row visually synced with the detail pane and supports previous/next navigation within the current visible slice
 - the same report lane now also supports lightweight polling against the existing admin read model, so no report-specific watch contract is needed for basic operator monitoring
 - the same report lane now also supports copyable report summaries and shareable report links derived from the current task detail response, so operator handoff still reuses canonical task contracts
+- `GET /api/v1/reports/{report_id}` now exposes the durable report artifact emitted by a successful report task without forcing clients to parse task audit history
 - the same page can optionally auto-refresh against the existing board and task-detail endpoints, so operator monitoring does not require manual reload loops
 - the board now also includes quick-view presets for common operator slices, but those presets still flow through the same existing filter fields and backend read model
 - the detail panel can now expose the raw single-task JSON payload from the existing detail endpoint, keeping debugging and escalation views contract-first as well

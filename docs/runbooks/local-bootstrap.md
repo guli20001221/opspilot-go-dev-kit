@@ -48,6 +48,7 @@ Successful build artifacts are emitted under `bin/`.
 - `GET /api/v1/admin/task-board`
 - `GET /admin/task-board`
 - `GET /admin/reports`
+- `GET /api/v1/reports/{report_id}`
 - `POST /api/v1/chat/stream`
 
 The current chat stream implementation is a Milestone 1 skeleton:
@@ -55,6 +56,7 @@ The current chat stream implementation is a Milestone 1 skeleton:
 - task storage is PostgreSQL-backed in the API runtime
 - the worker process polls queued tasks and advances supported task types to terminal states
 - `report_generation` is executed through a Temporal workflow on the `opspilot-report-tasks` queue when Temporal is enabled
+- successful `report_generation` runs now also persist a durable report row, addressable as `report-<task_id>` through `GET /api/v1/reports/{report_id}`
 - `approved_tool_execution` now starts a waiting Temporal workflow at task creation time and is resumed by the worker after the approval action updates the task row
 - if `approved_tool_execution` fails after approval, the current Temporal run closes, the task row moves to `failed`, and `POST /api/v1/tasks/{task_id}/retry` starts a new failed-only Temporal run for the same task
 - set `OPSPILOT_APPROVED_TOOL_FAIL_ON_APPROVE=true` on the worker to force the first approval attempt to fail while keeping retry successful
@@ -87,6 +89,7 @@ The current chat stream implementation is a Milestone 1 skeleton:
 - use `Previous visible` and `Next visible` on `/admin/reports` when you want to step through the current visible report slice without bouncing back to the board list
 - enable `Auto refresh every 5s` on `/admin/reports` when you want the report lane and selected report detail to track newly completed reports without manual reload
 - use `Copy report summary` on `/admin/reports` when you need a compact, paste-ready handoff note for the selected successful report, and `Copy report link` when you want to share the exact filtered reports URL with the current report selected
+- use `GET /api/v1/reports/report-<task_id>` when you need the canonical report read model behind a successful report task, without parsing task audit history yourself
 - the local Compose app services now start from dedicated runtime images, which removes the previous startup dependence on downloading Go modules inside the running container
 - the last successful `audit_event.detail` now carries an execution summary, such as which ticket comment was created
 - failed `audit_event.detail` values now carry a coarse category prefix, such as `validation_error:` or `authorization_error:`
