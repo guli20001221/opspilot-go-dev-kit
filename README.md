@@ -82,6 +82,7 @@ Current Milestone 1 slice:
 - the same reports page now supports visible-slice navigation, so operators can step through neighboring successful reports without returning to the task board
 - the same reports page now also supports optional 5-second auto-refresh against the existing admin read model, so operators can watch new successful reports arrive without manual reload
 - the same reports page now supports `Copy report summary` and `Copy report link`, both derived directly from the existing single-task detail response so report handoff stays contract-first
+- the same reports page now reads durable report metadata from `GET /api/v1/reports/{report_id}` while still using task detail for audit timeline and Temporal provenance
 - `GET /api/v1/reports/{report_id}` now exposes the durable report read model emitted by a successful `report_generation` task
 - common operator slices can now be applied from quick-view buttons instead of manually composing the same filters each time
 - the detail panel can now reveal the full single-task JSON payload and copy it to the clipboard for debugging and escalation flows

@@ -171,6 +171,9 @@ func TestAdminReportsPageRendersHTML(t *testing.T) {
 	if !strings.Contains(body, "/api/v1/tasks/") {
 		t.Fatal("task detail API path missing from reports page HTML")
 	}
+	if !strings.Contains(body, "/api/v1/reports/") {
+		t.Fatal("report detail API path missing from reports page HTML")
+	}
 	if !strings.Contains(body, "Report Lane") {
 		t.Fatal("report lane heading missing from page HTML")
 	}
@@ -185,6 +188,12 @@ func TestAdminReportsPageRendersHTML(t *testing.T) {
 	}
 	if !strings.Contains(body, "Copy report link") {
 		t.Fatal("report link handoff action missing from reports page HTML")
+	}
+	if !strings.Contains(body, "Open report API detail") {
+		t.Fatal("report api handoff link missing from reports page HTML")
+	}
+	if !strings.Contains(body, "Report ID") {
+		t.Fatal("report identity section missing from reports page HTML")
 	}
 	if !strings.Contains(body, "Previous visible") {
 		t.Fatal("report detail navigation controls missing from reports page HTML")

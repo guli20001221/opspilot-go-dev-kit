@@ -67,6 +67,7 @@ The current HTTP layer also exposes the same PostgreSQL-backed workflow records 
 - the same report lane now also supports lightweight polling against the existing admin read model, so no report-specific watch contract is needed for basic operator monitoring
 - the same report lane now also supports copyable report summaries and shareable report links derived from the current task detail response, so operator handoff still reuses canonical task contracts
 - `GET /api/v1/reports/{report_id}` now exposes the durable report artifact emitted by a successful report task without forcing clients to parse task audit history
+- the same report lane now reads report title, summary, and readiness metadata from the durable report endpoint while still reusing task detail for audit timeline and Temporal links
 - the same page can optionally auto-refresh against the existing board and task-detail endpoints, so operator monitoring does not require manual reload loops
 - the board now also includes quick-view presets for common operator slices, but those presets still flow through the same existing filter fields and backend read model
 - the detail panel can now expose the raw single-task JSON payload from the existing detail endpoint, keeping debugging and escalation views contract-first as well

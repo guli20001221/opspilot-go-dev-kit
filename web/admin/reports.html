@@ -401,8 +401,9 @@
       <h1>Report Lane</h1>
       <p class="lead">
         Operator-facing view over successful report-generation tasks. This page stays contract-first:
-        list data comes from <code>/api/v1/admin/task-board</code> with fixed report filters, and
-        drill-down reuses the existing <code>/api/v1/tasks/{task_id}</code> detail surface.
+        list data comes from <code>/api/v1/admin/task-board</code> with fixed report filters, report metadata
+        comes from <code>/api/v1/reports/{report_id}</code>, and execution provenance still reuses
+        <code>/api/v1/tasks/{task_id}</code>.
       </p>
       <div class="hero-links">
         <a class="link-chip" href="/admin/task-board">Open Task Board</a>
@@ -506,6 +507,7 @@
   <script>
     const boardEndpoint = "/api/v1/admin/task-board";
     const taskEndpointBase = "/api/v1/tasks/";
+    const reportEndpointBase = "/api/v1/reports/";
     const form = document.getElementById("reportFilters");
     const resetFiltersButton = document.getElementById("resetFilters");
     const reportListState = document.getElementById("reportListState");
@@ -527,6 +529,7 @@
     let currentItems = [];
     let currentTaskID = "";
     let currentTaskDetail = null;
+    let currentReportDetail = null;
     let reportLoadInFlight = false;
     let autoRefreshTimer = null;
 
@@ -570,6 +573,10 @@
         workflowID: remainder.slice(0, splitIndex),
         runID: remainder.slice(splitIndex + 1)
       };
+    }
+
+    function reportIDFromTaskID(taskID) {
+      return taskID ? `report-${taskID}` : "";
     }
 
     function buildParams() {
@@ -670,14 +677,18 @@
       nextReportButton.disabled = !visible || index >= currentItems.length - 1;
     }
 
-    function buildReportSummary(task) {
+    function buildReportSummary(task, report) {
       const events = Array.isArray(task.audit_events) ? task.audit_events : [];
       const header = [
-        `Report task: ${task.task_id}`,
+        `Report: ${report?.report_id || reportIDFromTaskID(task.task_id)}`,
+        `Title: ${report?.title || "Report for " + task.task_id}`,
         `Status: ${task.status}`,
+        `Report status: ${report?.status || "unknown"}`,
         `Tenant: ${task.tenant_id}`,
         `Session: ${task.session_id || "none"}`,
+        `Source task: ${task.task_id}`,
         `Audit ref: ${task.audit_ref || "none"}`,
+        `Summary: ${report?.summary || "none"}`,
         `Error: ${task.error_reason || "none"}`
       ];
       const lines = events.map((event) => {
@@ -688,11 +699,14 @@
       return [...header, "Timeline:", ...lines].join("\n");
     }
 
-    function renderDetail(task) {
+    function renderDetail(task, report) {
       currentTaskID = task.task_id;
       currentTaskDetail = task;
+      currentReportDetail = report;
       syncURL(task.task_id);
       const temporal = parseTemporalRef(task.audit_ref);
+      const reportID = report?.report_id || reportIDFromTaskID(task.task_id);
+      const reportAPIURL = `${reportEndpointBase}${encodeURIComponent(reportID)}`;
       const taskBoardURL = `/admin/task-board?tenant_id=${encodeURIComponent(task.tenant_id)}&task_id=${encodeURIComponent(task.task_id)}&status=succeeded&task_type=report_generation&offset=0&limit=${encodeURIComponent(form.elements.namedItem("limit").value || "10")}`;
       openBoardForCurrentLink.href = taskBoardURL;
       copyReportSummaryButton.hidden = false;
@@ -703,17 +717,34 @@
       const executionSummary = [...events].reverse().find((event) => event.action === "succeeded")?.detail
         || task.audit_ref
         || "No report execution summary recorded.";
+      const reportSummary = report?.summary || executionSummary;
+      const reportTitle = report?.title || `Report for ${task.task_id}`;
 
       reportDetail.innerHTML = `
         <div class="detail">
           <div class="detail-grid">
             <dl class="detail-card">
-              <dt>Task ID</dt>
-              <dd>${escapeHTML(task.task_id)}</dd>
+              <dt>Report ID</dt>
+              <dd>${escapeHTML(reportID)}</dd>
+            </dl>
+            <dl class="detail-card">
+              <dt>Title</dt>
+              <dd>${escapeHTML(reportTitle)}</dd>
             </dl>
             <dl class="detail-card">
               <dt>Tenant</dt>
               <dd>${escapeHTML(task.tenant_id)}</dd>
+            </dl>
+            <dl class="detail-card">
+              <dt>Report summary</dt>
+              <dd>${escapeHTML(reportSummary)}</dd>
+            </dl>
+          </div>
+
+          <div class="detail-grid">
+            <dl class="detail-card">
+              <dt>Source task</dt>
+              <dd>${escapeHTML(task.task_id)}</dd>
             </dl>
             <dl class="detail-card">
               <dt>Session</dt>
@@ -723,6 +754,10 @@
               <dt>Execution summary</dt>
               <dd>${escapeHTML(executionSummary)}</dd>
             </dl>
+            <dl class="detail-card">
+              <dt>Ready at</dt>
+              <dd>${escapeHTML(report?.ready_at ? fmtDate(report.ready_at) : "Unknown")}</dd>
+            </dl>
           </div>
 
           <div class="detail-grid">
@@ -730,7 +765,8 @@
               <h3 style="margin-top:0;">Handoff</h3>
               <div class="actions">
                 <a class="button-link ghost" href="${taskBoardURL}">Open Task Board</a>
-                <a class="button-link ghost" href="${taskEndpointBase}${encodeURIComponent(task.task_id)}" target="_blank" rel="noreferrer">Open API detail</a>
+                <a class="button-link ghost" href="${reportAPIURL}" target="_blank" rel="noreferrer">Open report API detail</a>
+                <a class="button-link ghost" href="${taskEndpointBase}${encodeURIComponent(task.task_id)}" target="_blank" rel="noreferrer">Open task API detail</a>
                 ${temporal ? `<a class="button-link ghost" href="http://localhost:8088/namespaces/default/workflows/${encodeURIComponent(temporal.workflowID)}/${encodeURIComponent(temporal.runID)}/history" target="_blank" rel="noreferrer">Open Temporal history</a>` : ""}
               </div>
             </div>
@@ -762,6 +798,7 @@
       if (!taskID) {
         currentTaskID = "";
         currentTaskDetail = null;
+        currentReportDetail = null;
         reportDetail.innerHTML = '<div class="empty">No report selected yet.</div>';
         openBoardForCurrentLink.href = "/admin/task-board";
         copyReportSummaryButton.hidden = true;
@@ -781,9 +818,18 @@
         if (!response.ok) {
           throw new Error(`Task detail request failed: ${response.statusText}`);
         }
-        renderDetail(await response.json());
+        const task = await response.json();
+        const reportID = reportIDFromTaskID(task.task_id);
+        const reportResponse = await fetch(`${reportEndpointBase}${encodeURIComponent(reportID)}`, {
+          headers: { "Accept": "application/json" }
+        });
+        if (!reportResponse.ok) {
+          throw new Error(`Report detail request failed: ${reportResponse.statusText}`);
+        }
+        renderDetail(task, await reportResponse.json());
       } catch (error) {
         currentTaskDetail = null;
+        currentReportDetail = null;
         copyReportSummaryButton.hidden = true;
         copyReportLinkButton.hidden = true;
         reportDetailStatusNote.textContent = "Unable to load the selected report detail.";
@@ -868,7 +914,7 @@
 
       const originalText = copyReportSummaryButton.textContent;
       try {
-        await navigator.clipboard.writeText(buildReportSummary(currentTaskDetail));
+        await navigator.clipboard.writeText(buildReportSummary(currentTaskDetail, currentReportDetail));
         copyReportSummaryButton.textContent = "Summary copied";
         reportDetailStatusNote.textContent = "Copied a compact report handoff summary for the current detail.";
       } catch (error) {
