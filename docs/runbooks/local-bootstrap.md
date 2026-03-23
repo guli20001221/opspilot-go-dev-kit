@@ -47,8 +47,10 @@ Successful build artifacts are emitted under `bin/`.
 - `POST /api/v1/tasks/{task_id}/retry`
 - `GET /api/v1/admin/task-board`
 - `GET /admin/task-board`
+- `GET /admin/cases`
 - `GET /admin/reports`
 - `GET /api/v1/reports/{report_id}`
+- `GET /api/v1/cases`
 - `POST /api/v1/cases`
 - `GET /api/v1/cases/{case_id}`
 - `POST /api/v1/chat/stream`
@@ -96,7 +98,9 @@ The current chat stream implementation is a Milestone 1 skeleton:
 - if a legacy successful report task has no durable report row yet, `/admin/reports` now falls back to task provenance and keeps the detail panel readable instead of failing the inspect flow
 - use `GET /api/v1/reports/report-<task_id>` when you need the canonical report read model behind a successful report task, without parsing task audit history yourself
 - use `POST /api/v1/cases` when you need a durable operator follow-up object that can point at a source task, a source report, or both
+- use `GET /api/v1/cases` when you need to inspect the current durable case slice for a tenant, status, or source linkage
 - use `GET /api/v1/cases/{case_id}` when you need the canonical case record for that follow-up object
+- open `http://localhost:18080/admin/cases` when you want the first case-focused operator page, including source task/report handoff links
 - successful `report_generation` tasks now finalize the durable report row and task `succeeded` transition together, so `ready_at` and report `metadata.audit_ref` line up with the final task state
 - the local Compose app services now start from dedicated runtime images, which removes the previous startup dependence on downloading Go modules inside the running container
 - the last successful `audit_event.detail` now carries an execution summary, such as which ticket comment was created

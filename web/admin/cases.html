@@ -1,0 +1,684 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>OpsPilot Cases</title>
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='16' fill='%238b5cf6'/%3E%3Cpath d='M18 20h28v24H18zm6 6h16v4H24zm0 8h10v4H24z' fill='%23fff'/%3E%3C/svg%3E">
+  <style>
+    :root {
+      --bg: #f4f1fb;
+      --panel: rgba(255, 255, 255, 0.88);
+      --ink: #1f1d2b;
+      --muted: #625f76;
+      --line: rgba(31, 29, 43, 0.12);
+      --accent: #7c3aed;
+      --accent-2: #5b21b6;
+      --shadow: 0 18px 48px rgba(65, 54, 102, 0.14);
+      --radius-lg: 24px;
+      --radius-md: 18px;
+      --radius-sm: 12px;
+      --font-sans: "Segoe UI Variable", "Aptos", "IBM Plex Sans", "Helvetica Neue", sans-serif;
+      --font-serif: "Iowan Old Style", "Georgia", serif;
+    }
+
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      min-height: 100vh;
+      font-family: var(--font-sans);
+      color: var(--ink);
+      background:
+        radial-gradient(circle at top left, rgba(124, 58, 237, 0.18), transparent 28%),
+        radial-gradient(circle at top right, rgba(91, 33, 182, 0.14), transparent 24%),
+        linear-gradient(180deg, #faf7ff 0%, var(--bg) 44%, #ece6f7 100%);
+    }
+
+    .page { width: min(1240px, calc(100% - 32px)); margin: 0 auto; padding: 28px 0 40px; }
+    .hero, .panel {
+      background: var(--panel);
+      border: 1px solid rgba(255, 255, 255, 0.8);
+      box-shadow: var(--shadow);
+      backdrop-filter: blur(16px);
+    }
+    .hero {
+      padding: 28px;
+      border-radius: 32px;
+      margin-bottom: 18px;
+      position: relative;
+      overflow: hidden;
+    }
+    .hero::after {
+      content: "";
+      position: absolute;
+      right: -56px;
+      bottom: -56px;
+      width: 220px;
+      height: 220px;
+      border-radius: 50%;
+      background: radial-gradient(circle, rgba(124, 58, 237, 0.18), rgba(124, 58, 237, 0));
+    }
+    .eyebrow {
+      margin: 0 0 12px;
+      font-size: 12px;
+      font-weight: 700;
+      letter-spacing: 0.18em;
+      text-transform: uppercase;
+      color: var(--accent);
+    }
+    h1 {
+      margin: 0 0 10px;
+      font-family: var(--font-serif);
+      font-size: clamp(2.1rem, 4vw, 3.2rem);
+      line-height: 0.95;
+      letter-spacing: -0.04em;
+    }
+    .lead {
+      max-width: 760px;
+      margin: 0;
+      color: var(--muted);
+      line-height: 1.6;
+    }
+    .hero-links {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      margin-top: 18px;
+    }
+    a.link-chip, a.button-link, button {
+      font: inherit;
+      text-decoration: none;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      border-radius: 999px;
+      padding: 10px 14px;
+      font-weight: 700;
+      cursor: pointer;
+      transition: transform 120ms ease, box-shadow 120ms ease;
+    }
+    a.link-chip, .ghost {
+      color: var(--ink);
+      background: rgba(255, 255, 255, 0.76);
+      border: 1px solid rgba(31, 29, 43, 0.08);
+    }
+    .primary {
+      border: none;
+      color: #fff;
+      background: linear-gradient(135deg, var(--accent), var(--accent-2));
+      box-shadow: 0 12px 24px rgba(124, 58, 237, 0.22);
+    }
+    button, a.button-link { border: none; }
+    button:hover, a.link-chip:hover, a.button-link:hover { transform: translateY(-1px); }
+
+    .layout {
+      display: grid;
+      gap: 18px;
+      grid-template-columns: minmax(280px, 320px) minmax(0, 1fr);
+      align-items: start;
+    }
+    .panel { border-radius: var(--radius-lg); padding: 20px; }
+    .panel h2, .panel h3 { margin: 0 0 8px; font-size: 1rem; }
+    .panel-copy { margin: 0 0 18px; color: var(--muted); font-size: 0.92rem; line-height: 1.5; }
+    .filters, .field { display: grid; gap: 12px; }
+    .field label {
+      font-size: 0.82rem;
+      font-weight: 700;
+      color: var(--muted);
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+    }
+    .field input, .field select {
+      width: 100%;
+      border: 1px solid var(--line);
+      border-radius: var(--radius-sm);
+      padding: 11px 12px;
+      background: rgba(255, 255, 255, 0.94);
+      color: var(--ink);
+    }
+    .field input:focus, .field select:focus, button:focus, a.button-link:focus {
+      outline: 2px solid rgba(124, 58, 237, 0.22);
+      outline-offset: 2px;
+    }
+    .actions, .detail-actions {
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+      margin-top: 8px;
+    }
+    .summary-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+      gap: 12px;
+      margin-bottom: 18px;
+    }
+    .summary-card {
+      border-radius: 16px;
+      border: 1px solid rgba(31, 29, 43, 0.08);
+      background: rgba(255, 255, 255, 0.76);
+      padding: 16px;
+      display: grid;
+      gap: 8px;
+    }
+    .summary-card small {
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      font-weight: 700;
+      color: var(--muted);
+    }
+    .summary-card strong {
+      font-size: 2rem;
+      font-family: var(--font-serif);
+      letter-spacing: -0.04em;
+    }
+    .loading, .empty {
+      padding: 18px;
+      border-radius: 16px;
+      background: rgba(255, 255, 255, 0.78);
+      border: 1px dashed rgba(31, 29, 43, 0.16);
+      color: var(--muted);
+    }
+    .table-wrap {
+      overflow: auto;
+      border-radius: 18px;
+      border: 1px solid rgba(31, 29, 43, 0.08);
+      background: rgba(255, 255, 255, 0.74);
+    }
+    table { width: 100%; border-collapse: collapse; }
+    th, td {
+      text-align: left;
+      padding: 14px 16px;
+      border-bottom: 1px solid rgba(31, 29, 43, 0.08);
+      vertical-align: top;
+    }
+    th {
+      font-size: 0.76rem;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: var(--muted);
+    }
+    tbody tr.case-row-selected {
+      background: rgba(124, 58, 237, 0.1);
+      box-shadow: inset 4px 0 0 var(--accent);
+    }
+    td small { display: block; margin-top: 6px; color: var(--muted); }
+    .status {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 6px 10px;
+      border-radius: 999px;
+      font-size: 0.84rem;
+      font-weight: 700;
+      color: #155e75;
+      background: rgba(21, 94, 117, 0.12);
+    }
+    .detail-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+      gap: 12px;
+      margin: 14px 0 18px;
+    }
+    .detail-card {
+      border-radius: 16px;
+      border: 1px solid rgba(31, 29, 43, 0.08);
+      background: rgba(255, 255, 255, 0.78);
+      padding: 16px;
+    }
+    .detail-card dt {
+      margin: 0 0 6px;
+      font-size: 0.78rem;
+      color: var(--muted);
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      font-weight: 700;
+    }
+    .detail-card dd {
+      margin: 0;
+      word-break: break-word;
+      line-height: 1.5;
+    }
+    .footer-actions {
+      display: flex;
+      justify-content: space-between;
+      gap: 12px;
+      flex-wrap: wrap;
+      margin-top: 16px;
+      color: var(--muted);
+      font-size: 0.9rem;
+    }
+
+    @media (max-width: 980px) {
+      .layout { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+  <main class="page">
+    <section class="hero">
+      <p class="eyebrow">OpsPilot Admin</p>
+      <h1>Cases</h1>
+      <p class="lead">
+        Operator-facing durable follow-up objects. This page stays contract-first:
+        the list comes from <code>/api/v1/cases</code>, detail comes from <code>/api/v1/cases/{case_id}</code>,
+        and task/report handoff reuses the existing canonical endpoints.
+      </p>
+      <div class="hero-links">
+        <a class="link-chip" href="/admin/task-board">Open Task Board</a>
+        <a class="link-chip" href="/admin/reports">Open Reports</a>
+      </div>
+    </section>
+
+    <section class="layout">
+      <aside class="panel">
+        <h2>Filters</h2>
+        <p class="panel-copy">
+          Narrow cases by tenant, status, or source linkage. Query parameters are mirrored into the URL so an operator can hand off the current slice directly.
+        </p>
+        <form id="caseFilters" class="filters">
+          <div class="field">
+            <label for="tenant_id">Tenant</label>
+            <input id="tenant_id" name="tenant_id" type="text" placeholder="tenant-admin-example">
+          </div>
+          <div class="field">
+            <label for="status">Status</label>
+            <select id="status" name="status">
+              <option value="">All statuses</option>
+              <option value="open">Open</option>
+            </select>
+          </div>
+          <div class="field">
+            <label for="source_task_id">Source Task</label>
+            <input id="source_task_id" name="source_task_id" type="text" placeholder="task-...">
+          </div>
+          <div class="field">
+            <label for="source_report_id">Source Report</label>
+            <input id="source_report_id" name="source_report_id" type="text" placeholder="report-task-...">
+          </div>
+          <div class="field">
+            <label for="limit">Page Size</label>
+            <input id="limit" name="limit" type="number" min="1" max="100" value="10">
+          </div>
+          <div class="field">
+            <label for="offset">Offset</label>
+            <input id="offset" name="offset" type="number" min="0" value="0">
+          </div>
+          <div class="actions">
+            <button class="primary" type="submit">Load cases</button>
+            <button class="ghost" id="resetFilters" type="button">Reset</button>
+          </div>
+        </form>
+      </aside>
+
+      <section class="panel">
+        <h2>Visible Cases</h2>
+        <p class="panel-copy">
+          Cases are stable operator follow-up objects. This page keeps the browser thin and never recomputes lineage beyond what the APIs already return.
+        </p>
+
+        <div class="summary-grid">
+          <article class="summary-card">
+            <small>Visible cases</small>
+            <strong id="visibleCount">0</strong>
+            <span>Current filtered case slice.</span>
+          </article>
+          <article class="summary-card">
+            <small>Latest update</small>
+            <strong id="latestUpdated">Unknown</strong>
+            <span>Most recent case update in this slice.</span>
+          </article>
+        </div>
+
+        <div id="caseListState" class="loading">Loading cases...</div>
+        <div class="table-wrap" id="tableWrap" hidden>
+          <table>
+            <thead>
+              <tr>
+                <th>Case</th>
+                <th>Status</th>
+                <th>Tenant</th>
+                <th>Sources</th>
+                <th>Updated</th>
+                <th>Inspect</th>
+              </tr>
+            </thead>
+            <tbody id="caseRows"></tbody>
+          </table>
+        </div>
+
+        <div class="footer-actions">
+          <span id="pageMeta">Page offset 0. Waiting for data.</span>
+          <div class="actions">
+            <button class="ghost" id="prevPageButton" type="button">Previous page</button>
+            <button class="ghost" id="nextPageButton" type="button">Next page</button>
+          </div>
+        </div>
+      </section>
+    </section>
+
+    <section class="panel" style="margin-top: 18px;">
+      <h2>Case Detail</h2>
+      <p class="panel-copy">
+        Pick a case to inspect source lineage and hand off into the existing task and report surfaces.
+      </p>
+      <div class="detail-actions">
+        <a class="button-link ghost" id="openTaskLink" href="#" hidden>Open source task</a>
+        <a class="button-link ghost" id="openTaskBoardLink" href="#" hidden>Open source task in Task Board</a>
+        <a class="button-link ghost" id="openReportLink" href="#" hidden>Open source report</a>
+        <a class="button-link ghost" id="openReportsLink" href="#" hidden>Open source report in Reports</a>
+      </div>
+      <div id="caseDetail" class="empty">No case selected yet.</div>
+    </section>
+  </main>
+
+  <script>
+    const listEndpoint = "/api/v1/cases";
+    const detailEndpointBase = "/api/v1/cases/";
+    const taskEndpointBase = "/api/v1/tasks/";
+    const reportEndpointBase = "/api/v1/reports/";
+    const form = document.getElementById("caseFilters");
+    const resetFiltersButton = document.getElementById("resetFilters");
+    const caseListState = document.getElementById("caseListState");
+    const tableWrap = document.getElementById("tableWrap");
+    const caseRows = document.getElementById("caseRows");
+    const visibleCount = document.getElementById("visibleCount");
+    const latestUpdated = document.getElementById("latestUpdated");
+    const pageMeta = document.getElementById("pageMeta");
+    const prevPageButton = document.getElementById("prevPageButton");
+    const nextPageButton = document.getElementById("nextPageButton");
+    const caseDetail = document.getElementById("caseDetail");
+    const openTaskLink = document.getElementById("openTaskLink");
+    const openTaskBoardLink = document.getElementById("openTaskBoardLink");
+    const openReportLink = document.getElementById("openReportLink");
+    const openReportsLink = document.getElementById("openReportsLink");
+
+    let currentCases = [];
+    let currentCaseID = "";
+
+    function escapeHTML(value) {
+      return String(value ?? "")
+        .replaceAll("&", "&amp;")
+        .replaceAll("<", "&lt;")
+        .replaceAll(">", "&gt;")
+        .replaceAll("\"", "&quot;")
+        .replaceAll("'", "&#39;");
+    }
+
+    function fmtDate(value) {
+      if (!value) return "Unknown";
+      const date = new Date(value);
+      if (Number.isNaN(date.valueOf())) return value;
+      return new Intl.DateTimeFormat(undefined, {
+        year: "numeric",
+        month: "short",
+        day: "2-digit",
+        hour: "2-digit",
+        minute: "2-digit",
+        second: "2-digit"
+      }).format(date);
+    }
+
+    function buildParams() {
+      const params = new URLSearchParams();
+      for (const name of ["tenant_id", "status", "source_task_id", "source_report_id", "limit", "offset"]) {
+        const value = form.elements.namedItem(name).value.trim();
+        if (value) params.set(name, value);
+      }
+      return params;
+    }
+
+    function syncURL(caseID = "") {
+      const params = buildParams();
+      if (caseID) params.set("case_id", caseID);
+      history.replaceState(null, "", `/admin/cases?${params.toString()}`);
+    }
+
+    function readParamsFromURL() {
+      const params = new URLSearchParams(window.location.search);
+      for (const name of ["tenant_id", "status", "source_task_id", "source_report_id", "limit", "offset"]) {
+        form.elements.namedItem(name).value = params.get(name) || (name === "limit" ? "10" : name === "offset" ? "0" : "");
+      }
+      return params.get("case_id") || "";
+    }
+
+    function syncSelectedRow() {
+      const rows = caseRows.querySelectorAll("[data-case-row]");
+      for (const row of rows) {
+        const selected = row.getAttribute("data-case-row") === currentCaseID && currentCaseID !== "";
+        row.classList.toggle("case-row-selected", selected);
+        if (selected) {
+          row.setAttribute("aria-current", "true");
+          row.scrollIntoView({ block: "nearest", inline: "nearest" });
+        } else {
+          row.removeAttribute("aria-current");
+        }
+      }
+    }
+
+    function renderRows(items) {
+      currentCases = Array.isArray(items) ? items : [];
+      if (!currentCases.length) {
+        tableWrap.hidden = true;
+        caseListState.hidden = false;
+        caseListState.className = "empty";
+        caseListState.textContent = "No cases matched the current slice.";
+        return;
+      }
+
+      caseListState.hidden = true;
+      tableWrap.hidden = false;
+      caseRows.innerHTML = currentCases.map((item) => `
+        <tr data-case-row="${escapeHTML(item.case_id)}">
+          <td>
+            <strong>${escapeHTML(item.case_id)}</strong>
+            <small>${escapeHTML(item.title)}</small>
+          </td>
+          <td><span class="status">${escapeHTML(item.status)}</span></td>
+          <td>
+            <strong>${escapeHTML(item.tenant_id)}</strong>
+            <small>created by ${escapeHTML(item.created_by || "operator")}</small>
+          </td>
+          <td>
+            <strong>${escapeHTML(item.source_task_id || "No task source")}</strong>
+            <small>${escapeHTML(item.source_report_id || "No report source")}</small>
+          </td>
+          <td>
+            <strong>${escapeHTML(fmtDate(item.updated_at))}</strong>
+            <small>created ${escapeHTML(fmtDate(item.created_at))}</small>
+          </td>
+          <td><button class="ghost" type="button" data-case-id="${escapeHTML(item.case_id)}">Inspect</button></td>
+        </tr>
+      `).join("");
+      syncSelectedRow();
+    }
+
+    function renderPage(hasMore, nextOffset) {
+      const offset = Number.parseInt(form.elements.namedItem("offset").value || "0", 10) || 0;
+      const limit = Number.parseInt(form.elements.namedItem("limit").value || "10", 10) || 10;
+      pageMeta.textContent = hasMore
+        ? `Page offset ${offset}. More rows available; next offset ${nextOffset}.`
+        : `Page offset ${offset}. No additional rows after this slice.`;
+      prevPageButton.disabled = offset <= 0;
+      nextPageButton.disabled = !hasMore;
+      prevPageButton.dataset.offset = String(Math.max(0, offset - limit));
+      nextPageButton.dataset.offset = String(nextOffset || 0);
+    }
+
+    function renderDetail(item) {
+      currentCaseID = item.case_id;
+      syncURL(item.case_id);
+      openTaskLink.hidden = !item.source_task_id;
+      openTaskBoardLink.hidden = !item.source_task_id;
+      openReportLink.hidden = !item.source_report_id;
+      openReportsLink.hidden = !item.source_report_id || !item.source_task_id;
+      if (item.source_task_id) {
+        openTaskLink.href = `${taskEndpointBase}${encodeURIComponent(item.source_task_id)}`;
+        openTaskBoardLink.href = `/admin/task-board?tenant_id=${encodeURIComponent(item.tenant_id)}&task_id=${encodeURIComponent(item.source_task_id)}`;
+      }
+      if (item.source_report_id) {
+        openReportLink.href = `${reportEndpointBase}${encodeURIComponent(item.source_report_id)}`;
+      }
+      if (item.source_report_id && item.source_task_id) {
+        openReportsLink.href = `/admin/reports?tenant_id=${encodeURIComponent(item.tenant_id)}&task_id=${encodeURIComponent(item.source_task_id)}`;
+      }
+
+      caseDetail.innerHTML = `
+        <div class="detail-grid">
+          <dl class="detail-card">
+            <dt>Case ID</dt>
+            <dd>${escapeHTML(item.case_id)}</dd>
+          </dl>
+          <dl class="detail-card">
+            <dt>Status</dt>
+            <dd>${escapeHTML(item.status)}</dd>
+          </dl>
+          <dl class="detail-card">
+            <dt>Tenant</dt>
+            <dd>${escapeHTML(item.tenant_id)}</dd>
+          </dl>
+          <dl class="detail-card">
+            <dt>Created by</dt>
+            <dd>${escapeHTML(item.created_by)}</dd>
+          </dl>
+          <dl class="detail-card">
+            <dt>Source task</dt>
+            <dd>${escapeHTML(item.source_task_id || "None")}</dd>
+          </dl>
+          <dl class="detail-card">
+            <dt>Source report</dt>
+            <dd>${escapeHTML(item.source_report_id || "None")}</dd>
+          </dl>
+          <dl class="detail-card" style="grid-column: 1 / -1;">
+            <dt>Title</dt>
+            <dd>${escapeHTML(item.title)}</dd>
+          </dl>
+          <dl class="detail-card" style="grid-column: 1 / -1;">
+            <dt>Summary</dt>
+            <dd>${escapeHTML(item.summary || "No summary provided.")}</dd>
+          </dl>
+        </div>
+      `;
+      syncSelectedRow();
+    }
+
+    async function loadCaseDetail(caseID) {
+      if (!caseID) {
+        currentCaseID = "";
+        caseDetail.innerHTML = '<div class="empty">No case selected yet.</div>';
+        syncSelectedRow();
+        syncURL("");
+        return;
+      }
+
+      const tenantID = form.elements.namedItem("tenant_id").value.trim();
+      if (!tenantID) {
+        currentCaseID = "";
+        caseDetail.innerHTML = '<div class="empty">Enter a tenant before opening case detail.</div>';
+        syncSelectedRow();
+        syncURL("");
+        return;
+      }
+
+      caseDetail.innerHTML = '<div class="loading">Loading case detail...</div>';
+      try {
+        const response = await fetch(`${detailEndpointBase}${encodeURIComponent(caseID)}?tenant_id=${encodeURIComponent(tenantID)}`, {
+          headers: { "Accept": "application/json" }
+        });
+        if (!response.ok) {
+          throw new Error(`Case detail request failed: ${response.statusText}`);
+        }
+        renderDetail(await response.json());
+      } catch (error) {
+        caseDetail.innerHTML = `<div class="empty">${escapeHTML(error.message || "Unable to load case detail.")}</div>`;
+      }
+    }
+
+    async function loadCases(selectedCaseID = "") {
+      const tenantID = form.elements.namedItem("tenant_id").value.trim();
+      if (!tenantID) {
+        visibleCount.textContent = "0";
+        latestUpdated.textContent = "Unknown";
+        tableWrap.hidden = true;
+        caseListState.hidden = false;
+        caseListState.className = "empty";
+        caseListState.textContent = "Enter a tenant to load the case slice.";
+        pageMeta.textContent = "Tenant scope is required before listing cases.";
+        prevPageButton.disabled = true;
+        nextPageButton.disabled = true;
+        await loadCaseDetail("");
+        return;
+      }
+
+      caseListState.hidden = false;
+      caseListState.className = "loading";
+      caseListState.textContent = "Loading cases...";
+      tableWrap.hidden = true;
+
+      const params = buildParams();
+      syncURL(selectedCaseID);
+      try {
+        const response = await fetch(`${listEndpoint}?${params.toString()}`, {
+          headers: { "Accept": "application/json" }
+        });
+        if (!response.ok) {
+          throw new Error(`Case list request failed: ${response.statusText}`);
+        }
+        const payload = await response.json();
+        visibleCount.textContent = String((payload.cases || []).length);
+        latestUpdated.textContent = (payload.cases || []).length ? fmtDate(payload.cases[0].updated_at) : "Unknown";
+        renderRows(payload.cases || []);
+        renderPage(payload.has_more, payload.next_offset);
+
+        const visibleIDs = new Set((payload.cases || []).map((item) => item.case_id));
+        if (selectedCaseID && visibleIDs.has(selectedCaseID)) {
+          await loadCaseDetail(selectedCaseID);
+        } else if ((payload.cases || []).length > 0) {
+          await loadCaseDetail(payload.cases[0].case_id);
+        } else {
+          await loadCaseDetail("");
+        }
+      } catch (error) {
+        visibleCount.textContent = "0";
+        latestUpdated.textContent = "Unknown";
+        tableWrap.hidden = true;
+        caseListState.hidden = false;
+        caseListState.className = "empty";
+        caseListState.textContent = error.message || "Unable to load cases.";
+        caseDetail.innerHTML = '<div class="empty">Unable to load case detail because the case list request failed.</div>';
+      }
+    }
+
+    form.addEventListener("submit", (event) => {
+      event.preventDefault();
+      form.elements.namedItem("offset").value = "0";
+      loadCases(currentCaseID);
+    });
+
+    resetFiltersButton.addEventListener("click", () => {
+      form.reset();
+      form.elements.namedItem("limit").value = "10";
+      form.elements.namedItem("offset").value = "0";
+      loadCases("");
+    });
+
+    caseRows.addEventListener("click", (event) => {
+      const button = event.target.closest("[data-case-id]");
+      if (!button) return;
+      loadCaseDetail(button.dataset.caseId);
+    });
+
+    prevPageButton.addEventListener("click", () => {
+      form.elements.namedItem("offset").value = prevPageButton.dataset.offset || "0";
+      loadCases("");
+    });
+
+    nextPageButton.addEventListener("click", () => {
+      form.elements.namedItem("offset").value = nextPageButton.dataset.offset || "0";
+      loadCases("");
+    });
+
+    const initialCaseID = readParamsFromURL();
+    loadCases(initialCaseID);
+  </script>
+</body>
+</html>

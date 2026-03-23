@@ -111,6 +111,71 @@ WHERE id = $1`
 	return got, nil
 }
 
+// List returns filtered case rows for operator-facing list views.
+func (s *CaseStore) List(ctx context.Context, filter casesvc.ListFilter) (casesvc.ListPage, error) {
+	limit := filter.Limit
+	if limit <= 0 {
+		limit = 20
+	}
+	offset := filter.Offset
+	if offset < 0 {
+		offset = 0
+	}
+
+	const query = `
+SELECT
+    id,
+    tenant_id,
+    status,
+    title,
+    summary,
+    COALESCE(source_task_id, ''),
+    COALESCE(source_report_id, ''),
+    created_by,
+    created_at,
+    updated_at
+FROM cases
+WHERE ($1 = '' OR tenant_id = $1)
+  AND ($2 = '' OR status = $2)
+  AND ($3 = '' OR source_task_id = $3)
+  AND ($4 = '' OR source_report_id = $4)
+ORDER BY updated_at DESC, created_at DESC, id DESC
+LIMIT $5 OFFSET $6`
+
+	rows, err := s.pool.Query(ctx, query, filter.TenantID, filter.Status, filter.SourceTaskID, filter.SourceReportID, limit+1, offset)
+	if err != nil {
+		return casesvc.ListPage{}, fmt.Errorf("select cases: %w", err)
+	}
+	defer rows.Close()
+
+	var items []casesvc.Case
+	for rows.Next() {
+		item, err := scanCase(rows)
+		if err != nil {
+			return casesvc.ListPage{}, err
+		}
+		items = append(items, item)
+	}
+	if err := rows.Err(); err != nil {
+		return casesvc.ListPage{}, fmt.Errorf("iterate cases: %w", err)
+	}
+
+	hasMore := len(items) > limit
+	if hasMore {
+		items = items[:limit]
+	}
+
+	page := casesvc.ListPage{
+		Cases:   items,
+		HasMore: hasMore,
+	}
+	if hasMore {
+		page.NextOffset = offset + len(items)
+	}
+
+	return page, nil
+}
+
 func scanCase(row caseQuerierRow) (casesvc.Case, error) {
 	var item casesvc.Case
 	if err := row.Scan(

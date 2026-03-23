@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 	"net/http"
+	"strconv"
 	"strings"
 	"time"
 
@@ -34,12 +35,24 @@ type caseResponse struct {
 	UpdatedAt      string `json:"updated_at"`
 }
 
-func (a *appHandler) handleCases(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodPost {
-		writeError(w, http.StatusMethodNotAllowed, "method_not_allowed", "method not allowed")
-		return
-	}
+type listCasesResponse struct {
+	Cases      []caseResponse `json:"cases"`
+	HasMore    bool           `json:"has_more"`
+	NextOffset *int           `json:"next_offset,omitempty"`
+}
 
+func (a *appHandler) handleCases(w http.ResponseWriter, r *http.Request) {
+	switch r.Method {
+	case http.MethodGet:
+		a.handleListCases(w, r)
+	case http.MethodPost:
+		a.handleCreateCase(w, r)
+	default:
+		writeError(w, http.StatusMethodNotAllowed, "method_not_allowed", "method not allowed")
+	}
+}
+
+func (a *appHandler) handleCreateCase(w http.ResponseWriter, r *http.Request) {
 	var req createCaseRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		writeError(w, http.StatusBadRequest, "invalid_json", "invalid json body")
@@ -76,6 +89,32 @@ func (a *appHandler) handleCases(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusCreated, newCaseResponse(item))
 }
 
+func (a *appHandler) handleListCases(w http.ResponseWriter, r *http.Request) {
+	filter, err := parseCaseListFilter(r)
+	if err != nil {
+		writeError(w, http.StatusBadRequest, "invalid_query", err.Error())
+		return
+	}
+
+	page, err := a.cases.ListCases(r.Context(), filter)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "case_list_failed", err.Error())
+		return
+	}
+
+	resp := listCasesResponse{
+		Cases:   make([]caseResponse, 0, len(page.Cases)),
+		HasMore: page.HasMore,
+	}
+	if page.HasMore {
+		resp.NextOffset = &page.NextOffset
+	}
+	for _, item := range page.Cases {
+		resp.Cases = append(resp.Cases, newCaseResponse(item))
+	}
+	writeJSON(w, http.StatusOK, resp)
+}
+
 func (a *appHandler) handleCaseByID(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet {
 		writeError(w, http.StatusMethodNotAllowed, "method_not_allowed", "method not allowed")
@@ -87,6 +126,11 @@ func (a *appHandler) handleCaseByID(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusNotFound, "not_found", "not found")
 		return
 	}
+	tenantID := strings.TrimSpace(r.URL.Query().Get("tenant_id"))
+	if tenantID == "" {
+		writeError(w, http.StatusBadRequest, "invalid_query", "tenant_id is required")
+		return
+	}
 
 	item, err := a.cases.GetCase(r.Context(), caseID)
 	if err != nil {
@@ -96,6 +140,10 @@ func (a *appHandler) handleCaseByID(w http.ResponseWriter, r *http.Request) {
 		}
 
 		writeError(w, http.StatusInternalServerError, "case_lookup_failed", err.Error())
+		return
+	}
+	if item.TenantID != tenantID {
+		writeError(w, http.StatusNotFound, "case_not_found", "case not found")
 		return
 	}
 
@@ -111,6 +159,35 @@ func validateCreateCaseRequest(req createCaseRequest) error {
 	default:
 		return nil
 	}
+}
+
+func parseCaseListFilter(r *http.Request) (casesvc.ListFilter, error) {
+	filter := casesvc.ListFilter{
+		TenantID:       r.URL.Query().Get("tenant_id"),
+		Status:         r.URL.Query().Get("status"),
+		SourceTaskID:   r.URL.Query().Get("source_task_id"),
+		SourceReportID: r.URL.Query().Get("source_report_id"),
+		Limit:          20,
+	}
+	if strings.TrimSpace(filter.TenantID) == "" {
+		return casesvc.ListFilter{}, errors.New("tenant_id is required")
+	}
+	if rawLimit := r.URL.Query().Get("limit"); rawLimit != "" {
+		limit, err := strconv.Atoi(rawLimit)
+		if err != nil || limit <= 0 {
+			return casesvc.ListFilter{}, errors.New("limit must be a positive integer")
+		}
+		filter.Limit = limit
+	}
+	if rawOffset := r.URL.Query().Get("offset"); rawOffset != "" {
+		offset, err := strconv.Atoi(rawOffset)
+		if err != nil || offset < 0 {
+			return casesvc.ListFilter{}, errors.New("offset must be a non-negative integer")
+		}
+		filter.Offset = offset
+	}
+
+	return filter, nil
 }
 
 func (a *appHandler) validateCaseSources(r *http.Request, req createCaseRequest) (report.Report, error) {

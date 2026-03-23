@@ -36,3 +36,20 @@ type CreateInput struct {
 	SourceReportID string
 	CreatedBy      string
 }
+
+// ListFilter narrows case list queries for operator-facing views.
+type ListFilter struct {
+	TenantID       string
+	Status         string
+	SourceTaskID   string
+	SourceReportID string
+	Limit          int
+	Offset         int
+}
+
+// ListPage is the paginated case list result.
+type ListPage struct {
+	Cases      []Case
+	HasMore    bool
+	NextOffset int
+}

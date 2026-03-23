@@ -13,6 +13,7 @@ var caseIDSequence atomic.Uint64
 type Store interface {
 	Save(ctx context.Context, item Case) (Case, error)
 	Get(ctx context.Context, caseID string) (Case, error)
+	List(ctx context.Context, filter ListFilter) (ListPage, error)
 }
 
 // Service manages durable operator case records.
@@ -56,6 +57,11 @@ func (s *Service) CreateCase(ctx context.Context, input CreateInput) (Case, erro
 // GetCase returns a durable case by ID.
 func (s *Service) GetCase(ctx context.Context, caseID string) (Case, error) {
 	return s.store.Get(ctx, caseID)
+}
+
+// ListCases returns operator-facing case rows for the provided filter.
+func (s *Service) ListCases(ctx context.Context, filter ListFilter) (ListPage, error) {
+	return s.store.List(ctx, filter)
 }
 
 func newCaseID(now time.Time) string {

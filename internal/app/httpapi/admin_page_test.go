@@ -123,6 +123,9 @@ func TestAdminTaskBoardPageRendersHTML(t *testing.T) {
 	if !strings.Contains(body, "/admin/reports") {
 		t.Fatal("reports page link missing from task board HTML")
 	}
+	if !strings.Contains(body, "/admin/cases") {
+		t.Fatal("cases page link missing from task board HTML")
+	}
 }
 
 func TestAdminTaskBoardPageRejectsUnknownSubpath(t *testing.T) {
@@ -180,6 +183,9 @@ func TestAdminReportsPageRendersHTML(t *testing.T) {
 	if !strings.Contains(body, "Open Task Board") {
 		t.Fatal("task board handoff link missing from reports page HTML")
 	}
+	if !strings.Contains(body, "Open Cases") {
+		t.Fatal("cases handoff link missing from reports page HTML")
+	}
 	if !strings.Contains(body, "Open current report in Task Board") {
 		t.Fatal("current report handoff link missing from reports page HTML")
 	}
@@ -217,6 +223,60 @@ func TestAdminReportsPageRejectsUnknownSubpath(t *testing.T) {
 	defer server.Close()
 
 	resp, err := http.Get(server.URL + "/admin/reports/unknown")
+	if err != nil {
+		t.Fatalf("Get() error = %v", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusNotFound {
+		t.Fatalf("StatusCode = %d, want %d", resp.StatusCode, http.StatusNotFound)
+	}
+}
+
+func TestAdminCasesPageRendersHTML(t *testing.T) {
+	server := httptest.NewServer(NewHandler())
+	defer server.Close()
+
+	resp, err := http.Get(server.URL + "/admin/cases")
+	if err != nil {
+		t.Fatalf("Get() error = %v", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("StatusCode = %d, want %d", resp.StatusCode, http.StatusOK)
+	}
+	if got := resp.Header.Get("Content-Type"); !strings.Contains(got, "text/html") {
+		t.Fatalf("Content-Type = %q, want text/html", got)
+	}
+
+	bodyBytes, err := io.ReadAll(resp.Body)
+	if err != nil {
+		t.Fatalf("ReadAll() error = %v", err)
+	}
+	body := string(bodyBytes)
+	if !strings.Contains(body, "<title>OpsPilot Cases</title>") {
+		t.Fatal("page title missing from admin cases HTML")
+	}
+	if !strings.Contains(body, "/api/v1/cases") {
+		t.Fatal("case list API path missing from page HTML")
+	}
+	if !strings.Contains(body, "/api/v1/cases/") {
+		t.Fatal("case detail API path missing from page HTML")
+	}
+	if !strings.Contains(body, "Open source task") {
+		t.Fatal("source task handoff missing from cases page HTML")
+	}
+	if !strings.Contains(body, "Open source report") {
+		t.Fatal("source report handoff missing from cases page HTML")
+	}
+}
+
+func TestAdminCasesPageRejectsUnknownSubpath(t *testing.T) {
+	server := httptest.NewServer(NewHandler())
+	defer server.Close()
+
+	resp, err := http.Get(server.URL + "/admin/cases/unknown")
 	if err != nil {
 		t.Fatalf("Get() error = %v", err)
 	}
