@@ -365,6 +365,9 @@
       <div class="detail-actions">
         <input id="caseActor" type="text" value="cases-operator" aria-label="Case operator actor" style="min-width: 180px; border: 1px solid var(--line); border-radius: 999px; padding: 10px 14px; background: rgba(255, 255, 255, 0.92); color: var(--ink);">
         <button class="primary" id="closeCaseButton" type="button" hidden>Close case</button>
+        <button class="ghost" id="copyCaseSummaryButton" type="button">Copy case summary</button>
+        <button class="ghost" id="copyCaseLinkButton" type="button">Copy case link</button>
+        <a class="button-link ghost" id="openCaseAPILink" href="#" hidden>Open case API detail</a>
         <a class="button-link ghost" id="openTaskLink" href="#" hidden>Open source task</a>
         <a class="button-link ghost" id="openTaskBoardLink" href="#" hidden>Open source task in Task Board</a>
         <a class="button-link ghost" id="openReportLink" href="#" hidden>Open source report</a>
@@ -394,6 +397,9 @@
     const caseDetail = document.getElementById("caseDetail");
     const caseActorInput = document.getElementById("caseActor");
     const closeCaseButton = document.getElementById("closeCaseButton");
+    const copyCaseSummaryButton = document.getElementById("copyCaseSummaryButton");
+    const copyCaseLinkButton = document.getElementById("copyCaseLinkButton");
+    const openCaseAPILink = document.getElementById("openCaseAPILink");
     const detailStatusNote = document.getElementById("detailStatusNote");
     const openTaskLink = document.getElementById("openTaskLink");
     const openTaskBoardLink = document.getElementById("openTaskBoardLink");
@@ -402,6 +408,7 @@
 
     let currentCases = [];
     let currentCaseID = "";
+    let currentCaseDetail = null;
 
     function escapeHTML(value) {
       return String(value ?? "")
@@ -444,6 +451,31 @@
       const params = buildParams();
       if (caseID) params.set("case_id", caseID);
       history.replaceState(null, "", `/admin/cases?${params.toString()}`);
+    }
+
+    function buildCaseBoardLink(caseID = currentCaseID) {
+      const params = buildParams();
+      if (caseID) params.set("case_id", caseID);
+      return `${window.location.origin}/admin/cases?${params.toString()}`;
+    }
+
+    function buildCaseSummary(item) {
+      const lines = [
+        `case_id: ${item.case_id}`,
+        `tenant_id: ${item.tenant_id}`,
+        `status: ${item.status}`,
+        `title: ${item.title}`,
+        `summary: ${item.summary || ""}`,
+        `source_task_id: ${item.source_task_id || "none"}`,
+        `source_report_id: ${item.source_report_id || "none"}`,
+        `created_by: ${item.created_by}`,
+        `closed_by: ${item.closed_by || "not_closed"}`
+      ];
+      return lines.join("\n");
+    }
+
+    async function copyText(value) {
+      await navigator.clipboard.writeText(value);
     }
 
     function readParamsFromURL() {
@@ -519,9 +551,14 @@
 
     function renderDetail(item) {
       currentCaseID = item.case_id;
+      currentCaseDetail = item;
       syncURL(item.case_id);
       closeCaseButton.hidden = item.status !== "open";
       closeCaseButton.disabled = false;
+      copyCaseSummaryButton.disabled = false;
+      copyCaseLinkButton.disabled = false;
+      openCaseAPILink.hidden = false;
+      openCaseAPILink.href = `${detailEndpointBase}${encodeURIComponent(item.case_id)}?tenant_id=${encodeURIComponent(item.tenant_id)}`;
       openTaskLink.hidden = !item.source_task_id;
       openTaskBoardLink.hidden = !item.source_task_id;
       openReportLink.hidden = !item.source_report_id;
@@ -588,7 +625,9 @@
     async function loadCaseDetail(caseID) {
       if (!caseID) {
         currentCaseID = "";
+        currentCaseDetail = null;
         closeCaseButton.hidden = true;
+        openCaseAPILink.hidden = true;
         caseDetail.innerHTML = '<div class="empty">No case selected yet.</div>';
         syncSelectedRow();
         syncURL("");
@@ -599,7 +638,9 @@
       const tenantID = form.elements.namedItem("tenant_id").value.trim();
       if (!tenantID) {
         currentCaseID = "";
+        currentCaseDetail = null;
         closeCaseButton.hidden = true;
+        openCaseAPILink.hidden = true;
         caseDetail.innerHTML = '<div class="empty">Enter a tenant before opening case detail.</div>';
         syncSelectedRow();
         syncURL("");
@@ -608,6 +649,7 @@
       }
 
       closeCaseButton.hidden = true;
+      openCaseAPILink.hidden = true;
       caseDetail.innerHTML = '<div class="loading">Loading case detail...</div>';
       setDetailStatus("Loading case detail...");
       try {
@@ -619,7 +661,9 @@
         }
         renderDetail(await response.json());
       } catch (error) {
+        currentCaseDetail = null;
         closeCaseButton.hidden = true;
+        openCaseAPILink.hidden = true;
         setDetailStatus(error.message || "Unable to load case detail.", true);
         caseDetail.innerHTML = `<div class="empty">${escapeHTML(error.message || "Unable to load case detail.")}</div>`;
       }
@@ -676,7 +720,9 @@
         caseListState.hidden = false;
         caseListState.className = "empty";
         caseListState.textContent = error.message || "Unable to load cases.";
+        currentCaseDetail = null;
         closeCaseButton.hidden = true;
+        openCaseAPILink.hidden = true;
         setDetailStatus("Unable to refresh the current case slice.", true);
         caseDetail.innerHTML = '<div class="empty">Unable to load case detail because the case list request failed.</div>';
       }
@@ -741,6 +787,40 @@
       } catch (error) {
         closeCaseButton.disabled = false;
         setDetailStatus(error.message || "Unable to close case.", true);
+      }
+    });
+
+    copyCaseSummaryButton.addEventListener("click", async () => {
+      if (!currentCaseDetail) {
+        setDetailStatus("Select a case before copying its summary.", true);
+        return;
+      }
+      try {
+        await copyText(buildCaseSummary(currentCaseDetail));
+        copyCaseSummaryButton.textContent = "Summary copied";
+        setDetailStatus("Copied compact case summary for handoff.");
+        window.setTimeout(() => {
+          copyCaseSummaryButton.textContent = "Copy case summary";
+        }, 1200);
+      } catch (error) {
+        setDetailStatus(error.message || "Unable to copy case summary.", true);
+      }
+    });
+
+    copyCaseLinkButton.addEventListener("click", async () => {
+      if (!currentCaseID) {
+        setDetailStatus("Select a case before copying its link.", true);
+        return;
+      }
+      try {
+        await copyText(buildCaseBoardLink());
+        copyCaseLinkButton.textContent = "Link copied";
+        setDetailStatus("Copied case board link for handoff.");
+        window.setTimeout(() => {
+          copyCaseLinkButton.textContent = "Copy case link";
+        }, 1200);
+      } catch (error) {
+        setDetailStatus(error.message || "Unable to copy case link.", true);
       }
     });
 

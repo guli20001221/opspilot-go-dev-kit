@@ -103,6 +103,7 @@ The current chat stream implementation is a Milestone 1 skeleton:
 - use `GET /api/v1/cases/{case_id}` when you need the canonical case record for that follow-up object
 - use `POST /api/v1/cases/{case_id}/close?tenant_id=<tenant>` when you need to close an open follow-up object and capture who closed it
 - open `http://localhost:18080/admin/cases` when you want the first case-focused operator page, including source task/report handoff links and the minimal `Close case` action
+- use `Copy case summary` on `/admin/cases` when you need a compact, paste-ready handoff note, `Copy case link` when you want to share the exact filtered case-board URL, and `Open case API detail` when you want the canonical case JSON in a separate tab
 - use `Create case` on `/admin/task-board` or `/admin/reports` when you want to promote the currently selected task/report into a durable follow-up object without hand-building the `POST /api/v1/cases` payload
 - successful `report_generation` tasks now finalize the durable report row and task `succeeded` transition together, so `ready_at` and report `metadata.audit_ref` line up with the final task state
 - the local Compose app services now start from dedicated runtime images, which removes the previous startup dependence on downloading Go modules inside the running container

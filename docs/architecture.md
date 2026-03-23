@@ -74,6 +74,7 @@ The current HTTP layer also exposes the same PostgreSQL-backed workflow records 
 - `POST /api/v1/cases/{case_id}/close` now provides the first case lifecycle mutation, recording `closed_by` while keeping case status transitions explicit and REST-first
 - the same report lane now reads report title, summary, and readiness metadata from the durable report endpoint while still reusing task detail for audit timeline and Temporal links
 - `GET /admin/cases` is the first case-focused operator page, backed directly by the durable case contract and existing task/report detail endpoints, and now supports the minimal close action for open cases
+- the same case page now also supports copyable case summaries, shareable case links, and a direct jump into the canonical case-detail JSON without any admin-only debug contract
 - the existing task-board and report-lane detail panes can now create durable cases by reusing `POST /api/v1/cases`, keeping case creation on canonical task/report surfaces instead of inventing admin-only write APIs
 - the same report lane can now surface and copy the raw durable report JSON directly from the report endpoint, so artifact troubleshooting stays contract-first too
 - the same report lane now falls back to task provenance when a legacy or partially recovered successful report task has no durable report row, so operator drill-down remains readable

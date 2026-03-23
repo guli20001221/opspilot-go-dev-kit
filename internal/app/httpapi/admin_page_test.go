@@ -279,6 +279,15 @@ func TestAdminCasesPageRendersHTML(t *testing.T) {
 	if !strings.Contains(body, "Close case") {
 		t.Fatal("close case action missing from cases page HTML")
 	}
+	if !strings.Contains(body, "Copy case summary") {
+		t.Fatal("case summary handoff missing from cases page HTML")
+	}
+	if !strings.Contains(body, "Copy case link") {
+		t.Fatal("case link handoff missing from cases page HTML")
+	}
+	if !strings.Contains(body, "Open case API detail") {
+		t.Fatal("case api handoff missing from cases page HTML")
+	}
 	if !strings.Contains(body, "<option value=\"closed\">Closed</option>") {
 		t.Fatal("closed status filter missing from cases page HTML")
 	}
