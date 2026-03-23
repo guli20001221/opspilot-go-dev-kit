@@ -66,6 +66,7 @@ The current HTTP layer also exposes the same PostgreSQL-backed workflow records 
 - the same detail panel can now derive a compact audit-summary string from the selected task response and its audit events, giving operators a contract-first handoff artifact without a new backend surface
 - the same detail panel now supports previous/next navigation within the current board slice and derives execution/timeline digest cards from the selected task response without introducing extra backend aggregation
 - the same detail panel can now reapply the board filters to the selected task lane by writing back into the existing tenant/task-type/reason/requires-approval filters rather than introducing a separate frontend query model
+- the same detail panel can now also reapply the selected task type back into the existing board filter form, keeping task-type triage inside the same query model
 - the same detail panel can now also reapply the selected task approval lane back into the existing board filter form, keeping approval-lane triage inside the same query model
 - the same detail panel can now also reapply the selected task reason back into the existing board filter form, keeping reason-based triage inside the same query model
 - the board now also keeps the selected row highlighted and scroll-synced with the detail panel, so navigation across the current slice does not break table context
