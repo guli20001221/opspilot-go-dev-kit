@@ -474,6 +474,19 @@
       font-size: 0.88rem;
     }
 
+    .monitor-toggle {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      color: var(--muted);
+      font-size: 0.88rem;
+    }
+
+    .monitor-toggle input {
+      margin: 0;
+      accent-color: var(--accent);
+    }
+
     code {
       font-family: "Cascadia Code", "Consolas", monospace;
     }
@@ -624,6 +637,10 @@
         <div class="footer-actions">
           <p class="footnote" id="pageMeta">Page offset 0. Waiting for data.</p>
           <div class="actions">
+            <label class="monitor-toggle" for="autoRefresh">
+              <input id="autoRefresh" type="checkbox">
+              <span>Auto refresh every 5s</span>
+            </label>
             <button class="ghost" type="button" id="prevPage">Previous</button>
             <button class="ghost" type="button" id="nextPage">Next</button>
           </div>
@@ -660,6 +677,7 @@
     const taskEndpointBase = "/api/v1/tasks/";
     const temporalUIBase = `${window.location.protocol}//${window.location.hostname}:8088`;
     const form = document.getElementById("filters");
+    const autoRefreshCheckbox = document.getElementById("autoRefresh");
     const resetButton = document.getElementById("reset");
     const prevButton = document.getElementById("prevPage");
     const nextButton = document.getElementById("nextPage");
@@ -672,6 +690,8 @@
     const retryTaskButton = document.getElementById("retryTaskButton");
     const detailStatusNote = document.getElementById("detailStatusNote");
     let currentTaskID = new URLSearchParams(window.location.search).get("task_id") || "";
+    let autoRefreshHandle = null;
+    let boardLoadInFlight = false;
 
     const fields = ["tenant_id", "status", "task_type", "reason", "requires_approval", "limit", "offset"];
 
@@ -986,7 +1006,30 @@
       nextButton.dataset.offset = String(page.next_offset ?? offset);
     }
 
+    function setAutoRefresh(enabled) {
+      if (autoRefreshHandle) {
+        window.clearInterval(autoRefreshHandle);
+        autoRefreshHandle = null;
+      }
+
+      autoRefreshCheckbox.checked = enabled;
+      if (!enabled) {
+        return;
+      }
+
+      autoRefreshHandle = window.setInterval(() => {
+        if (document.visibilityState !== "visible") {
+          return;
+        }
+        loadBoard();
+      }, 5000);
+    }
+
     async function loadBoard() {
+      if (boardLoadInFlight) {
+        return;
+      }
+      boardLoadInFlight = true;
       const params = buildParams();
       const selectedTaskID = currentTaskID;
       syncURL(params, selectedTaskID);
@@ -1033,6 +1076,8 @@
         });
         renderPage({ has_more: false }, buildParams());
         await loadTaskDetail("");
+      } finally {
+        boardLoadInFlight = false;
       }
     }
 
@@ -1061,6 +1106,10 @@
       loadBoard();
     });
 
+    autoRefreshCheckbox.addEventListener("change", () => {
+      setAutoRefresh(autoRefreshCheckbox.checked);
+    });
+
     taskRows.addEventListener("click", (event) => {
       const button = event.target.closest("[data-task-id]");
       if (!button) {
@@ -1073,6 +1122,7 @@
     retryTaskButton.addEventListener("click", () => executeTaskAction("retry"));
 
     readParamsFromURL();
+    setAutoRefresh(false);
     loadBoard();
   </script>
 </body>

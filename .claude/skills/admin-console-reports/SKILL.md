@@ -37,6 +37,7 @@ Provide a practical operator UI for evaluation and runtime analysis while keepin
 9. Prefer operator actions that call existing workflow/task endpoints over introducing admin-only write surfaces.
 10. If contract changes are necessary, change backend and docs first, then UI.
 11. When execution provenance already exists in fields such as `audit_ref`, prefer deriving trace or workflow deep links in the UI over adding redundant backend fields.
+12. For operator monitoring, prefer lightweight polling against existing read models before inventing new backend watch or subscription contracts.
 
 ## Output contract
 When you finish, always report:
