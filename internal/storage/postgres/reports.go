@@ -10,11 +10,16 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"opspilot-go/internal/report"
+	"opspilot-go/internal/workflow"
 )
 
 // ReportStore persists report read models in PostgreSQL.
 type ReportStore struct {
 	pool *pgxpool.Pool
+}
+
+type reportQuerier interface {
+	QueryRow(ctx context.Context, sql string, args ...any) pgx.Row
 }
 
 // NewReportStore constructs the report repository.
@@ -24,72 +29,44 @@ func NewReportStore(pool *pgxpool.Pool) *ReportStore {
 
 // Save inserts or updates a durable report record.
 func (s *ReportStore) Save(ctx context.Context, item report.Report) (report.Report, error) {
-	const query = `
-INSERT INTO reports (
-    id,
-    tenant_id,
-    source_task_id,
-    report_type,
-    status,
-    title,
-    summary,
-    content_uri,
-    metadata_json,
-    created_by,
-    created_at,
-    ready_at
-) VALUES (
-    $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12
-)
-ON CONFLICT (id) DO UPDATE SET
-    tenant_id = EXCLUDED.tenant_id,
-    source_task_id = EXCLUDED.source_task_id,
-    report_type = EXCLUDED.report_type,
-    status = EXCLUDED.status,
-    title = EXCLUDED.title,
-    summary = EXCLUDED.summary,
-    content_uri = EXCLUDED.content_uri,
-    metadata_json = EXCLUDED.metadata_json,
-    created_by = EXCLUDED.created_by,
-    created_at = EXCLUDED.created_at,
-    ready_at = EXCLUDED.ready_at
-RETURNING
-    id,
-    tenant_id,
-    source_task_id,
-    report_type,
-    status,
-    title,
-    summary,
-    content_uri,
-    metadata_json,
-    created_by,
-    created_at,
-    ready_at`
-
-	row := s.pool.QueryRow(
-		ctx,
-		query,
-		item.ID,
-		item.TenantID,
-		item.SourceTaskID,
-		item.ReportType,
-		item.Status,
-		item.Title,
-		item.Summary,
-		item.ContentURI,
-		item.MetadataJSON,
-		item.CreatedBy,
-		item.CreatedAt,
-		item.ReadyAt,
-	)
-
-	saved, err := scanReport(row)
+	saved, err := s.save(ctx, s.pool, item)
 	if err != nil {
 		return report.Report{}, err
 	}
 
 	return saved, nil
+}
+
+// FinalizeSucceededTaskWithReport atomically writes the durable report and the
+// successful workflow task transition.
+func (s *ReportStore) FinalizeSucceededTaskWithReport(ctx context.Context, task workflow.Task, event workflow.AuditEvent, item report.Report) (report.Report, workflow.Task, error) {
+	var saved report.Report
+	var updated workflow.Task
+	tx, err := s.pool.Begin(ctx)
+	if err != nil {
+		return report.Report{}, workflow.Task{}, fmt.Errorf("begin report finalization transaction: %w", err)
+	}
+	defer func() {
+		_ = tx.Rollback(ctx)
+	}()
+
+	row := tx.QueryRow(ctx, updateTaskQuery, task.ID, task.Status, task.ErrorReason, task.AuditRef, task.UpdatedAt)
+	updated, err = scanTask(row)
+	if err != nil {
+		return report.Report{}, workflow.Task{}, err
+	}
+	if _, err := (&WorkflowTaskStore{}).appendTaskEvent(ctx, tx, event); err != nil {
+		return report.Report{}, workflow.Task{}, err
+	}
+	saved, err = s.save(ctx, tx, item)
+	if err != nil {
+		return report.Report{}, workflow.Task{}, err
+	}
+	if err := tx.Commit(ctx); err != nil {
+		return report.Report{}, workflow.Task{}, fmt.Errorf("commit report finalization transaction: %w", err)
+	}
+
+	return saved, updated, nil
 }
 
 // Get loads a report by ID.
@@ -149,4 +126,73 @@ func scanReport(row pgx.Row) (report.Report, error) {
 	item.MetadataJSON = metadata
 
 	return item, nil
+}
+
+func (s *ReportStore) save(ctx context.Context, db reportQuerier, item report.Report) (report.Report, error) {
+	const query = `
+INSERT INTO reports (
+    id,
+    tenant_id,
+    source_task_id,
+    report_type,
+    status,
+    title,
+    summary,
+    content_uri,
+    metadata_json,
+    created_by,
+    created_at,
+    ready_at
+) VALUES (
+    $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12
+)
+ON CONFLICT (id) DO UPDATE SET
+    tenant_id = EXCLUDED.tenant_id,
+    source_task_id = EXCLUDED.source_task_id,
+    report_type = EXCLUDED.report_type,
+    status = EXCLUDED.status,
+    title = EXCLUDED.title,
+    summary = EXCLUDED.summary,
+    content_uri = EXCLUDED.content_uri,
+    metadata_json = EXCLUDED.metadata_json,
+    created_by = EXCLUDED.created_by,
+    created_at = EXCLUDED.created_at,
+    ready_at = EXCLUDED.ready_at
+RETURNING
+    id,
+    tenant_id,
+    source_task_id,
+    report_type,
+    status,
+    title,
+    summary,
+    content_uri,
+    metadata_json,
+    created_by,
+    created_at,
+    ready_at`
+
+	row := db.QueryRow(
+		ctx,
+		query,
+		item.ID,
+		item.TenantID,
+		item.SourceTaskID,
+		item.ReportType,
+		item.Status,
+		item.Title,
+		item.Summary,
+		item.ContentURI,
+		item.MetadataJSON,
+		item.CreatedBy,
+		item.CreatedAt,
+		item.ReadyAt,
+	)
+
+	saved, err := scanReport(row)
+	if err != nil {
+		return report.Report{}, err
+	}
+
+	return saved, nil
 }

@@ -55,3 +55,9 @@ func TestServiceRecordGeneratedReport(t *testing.T) {
 		t.Fatalf("metadata task_id = %v, want %q", metadata["task_id"], task.ID)
 	}
 }
+
+func TestServiceSupportsAtomicFinalizationDependsOnStore(t *testing.T) {
+	if NewService().SupportsAtomicFinalization() {
+		t.Fatal("SupportsAtomicFinalization() = true, want false for default memory store")
+	}
+}

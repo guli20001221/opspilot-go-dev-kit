@@ -83,7 +83,10 @@ Current Milestone 1 slice:
 - the same reports page now also supports optional 5-second auto-refresh against the existing admin read model, so operators can watch new successful reports arrive without manual reload
 - the same reports page now supports `Copy report summary` and `Copy report link`, both derived directly from the existing single-task detail response so report handoff stays contract-first
 - the same reports page now reads durable report metadata from `GET /api/v1/reports/{report_id}` while still using task detail for audit timeline and Temporal provenance
+- the same reports page can now reveal and copy the raw durable report JSON from `GET /api/v1/reports/{report_id}`, so operators can compare the report artifact directly with task provenance
+- the same reports page now degrades gracefully when a legacy successful report task has no durable report row yet, showing task provenance fallback instead of a broken detail pane
 - `GET /api/v1/reports/{report_id}` now exposes the durable report read model emitted by a successful `report_generation` task
+- successful report tasks now finalize their `succeeded` task state and durable report row together, so report `ready_at` and `metadata.audit_ref` stay aligned with the final task success event
 - common operator slices can now be applied from quick-view buttons instead of manually composing the same filters each time
 - the detail panel can now reveal the full single-task JSON payload and copy it to the clipboard for debugging and escalation flows
 - the same panel now also supports direct handoff into the canonical task detail URL, either by copying the current board link or opening the underlying API JSON directly

@@ -23,6 +23,14 @@ type ReportRecorder interface {
 	RecordGeneratedReport(ctx context.Context, task Task, result ExecutionResult) (string, error)
 }
 
+// AtomicReportRecorder persists report rows and the task success transition in
+// one storage operation when the underlying store supports it.
+type AtomicReportRecorder interface {
+	ReportRecorder
+	SupportsAtomicFinalization() bool
+	FinalizeGeneratedReportTask(ctx context.Context, task Task, result ExecutionResult, event AuditEvent) (Task, string, error)
+}
+
 // Runner claims queued tasks and advances them through the placeholder workflow path.
 type Runner struct {
 	service  *Service
@@ -60,17 +68,11 @@ func (r *Runner) ProcessNextBatch(ctx context.Context, limit int) (int, error) {
 
 	for _, task := range tasks {
 		result, execErr := r.executor.Execute(ctx, task)
-		action := AuditActionSucceeded
-		if execErr == nil && task.TaskType == TaskTypeReportGeneration && r.reports != nil {
-			if _, err := r.reports.RecordGeneratedReport(ctx, task, result); err != nil {
-				execErr = err
-			}
-		}
+
 		if execErr != nil {
 			task.Status = StatusFailed
 			task.ErrorReason = summarizeExecutionError(execErr)
 			task.AuditRef = fallbackAuditRef(result.AuditRef, "worker:placeholder_failed")
-			action = AuditActionFailed
 		} else {
 			task.Status = StatusSucceeded
 			task.ErrorReason = ""
@@ -78,6 +80,38 @@ func (r *Runner) ProcessNextBatch(ctx context.Context, limit int) (int, error) {
 		}
 
 		task.UpdatedAt = time.Now().UTC()
+		action := AuditActionSucceeded
+		if execErr == nil && task.TaskType == TaskTypeReportGeneration && r.reports != nil {
+			successEvent := AuditEvent{
+				TaskID:    task.ID,
+				Action:    AuditActionSucceeded,
+				Actor:     "worker",
+				Detail:    successOrFailureDetail(AuditActionSucceeded, result.Detail, "", task.Status),
+				CreatedAt: task.UpdatedAt,
+			}
+			if finalizer, ok := r.reports.(AtomicReportRecorder); ok && finalizer.SupportsAtomicFinalization() {
+				if _, _, err := finalizer.FinalizeGeneratedReportTask(ctx, task, result, successEvent); err == nil {
+					continue
+				} else {
+					task.Status = StatusFailed
+					task.ErrorReason = summarizeExecutionError(err)
+					task.AuditRef = fallbackAuditRef(result.AuditRef, "worker:placeholder_failed")
+					task.UpdatedAt = time.Now().UTC()
+					action = AuditActionFailed
+				}
+			} else {
+				if _, err := r.reports.RecordGeneratedReport(ctx, task, result); err != nil {
+					task.Status = StatusFailed
+					task.ErrorReason = summarizeExecutionError(err)
+					task.AuditRef = fallbackAuditRef(result.AuditRef, "worker:placeholder_failed")
+					task.UpdatedAt = time.Now().UTC()
+					action = AuditActionFailed
+				}
+			}
+		} else if execErr != nil {
+			action = AuditActionFailed
+		}
+
 		if _, err := r.service.store.UpdateTaskWithEvent(ctx, task, AuditEvent{
 			TaskID:    task.ID,
 			Action:    action,

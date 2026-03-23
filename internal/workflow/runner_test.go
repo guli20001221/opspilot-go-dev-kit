@@ -288,6 +288,15 @@ func TestRunnerRecordsGeneratedReportOnSuccess(t *testing.T) {
 	if recorder.lastTaskID != created.ID {
 		t.Fatalf("recorder.lastTaskID = %q, want %q", recorder.lastTaskID, created.ID)
 	}
+	if recorder.lastTaskAuditRef != "temporal:workflow:task-1/run-1" {
+		t.Fatalf("recorder.lastTaskAuditRef = %q, want final success audit ref", recorder.lastTaskAuditRef)
+	}
+	if recorder.lastTaskStatus != StatusSucceeded {
+		t.Fatalf("recorder.lastTaskStatus = %q, want %q", recorder.lastTaskStatus, StatusSucceeded)
+	}
+	if recorder.lastEvent.Action != AuditActionSucceeded {
+		t.Fatalf("recorder.lastEvent.Action = %q, want %q", recorder.lastEvent.Action, AuditActionSucceeded)
+	}
 }
 
 func TestRunnerFailsTaskWhenReportPersistenceFails(t *testing.T) {
@@ -326,6 +335,49 @@ func TestRunnerFailsTaskWhenReportPersistenceFails(t *testing.T) {
 	}
 }
 
+func TestRunnerFallsBackToNonAtomicReportRecorder(t *testing.T) {
+	svc := NewService()
+	recorder := &fakeNonAtomicReportRecorder{reportID: "report-task-non-atomic"}
+	runner := NewRunnerWithReports(svc, &fakeRunnerExecutor{
+		result: ExecutionResult{
+			AuditRef: "temporal:workflow:task-1/run-1",
+			Detail:   "generated:task-non-atomic",
+		},
+	}, recorder)
+
+	created, err := svc.Promote(context.Background(), PromoteRequest{
+		RequestID: "req-report-non-atomic",
+		TenantID:  "tenant-1",
+		SessionID: "session-1",
+		TaskType:  TaskTypeReportGeneration,
+		Reason:    PromotionReasonWorkflowRequired,
+	})
+	if err != nil {
+		t.Fatalf("Promote() error = %v", err)
+	}
+
+	if _, err := runner.ProcessNextBatch(context.Background(), 10); err != nil {
+		t.Fatalf("ProcessNextBatch() error = %v", err)
+	}
+
+	got, err := svc.GetTask(context.Background(), created.ID)
+	if err != nil {
+		t.Fatalf("GetTask() error = %v", err)
+	}
+	if got.Status != StatusSucceeded {
+		t.Fatalf("Status = %q, want %q", got.Status, StatusSucceeded)
+	}
+	if recorder.calls != 1 {
+		t.Fatalf("recorder.calls = %d, want %d", recorder.calls, 1)
+	}
+	if recorder.lastTaskStatus != StatusSucceeded {
+		t.Fatalf("recorder.lastTaskStatus = %q, want %q", recorder.lastTaskStatus, StatusSucceeded)
+	}
+	if recorder.lastTaskAuditRef != "temporal:workflow:task-1/run-1" {
+		t.Fatalf("recorder.lastTaskAuditRef = %q, want final success audit ref", recorder.lastTaskAuditRef)
+	}
+}
+
 type fakeRunnerExecutor struct {
 	result ExecutionResult
 	err    error
@@ -336,15 +388,58 @@ func (f *fakeRunnerExecutor) Execute(_ context.Context, _ Task) (ExecutionResult
 }
 
 type fakeReportRecorder struct {
-	reportID   string
-	err        error
-	calls      int
-	lastTaskID string
+	reportID         string
+	err              error
+	calls            int
+	lastTaskID       string
+	lastTaskAuditRef string
+	lastTaskStatus   string
+	lastEvent        AuditEvent
+}
+
+type fakeNonAtomicReportRecorder struct {
+	reportID         string
+	err              error
+	calls            int
+	lastTaskID       string
+	lastTaskAuditRef string
+	lastTaskStatus   string
 }
 
 func (f *fakeReportRecorder) RecordGeneratedReport(_ context.Context, task Task, _ ExecutionResult) (string, error) {
 	f.calls++
 	f.lastTaskID = task.ID
+	f.lastTaskAuditRef = task.AuditRef
+	f.lastTaskStatus = task.Status
+	if f.err != nil {
+		return "", f.err
+	}
+
+	return f.reportID, nil
+}
+
+func (f *fakeReportRecorder) FinalizeGeneratedReportTask(_ context.Context, task Task, _ ExecutionResult, event AuditEvent) (Task, string, error) {
+	f.calls++
+	f.lastTaskID = task.ID
+	f.lastTaskAuditRef = task.AuditRef
+	f.lastTaskStatus = task.Status
+	f.lastEvent = event
+	if f.err != nil {
+		return Task{}, "", f.err
+	}
+
+	return task, f.reportID, nil
+}
+
+func (f *fakeReportRecorder) SupportsAtomicFinalization() bool {
+	return true
+}
+
+func (f *fakeNonAtomicReportRecorder) RecordGeneratedReport(_ context.Context, task Task, _ ExecutionResult) (string, error) {
+	f.calls++
+	f.lastTaskID = task.ID
+	f.lastTaskAuditRef = task.AuditRef
+	f.lastTaskStatus = task.Status
 	if f.err != nil {
 		return "", f.err
 	}

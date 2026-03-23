@@ -51,6 +51,7 @@ Move long-running, retryable, or approval-gated work into a durable workflow lay
 18. When an approval workflow is meant to execute a real tool after approval, persist the tool name and typed arguments on the task record so the worker activity does not have to reconstruct intent from free-form text.
 19. Keep `error_reason` concise for operators, and put richer success or failure categorization into structured task audit events when you need more detail without changing the API shape.
 20. When a successful workflow emits a durable artifact such as a report, persist that artifact in a separate read-model store from the worker-side success path rather than overloading the task row with artifact fields.
+21. When task success and durable artifact persistence must stay consistent, prefer finalizing the task success event and artifact write in one storage transaction so `audit_ref`, `ready_at`, and operator-visible state do not drift.
 
 ## Output contract
 When you finish, always report:

@@ -90,7 +90,10 @@ The current chat stream implementation is a Milestone 1 skeleton:
 - enable `Auto refresh every 5s` on `/admin/reports` when you want the report lane and selected report detail to track newly completed reports without manual reload
 - use `Copy report summary` on `/admin/reports` when you need a compact, paste-ready handoff note for the selected successful report, and `Copy report link` when you want to share the exact filtered reports URL with the current report selected
 - the `/admin/reports` detail panel now reads report title, summary, and ready time from `GET /api/v1/reports/{report_id}`, while still using task detail for audit timeline and Temporal history handoff
+- use `Show raw report JSON` on `/admin/reports` when you need the exact durable report artifact, and `Copy raw report JSON` when you want to paste that artifact into an incident or escalation thread
+- if a legacy successful report task has no durable report row yet, `/admin/reports` now falls back to task provenance and keeps the detail panel readable instead of failing the inspect flow
 - use `GET /api/v1/reports/report-<task_id>` when you need the canonical report read model behind a successful report task, without parsing task audit history yourself
+- successful `report_generation` tasks now finalize the durable report row and task `succeeded` transition together, so `ready_at` and report `metadata.audit_ref` line up with the final task state
 - the local Compose app services now start from dedicated runtime images, which removes the previous startup dependence on downloading Go modules inside the running container
 - the last successful `audit_event.detail` now carries an execution summary, such as which ticket comment was created
 - failed `audit_event.detail` values now carry a coarse category prefix, such as `validation_error:` or `authorization_error:`

@@ -15,9 +15,14 @@ type Store interface {
 	Get(ctx context.Context, reportID string) (Report, error)
 }
 
+type taskReportFinalizingStore interface {
+	FinalizeSucceededTaskWithReport(ctx context.Context, task workflow.Task, event workflow.AuditEvent, item Report) (Report, workflow.Task, error)
+}
+
 // Service manages durable report read models.
 type Service struct {
-	store Store
+	store     Store
+	finalizer taskReportFinalizingStore
 }
 
 // NewService constructs the report service with a memory-backed default store.
@@ -31,7 +36,12 @@ func NewServiceWithStore(store Store) *Service {
 		store = newMemoryStore()
 	}
 
-	return &Service{store: store}
+	service := &Service{store: store}
+	if finalizer, ok := store.(taskReportFinalizingStore); ok {
+		service.finalizer = finalizer
+	}
+
+	return service
 }
 
 // GetReport returns a report by ID.
@@ -41,6 +51,61 @@ func (s *Service) GetReport(ctx context.Context, reportID string) (Report, error
 
 // RecordGeneratedReport persists the durable report emitted by a successful task.
 func (s *Service) RecordGeneratedReport(ctx context.Context, task workflow.Task, result workflow.ExecutionResult) (string, error) {
+	record := buildGeneratedReport(task, result)
+	saved, err := s.store.Save(ctx, record)
+	if err != nil {
+		return "", err
+	}
+
+	return saved.ID, nil
+}
+
+// FinalizeGeneratedReportTask atomically persists the report and successful task state
+// when the underlying store supports combined task/report transactions.
+func (s *Service) FinalizeGeneratedReportTask(ctx context.Context, task workflow.Task, result workflow.ExecutionResult, event workflow.AuditEvent) (workflow.Task, string, error) {
+	record := buildGeneratedReport(task, result)
+	if s.finalizer == nil {
+		return workflow.Task{}, "", fmt.Errorf("report store does not support atomic task finalization")
+	}
+
+	saved, updated, err := s.finalizer.FinalizeSucceededTaskWithReport(ctx, task, event, record)
+	if err != nil {
+		return workflow.Task{}, "", err
+	}
+
+	return updated, saved.ID, nil
+}
+
+// SupportsAtomicFinalization reports whether the underlying store can finalize
+// task success and report persistence in one combined write path.
+func (s *Service) SupportsAtomicFinalization() bool {
+	return s.finalizer != nil
+}
+
+// ReportIDFromTaskID derives the stable report ID for a workflow task.
+func ReportIDFromTaskID(taskID string) string {
+	return "report-" + taskID
+}
+
+func buildMetadata(task workflow.Task, result workflow.ExecutionResult, readyAt time.Time) json.RawMessage {
+	payload, err := json.Marshal(map[string]any{
+		"task_id":           task.ID,
+		"request_id":        task.RequestID,
+		"session_id":        task.SessionID,
+		"task_type":         task.TaskType,
+		"reason":            task.Reason,
+		"audit_ref":         task.AuditRef,
+		"execution_summary": result.Detail,
+		"ready_at":          readyAt.Format(time.RFC3339Nano),
+	})
+	if err != nil {
+		return json.RawMessage(`{}`)
+	}
+
+	return payload
+}
+
+func buildGeneratedReport(task workflow.Task, result workflow.ExecutionResult) Report {
 	now := task.UpdatedAt
 	if now.IsZero() {
 		now = time.Now().UTC()
@@ -65,35 +130,7 @@ func (s *Service) RecordGeneratedReport(ctx context.Context, task workflow.Task,
 		record.CreatedAt = now
 	}
 
-	saved, err := s.store.Save(ctx, record)
-	if err != nil {
-		return "", err
-	}
-
-	return saved.ID, nil
-}
-
-// ReportIDFromTaskID derives the stable report ID for a workflow task.
-func ReportIDFromTaskID(taskID string) string {
-	return "report-" + taskID
-}
-
-func buildMetadata(task workflow.Task, result workflow.ExecutionResult, readyAt time.Time) json.RawMessage {
-	payload, err := json.Marshal(map[string]any{
-		"task_id":           task.ID,
-		"request_id":        task.RequestID,
-		"session_id":        task.SessionID,
-		"task_type":         task.TaskType,
-		"reason":            task.Reason,
-		"audit_ref":         task.AuditRef,
-		"execution_summary": result.Detail,
-		"ready_at":          readyAt.Format(time.RFC3339Nano),
-	})
-	if err != nil {
-		return json.RawMessage(`{}`)
-	}
-
-	return payload
+	return record
 }
 
 func fallbackString(value string, fallback string) string {

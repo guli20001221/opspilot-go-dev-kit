@@ -496,6 +496,8 @@
       <div class="detail-actions">
         <button class="ghost" type="button" id="prevReportButton" hidden>Previous visible</button>
         <button class="ghost" type="button" id="nextReportButton" hidden>Next visible</button>
+        <button class="ghost" type="button" id="toggleReportJSONButton" hidden>Show raw report JSON</button>
+        <button class="ghost" type="button" id="copyReportJSONButton" hidden>Copy raw report JSON</button>
         <button class="ghost" type="button" id="copyReportSummaryButton" hidden>Copy report summary</button>
         <button class="ghost" type="button" id="copyReportLinkButton" hidden>Copy report link</button>
       </div>
@@ -521,6 +523,8 @@
     const openBoardForCurrentLink = document.getElementById("openBoardForCurrentLink");
     const prevReportButton = document.getElementById("prevReportButton");
     const nextReportButton = document.getElementById("nextReportButton");
+    const toggleReportJSONButton = document.getElementById("toggleReportJSONButton");
+    const copyReportJSONButton = document.getElementById("copyReportJSONButton");
     const copyReportSummaryButton = document.getElementById("copyReportSummaryButton");
     const copyReportLinkButton = document.getElementById("copyReportLinkButton");
     const reportDetailStatusNote = document.getElementById("reportDetailStatusNote");
@@ -532,6 +536,7 @@
     let currentReportDetail = null;
     let reportLoadInFlight = false;
     let autoRefreshTimer = null;
+    let rawReportJSONVisible = false;
 
     function escapeHTML(value) {
       return String(value ?? "")
@@ -615,6 +620,13 @@
         `Reasons: workflow ${summary.reason_counts?.workflow_required ?? 0}, approval ${summary.reason_counts?.approval_required ?? 0}`;
       summaryTypes.textContent =
         `Task types: report ${summary.task_type_counts?.report_generation ?? 0}, approved-tool ${summary.task_type_counts?.approved_tool_execution ?? 0}`;
+    }
+
+    function setReportJSONActionsVisible(visible) {
+      toggleReportJSONButton.hidden = !visible;
+      copyReportJSONButton.hidden = !visible;
+      toggleReportJSONButton.style.display = visible ? "" : "none";
+      copyReportJSONButton.style.display = visible ? "" : "none";
     }
 
     function renderRows(items) {
@@ -709,9 +721,13 @@
       const reportAPIURL = `${reportEndpointBase}${encodeURIComponent(reportID)}`;
       const taskBoardURL = `/admin/task-board?tenant_id=${encodeURIComponent(task.tenant_id)}&task_id=${encodeURIComponent(task.task_id)}&status=succeeded&task_type=report_generation&offset=0&limit=${encodeURIComponent(form.elements.namedItem("limit").value || "10")}`;
       openBoardForCurrentLink.href = taskBoardURL;
+      setReportJSONActionsVisible(Boolean(report));
       copyReportSummaryButton.hidden = false;
       copyReportLinkButton.hidden = false;
-      reportDetailStatusNote.textContent = "Current report detail is ready for handoff actions.";
+      reportDetailStatusNote.textContent = report
+        ? "Current report detail is ready for handoff actions."
+        : "Durable report row is missing; showing task provenance fallback.";
+      toggleReportJSONButton.textContent = rawReportJSONVisible ? "Hide raw report JSON" : "Show raw report JSON";
 
       const events = Array.isArray(task.audit_events) ? task.audit_events : [];
       const executionSummary = [...events].reverse().find((event) => event.action === "succeeded")?.detail
@@ -776,6 +792,13 @@
             </div>
           </div>
 
+          ${rawReportJSONVisible ? `
+            <div class="detail-card">
+              <h3 style="margin-top:0;">Raw report JSON</h3>
+              <pre style="margin:0; overflow:auto; font-size:0.85rem; line-height:1.5;">${escapeHTML(JSON.stringify(report, null, 2))}</pre>
+            </div>
+          ` : ""}
+
           <div class="detail-card">
             <h3 style="margin-top:0;">Audit timeline</h3>
             <div class="timeline">
@@ -799,8 +822,10 @@
         currentTaskID = "";
         currentTaskDetail = null;
         currentReportDetail = null;
+        rawReportJSONVisible = false;
         reportDetail.innerHTML = '<div class="empty">No report selected yet.</div>';
         openBoardForCurrentLink.href = "/admin/task-board";
+        setReportJSONActionsVisible(false);
         copyReportSummaryButton.hidden = true;
         copyReportLinkButton.hidden = true;
         reportDetailStatusNote.textContent = "Select a report task to reveal shareable handoff actions.";
@@ -823,6 +848,11 @@
         const reportResponse = await fetch(`${reportEndpointBase}${encodeURIComponent(reportID)}`, {
           headers: { "Accept": "application/json" }
         });
+        if (reportResponse.status === 404) {
+          rawReportJSONVisible = false;
+          renderDetail(task, null);
+          return;
+        }
         if (!reportResponse.ok) {
           throw new Error(`Report detail request failed: ${reportResponse.statusText}`);
         }
@@ -830,6 +860,7 @@
       } catch (error) {
         currentTaskDetail = null;
         currentReportDetail = null;
+        setReportJSONActionsVisible(false);
         copyReportSummaryButton.hidden = true;
         copyReportLinkButton.hidden = true;
         reportDetailStatusNote.textContent = "Unable to load the selected report detail.";
@@ -947,6 +978,26 @@
       }
     }
 
+    async function copyReportJSON() {
+      if (!currentReportDetail) {
+        return;
+      }
+
+      const originalText = copyReportJSONButton.textContent;
+      try {
+        await navigator.clipboard.writeText(JSON.stringify(currentReportDetail, null, 2));
+        copyReportJSONButton.textContent = "JSON copied";
+        reportDetailStatusNote.textContent = "Copied the durable report JSON for the current detail.";
+      } catch (error) {
+        copyReportJSONButton.textContent = "Copy failed";
+        reportDetailStatusNote.textContent = `Unable to copy report JSON: ${error.message || "clipboard write failed"}`;
+      } finally {
+        window.setTimeout(() => {
+          copyReportJSONButton.textContent = originalText;
+        }, 1200);
+      }
+    }
+
     form.addEventListener("submit", (event) => {
       event.preventDefault();
       form.elements.namedItem("offset").value = "0";
@@ -970,6 +1021,14 @@
 
     prevReportButton.addEventListener("click", () => navigateVisible(-1));
     nextReportButton.addEventListener("click", () => navigateVisible(1));
+    toggleReportJSONButton.addEventListener("click", () => {
+      if (!currentTaskDetail || !currentReportDetail) {
+        return;
+      }
+      rawReportJSONVisible = !rawReportJSONVisible;
+      renderDetail(currentTaskDetail, currentReportDetail);
+    });
+    copyReportJSONButton.addEventListener("click", () => copyReportJSON());
     copyReportSummaryButton.addEventListener("click", () => copyReportSummary());
     copyReportLinkButton.addEventListener("click", () => copyReportLink());
     autoRefreshToggle.addEventListener("change", () => syncAutoRefresh());

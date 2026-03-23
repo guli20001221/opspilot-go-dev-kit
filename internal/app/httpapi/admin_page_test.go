@@ -189,6 +189,12 @@ func TestAdminReportsPageRendersHTML(t *testing.T) {
 	if !strings.Contains(body, "Copy report link") {
 		t.Fatal("report link handoff action missing from reports page HTML")
 	}
+	if !strings.Contains(body, "Show raw report JSON") {
+		t.Fatal("report raw json toggle missing from reports page HTML")
+	}
+	if !strings.Contains(body, "Copy raw report JSON") {
+		t.Fatal("report raw json copy action missing from reports page HTML")
+	}
 	if !strings.Contains(body, "Open report API detail") {
 		t.Fatal("report api handoff link missing from reports page HTML")
 	}
