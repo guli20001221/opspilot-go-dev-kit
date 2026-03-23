@@ -183,6 +183,9 @@ func TestAdminReportsPageRendersHTML(t *testing.T) {
 	if !strings.Contains(body, "Previous visible") {
 		t.Fatal("report detail navigation controls missing from reports page HTML")
 	}
+	if !strings.Contains(body, "Auto refresh") {
+		t.Fatal("report lane auto refresh controls missing from reports page HTML")
+	}
 	if !strings.Contains(body, "task-row-selected") {
 		t.Fatal("selected report row styling missing from reports page HTML")
 	}

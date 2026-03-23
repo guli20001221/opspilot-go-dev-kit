@@ -85,6 +85,7 @@ The current chat stream implementation is a Milestone 1 skeleton:
 - use `Focus same status` when you want the board to narrow to the selected task state, for example all `waiting_approval`, `running`, or `failed` tasks in the current tenant
 - `GET /admin/reports` fixes the lane to successful report-generation tasks and reuses the same backend contracts, so you can inspect report execution provenance without manually composing board filters each time
 - use `Previous visible` and `Next visible` on `/admin/reports` when you want to step through the current visible report slice without bouncing back to the board list
+- enable `Auto refresh every 5s` on `/admin/reports` when you want the report lane and selected report detail to track newly completed reports without manual reload
 - the local Compose app services now start from dedicated runtime images, which removes the previous startup dependence on downloading Go modules inside the running container
 - the last successful `audit_event.detail` now carries an execution summary, such as which ticket comment was created
 - failed `audit_event.detail` values now carry a coarse category prefix, such as `validation_error:` or `authorization_error:`

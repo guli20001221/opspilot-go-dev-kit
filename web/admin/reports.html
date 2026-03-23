@@ -376,6 +376,19 @@
       margin-top: 10px;
     }
 
+    .monitor-toggle {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      color: var(--muted);
+      font-size: 0.88rem;
+    }
+
+    .monitor-toggle input {
+      margin: 0;
+      accent-color: var(--accent);
+    }
+
     @media (max-width: 980px) {
       .layout { grid-template-columns: 1fr; }
     }
@@ -449,6 +462,13 @@
           <span id="summaryTypes">Task types: report 0, approved-tool 0</span>
         </div>
 
+        <div class="detail-actions" style="margin-bottom: 18px;">
+          <label class="monitor-toggle">
+            <input id="autoRefreshToggle" type="checkbox">
+            <span>Auto refresh every 5s</span>
+          </label>
+        </div>
+
         <div id="reportListState" class="loading">Loading report lane...</div>
         <div class="table-wrap" id="tableWrap" hidden>
           <table>
@@ -496,9 +516,12 @@
     const openBoardForCurrentLink = document.getElementById("openBoardForCurrentLink");
     const prevReportButton = document.getElementById("prevReportButton");
     const nextReportButton = document.getElementById("nextReportButton");
+    const autoRefreshToggle = document.getElementById("autoRefreshToggle");
 
     let currentItems = [];
     let currentTaskID = "";
+    let reportLoadInFlight = false;
+    let autoRefreshTimer = null;
 
     function escapeHTML(value) {
       return String(value ?? "")
@@ -746,6 +769,10 @@
     }
 
     async function loadReports(selectedTaskID = "") {
+      if (reportLoadInFlight) {
+        return;
+      }
+      reportLoadInFlight = true;
       reportListState.hidden = false;
       reportListState.className = "loading";
       reportListState.textContent = "Loading report lane...";
@@ -779,7 +806,22 @@
         reportListState.className = "empty";
         reportListState.textContent = error.message || "Unable to load report lane.";
         reportDetail.innerHTML = '<div class="empty">Unable to load report detail because the report lane request failed.</div>';
+      } finally {
+        reportLoadInFlight = false;
       }
+    }
+
+    function syncAutoRefresh() {
+      if (autoRefreshTimer) {
+        window.clearInterval(autoRefreshTimer);
+        autoRefreshTimer = null;
+      }
+      if (!autoRefreshToggle.checked) {
+        return;
+      }
+      autoRefreshTimer = window.setInterval(() => {
+        loadReports(currentTaskID);
+      }, 5000);
     }
 
     form.addEventListener("submit", (event) => {
@@ -805,9 +847,11 @@
 
     prevReportButton.addEventListener("click", () => navigateVisible(-1));
     nextReportButton.addEventListener("click", () => navigateVisible(1));
+    autoRefreshToggle.addEventListener("change", () => syncAutoRefresh());
 
     const initialTaskID = populateFiltersFromURL();
     loadReports(initialTaskID);
+    syncAutoRefresh();
   </script>
 </body>
 </html>

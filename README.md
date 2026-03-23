@@ -79,6 +79,7 @@ Current Milestone 1 slice:
 - the same page can now poll the existing board and task-detail endpoints every 5 seconds when the operator enables auto-refresh
 - `GET /admin/reports` for the first report-focused operator page, fixed to the successful report lane while reusing the same admin task-board and task-detail contracts
 - the same reports page now supports visible-slice navigation, so operators can step through neighboring successful reports without returning to the task board
+- the same reports page now also supports optional 5-second auto-refresh against the existing admin read model, so operators can watch new successful reports arrive without manual reload
 - common operator slices can now be applied from quick-view buttons instead of manually composing the same filters each time
 - the detail panel can now reveal the full single-task JSON payload and copy it to the clipboard for debugging and escalation flows
 - the same panel now also supports direct handoff into the canonical task detail URL, either by copying the current board link or opening the underlying API JSON directly
