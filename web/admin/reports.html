@@ -1,0 +1,742 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>OpsPilot Reports</title>
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='16' fill='%231b4965'/%3E%3Cpath d='M18 18h28v28H18zm6 6h16v4H24zm0 8h16v4H24zm0 8h10v4H24z' fill='%23fff'/%3E%3C/svg%3E">
+  <style>
+    :root {
+      --bg: #eef3f8;
+      --panel: rgba(251, 253, 255, 0.9);
+      --ink: #14212b;
+      --muted: #5b6a78;
+      --line: rgba(20, 33, 43, 0.12);
+      --accent: #1d4ed8;
+      --accent-2: #155e75;
+      --success: #166534;
+      --shadow: 0 18px 48px rgba(39, 63, 88, 0.14);
+      --radius-lg: 24px;
+      --radius-md: 18px;
+      --radius-sm: 12px;
+      --font-sans: "Segoe UI Variable", "Aptos", "IBM Plex Sans", "Helvetica Neue", sans-serif;
+      --font-serif: "Iowan Old Style", "Georgia", serif;
+    }
+
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      min-height: 100vh;
+      font-family: var(--font-sans);
+      color: var(--ink);
+      background:
+        radial-gradient(circle at top left, rgba(29, 78, 216, 0.16), transparent 26%),
+        radial-gradient(circle at top right, rgba(21, 94, 117, 0.12), transparent 24%),
+        linear-gradient(180deg, #f4f8fc 0%, var(--bg) 46%, #e6edf5 100%);
+    }
+
+    .page {
+      width: min(1200px, calc(100% - 32px));
+      margin: 0 auto;
+      padding: 28px 0 40px;
+    }
+
+    .hero, .panel {
+      background: var(--panel);
+      border: 1px solid rgba(255, 255, 255, 0.8);
+      box-shadow: var(--shadow);
+      backdrop-filter: blur(18px);
+    }
+
+    .hero {
+      padding: 28px;
+      border-radius: 32px;
+      margin-bottom: 18px;
+      overflow: hidden;
+      position: relative;
+    }
+
+    .hero::after {
+      content: "";
+      position: absolute;
+      right: -56px;
+      bottom: -56px;
+      width: 220px;
+      height: 220px;
+      border-radius: 50%;
+      background: radial-gradient(circle, rgba(29, 78, 216, 0.18), rgba(29, 78, 216, 0));
+    }
+
+    .eyebrow {
+      margin: 0 0 12px;
+      font-size: 12px;
+      font-weight: 700;
+      letter-spacing: 0.18em;
+      text-transform: uppercase;
+      color: var(--accent);
+    }
+
+    h1 {
+      margin: 0 0 10px;
+      font-family: var(--font-serif);
+      font-size: clamp(2.1rem, 4vw, 3.2rem);
+      line-height: 0.95;
+      letter-spacing: -0.04em;
+    }
+
+    .lead {
+      max-width: 760px;
+      margin: 0;
+      color: var(--muted);
+      font-size: 1rem;
+      line-height: 1.6;
+    }
+
+    .hero-links {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      margin-top: 18px;
+    }
+
+    a.link-chip {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 9px 12px;
+      border-radius: 999px;
+      text-decoration: none;
+      color: var(--ink);
+      background: rgba(255, 255, 255, 0.78);
+      border: 1px solid rgba(20, 33, 43, 0.08);
+      font-size: 0.92rem;
+      font-weight: 600;
+    }
+
+    .layout {
+      display: grid;
+      gap: 18px;
+      grid-template-columns: minmax(280px, 320px) minmax(0, 1fr);
+      align-items: start;
+    }
+
+    .panel {
+      border-radius: var(--radius-lg);
+      padding: 20px;
+    }
+
+    .panel h2, .panel h3 {
+      margin: 0 0 8px;
+      font-size: 1rem;
+      letter-spacing: -0.02em;
+    }
+
+    .panel-copy {
+      margin: 0 0 18px;
+      color: var(--muted);
+      font-size: 0.92rem;
+      line-height: 1.5;
+    }
+
+    .filters {
+      display: grid;
+      gap: 12px;
+    }
+
+    .field {
+      display: grid;
+      gap: 6px;
+    }
+
+    .field label {
+      font-size: 0.82rem;
+      font-weight: 700;
+      color: var(--muted);
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+    }
+
+    .field input, .field select, button, a.button-link {
+      font: inherit;
+    }
+
+    .field input, .field select {
+      width: 100%;
+      border: 1px solid var(--line);
+      border-radius: var(--radius-sm);
+      padding: 11px 12px;
+      background: rgba(255, 255, 255, 0.94);
+      color: var(--ink);
+    }
+
+    .field input:focus, .field select:focus, button:focus, a.button-link:focus {
+      outline: 2px solid rgba(29, 78, 216, 0.22);
+      outline-offset: 2px;
+    }
+
+    .actions {
+      display: flex;
+      gap: 10px;
+      margin-top: 6px;
+      flex-wrap: wrap;
+    }
+
+    button, a.button-link {
+      border: none;
+      border-radius: 999px;
+      padding: 12px 18px;
+      font-weight: 700;
+      cursor: pointer;
+      transition: transform 120ms ease, box-shadow 120ms ease, background 120ms ease;
+      text-decoration: none;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    button:hover, a.button-link:hover { transform: translateY(-1px); }
+
+    .primary {
+      background: linear-gradient(135deg, var(--accent), var(--accent-2));
+      color: #fff;
+      box-shadow: 0 12px 24px rgba(29, 78, 216, 0.22);
+    }
+
+    .ghost {
+      background: rgba(255, 255, 255, 0.78);
+      color: var(--ink);
+      border: 1px solid rgba(20, 33, 43, 0.08);
+    }
+
+    .summary-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+      gap: 12px;
+      margin-bottom: 18px;
+    }
+
+    .summary-card {
+      border-radius: 16px;
+      border: 1px solid rgba(20, 33, 43, 0.08);
+      background: rgba(255, 255, 255, 0.78);
+      padding: 16px;
+      display: grid;
+      gap: 8px;
+    }
+
+    .summary-card small {
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      font-weight: 700;
+      color: var(--muted);
+    }
+
+    .summary-card strong {
+      font-size: 2rem;
+      font-family: var(--font-serif);
+      letter-spacing: -0.04em;
+    }
+
+    .summary-meta {
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+      margin-bottom: 18px;
+      color: var(--muted);
+      font-size: 0.9rem;
+    }
+
+    .summary-meta span {
+      padding: 8px 12px;
+      border-radius: 999px;
+      background: rgba(255, 255, 255, 0.78);
+      border: 1px solid rgba(20, 33, 43, 0.08);
+    }
+
+    .table-wrap {
+      overflow: auto;
+      border-radius: 18px;
+      border: 1px solid rgba(20, 33, 43, 0.08);
+      background: rgba(255, 255, 255, 0.74);
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+    }
+
+    th, td {
+      text-align: left;
+      padding: 14px 16px;
+      border-bottom: 1px solid rgba(20, 33, 43, 0.08);
+      vertical-align: top;
+    }
+
+    th {
+      font-size: 0.76rem;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: var(--muted);
+    }
+
+    td small {
+      display: block;
+      margin-top: 6px;
+      color: var(--muted);
+    }
+
+    .status {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 6px 10px;
+      border-radius: 999px;
+      font-size: 0.85rem;
+      font-weight: 700;
+      color: var(--success);
+      background: rgba(22, 101, 52, 0.12);
+    }
+
+    .loading, .empty {
+      padding: 18px;
+      border-radius: 16px;
+      background: rgba(255, 255, 255, 0.78);
+      border: 1px dashed rgba(20, 33, 43, 0.16);
+      color: var(--muted);
+    }
+
+    .detail {
+      display: grid;
+      gap: 14px;
+    }
+
+    .detail-card {
+      border-radius: 18px;
+      padding: 18px;
+      background: rgba(255, 255, 255, 0.78);
+      border: 1px solid rgba(20, 33, 43, 0.08);
+    }
+
+    .detail-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+      gap: 12px;
+    }
+
+    .detail-card dt {
+      margin: 0 0 6px;
+      font-size: 0.78rem;
+      color: var(--muted);
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      font-weight: 700;
+    }
+
+    .detail-card dd {
+      margin: 0;
+      color: var(--ink);
+      line-height: 1.5;
+      word-break: break-word;
+    }
+
+    .timeline {
+      display: grid;
+      gap: 10px;
+    }
+
+    .timeline-item {
+      border-radius: 14px;
+      padding: 12px 14px;
+      background: rgba(248, 250, 252, 0.9);
+      border: 1px solid rgba(20, 33, 43, 0.08);
+    }
+
+    .timeline-item strong {
+      display: block;
+      margin-bottom: 4px;
+    }
+
+    .timeline-item small {
+      color: var(--muted);
+    }
+
+    @media (max-width: 980px) {
+      .layout { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+  <main class="page">
+    <section class="hero">
+      <p class="eyebrow">OpsPilot Admin</p>
+      <h1>Report Lane</h1>
+      <p class="lead">
+        Operator-facing view over successful report-generation tasks. This page stays contract-first:
+        list data comes from <code>/api/v1/admin/task-board</code> with fixed report filters, and
+        drill-down reuses the existing <code>/api/v1/tasks/{task_id}</code> detail surface.
+      </p>
+      <div class="hero-links">
+        <a class="link-chip" href="/admin/task-board">Open Task Board</a>
+        <a class="link-chip" id="openBoardForCurrentLink" href="/admin/task-board">Open current report in Task Board</a>
+      </div>
+    </section>
+
+    <section class="layout">
+      <aside class="panel">
+        <h2>Filters</h2>
+        <p class="panel-copy">
+          This page keeps the report lane fixed to successful report-generation tasks. Operators only adjust tenant,
+          page size, and offset.
+        </p>
+        <form id="reportFilters" class="filters">
+          <div class="field">
+            <label for="tenant_id">Tenant</label>
+            <input id="tenant_id" name="tenant_id" type="text" placeholder="tenant-admin-example">
+          </div>
+          <div class="field">
+            <label for="limit">Page Size</label>
+            <input id="limit" name="limit" type="number" min="1" max="100" value="10">
+          </div>
+          <div class="field">
+            <label for="offset">Offset</label>
+            <input id="offset" name="offset" type="number" min="0" value="0">
+          </div>
+          <div class="actions">
+            <button class="primary" type="submit">Load reports</button>
+            <button class="ghost" type="button" id="resetFilters">Reset</button>
+          </div>
+        </form>
+      </aside>
+
+      <section class="panel">
+        <h2>Reports</h2>
+        <p class="panel-copy">
+          This report lane is derived from the existing admin task board read model. It is intentionally narrow: only
+          successful report tasks appear here.
+        </p>
+
+        <div class="summary-grid">
+          <article class="summary-card">
+            <small>Visible reports</small>
+            <strong id="visibleCount">0</strong>
+            <span>Current slice size for successful report tasks.</span>
+          </article>
+          <article class="summary-card">
+            <small>Latest update</small>
+            <strong id="latestUpdated">Unknown</strong>
+            <span>Most recent report task update in the current slice.</span>
+          </article>
+        </div>
+
+        <div class="summary-meta">
+          <span id="summaryReasons">Reasons: workflow 0, approval 0</span>
+          <span id="summaryTypes">Task types: report 0, approved-tool 0</span>
+        </div>
+
+        <div id="reportListState" class="loading">Loading report lane...</div>
+        <div class="table-wrap" id="tableWrap" hidden>
+          <table>
+            <thead>
+              <tr>
+                <th>Task</th>
+                <th>Status</th>
+                <th>Tenant</th>
+                <th>Updated</th>
+                <th>Inspect</th>
+              </tr>
+            </thead>
+            <tbody id="reportRows"></tbody>
+          </table>
+        </div>
+      </section>
+    </section>
+
+    <section class="panel" style="margin-top: 18px;">
+      <h2>Report Detail</h2>
+      <p class="panel-copy">
+        Pick a report task to inspect execution provenance, task audit, and a direct handoff path back to the task board.
+      </p>
+      <div id="reportDetail" class="empty">No report selected yet.</div>
+    </section>
+  </main>
+
+  <script>
+    const boardEndpoint = "/api/v1/admin/task-board";
+    const taskEndpointBase = "/api/v1/tasks/";
+    const form = document.getElementById("reportFilters");
+    const resetFiltersButton = document.getElementById("resetFilters");
+    const reportListState = document.getElementById("reportListState");
+    const tableWrap = document.getElementById("tableWrap");
+    const reportRows = document.getElementById("reportRows");
+    const reportDetail = document.getElementById("reportDetail");
+    const visibleCount = document.getElementById("visibleCount");
+    const latestUpdated = document.getElementById("latestUpdated");
+    const summaryReasons = document.getElementById("summaryReasons");
+    const summaryTypes = document.getElementById("summaryTypes");
+    const openBoardForCurrentLink = document.getElementById("openBoardForCurrentLink");
+
+    let currentItems = [];
+    let currentTaskID = "";
+
+    function escapeHTML(value) {
+      return String(value ?? "")
+        .replaceAll("&", "&amp;")
+        .replaceAll("<", "&lt;")
+        .replaceAll(">", "&gt;")
+        .replaceAll("\"", "&quot;")
+        .replaceAll("'", "&#39;");
+    }
+
+    function fmtDate(value) {
+      if (!value) {
+        return "Unknown";
+      }
+      const date = new Date(value);
+      if (Number.isNaN(date.valueOf())) {
+        return value;
+      }
+      return new Intl.DateTimeFormat(undefined, {
+        year: "numeric",
+        month: "short",
+        day: "2-digit",
+        hour: "2-digit",
+        minute: "2-digit",
+        second: "2-digit"
+      }).format(date);
+    }
+
+    function parseTemporalRef(auditRef) {
+      if (!auditRef || !auditRef.startsWith("temporal:workflow:")) {
+        return null;
+      }
+      const remainder = auditRef.slice("temporal:workflow:".length);
+      const splitIndex = remainder.lastIndexOf("/");
+      if (splitIndex <= 0 || splitIndex >= remainder.length - 1) {
+        return null;
+      }
+      return {
+        workflowID: remainder.slice(0, splitIndex),
+        runID: remainder.slice(splitIndex + 1)
+      };
+    }
+
+    function buildParams() {
+      const params = new URLSearchParams();
+      const tenantID = form.elements.namedItem("tenant_id").value.trim();
+      const limit = form.elements.namedItem("limit").value;
+      const offset = form.elements.namedItem("offset").value;
+      if (tenantID) params.set("tenant_id", tenantID);
+      if (limit) params.set("limit", limit);
+      if (offset) params.set("offset", offset);
+      params.set("status", "succeeded");
+      params.set("task_type", "report_generation");
+      return params;
+    }
+
+    function syncURL(taskID = "") {
+      const params = buildParams();
+      if (taskID) {
+        params.set("task_id", taskID);
+      }
+      history.replaceState(null, "", `/admin/reports?${params.toString()}`);
+    }
+
+    function populateFiltersFromURL() {
+      const params = new URLSearchParams(window.location.search);
+      form.elements.namedItem("tenant_id").value = params.get("tenant_id") || "";
+      form.elements.namedItem("limit").value = params.get("limit") || "10";
+      form.elements.namedItem("offset").value = params.get("offset") || "0";
+      return params.get("task_id") || "";
+    }
+
+    function renderSummary(summary) {
+      visibleCount.textContent = String(summary.visible_count ?? 0);
+      latestUpdated.textContent = summary.latest_updated_at ? fmtDate(summary.latest_updated_at) : "Unknown";
+      summaryReasons.textContent =
+        `Reasons: workflow ${summary.reason_counts?.workflow_required ?? 0}, approval ${summary.reason_counts?.approval_required ?? 0}`;
+      summaryTypes.textContent =
+        `Task types: report ${summary.task_type_counts?.report_generation ?? 0}, approved-tool ${summary.task_type_counts?.approved_tool_execution ?? 0}`;
+    }
+
+    function renderRows(items) {
+      currentItems = Array.isArray(items) ? items : [];
+      if (!currentItems.length) {
+        tableWrap.hidden = true;
+        reportListState.hidden = false;
+        reportListState.className = "empty";
+        reportListState.textContent = "No successful report tasks matched the current slice.";
+        return;
+      }
+
+      reportListState.hidden = true;
+      tableWrap.hidden = false;
+      reportRows.innerHTML = currentItems.map((item) => `
+        <tr data-task-row="${escapeHTML(item.task_id)}">
+          <td>
+            <strong>${escapeHTML(item.task_id)}</strong>
+            <small>${item.session_id ? `session: ${escapeHTML(item.session_id)}` : "No session id"}</small>
+          </td>
+          <td><span class="status">${escapeHTML(item.status)}</span></td>
+          <td>
+            <strong>${escapeHTML(item.tenant_id)}</strong>
+            <small>${item.request_id ? `request: ${escapeHTML(item.request_id)}` : "No request id"}</small>
+          </td>
+          <td>
+            <strong>${escapeHTML(fmtDate(item.updated_at))}</strong>
+            <small>created ${escapeHTML(fmtDate(item.created_at))}</small>
+          </td>
+          <td><button class="ghost" type="button" data-task-id="${escapeHTML(item.task_id)}">Inspect</button></td>
+        </tr>
+      `).join("");
+    }
+
+    function renderDetail(task) {
+      currentTaskID = task.task_id;
+      syncURL(task.task_id);
+      const temporal = parseTemporalRef(task.audit_ref);
+      const taskBoardURL = `/admin/task-board?tenant_id=${encodeURIComponent(task.tenant_id)}&task_id=${encodeURIComponent(task.task_id)}&status=succeeded&task_type=report_generation&offset=0&limit=${encodeURIComponent(form.elements.namedItem("limit").value || "10")}`;
+      openBoardForCurrentLink.href = taskBoardURL;
+
+      const events = Array.isArray(task.audit_events) ? task.audit_events : [];
+      const executionSummary = [...events].reverse().find((event) => event.action === "succeeded")?.detail
+        || task.audit_ref
+        || "No report execution summary recorded.";
+
+      reportDetail.innerHTML = `
+        <div class="detail">
+          <div class="detail-grid">
+            <dl class="detail-card">
+              <dt>Task ID</dt>
+              <dd>${escapeHTML(task.task_id)}</dd>
+            </dl>
+            <dl class="detail-card">
+              <dt>Tenant</dt>
+              <dd>${escapeHTML(task.tenant_id)}</dd>
+            </dl>
+            <dl class="detail-card">
+              <dt>Session</dt>
+              <dd>${escapeHTML(task.session_id || "none")}</dd>
+            </dl>
+            <dl class="detail-card">
+              <dt>Execution summary</dt>
+              <dd>${escapeHTML(executionSummary)}</dd>
+            </dl>
+          </div>
+
+          <div class="detail-grid">
+            <div class="detail-card">
+              <h3 style="margin-top:0;">Handoff</h3>
+              <div class="actions">
+                <a class="button-link ghost" href="${taskBoardURL}">Open Task Board</a>
+                <a class="button-link ghost" href="${taskEndpointBase}${encodeURIComponent(task.task_id)}" target="_blank" rel="noreferrer">Open API detail</a>
+                ${temporal ? `<a class="button-link ghost" href="http://localhost:8088/namespaces/default/workflows/${encodeURIComponent(temporal.workflowID)}/${encodeURIComponent(temporal.runID)}/history" target="_blank" rel="noreferrer">Open Temporal history</a>` : ""}
+              </div>
+            </div>
+            <div class="detail-card">
+              <h3 style="margin-top:0;">Timeline digest</h3>
+              <p style="margin:0; color: var(--muted);">${events.length ? `${events.length} events recorded; last action ${escapeHTML(events[events.length - 1].action)} by ${escapeHTML(events[events.length - 1].actor || "system")}.` : "No audit events recorded yet."}</p>
+            </div>
+          </div>
+
+          <div class="detail-card">
+            <h3 style="margin-top:0;">Audit timeline</h3>
+            <div class="timeline">
+              ${events.length ? events.map((event) => `
+                <div class="timeline-item">
+                  <strong>${escapeHTML(event.action)}</strong>
+                  <small>${escapeHTML(fmtDate(event.created_at))} by ${escapeHTML(event.actor || "system")}</small>
+                  <div style="margin-top:6px;">${escapeHTML(event.detail || "no detail")}</div>
+                </div>
+              `).join("") : '<div class="empty">No audit events recorded yet.</div>'}
+            </div>
+          </div>
+        </div>
+      `;
+    }
+
+    async function loadDetail(taskID) {
+      if (!taskID) {
+        currentTaskID = "";
+        reportDetail.innerHTML = '<div class="empty">No report selected yet.</div>';
+        openBoardForCurrentLink.href = "/admin/task-board";
+        syncURL("");
+        return;
+      }
+
+      reportDetail.innerHTML = '<div class="loading">Loading report detail...</div>';
+      try {
+        const response = await fetch(`${taskEndpointBase}${encodeURIComponent(taskID)}`, {
+          headers: { "Accept": "application/json" }
+        });
+        if (!response.ok) {
+          throw new Error(`Task detail request failed: ${response.statusText}`);
+        }
+        renderDetail(await response.json());
+      } catch (error) {
+        reportDetail.innerHTML = `<div class="empty">${escapeHTML(error.message || "Unable to load report detail.")}</div>`;
+      }
+    }
+
+    async function loadReports(selectedTaskID = "") {
+      reportListState.hidden = false;
+      reportListState.className = "loading";
+      reportListState.textContent = "Loading report lane...";
+      tableWrap.hidden = true;
+
+      const params = buildParams();
+      syncURL(selectedTaskID);
+      try {
+        const response = await fetch(`${boardEndpoint}?${params.toString()}`, {
+          headers: { "Accept": "application/json" }
+        });
+        if (!response.ok) {
+          throw new Error(`Task board request failed: ${response.statusText}`);
+        }
+
+        const board = await response.json();
+        renderSummary(board.summary || {});
+        renderRows(board.items || []);
+
+        const visibleTaskIDs = new Set((board.items || []).map((item) => item.task_id));
+        if (selectedTaskID && visibleTaskIDs.has(selectedTaskID)) {
+          await loadDetail(selectedTaskID);
+        } else if ((board.items || []).length > 0) {
+          await loadDetail(board.items[0].task_id);
+        } else {
+          await loadDetail("");
+        }
+      } catch (error) {
+        tableWrap.hidden = true;
+        reportListState.hidden = false;
+        reportListState.className = "empty";
+        reportListState.textContent = error.message || "Unable to load report lane.";
+        reportDetail.innerHTML = '<div class="empty">Unable to load report detail because the report lane request failed.</div>';
+      }
+    }
+
+    form.addEventListener("submit", (event) => {
+      event.preventDefault();
+      form.elements.namedItem("offset").value = "0";
+      loadReports(currentTaskID);
+    });
+
+    resetFiltersButton.addEventListener("click", () => {
+      form.elements.namedItem("tenant_id").value = "";
+      form.elements.namedItem("limit").value = "10";
+      form.elements.namedItem("offset").value = "0";
+      loadReports("");
+    });
+
+    reportRows.addEventListener("click", (event) => {
+      const button = event.target.closest("[data-task-id]");
+      if (!button) {
+        return;
+      }
+      loadDetail(button.dataset.taskId);
+    });
+
+    const initialTaskID = populateFiltersFromURL();
+    loadReports(initialTaskID);
+  </script>
+</body>
+</html>

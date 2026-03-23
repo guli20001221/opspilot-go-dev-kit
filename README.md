@@ -38,6 +38,7 @@ Current Milestone 1 slice:
 - the same page now exposes `approve` and `retry` controls in the detail panel by reusing the existing task action endpoints instead of adding admin-only mutation APIs
 - the same detail panel now derives a Temporal workflow history deep link from `audit_ref` when the task is running on a Temporal-backed execution path
 - the board now offers an optional 5-second auto-refresh mode so operators can watch task transitions without manually reloading the page
+- `web/admin` now also ships a first embedded report lane at `/admin/reports`, derived entirely from the existing admin task-board and task-detail contracts
 - the board now also offers quick-view presets for common operator slices such as `Needs approval`, `Failed`, and `Running`
 - the same quick-view strip now also supports `Queued`, which reuses the existing `status` filter for pending-work triage
 - the same quick-view strip now also supports `Succeeded`, which reuses the existing `status` filter for terminal success triage
@@ -76,6 +77,7 @@ Current Milestone 1 slice:
 - the admin page keeps the board summary lightweight while letting operators inspect per-task audit history, navigate adjacent visible tasks, and trigger existing task actions from one detail panel
 - Temporal-backed tasks now expose a direct workflow-history deep link in that same detail panel, so operators can jump from the board into Temporal UI without a second lookup step
 - the same page can now poll the existing board and task-detail endpoints every 5 seconds when the operator enables auto-refresh
+- `GET /admin/reports` for the first report-focused operator page, fixed to the successful report lane while reusing the same admin task-board and task-detail contracts
 - common operator slices can now be applied from quick-view buttons instead of manually composing the same filters each time
 - the detail panel can now reveal the full single-task JSON payload and copy it to the clipboard for debugging and escalation flows
 - the same panel now also supports direct handoff into the canonical task detail URL, either by copying the current board link or opening the underlying API JSON directly

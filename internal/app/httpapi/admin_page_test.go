@@ -120,6 +120,9 @@ func TestAdminTaskBoardPageRendersHTML(t *testing.T) {
 	if !strings.Contains(body, "task-row-selected") {
 		t.Fatal("selected task row styling missing from page HTML")
 	}
+	if !strings.Contains(body, "/admin/reports") {
+		t.Fatal("reports page link missing from task board HTML")
+	}
 }
 
 func TestAdminTaskBoardPageRejectsUnknownSubpath(t *testing.T) {
@@ -127,6 +130,63 @@ func TestAdminTaskBoardPageRejectsUnknownSubpath(t *testing.T) {
 	defer server.Close()
 
 	resp, err := http.Get(server.URL + "/admin/task-board/unknown")
+	if err != nil {
+		t.Fatalf("Get() error = %v", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusNotFound {
+		t.Fatalf("StatusCode = %d, want %d", resp.StatusCode, http.StatusNotFound)
+	}
+}
+
+func TestAdminReportsPageRendersHTML(t *testing.T) {
+	server := httptest.NewServer(NewHandler())
+	defer server.Close()
+
+	resp, err := http.Get(server.URL + "/admin/reports")
+	if err != nil {
+		t.Fatalf("Get() error = %v", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("StatusCode = %d, want %d", resp.StatusCode, http.StatusOK)
+	}
+	if got := resp.Header.Get("Content-Type"); !strings.Contains(got, "text/html") {
+		t.Fatalf("Content-Type = %q, want text/html", got)
+	}
+
+	bodyBytes, err := io.ReadAll(resp.Body)
+	if err != nil {
+		t.Fatalf("ReadAll() error = %v", err)
+	}
+	body := string(bodyBytes)
+	if !strings.Contains(body, "<title>OpsPilot Reports</title>") {
+		t.Fatal("page title missing from admin reports HTML")
+	}
+	if !strings.Contains(body, "/api/v1/admin/task-board") {
+		t.Fatal("report lane API path missing from page HTML")
+	}
+	if !strings.Contains(body, "/api/v1/tasks/") {
+		t.Fatal("task detail API path missing from reports page HTML")
+	}
+	if !strings.Contains(body, "Report Lane") {
+		t.Fatal("report lane heading missing from page HTML")
+	}
+	if !strings.Contains(body, "Open Task Board") {
+		t.Fatal("task board handoff link missing from reports page HTML")
+	}
+	if !strings.Contains(body, "Open current report in Task Board") {
+		t.Fatal("current report handoff link missing from reports page HTML")
+	}
+}
+
+func TestAdminReportsPageRejectsUnknownSubpath(t *testing.T) {
+	server := httptest.NewServer(NewHandler())
+	defer server.Close()
+
+	resp, err := http.Get(server.URL + "/admin/reports/unknown")
 	if err != nil {
 		t.Fatalf("Get() error = %v", err)
 	}

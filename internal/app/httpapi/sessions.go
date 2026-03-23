@@ -70,6 +70,7 @@ func newAppHandler(workflowService *workflow.Service, registry *toolregistry.Reg
 
 func (a *appHandler) registerRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("/admin/task-board", a.handleAdminTaskBoardPage)
+	mux.HandleFunc("/admin/reports", a.handleAdminReportsPage)
 	mux.HandleFunc("/api/v1/sessions", a.handleSessions)
 	mux.HandleFunc("/api/v1/sessions/", a.handleSessionMessages)
 	mux.HandleFunc("/api/v1/admin/task-board", a.handleAdminTaskBoard)
@@ -91,6 +92,21 @@ func (a *appHandler) handleAdminTaskBoardPage(w http.ResponseWriter, r *http.Req
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	w.WriteHeader(http.StatusOK)
 	_, _ = w.Write(adminweb.TaskBoardHTML())
+}
+
+func (a *appHandler) handleAdminReportsPage(w http.ResponseWriter, r *http.Request) {
+	if r.URL.Path != "/admin/reports" {
+		writeError(w, http.StatusNotFound, "not_found", "not found")
+		return
+	}
+	if r.Method != http.MethodGet {
+		writeError(w, http.StatusMethodNotAllowed, "method_not_allowed", "method not allowed")
+		return
+	}
+
+	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	w.WriteHeader(http.StatusOK)
+	_, _ = w.Write(adminweb.ReportsHTML())
 }
 
 func (a *appHandler) handleSessions(w http.ResponseWriter, r *http.Request) {
