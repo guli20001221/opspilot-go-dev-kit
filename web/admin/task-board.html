@@ -655,6 +655,7 @@
           <button class="ghost quick-view-button" type="button" data-view="failed_approvals">Failed approvals</button>
           <button class="ghost quick-view-button" type="button" data-view="running">Running</button>
           <button class="ghost quick-view-button" type="button" data-view="succeeded">Succeeded</button>
+          <button class="ghost quick-view-button" type="button" data-view="succeeded_reports">Succeeded reports</button>
           <button class="ghost quick-view-button" type="button" data-view="workflow_required">Workflow required</button>
           <button class="ghost quick-view-button" type="button" data-view="approval_required">Approval required</button>
           <button class="ghost quick-view-button" type="button" data-view="no_approval">No approval</button>
@@ -924,10 +925,13 @@
           form.elements.namedItem("requires_approval").value = "true";
         } else if (view === "running") {
           form.elements.namedItem("status").value = "running";
-      } else if (view === "succeeded") {
-        form.elements.namedItem("status").value = "succeeded";
-      } else if (view === "workflow_required") {
-        form.elements.namedItem("reason").value = "workflow_required";
+        } else if (view === "succeeded") {
+          form.elements.namedItem("status").value = "succeeded";
+        } else if (view === "succeeded_reports") {
+          form.elements.namedItem("status").value = "succeeded";
+          form.elements.namedItem("task_type").value = "report_generation";
+        } else if (view === "workflow_required") {
+          form.elements.namedItem("reason").value = "workflow_required";
         } else if (view === "approval_required") {
           form.elements.namedItem("reason").value = "approval_required";
         } else if (view === "no_approval") {
@@ -941,6 +945,7 @@
 
     function syncQuickViewButtons() {
       const currentStatus = form.elements.namedItem("status").value;
+      const currentTaskType = form.elements.namedItem("task_type").value;
       const currentRequiresApproval = form.elements.namedItem("requires_approval").value;
       let activeView = "all";
 
@@ -950,7 +955,9 @@
           activeView = currentRequiresApproval === "true" ? "failed_approvals" : "failed";
         } else if (currentStatus === "running") {
           activeView = "running";
-      }
+        } else if (currentStatus === "succeeded" && currentTaskType === "report_generation") {
+          activeView = "succeeded_reports";
+        }
 
       for (const button of quickViewButtons) {
         button.classList.toggle("active", button.dataset.view === activeView);
