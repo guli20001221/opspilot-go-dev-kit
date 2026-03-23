@@ -39,6 +39,7 @@ Current Milestone 1 slice:
 - the same detail panel now derives a Temporal workflow history deep link from `audit_ref` when the task is running on a Temporal-backed execution path
 - the board now offers an optional 5-second auto-refresh mode so operators can watch task transitions without manually reloading the page
 - the board now also offers quick-view presets for common operator slices such as `Needs approval`, `Failed`, and `Running`
+- the same quick-view strip now also supports `Report tasks` and `Approved tools`, both of which reuse the existing `task_type` filter and URL state
 - the task detail panel now includes a raw JSON view and copy action for direct operator troubleshooting without leaving the page
 - the same task detail panel now supports handoff actions: copy the current task-board URL and open the underlying task API detail in a new tab
 - the same task detail panel now supports `Copy audit summary` for a compact, paste-ready task timeline handoff

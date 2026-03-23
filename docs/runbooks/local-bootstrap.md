@@ -69,7 +69,7 @@ The current chat stream implementation is a Milestone 1 skeleton:
 - the detail panel also surfaces `Approve task` and `Retry task` controls when the current task state allows them, and those controls call the existing task action endpoints with the operator actor you enter on the page
 - when a task has a Temporal-backed `audit_ref`, the same detail panel derives an `Open workflow history in Temporal UI` link so you can jump directly into the matching run
 - enable `Auto refresh every 5s` on that same page when you want the board and selected task detail to keep tracking state changes without manual reload
-- use the `Quick views` buttons on that page when you want common operator slices such as `Needs approval`, `Failed`, or `Running` without manually setting the same filters repeatedly
+- use the `Quick views` buttons on that page when you want common operator slices such as `Needs approval`, `Failed`, `Running`, `Report tasks`, or `Approved tools` without manually setting the same filters repeatedly
 - use `Show raw JSON` in the same detail panel when you need the full task payload and audit structure for debugging, and `Copy raw JSON` when you want to paste that payload into an incident or handoff
 - use `Copy task link` when you want to hand another operator the exact filtered board URL with the selected task in context, and `Open API detail` when you want the canonical JSON response in a separate tab
 - use `Copy audit summary` when you want a compact text summary of task status, reason, audit reference, and timeline events for an incident note or shift handoff

@@ -57,6 +57,12 @@ func TestAdminTaskBoardPageRendersHTML(t *testing.T) {
 	if !strings.Contains(body, "Quick views") {
 		t.Fatal("quick view controls missing from page HTML")
 	}
+	if !strings.Contains(body, "Report tasks") {
+		t.Fatal("report quick view missing from page HTML")
+	}
+	if !strings.Contains(body, "Approved tools") {
+		t.Fatal("approved-tool quick view missing from page HTML")
+	}
 	if !strings.Contains(body, "Raw JSON") {
 		t.Fatal("raw json detail controls missing from page HTML")
 	}
