@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"time"
 
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -37,10 +38,11 @@ INSERT INTO cases (
     source_task_id,
     source_report_id,
     created_by,
+    closed_by,
     created_at,
     updated_at
 ) VALUES (
-    $1, $2, $3, $4, $5, NULLIF($6, ''), NULLIF($7, ''), $8, $9, $10
+    $1, $2, $3, $4, $5, NULLIF($6, ''), NULLIF($7, ''), $8, $9, $10, $11
 )
 ON CONFLICT (id) DO UPDATE SET
     tenant_id = EXCLUDED.tenant_id,
@@ -50,6 +52,7 @@ ON CONFLICT (id) DO UPDATE SET
     source_task_id = EXCLUDED.source_task_id,
     source_report_id = EXCLUDED.source_report_id,
     created_by = EXCLUDED.created_by,
+    closed_by = EXCLUDED.closed_by,
     created_at = EXCLUDED.created_at,
     updated_at = EXCLUDED.updated_at
 RETURNING
@@ -61,6 +64,7 @@ RETURNING
     COALESCE(source_task_id, ''),
     COALESCE(source_report_id, ''),
     created_by,
+    closed_by,
     created_at,
     updated_at`
 
@@ -75,6 +79,7 @@ RETURNING
 		item.SourceTaskID,
 		item.SourceReportID,
 		item.CreatedBy,
+		item.ClosedBy,
 		item.CreatedAt,
 		item.UpdatedAt,
 	)
@@ -94,6 +99,7 @@ SELECT
     COALESCE(source_task_id, ''),
     COALESCE(source_report_id, ''),
     created_by,
+    closed_by,
     created_at,
     updated_at
 FROM cases
@@ -132,6 +138,7 @@ SELECT
     COALESCE(source_task_id, ''),
     COALESCE(source_report_id, ''),
     created_by,
+    closed_by,
     created_at,
     updated_at
 FROM cases
@@ -176,6 +183,48 @@ LIMIT $5 OFFSET $6`
 	return page, nil
 }
 
+// Close atomically transitions an open case to closed.
+func (s *CaseStore) Close(ctx context.Context, caseID string, closedBy string, closedAt time.Time) (casesvc.Case, error) {
+	const query = `
+UPDATE cases
+SET status = $2,
+    closed_by = $3,
+    updated_at = $4
+WHERE id = $1
+  AND status <> $2
+RETURNING
+    id,
+    tenant_id,
+    status,
+    title,
+    summary,
+    COALESCE(source_task_id, ''),
+    COALESCE(source_report_id, ''),
+    created_by,
+    closed_by,
+    created_at,
+    updated_at`
+
+	row := s.pool.QueryRow(ctx, query, caseID, casesvc.StatusClosed, closedBy, closedAt)
+	closed, err := scanCase(row)
+	if err == nil {
+		return closed, nil
+	}
+	if !errors.Is(err, casesvc.ErrCaseNotFound) {
+		return casesvc.Case{}, err
+	}
+
+	existing, getErr := s.Get(ctx, caseID)
+	if getErr != nil {
+		return casesvc.Case{}, getErr
+	}
+	if existing.Status == casesvc.StatusClosed {
+		return casesvc.Case{}, casesvc.ErrInvalidCaseState
+	}
+
+	return casesvc.Case{}, err
+}
+
 func scanCase(row caseQuerierRow) (casesvc.Case, error) {
 	var item casesvc.Case
 	if err := row.Scan(
@@ -187,6 +236,7 @@ func scanCase(row caseQuerierRow) (casesvc.Case, error) {
 		&item.SourceTaskID,
 		&item.SourceReportID,
 		&item.CreatedBy,
+		&item.ClosedBy,
 		&item.CreatedAt,
 		&item.UpdatedAt,
 	); err != nil {

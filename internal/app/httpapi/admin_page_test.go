@@ -276,6 +276,12 @@ func TestAdminCasesPageRendersHTML(t *testing.T) {
 	if !strings.Contains(body, "Open source report") {
 		t.Fatal("source report handoff missing from cases page HTML")
 	}
+	if !strings.Contains(body, "Close case") {
+		t.Fatal("close case action missing from cases page HTML")
+	}
+	if !strings.Contains(body, "<option value=\"closed\">Closed</option>") {
+		t.Fatal("closed status filter missing from cases page HTML")
+	}
 }
 
 func TestAdminCasesPageRejectsUnknownSubpath(t *testing.T) {

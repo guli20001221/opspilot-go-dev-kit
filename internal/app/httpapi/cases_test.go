@@ -411,3 +411,78 @@ func TestCreateCaseRejectsMismatchedReportTaskSource(t *testing.T) {
 		t.Fatalf("Code = %q, want %q", got.Code, "invalid_case_source")
 	}
 }
+
+func TestCloseCaseEndpoint(t *testing.T) {
+	caseService := casesvc.NewService()
+	created, err := caseService.CreateCase(context.Background(), casesvc.CreateInput{
+		TenantID: "tenant-1",
+		Title:    "Case to close",
+	})
+	if err != nil {
+		t.Fatalf("CreateCase() error = %v", err)
+	}
+
+	server := httptest.NewServer(NewHandlerWithDependencies(Dependencies{Cases: caseService}))
+	defer server.Close()
+
+	body := bytes.NewBufferString(`{"closed_by":"operator-2"}`)
+	req, err := http.NewRequest(http.MethodPost, server.URL+"/api/v1/cases/"+created.ID+"/close?tenant_id=tenant-1", body)
+	if err != nil {
+		t.Fatalf("NewRequest() error = %v", err)
+	}
+	req.Header.Set("Content-Type", "application/json")
+
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatalf("Do() error = %v", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("StatusCode = %d, want %d", resp.StatusCode, http.StatusOK)
+	}
+
+	var got caseResponse
+	if err := json.NewDecoder(resp.Body).Decode(&got); err != nil {
+		t.Fatalf("Decode() error = %v", err)
+	}
+	if got.Status != casesvc.StatusClosed {
+		t.Fatalf("Status = %q, want %q", got.Status, casesvc.StatusClosed)
+	}
+	if got.ClosedBy != "operator-2" {
+		t.Fatalf("ClosedBy = %q, want %q", got.ClosedBy, "operator-2")
+	}
+}
+
+func TestCloseCaseEndpointRejectsInvalidState(t *testing.T) {
+	caseService := casesvc.NewService()
+	created, err := caseService.CreateCase(context.Background(), casesvc.CreateInput{
+		TenantID: "tenant-1",
+		Title:    "Case to close twice",
+	})
+	if err != nil {
+		t.Fatalf("CreateCase() error = %v", err)
+	}
+	if _, err := caseService.CloseCase(context.Background(), created.ID, "operator-1"); err != nil {
+		t.Fatalf("CloseCase() error = %v", err)
+	}
+
+	server := httptest.NewServer(NewHandlerWithDependencies(Dependencies{Cases: caseService}))
+	defer server.Close()
+
+	req, err := http.NewRequest(http.MethodPost, server.URL+"/api/v1/cases/"+created.ID+"/close?tenant_id=tenant-1", bytes.NewBufferString(`{"closed_by":"operator-2"}`))
+	if err != nil {
+		t.Fatalf("NewRequest() error = %v", err)
+	}
+	req.Header.Set("Content-Type", "application/json")
+
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatalf("Do() error = %v", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusConflict {
+		t.Fatalf("StatusCode = %d, want %d", resp.StatusCode, http.StatusConflict)
+	}
+}

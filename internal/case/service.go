@@ -14,6 +14,7 @@ type Store interface {
 	Save(ctx context.Context, item Case) (Case, error)
 	Get(ctx context.Context, caseID string) (Case, error)
 	List(ctx context.Context, filter ListFilter) (ListPage, error)
+	Close(ctx context.Context, caseID string, closedBy string, closedAt time.Time) (Case, error)
 }
 
 // Service manages durable operator case records.
@@ -62,6 +63,11 @@ func (s *Service) GetCase(ctx context.Context, caseID string) (Case, error) {
 // ListCases returns operator-facing case rows for the provided filter.
 func (s *Service) ListCases(ctx context.Context, filter ListFilter) (ListPage, error) {
 	return s.store.List(ctx, filter)
+}
+
+// CloseCase marks an operator case as closed.
+func (s *Service) CloseCase(ctx context.Context, caseID string, closedBy string) (Case, error) {
+	return s.store.Close(ctx, caseID, fallbackString(closedBy, "operator"), time.Now().UTC())
 }
 
 func newCaseID(now time.Time) string {

@@ -8,10 +8,15 @@ import (
 const (
 	// StatusOpen identifies a case that still needs operator follow-up.
 	StatusOpen = "open"
+	// StatusClosed identifies a case that no longer needs operator follow-up.
+	StatusClosed = "closed"
 )
 
 // ErrCaseNotFound identifies missing case records.
 var ErrCaseNotFound = errors.New("case not found")
+
+// ErrInvalidCaseState identifies invalid case state transitions.
+var ErrInvalidCaseState = errors.New("invalid case state")
 
 // Case is the durable read model for an operator-managed case.
 type Case struct {
@@ -23,6 +28,7 @@ type Case struct {
 	SourceTaskID   string
 	SourceReportID string
 	CreatedBy      string
+	ClosedBy       string
 	CreatedAt      time.Time
 	UpdatedAt      time.Time
 }

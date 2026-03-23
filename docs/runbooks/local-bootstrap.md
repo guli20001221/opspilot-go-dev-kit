@@ -53,6 +53,7 @@ Successful build artifacts are emitted under `bin/`.
 - `GET /api/v1/cases`
 - `POST /api/v1/cases`
 - `GET /api/v1/cases/{case_id}`
+- `POST /api/v1/cases/{case_id}/close`
 - `POST /api/v1/chat/stream`
 
 The current chat stream implementation is a Milestone 1 skeleton:
@@ -100,7 +101,8 @@ The current chat stream implementation is a Milestone 1 skeleton:
 - use `POST /api/v1/cases` when you need a durable operator follow-up object that can point at a source task, a source report, or both
 - use `GET /api/v1/cases` when you need to inspect the current durable case slice for a tenant, status, or source linkage
 - use `GET /api/v1/cases/{case_id}` when you need the canonical case record for that follow-up object
-- open `http://localhost:18080/admin/cases` when you want the first case-focused operator page, including source task/report handoff links
+- use `POST /api/v1/cases/{case_id}/close?tenant_id=<tenant>` when you need to close an open follow-up object and capture who closed it
+- open `http://localhost:18080/admin/cases` when you want the first case-focused operator page, including source task/report handoff links and the minimal `Close case` action
 - use `Create case` on `/admin/task-board` or `/admin/reports` when you want to promote the currently selected task/report into a durable follow-up object without hand-building the `POST /api/v1/cases` payload
 - successful `report_generation` tasks now finalize the durable report row and task `succeeded` transition together, so `ready_at` and report `metadata.audit_ref` line up with the final task state
 - the local Compose app services now start from dedicated runtime images, which removes the previous startup dependence on downloading Go modules inside the running container
@@ -120,6 +122,7 @@ docker compose exec -T postgres psql -U opspilot -d opspilot -f /docker-entrypoi
 docker compose exec -T postgres psql -U opspilot -d opspilot -f /docker-entrypoint-initdb.d/000004_workflow_task_payload.sql
 docker compose exec -T postgres psql -U opspilot -d opspilot -f /docker-entrypoint-initdb.d/000005_reports.sql
 docker compose exec -T postgres psql -U opspilot -d opspilot -f /docker-entrypoint-initdb.d/000006_cases.sql
+docker compose exec -T postgres psql -U opspilot -d opspilot -f /docker-entrypoint-initdb.d/000007_case_close_fields.sql
 ```
 
 If you change Compose environment variables such as `OPSPILOT_POSTGRES_DSN`, `OPSPILOT_TEMPORAL_ENABLED`, or `OPSPILOT_WORKER_POLL_INTERVAL`, recreate the app containers instead of only restarting them:

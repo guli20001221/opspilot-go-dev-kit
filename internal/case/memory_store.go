@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"sort"
 	"sync"
+	"time"
 )
 
 type memoryStore struct {
@@ -97,4 +98,24 @@ func (s *memoryStore) List(_ context.Context, filter ListFilter) (ListPage, erro
 	}
 
 	return page, nil
+}
+
+func (s *memoryStore) Close(_ context.Context, caseID string, closedBy string, closedAt time.Time) (Case, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	item, ok := s.records[caseID]
+	if !ok {
+		return Case{}, fmt.Errorf("%w: %s", ErrCaseNotFound, caseID)
+	}
+	if item.Status == StatusClosed {
+		return Case{}, ErrInvalidCaseState
+	}
+
+	item.Status = StatusClosed
+	item.ClosedBy = closedBy
+	item.UpdatedAt = closedAt
+	s.records[caseID] = item
+
+	return item, nil
 }

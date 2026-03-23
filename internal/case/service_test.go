@@ -2,6 +2,8 @@ package cases
 
 import (
 	"context"
+	"errors"
+	"sync"
 	"testing"
 )
 
@@ -112,5 +114,99 @@ func TestServiceListCasesSupportsFilterAndOffset(t *testing.T) {
 	}
 	if nextPage.Cases[0].ID != first.ID {
 		t.Fatalf("nextPage.Cases[0].ID = %q, want %q", nextPage.Cases[0].ID, first.ID)
+	}
+}
+
+func TestServiceCloseCase(t *testing.T) {
+	svc := NewService()
+
+	created, err := svc.CreateCase(context.Background(), CreateInput{
+		TenantID: "tenant-1",
+		Title:    "Close me",
+	})
+	if err != nil {
+		t.Fatalf("CreateCase() error = %v", err)
+	}
+
+	closed, err := svc.CloseCase(context.Background(), created.ID, "operator-2")
+	if err != nil {
+		t.Fatalf("CloseCase() error = %v", err)
+	}
+	if closed.Status != StatusClosed {
+		t.Fatalf("CloseCase().Status = %q, want %q", closed.Status, StatusClosed)
+	}
+	if closed.ClosedBy != "operator-2" {
+		t.Fatalf("CloseCase().ClosedBy = %q, want %q", closed.ClosedBy, "operator-2")
+	}
+	if closed.UpdatedAt.Before(created.UpdatedAt) {
+		t.Fatal("CloseCase().UpdatedAt regressed")
+	}
+}
+
+func TestServiceCloseCaseRejectsClosedCase(t *testing.T) {
+	svc := NewService()
+
+	created, err := svc.CreateCase(context.Background(), CreateInput{
+		TenantID: "tenant-1",
+		Title:    "Already closed",
+	})
+	if err != nil {
+		t.Fatalf("CreateCase() error = %v", err)
+	}
+	if _, err := svc.CloseCase(context.Background(), created.ID, "operator-1"); err != nil {
+		t.Fatalf("CloseCase(first) error = %v", err)
+	}
+
+	if _, err := svc.CloseCase(context.Background(), created.ID, "operator-2"); !errors.Is(err, ErrInvalidCaseState) {
+		t.Fatalf("CloseCase(second) error = %v, want %v", err, ErrInvalidCaseState)
+	}
+}
+
+func TestServiceCloseCaseAllowsOnlyOneConcurrentCloser(t *testing.T) {
+	svc := NewService()
+
+	created, err := svc.CreateCase(context.Background(), CreateInput{
+		TenantID: "tenant-1",
+		Title:    "Concurrent close",
+	})
+	if err != nil {
+		t.Fatalf("CreateCase() error = %v", err)
+	}
+
+	start := make(chan struct{})
+	results := make(chan error, 2)
+	var wg sync.WaitGroup
+	for _, actor := range []string{"operator-a", "operator-b"} {
+		wg.Add(1)
+		go func(actor string) {
+			defer wg.Done()
+			<-start
+			_, err := svc.CloseCase(context.Background(), created.ID, actor)
+			results <- err
+		}(actor)
+	}
+
+	close(start)
+	wg.Wait()
+	close(results)
+
+	var successCount int
+	var invalidCount int
+	for err := range results {
+		switch {
+		case err == nil:
+			successCount++
+		case errors.Is(err, ErrInvalidCaseState):
+			invalidCount++
+		default:
+			t.Fatalf("CloseCase(concurrent) unexpected error = %v", err)
+		}
+	}
+
+	if successCount != 1 {
+		t.Fatalf("successCount = %d, want %d", successCount, 1)
+	}
+	if invalidCount != 1 {
+		t.Fatalf("invalidCount = %d, want %d", invalidCount, 1)
 	}
 }

@@ -112,14 +112,13 @@ func TestCaseStoreListSupportsFiltersAndOffset(t *testing.T) {
 			UpdatedAt: now,
 		},
 		{
-			ID:           "case-list-2",
-			TenantID:     "tenant-1",
-			Status:       casesvc.StatusOpen,
-			Title:        "Second case",
-			SourceTaskID: "task-source-2",
-			CreatedBy:    "operator-1",
-			CreatedAt:    now.Add(time.Second),
-			UpdatedAt:    now.Add(time.Second),
+			ID:        "case-list-2",
+			TenantID:  "tenant-1",
+			Status:    casesvc.StatusOpen,
+			Title:     "Second case",
+			CreatedBy: "operator-1",
+			CreatedAt: now.Add(time.Second),
+			UpdatedAt: now.Add(time.Second),
 		},
 		{
 			ID:        "case-list-3",
@@ -166,5 +165,49 @@ func TestCaseStoreListSupportsFiltersAndOffset(t *testing.T) {
 	}
 	if nextPage.Cases[0].ID != "case-list-1" {
 		t.Fatalf("nextPage.Cases[0].ID = %q, want %q", nextPage.Cases[0].ID, "case-list-1")
+	}
+}
+
+func TestCaseStorePersistsClosedBy(t *testing.T) {
+	dsn := os.Getenv("OPSPILOT_TEST_POSTGRES_DSN")
+	if dsn == "" {
+		t.Skip("OPSPILOT_TEST_POSTGRES_DSN not set")
+	}
+
+	ctx := context.Background()
+	pool, err := OpenPool(ctx, dsn)
+	if err != nil {
+		t.Fatalf("OpenPool() error = %v", err)
+	}
+	defer pool.Close()
+
+	applyMigration(t, ctx, pool)
+	if _, err := pool.Exec(ctx, "TRUNCATE cases, reports, workflow_task_events, workflow_tasks RESTART IDENTITY CASCADE"); err != nil {
+		t.Fatalf("TRUNCATE cases, reports, workflow_task_events, workflow_tasks error = %v", err)
+	}
+
+	store := NewCaseStore(pool)
+	now := time.Unix(1700002100, 0).UTC()
+	item := casesvc.Case{
+		ID:        "case-closed-1",
+		TenantID:  "tenant-1",
+		Status:    casesvc.StatusClosed,
+		Title:     "Closed case",
+		CreatedBy: "operator-1",
+		ClosedBy:  "operator-2",
+		CreatedAt: now,
+		UpdatedAt: now.Add(time.Second),
+	}
+
+	if _, err := store.Save(ctx, item); err != nil {
+		t.Fatalf("Save() error = %v", err)
+	}
+
+	got, err := store.Get(ctx, item.ID)
+	if err != nil {
+		t.Fatalf("Get() error = %v", err)
+	}
+	if got.ClosedBy != "operator-2" {
+		t.Fatalf("Get().ClosedBy = %q, want %q", got.ClosedBy, "operator-2")
 	}
 }

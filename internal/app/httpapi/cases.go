@@ -31,6 +31,7 @@ type caseResponse struct {
 	SourceTaskID   string `json:"source_task_id,omitempty"`
 	SourceReportID string `json:"source_report_id,omitempty"`
 	CreatedBy      string `json:"created_by"`
+	ClosedBy       string `json:"closed_by,omitempty"`
 	CreatedAt      string `json:"created_at"`
 	UpdatedAt      string `json:"updated_at"`
 }
@@ -39,6 +40,10 @@ type listCasesResponse struct {
 	Cases      []caseResponse `json:"cases"`
 	HasMore    bool           `json:"has_more"`
 	NextOffset *int           `json:"next_offset,omitempty"`
+}
+
+type closeCaseRequest struct {
+	ClosedBy string `json:"closed_by,omitempty"`
 }
 
 func (a *appHandler) handleCases(w http.ResponseWriter, r *http.Request) {
@@ -116,12 +121,23 @@ func (a *appHandler) handleListCases(w http.ResponseWriter, r *http.Request) {
 }
 
 func (a *appHandler) handleCaseByID(w http.ResponseWriter, r *http.Request) {
+	path := strings.TrimPrefix(r.URL.Path, "/api/v1/cases/")
+	if path == "" {
+		writeError(w, http.StatusNotFound, "not_found", "not found")
+		return
+	}
+	if strings.HasSuffix(path, "/close") {
+		caseID := strings.TrimSuffix(path, "/close")
+		caseID = strings.TrimSuffix(caseID, "/")
+		a.handleCloseCase(w, r, caseID)
+		return
+	}
 	if r.Method != http.MethodGet {
 		writeError(w, http.StatusMethodNotAllowed, "method_not_allowed", "method not allowed")
 		return
 	}
 
-	caseID := strings.TrimPrefix(r.URL.Path, "/api/v1/cases/")
+	caseID := path
 	if caseID == "" || strings.Contains(caseID, "/") {
 		writeError(w, http.StatusNotFound, "not_found", "not found")
 		return
@@ -148,6 +164,58 @@ func (a *appHandler) handleCaseByID(w http.ResponseWriter, r *http.Request) {
 	}
 
 	writeJSON(w, http.StatusOK, newCaseResponse(item))
+}
+
+func (a *appHandler) handleCloseCase(w http.ResponseWriter, r *http.Request, caseID string) {
+	if r.Method != http.MethodPost {
+		writeError(w, http.StatusMethodNotAllowed, "method_not_allowed", "method not allowed")
+		return
+	}
+	if caseID == "" || strings.Contains(caseID, "/") {
+		writeError(w, http.StatusNotFound, "not_found", "not found")
+		return
+	}
+
+	tenantID := strings.TrimSpace(r.URL.Query().Get("tenant_id"))
+	if tenantID == "" {
+		writeError(w, http.StatusBadRequest, "invalid_query", "tenant_id is required")
+		return
+	}
+
+	item, err := a.cases.GetCase(r.Context(), caseID)
+	if err != nil {
+		if errors.Is(err, casesvc.ErrCaseNotFound) {
+			writeError(w, http.StatusNotFound, "case_not_found", "case not found")
+			return
+		}
+		writeError(w, http.StatusInternalServerError, "case_lookup_failed", err.Error())
+		return
+	}
+	if item.TenantID != tenantID {
+		writeError(w, http.StatusNotFound, "case_not_found", "case not found")
+		return
+	}
+
+	var req closeCaseRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid_json", "invalid json body")
+		return
+	}
+
+	closed, err := a.cases.CloseCase(r.Context(), caseID, req.ClosedBy)
+	if err != nil {
+		switch {
+		case errors.Is(err, casesvc.ErrCaseNotFound):
+			writeError(w, http.StatusNotFound, "case_not_found", "case not found")
+		case errors.Is(err, casesvc.ErrInvalidCaseState):
+			writeError(w, http.StatusConflict, "invalid_case_state", "case is not in a valid state for close")
+		default:
+			writeError(w, http.StatusInternalServerError, "case_close_failed", err.Error())
+		}
+		return
+	}
+
+	writeJSON(w, http.StatusOK, newCaseResponse(closed))
 }
 
 func validateCreateCaseRequest(req createCaseRequest) error {
@@ -240,6 +308,7 @@ func newCaseResponse(item casesvc.Case) caseResponse {
 		SourceTaskID:   item.SourceTaskID,
 		SourceReportID: item.SourceReportID,
 		CreatedBy:      item.CreatedBy,
+		ClosedBy:       item.ClosedBy,
 		CreatedAt:      item.CreatedAt.Format(time.RFC3339Nano),
 		UpdatedAt:      item.UpdatedAt.Format(time.RFC3339Nano),
 	}

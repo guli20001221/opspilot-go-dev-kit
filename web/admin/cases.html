@@ -285,6 +285,7 @@
             <select id="status" name="status">
               <option value="">All statuses</option>
               <option value="open">Open</option>
+              <option value="closed">Closed</option>
             </select>
           </div>
           <div class="field">
@@ -362,11 +363,14 @@
         Pick a case to inspect source lineage and hand off into the existing task and report surfaces.
       </p>
       <div class="detail-actions">
+        <input id="caseActor" type="text" value="cases-operator" aria-label="Case operator actor" style="min-width: 180px; border: 1px solid var(--line); border-radius: 999px; padding: 10px 14px; background: rgba(255, 255, 255, 0.92); color: var(--ink);">
+        <button class="primary" id="closeCaseButton" type="button" hidden>Close case</button>
         <a class="button-link ghost" id="openTaskLink" href="#" hidden>Open source task</a>
         <a class="button-link ghost" id="openTaskBoardLink" href="#" hidden>Open source task in Task Board</a>
         <a class="button-link ghost" id="openReportLink" href="#" hidden>Open source report</a>
         <a class="button-link ghost" id="openReportsLink" href="#" hidden>Open source report in Reports</a>
       </div>
+      <p class="panel-copy" id="detailStatusNote" style="margin-top: 12px;">Select an open case to close it or hand off its linked sources.</p>
       <div id="caseDetail" class="empty">No case selected yet.</div>
     </section>
   </main>
@@ -374,6 +378,7 @@
   <script>
     const listEndpoint = "/api/v1/cases";
     const detailEndpointBase = "/api/v1/cases/";
+    const closeActionSuffix = "/close";
     const taskEndpointBase = "/api/v1/tasks/";
     const reportEndpointBase = "/api/v1/reports/";
     const form = document.getElementById("caseFilters");
@@ -387,6 +392,9 @@
     const prevPageButton = document.getElementById("prevPageButton");
     const nextPageButton = document.getElementById("nextPageButton");
     const caseDetail = document.getElementById("caseDetail");
+    const caseActorInput = document.getElementById("caseActor");
+    const closeCaseButton = document.getElementById("closeCaseButton");
+    const detailStatusNote = document.getElementById("detailStatusNote");
     const openTaskLink = document.getElementById("openTaskLink");
     const openTaskBoardLink = document.getElementById("openTaskBoardLink");
     const openReportLink = document.getElementById("openReportLink");
@@ -416,6 +424,11 @@
         minute: "2-digit",
         second: "2-digit"
       }).format(date);
+    }
+
+    function setDetailStatus(message, isError = false) {
+      detailStatusNote.textContent = message;
+      detailStatusNote.style.color = isError ? "#991b1b" : "";
     }
 
     function buildParams() {
@@ -507,6 +520,8 @@
     function renderDetail(item) {
       currentCaseID = item.case_id;
       syncURL(item.case_id);
+      closeCaseButton.hidden = item.status !== "open";
+      closeCaseButton.disabled = false;
       openTaskLink.hidden = !item.source_task_id;
       openTaskBoardLink.hidden = !item.source_task_id;
       openReportLink.hidden = !item.source_report_id;
@@ -520,6 +535,11 @@
       }
       if (item.source_report_id && item.source_task_id) {
         openReportsLink.href = `/admin/reports?tenant_id=${encodeURIComponent(item.tenant_id)}&task_id=${encodeURIComponent(item.source_task_id)}`;
+      }
+      if (item.status === "closed") {
+        setDetailStatus(`Case already closed${item.closed_by ? ` by ${item.closed_by}` : ""}.`);
+      } else {
+        setDetailStatus("Case is open. Use Close case to mark operator follow-up complete.");
       }
 
       caseDetail.innerHTML = `
@@ -539,6 +559,10 @@
           <dl class="detail-card">
             <dt>Created by</dt>
             <dd>${escapeHTML(item.created_by)}</dd>
+          </dl>
+          <dl class="detail-card">
+            <dt>Closed by</dt>
+            <dd>${escapeHTML(item.closed_by || "Not closed yet")}</dd>
           </dl>
           <dl class="detail-card">
             <dt>Source task</dt>
@@ -564,22 +588,28 @@
     async function loadCaseDetail(caseID) {
       if (!caseID) {
         currentCaseID = "";
+        closeCaseButton.hidden = true;
         caseDetail.innerHTML = '<div class="empty">No case selected yet.</div>';
         syncSelectedRow();
         syncURL("");
+        setDetailStatus("Select an open case to close it or hand off its linked sources.");
         return;
       }
 
       const tenantID = form.elements.namedItem("tenant_id").value.trim();
       if (!tenantID) {
         currentCaseID = "";
+        closeCaseButton.hidden = true;
         caseDetail.innerHTML = '<div class="empty">Enter a tenant before opening case detail.</div>';
         syncSelectedRow();
         syncURL("");
+        setDetailStatus("Enter a tenant before loading case detail.", true);
         return;
       }
 
+      closeCaseButton.hidden = true;
       caseDetail.innerHTML = '<div class="loading">Loading case detail...</div>';
+      setDetailStatus("Loading case detail...");
       try {
         const response = await fetch(`${detailEndpointBase}${encodeURIComponent(caseID)}?tenant_id=${encodeURIComponent(tenantID)}`, {
           headers: { "Accept": "application/json" }
@@ -589,6 +619,8 @@
         }
         renderDetail(await response.json());
       } catch (error) {
+        closeCaseButton.hidden = true;
+        setDetailStatus(error.message || "Unable to load case detail.", true);
         caseDetail.innerHTML = `<div class="empty">${escapeHTML(error.message || "Unable to load case detail.")}</div>`;
       }
     }
@@ -644,6 +676,8 @@
         caseListState.hidden = false;
         caseListState.className = "empty";
         caseListState.textContent = error.message || "Unable to load cases.";
+        closeCaseButton.hidden = true;
+        setDetailStatus("Unable to refresh the current case slice.", true);
         caseDetail.innerHTML = '<div class="empty">Unable to load case detail because the case list request failed.</div>';
       }
     }
@@ -675,6 +709,39 @@
     nextPageButton.addEventListener("click", () => {
       form.elements.namedItem("offset").value = nextPageButton.dataset.offset || "0";
       loadCases("");
+    });
+
+    closeCaseButton.addEventListener("click", async () => {
+      if (!currentCaseID) return;
+      const tenantID = form.elements.namedItem("tenant_id").value.trim();
+      if (!tenantID) {
+        setDetailStatus("Tenant scope is required before closing a case.", true);
+        return;
+      }
+
+      closeCaseButton.disabled = true;
+      setDetailStatus("Closing case...");
+      try {
+        const response = await fetch(`${detailEndpointBase}${encodeURIComponent(currentCaseID)}${closeActionSuffix}?tenant_id=${encodeURIComponent(tenantID)}`, {
+          method: "POST",
+          headers: {
+            "Accept": "application/json",
+            "Content-Type": "application/json"
+          },
+          body: JSON.stringify({
+            closed_by: caseActorInput.value.trim() || "cases-operator"
+          })
+        });
+        const payload = await response.json().catch(() => ({}));
+        if (!response.ok) {
+          throw new Error(payload.message || `Close case failed: ${response.statusText}`);
+        }
+        setDetailStatus(`Case closed by ${payload.closed_by || (caseActorInput.value.trim() || "cases-operator")}.`);
+        await loadCases(currentCaseID);
+      } catch (error) {
+        closeCaseButton.disabled = false;
+        setDetailStatus(error.message || "Unable to close case.", true);
+      }
     });
 
     const initialCaseID = readParamsFromURL();
