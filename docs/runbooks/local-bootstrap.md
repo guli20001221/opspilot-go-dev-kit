@@ -69,6 +69,7 @@ The current chat stream implementation is a Milestone 1 skeleton:
 - the detail panel also surfaces `Approve task` and `Retry task` controls when the current task state allows them, and those controls call the existing task action endpoints with the operator actor you enter on the page
 - when a task has a Temporal-backed `audit_ref`, the same detail panel derives an `Open workflow history in Temporal UI` link so you can jump directly into the matching run
 - enable `Auto refresh every 5s` on that same page when you want the board and selected task detail to keep tracking state changes without manual reload
+- use the `Quick views` buttons on that page when you want common operator slices such as `Needs approval`, `Failed`, or `Running` without manually setting the same filters repeatedly
 - the local Compose app services now start from dedicated runtime images, which removes the previous startup dependence on downloading Go modules inside the running container
 - the last successful `audit_event.detail` now carries an execution summary, such as which ticket comment was created
 - failed `audit_event.detail` values now carry a coarse category prefix, such as `validation_error:` or `authorization_error:`
