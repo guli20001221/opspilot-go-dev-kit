@@ -75,6 +75,7 @@ The current chat stream implementation is a Milestone 1 skeleton:
 - use `Copy audit summary` when you want a compact text summary of task status, reason, audit reference, and timeline events for an incident note or shift handoff
 - use `Previous visible` and `Next visible` when you want to triage neighboring tasks in the current filtered slice, and rely on the new execution/timeline digest cards at the top of the detail panel for a quick read before dropping into the full audit timeline
 - use `Focus same lane` when you want the board to narrow to the selected task's tenant, task type, reason, and approval lane without manually re-entering those filters
+- use `Focus same reason` when you want the board to narrow to the selected task reason, for example all `workflow_required` or `approval_required` work in the current tenant
 - the selected task row is now highlighted in the table and follows detail navigation, so you can keep your place in the current slice while drilling between neighboring tasks
 - use `Focus same status` when you want the board to narrow to the selected task state, for example all `waiting_approval`, `running`, or `failed` tasks in the current tenant
 - the local Compose app services now start from dedicated runtime images, which removes the previous startup dependence on downloading Go modules inside the running container

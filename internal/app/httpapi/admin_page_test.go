@@ -75,6 +75,9 @@ func TestAdminTaskBoardPageRendersHTML(t *testing.T) {
 	if !strings.Contains(body, "Focus same lane") {
 		t.Fatal("detail lane focus control missing from page HTML")
 	}
+	if !strings.Contains(body, "Focus same reason") {
+		t.Fatal("detail reason focus control missing from page HTML")
+	}
 	if !strings.Contains(body, "Focus same status") {
 		t.Fatal("detail status focus control missing from page HTML")
 	}

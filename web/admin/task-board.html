@@ -729,6 +729,7 @@
                 <button class="ghost" type="button" id="prevDetailButton" hidden>Previous visible</button>
                 <button class="ghost" type="button" id="nextDetailButton" hidden>Next visible</button>
                 <button class="ghost" type="button" id="focusLaneButton" hidden>Focus same lane</button>
+                <button class="ghost" type="button" id="focusReasonButton" hidden>Focus same reason</button>
                 <button class="ghost" type="button" id="focusStatusButton" hidden>Focus same status</button>
                 <button class="primary" type="button" id="approveTaskButton" hidden>Approve task</button>
                 <button class="ghost" type="button" id="retryTaskButton" hidden>Retry task</button>
@@ -767,6 +768,7 @@
     const prevDetailButton = document.getElementById("prevDetailButton");
     const nextDetailButton = document.getElementById("nextDetailButton");
     const focusLaneButton = document.getElementById("focusLaneButton");
+    const focusReasonButton = document.getElementById("focusReasonButton");
     const focusStatusButton = document.getElementById("focusStatusButton");
     const approveTaskButton = document.getElementById("approveTaskButton");
     const retryTaskButton = document.getElementById("retryTaskButton");
@@ -1117,6 +1119,7 @@
     function renderTaskActions(task) {
       const slicePosition = syncDetailNavigation(task.task_id);
       focusLaneButton.hidden = false;
+      focusReasonButton.hidden = false;
       focusStatusButton.hidden = false;
       approveTaskButton.hidden = task.status !== "waiting_approval";
       retryTaskButton.hidden = task.status !== "failed";
@@ -1143,6 +1146,7 @@
         prevDetailButton.disabled = true;
         nextDetailButton.disabled = true;
         focusLaneButton.hidden = true;
+        focusReasonButton.hidden = true;
         focusStatusButton.hidden = true;
         approveTaskButton.hidden = true;
         retryTaskButton.hidden = true;
@@ -1182,6 +1186,7 @@
         prevDetailButton.disabled = true;
         nextDetailButton.disabled = true;
         focusLaneButton.hidden = true;
+        focusReasonButton.hidden = true;
         focusStatusButton.hidden = true;
         detailContent.innerHTML = `<div class="empty">${escapeHTML(error.message || "Unable to load task detail.")}</div>`;
         syncSelectedTaskRow(false);
@@ -1339,6 +1344,18 @@
       loadBoard();
     }
 
+    function focusSameReason() {
+      if (!currentTaskDetail) {
+        return;
+      }
+
+      form.elements.namedItem("tenant_id").value = currentTaskDetail.tenant_id || "";
+      form.elements.namedItem("reason").value = currentTaskDetail.reason || "";
+      form.elements.namedItem("offset").value = "0";
+      detailStatusNote.textContent = `Focused the board on reason ${currentTaskDetail.reason} for tenant ${currentTaskDetail.tenant_id}.`;
+      loadBoard();
+    }
+
     function focusSameStatus() {
       if (!currentTaskDetail) {
         return;
@@ -1421,6 +1438,7 @@
           prevDetailButton.disabled = true;
           nextDetailButton.disabled = true;
           focusLaneButton.hidden = true;
+          focusReasonButton.hidden = true;
           focusStatusButton.hidden = true;
           detailContent.innerHTML = '<div class="empty">Adjust filters or offset to bring that task into view.</div>';
         } else {
@@ -1493,6 +1511,7 @@
     prevDetailButton.addEventListener("click", () => navigateVisibleTask(-1));
     nextDetailButton.addEventListener("click", () => navigateVisibleTask(1));
     focusLaneButton.addEventListener("click", () => focusSameLane());
+    focusReasonButton.addEventListener("click", () => focusSameReason());
     focusStatusButton.addEventListener("click", () => focusSameStatus());
     toggleJSONButton.addEventListener("click", () => {
       if (!currentTaskDetail) {
