@@ -57,6 +57,9 @@ func TestAdminTaskBoardPageRendersHTML(t *testing.T) {
 	if !strings.Contains(body, "Quick views") {
 		t.Fatal("quick view controls missing from page HTML")
 	}
+	if !strings.Contains(body, "Raw JSON") {
+		t.Fatal("raw json detail controls missing from page HTML")
+	}
 }
 
 func TestAdminTaskBoardPageRejectsUnknownSubpath(t *testing.T) {

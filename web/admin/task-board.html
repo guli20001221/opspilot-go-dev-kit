@@ -482,6 +482,30 @@
       letter-spacing: 0.06em;
     }
 
+    .detail-json {
+      margin-top: 16px;
+      padding: 16px;
+      border-radius: 16px;
+      border: 1px solid rgba(23, 32, 38, 0.08);
+      background: rgba(23, 32, 38, 0.94);
+      color: #f8fafc;
+    }
+
+    .detail-json small {
+      display: block;
+      margin-bottom: 10px;
+      color: rgba(248, 250, 252, 0.72);
+    }
+
+    .detail-json pre {
+      margin: 0;
+      white-space: pre-wrap;
+      word-break: break-word;
+      font-size: 0.84rem;
+      line-height: 1.55;
+      overflow: auto;
+    }
+
     .footer-actions {
       display: flex;
       justify-content: space-between;
@@ -690,6 +714,8 @@
               <div class="actions">
                 <button class="primary" type="button" id="approveTaskButton" hidden>Approve task</button>
                 <button class="ghost" type="button" id="retryTaskButton" hidden>Retry task</button>
+                <button class="ghost" type="button" id="toggleJSONButton" hidden>Show raw JSON</button>
+                <button class="ghost" type="button" id="copyJSONButton" hidden>Copy raw JSON</button>
               </div>
             </div>
             <div class="detail-status-note" id="detailStatusNote">
@@ -719,10 +745,14 @@
     const taskActorInput = document.getElementById("taskActor");
     const approveTaskButton = document.getElementById("approveTaskButton");
     const retryTaskButton = document.getElementById("retryTaskButton");
+    const toggleJSONButton = document.getElementById("toggleJSONButton");
+    const copyJSONButton = document.getElementById("copyJSONButton");
     const detailStatusNote = document.getElementById("detailStatusNote");
     let currentTaskID = new URLSearchParams(window.location.search).get("task_id") || "";
+    let currentTaskDetail = null;
     let autoRefreshHandle = null;
     let boardLoadInFlight = false;
+    let rawJSONVisible = false;
 
     const fields = ["tenant_id", "status", "task_type", "reason", "requires_approval", "limit", "offset"];
 
@@ -903,9 +933,13 @@
     }
 
     function renderTaskDetail(task) {
+      currentTaskDetail = task;
       detailIntro.textContent =
         `Detailed view for ${task.task_id}. This reuses the single-task task API and keeps audit history authoritative on the backend.`;
       renderTaskActions(task);
+      toggleJSONButton.hidden = false;
+      copyJSONButton.hidden = false;
+      toggleJSONButton.textContent = rawJSONVisible ? "Hide raw JSON" : "Show raw JSON";
       const temporalRef = parseTemporalAuditRef(task.audit_ref);
       const temporalExecution = temporalRef
         ? `
@@ -937,6 +971,14 @@
             </article>
           `).join("")
         : '<div class="empty">No audit events recorded for this task yet.</div>';
+      const rawJSONBlock = rawJSONVisible
+        ? `
+          <section class="detail-json">
+            <small>Raw JSON</small>
+            <pre>${escapeHTML(JSON.stringify(task, null, 2))}</pre>
+          </section>
+        `
+        : "";
 
       detailContent.innerHTML = `
         <div class="detail-grid">
@@ -967,6 +1009,7 @@
           </article>
         </div>
         <div class="timeline">${timeline}</div>
+        ${rawJSONBlock}
       `;
     }
 
@@ -986,11 +1029,15 @@
     async function loadTaskDetail(taskID) {
       currentTaskID = taskID || "";
       if (!taskID) {
+        currentTaskDetail = null;
+        rawJSONVisible = false;
         detailIntro.textContent =
           "Pick a task from the board to inspect status, audit events, and failure context without leaving the operator page.";
         detailStatusNote.textContent = "Select a task to reveal the next operator action.";
         approveTaskButton.hidden = true;
         retryTaskButton.hidden = true;
+        toggleJSONButton.hidden = true;
+        copyJSONButton.hidden = true;
         detailContent.innerHTML = '<div class="empty">No task selected yet.</div>';
         syncURL(buildParams(), "");
         return;
@@ -1016,6 +1063,26 @@
         renderTaskDetail(await response.json());
       } catch (error) {
         detailContent.innerHTML = `<div class="empty">${escapeHTML(error.message || "Unable to load task detail.")}</div>`;
+      }
+    }
+
+    async function copyRawJSON() {
+      if (!currentTaskDetail) {
+        return;
+      }
+
+      const originalText = copyJSONButton.textContent;
+      try {
+        await navigator.clipboard.writeText(JSON.stringify(currentTaskDetail, null, 2));
+        copyJSONButton.textContent = "Copied";
+        detailStatusNote.textContent = "Copied the current task payload to the clipboard.";
+      } catch (error) {
+        copyJSONButton.textContent = "Copy failed";
+        detailStatusNote.textContent = `Unable to copy raw JSON: ${error.message || "clipboard write failed"}`;
+      } finally {
+        window.setTimeout(() => {
+          copyJSONButton.textContent = originalText;
+        }, 1200);
       }
     }
 
@@ -1193,6 +1260,14 @@
 
     approveTaskButton.addEventListener("click", () => executeTaskAction("approve"));
     retryTaskButton.addEventListener("click", () => executeTaskAction("retry"));
+    toggleJSONButton.addEventListener("click", () => {
+      if (!currentTaskDetail) {
+        return;
+      }
+      rawJSONVisible = !rawJSONVisible;
+      renderTaskDetail(currentTaskDetail);
+    });
+    copyJSONButton.addEventListener("click", () => copyRawJSON());
 
     readParamsFromURL();
     setAutoRefresh(false);

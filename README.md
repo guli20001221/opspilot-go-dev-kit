@@ -39,6 +39,7 @@ Current Milestone 1 slice:
 - the same detail panel now derives a Temporal workflow history deep link from `audit_ref` when the task is running on a Temporal-backed execution path
 - the board now offers an optional 5-second auto-refresh mode so operators can watch task transitions without manually reloading the page
 - the board now also offers quick-view presets for common operator slices such as `Needs approval`, `Failed`, and `Running`
+- the task detail panel now includes a raw JSON view and copy action for direct operator troubleshooting without leaving the page
 - deterministic context assembly under `internal/contextengine`
 - deterministic typed planning under `internal/agent/planner`
 - deterministic typed retrieval under `internal/retrieval`
@@ -59,6 +60,7 @@ Current Milestone 1 slice:
 - Temporal-backed tasks now expose a direct workflow-history deep link in that same detail panel, so operators can jump from the board into Temporal UI without a second lookup step
 - the same page can now poll the existing board and task-detail endpoints every 5 seconds when the operator enables auto-refresh
 - common operator slices can now be applied from quick-view buttons instead of manually composing the same filters each time
+- the detail panel can now reveal the full single-task JSON payload and copy it to the clipboard for debugging and escalation flows
 - structured `audit_events` on task responses for create, claim, approve, retry, succeed, and fail
 - list-task responses intentionally omit `audit_events` so the operator list view stays lightweight while single-task lookup remains the detailed drill-down surface, and now return `has_more` plus `next_offset` for simple offset pagination
 - workflow task row changes and matching `audit_events` now commit atomically in the PostgreSQL-backed runtime paths
