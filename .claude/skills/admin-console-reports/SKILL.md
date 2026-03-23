@@ -42,6 +42,8 @@ Provide a practical operator UI for evaluation and runtime analysis while keepin
 14. When operators need payload-level troubleshooting, prefer exposing the existing detail response as raw JSON over inventing a second admin-only debug contract.
 15. For handoff flows, prefer links and copy actions that point back to existing board or detail contracts over generating separate export endpoints.
 16. When adding operator handoff summaries, derive them from the current detail response and timeline data already on-screen before considering any new backend formatter.
+17. When operators triage multiple items in the same slice, prefer next/previous navigation within the current visible board results over adding a second list or modal stack.
+18. When execution or audit detail already exists in the task timeline, promote it into a compact digest on the page before adding new backend aggregation fields.
 
 ## Output contract
 When you finish, always report:

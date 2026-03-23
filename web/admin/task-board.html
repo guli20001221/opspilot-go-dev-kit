@@ -563,7 +563,7 @@
       <div class="hero-meta">
         <span class="hero-chip">Read model: backend authoritative</span>
         <span class="hero-chip">Supports filter, offset, and visible-slice summary</span>
-        <span class="hero-chip">Read-only operator page with detail drill-down</span>
+        <span class="hero-chip">Operator review with drill-down, actions, and queue navigation</span>
       </div>
     </section>
 
@@ -718,6 +718,8 @@
                 <input id="taskActor" name="task_actor" value="task-board-operator" placeholder="operator-1">
               </div>
               <div class="actions">
+                <button class="ghost" type="button" id="prevDetailButton" hidden>Previous visible</button>
+                <button class="ghost" type="button" id="nextDetailButton" hidden>Next visible</button>
                 <button class="primary" type="button" id="approveTaskButton" hidden>Approve task</button>
                 <button class="ghost" type="button" id="retryTaskButton" hidden>Retry task</button>
                 <button class="ghost" type="button" id="toggleJSONButton" hidden>Show raw JSON</button>
@@ -752,6 +754,8 @@
     const detailContent = document.getElementById("taskDetailContent");
     const detailIntro = document.getElementById("taskDetailIntro");
     const taskActorInput = document.getElementById("taskActor");
+    const prevDetailButton = document.getElementById("prevDetailButton");
+    const nextDetailButton = document.getElementById("nextDetailButton");
     const approveTaskButton = document.getElementById("approveTaskButton");
     const retryTaskButton = document.getElementById("retryTaskButton");
     const toggleJSONButton = document.getElementById("toggleJSONButton");
@@ -765,6 +769,7 @@
     let autoRefreshHandle = null;
     let boardLoadInFlight = false;
     let rawJSONVisible = false;
+    let currentBoardItems = [];
 
     const fields = ["tenant_id", "status", "task_type", "reason", "requires_approval", "limit", "offset"];
 
@@ -907,6 +912,7 @@
     }
 
     function renderTasks(items) {
+      currentBoardItems = Array.isArray(items) ? items : [];
       if (!items || items.length === 0) {
         taskRows.innerHTML = '<tr><td class="empty" colspan="7">No tasks matched the current filter set.</td></tr>';
         return;
@@ -942,6 +948,51 @@
           </td>
         </tr>
       `).join("");
+    }
+
+    function findSelectedTaskIndex(taskID) {
+      return currentBoardItems.findIndex((item) => item.task_id === taskID);
+    }
+
+    function buildExecutionSummary(task) {
+      const events = Array.isArray(task.audit_events) ? task.audit_events : [];
+      const terminalEvent = [...events].reverse().find((event) => event.action === "succeeded" || event.action === "failed");
+      if (terminalEvent?.detail) {
+        return terminalEvent.detail;
+      }
+      if (task.error_reason) {
+        return task.error_reason;
+      }
+      if (task.audit_ref) {
+        return task.audit_ref;
+      }
+      return "No execution detail recorded yet.";
+    }
+
+    function buildTimelineDigest(task) {
+      const events = Array.isArray(task.audit_events) ? task.audit_events : [];
+      if (events.length === 0) {
+        return "No audit events recorded yet.";
+      }
+      const lastEvent = events[events.length - 1];
+      const actor = lastEvent.actor || "system";
+      const eventLabel = events.length === 1 ? "event" : "events";
+      return `${events.length} ${eventLabel}. Latest ${lastEvent.action} by ${actor} at ${fmtDate(lastEvent.created_at)}.`;
+    }
+
+    function syncDetailNavigation(taskID) {
+      const index = findSelectedTaskIndex(taskID);
+      const visible = index !== -1;
+
+      prevDetailButton.hidden = !visible;
+      nextDetailButton.hidden = !visible;
+      prevDetailButton.disabled = !visible || index <= 0;
+      nextDetailButton.disabled = !visible || index >= currentBoardItems.length - 1;
+
+      if (!visible) {
+        return "Selected task is outside the current visible slice.";
+      }
+      return `Task ${index + 1} of ${currentBoardItems.length} in current slice.`;
     }
 
     function renderTaskDetail(task) {
@@ -999,6 +1050,14 @@
       detailContent.innerHTML = `
         <div class="detail-grid">
           <article class="detail-card">
+            <small>Execution summary</small>
+            <strong>${escapeHTML(buildExecutionSummary(task))}</strong>
+          </article>
+          <article class="detail-card">
+            <small>Timeline digest</small>
+            <strong>${escapeHTML(buildTimelineDigest(task))}</strong>
+          </article>
+          <article class="detail-card">
             <small>Task ID</small>
             <strong>${escapeHTML(task.task_id)}</strong>
           </article>
@@ -1030,15 +1089,16 @@
     }
 
     function renderTaskActions(task) {
+      const slicePosition = syncDetailNavigation(task.task_id);
       approveTaskButton.hidden = task.status !== "waiting_approval";
       retryTaskButton.hidden = task.status !== "failed";
 
       if (task.status === "waiting_approval") {
-        detailStatusNote.textContent = "This task is paused for approval. Use the existing approval action endpoint from the board.";
+        detailStatusNote.textContent = `${slicePosition} This task is paused for approval. Use the existing approval action endpoint from the board.`;
       } else if (task.status === "failed") {
-        detailStatusNote.textContent = "This task failed and can be re-queued through the existing retry action endpoint.";
+        detailStatusNote.textContent = `${slicePosition} This task failed and can be re-queued through the existing retry action endpoint.`;
       } else {
-        detailStatusNote.textContent = "No operator action is available for the current task state.";
+        detailStatusNote.textContent = `${slicePosition} No operator action is available for the current task state.`;
       }
     }
 
@@ -1050,6 +1110,10 @@
         detailIntro.textContent =
           "Pick a task from the board to inspect status, audit events, and failure context without leaving the operator page.";
         detailStatusNote.textContent = "Select a task to reveal the next operator action.";
+        prevDetailButton.hidden = true;
+        nextDetailButton.hidden = true;
+        prevDetailButton.disabled = true;
+        nextDetailButton.disabled = true;
         approveTaskButton.hidden = true;
         retryTaskButton.hidden = true;
         toggleJSONButton.hidden = true;
@@ -1082,6 +1146,10 @@
 
         renderTaskDetail(await response.json());
       } catch (error) {
+        prevDetailButton.hidden = true;
+        nextDetailButton.hidden = true;
+        prevDetailButton.disabled = true;
+        nextDetailButton.disabled = true;
         detailContent.innerHTML = `<div class="empty">${escapeHTML(error.message || "Unable to load task detail.")}</div>`;
       }
     }
@@ -1206,6 +1274,22 @@
       }
     }
 
+    function navigateVisibleTask(delta) {
+      if (!currentTaskID) {
+        return;
+      }
+      const index = findSelectedTaskIndex(currentTaskID);
+      if (index === -1) {
+        detailStatusNote.textContent = "Selected task is outside the current slice. Reload the board before navigating.";
+        return;
+      }
+      const nextIndex = index + delta;
+      if (nextIndex < 0 || nextIndex >= currentBoardItems.length) {
+        return;
+      }
+      loadTaskDetail(currentBoardItems[nextIndex].task_id);
+    }
+
     function renderPage(page, params) {
       const offset = Number.parseInt(params.get("offset") || "0", 10) || 0;
       document.getElementById("pageMeta").textContent =
@@ -1270,6 +1354,11 @@
           await loadTaskDetail(selectedTaskID);
         } else if (selectedTaskID) {
           detailIntro.textContent = `Task ${selectedTaskID} is not visible in the current board slice.`;
+          detailStatusNote.textContent = "Selected task is outside the current slice. Adjust filters or offset to bring it back into view.";
+          prevDetailButton.hidden = true;
+          nextDetailButton.hidden = true;
+          prevDetailButton.disabled = true;
+          nextDetailButton.disabled = true;
           detailContent.innerHTML = '<div class="empty">Adjust filters or offset to bring that task into view.</div>';
         } else {
           await loadTaskDetail("");
@@ -1338,6 +1427,8 @@
 
     approveTaskButton.addEventListener("click", () => executeTaskAction("approve"));
     retryTaskButton.addEventListener("click", () => executeTaskAction("retry"));
+    prevDetailButton.addEventListener("click", () => navigateVisibleTask(-1));
+    nextDetailButton.addEventListener("click", () => navigateVisibleTask(1));
     toggleJSONButton.addEventListener("click", () => {
       if (!currentTaskDetail) {
         return;

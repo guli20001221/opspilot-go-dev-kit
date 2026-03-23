@@ -42,6 +42,7 @@ Current Milestone 1 slice:
 - the task detail panel now includes a raw JSON view and copy action for direct operator troubleshooting without leaving the page
 - the same task detail panel now supports handoff actions: copy the current task-board URL and open the underlying task API detail in a new tab
 - the same task detail panel now supports `Copy audit summary` for a compact, paste-ready task timeline handoff
+- the same detail panel now supports visible-slice task navigation plus digest cards for execution summary and timeline state, so operators can triage adjacent tasks without bouncing back to the table
 - deterministic context assembly under `internal/contextengine`
 - deterministic typed planning under `internal/agent/planner`
 - deterministic typed retrieval under `internal/retrieval`
@@ -58,7 +59,7 @@ Current Milestone 1 slice:
 - `POST /api/v1/tasks/{task_id}/approve` and `POST /api/v1/tasks/{task_id}/retry` for minimal task actions
 - `GET /api/v1/admin/task-board` for the first backend task-board read model that returns items, page metadata, and visible-slice summary counts for future `web/admin` task views
 - `GET /admin/task-board` for the first embedded operator page consuming the backend task-board read model
-- the admin page keeps the board summary lightweight while letting operators inspect per-task audit history in a read-only detail panel
+- the admin page keeps the board summary lightweight while letting operators inspect per-task audit history, navigate adjacent visible tasks, and trigger existing task actions from one detail panel
 - Temporal-backed tasks now expose a direct workflow-history deep link in that same detail panel, so operators can jump from the board into Temporal UI without a second lookup step
 - the same page can now poll the existing board and task-detail endpoints every 5 seconds when the operator enables auto-refresh
 - common operator slices can now be applied from quick-view buttons instead of manually composing the same filters each time

@@ -57,13 +57,14 @@ The current HTTP layer also exposes the same PostgreSQL-backed workflow records 
 - `POST /api/v1/tasks/{task_id}/retry` to re-queue failed tasks
 - `GET /api/v1/admin/task-board` for the first admin read-model endpoint, which keeps visible-slice summaries and pagination metadata on the backend for future `web/admin` task pages
 - `GET /admin/task-board` as the first operator page that renders summary cards, filters, and task rows directly from the admin read-model endpoint
-- the same page now exposes a read-only task detail panel backed by the existing single-task API, keeping board and audit views on one operator surface
+- the same page now exposes a task detail panel backed by the existing single-task API, keeping board, audit views, adjacent-task navigation, and existing task actions on one operator surface
 - when a task `audit_ref` points at `temporal:workflow:<workflow_id>/<run_id>`, the detail panel now derives a direct Temporal UI history link without expanding the backend contract
 - the same page can optionally auto-refresh against the existing board and task-detail endpoints, so operator monitoring does not require manual reload loops
 - the board now also includes quick-view presets for common operator slices, but those presets still flow through the same existing filter fields and backend read model
 - the detail panel can now expose the raw single-task JSON payload from the existing detail endpoint, keeping debugging and escalation views contract-first as well
 - the same detail panel now exposes handoff actions that stay contract-first: copy the selected board URL or open the canonical task-detail JSON in a separate tab
 - the same detail panel can now derive a compact audit-summary string from the selected task response and its audit events, giving operators a contract-first handoff artifact without a new backend surface
+- the same detail panel now supports previous/next navigation within the current board slice and derives execution/timeline digest cards from the selected task response without introducing extra backend aggregation
 - `audit_events` embedded in task responses as the current structured operator audit view
 - the list endpoint intentionally omits `audit_events`, so the summary surface stays cheap while the single-task endpoint remains the detailed audit drill-down, and it returns `has_more` plus `next_offset` for simple operator pagination
 - `error_reason` normalized to an operator-facing summary while deep Temporal detail remains in worker logs

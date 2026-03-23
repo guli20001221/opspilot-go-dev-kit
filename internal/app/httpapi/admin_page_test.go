@@ -66,6 +66,12 @@ func TestAdminTaskBoardPageRendersHTML(t *testing.T) {
 	if !strings.Contains(body, "Copy audit summary") {
 		t.Fatal("audit summary controls missing from page HTML")
 	}
+	if !strings.Contains(body, "Previous visible") {
+		t.Fatal("detail navigation controls missing from page HTML")
+	}
+	if !strings.Contains(body, "Execution summary") {
+		t.Fatal("detail execution summary missing from page HTML")
+	}
 }
 
 func TestAdminTaskBoardPageRejectsUnknownSubpath(t *testing.T) {
