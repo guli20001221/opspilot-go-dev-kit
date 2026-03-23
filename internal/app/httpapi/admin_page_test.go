@@ -180,6 +180,12 @@ func TestAdminReportsPageRendersHTML(t *testing.T) {
 	if !strings.Contains(body, "Open current report in Task Board") {
 		t.Fatal("current report handoff link missing from reports page HTML")
 	}
+	if !strings.Contains(body, "Previous visible") {
+		t.Fatal("report detail navigation controls missing from reports page HTML")
+	}
+	if !strings.Contains(body, "task-row-selected") {
+		t.Fatal("selected report row styling missing from reports page HTML")
+	}
 }
 
 func TestAdminReportsPageRejectsUnknownSubpath(t *testing.T) {

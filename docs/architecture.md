@@ -62,6 +62,7 @@ The current HTTP layer also exposes the same PostgreSQL-backed workflow records 
 - the same page now exposes a task detail panel backed by the existing single-task API, keeping board, audit views, adjacent-task navigation, and existing task actions on one operator surface
 - when a task `audit_ref` points at `temporal:workflow:<workflow_id>/<run_id>`, the detail panel now derives a direct Temporal UI history link without expanding the backend contract
 - `GET /admin/reports` is the first report-focused operator page, fixed to `status=succeeded` and `task_type=report_generation` while still consuming the existing admin read-model endpoint and single-task detail endpoint
+- the same report lane now keeps the selected report row visually synced with the detail pane and supports previous/next navigation within the current visible slice
 - the same page can optionally auto-refresh against the existing board and task-detail endpoints, so operator monitoring does not require manual reload loops
 - the board now also includes quick-view presets for common operator slices, but those presets still flow through the same existing filter fields and backend read model
 - the detail panel can now expose the raw single-task JSON payload from the existing detail endpoint, keeping debugging and escalation views contract-first as well

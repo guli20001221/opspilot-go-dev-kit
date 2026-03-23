@@ -272,6 +272,15 @@
       vertical-align: top;
     }
 
+    tbody tr {
+      transition: background 120ms ease, box-shadow 120ms ease;
+    }
+
+    tbody tr.task-row-selected {
+      background: rgba(29, 78, 216, 0.1);
+      box-shadow: inset 4px 0 0 var(--accent);
+    }
+
     th {
       font-size: 0.76rem;
       letter-spacing: 0.08em;
@@ -358,6 +367,13 @@
 
     .timeline-item small {
       color: var(--muted);
+    }
+
+    .detail-actions {
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+      margin-top: 10px;
     }
 
     @media (max-width: 980px) {
@@ -456,6 +472,10 @@
       <p class="panel-copy">
         Pick a report task to inspect execution provenance, task audit, and a direct handoff path back to the task board.
       </p>
+      <div class="detail-actions">
+        <button class="ghost" type="button" id="prevReportButton" hidden>Previous visible</button>
+        <button class="ghost" type="button" id="nextReportButton" hidden>Next visible</button>
+      </div>
       <div id="reportDetail" class="empty">No report selected yet.</div>
     </section>
   </main>
@@ -474,6 +494,8 @@
     const summaryReasons = document.getElementById("summaryReasons");
     const summaryTypes = document.getElementById("summaryTypes");
     const openBoardForCurrentLink = document.getElementById("openBoardForCurrentLink");
+    const prevReportButton = document.getElementById("prevReportButton");
+    const nextReportButton = document.getElementById("nextReportButton");
 
     let currentItems = [];
     let currentTaskID = "";
@@ -588,6 +610,34 @@
           <td><button class="ghost" type="button" data-task-id="${escapeHTML(item.task_id)}">Inspect</button></td>
         </tr>
       `).join("");
+      syncSelectedRow();
+    }
+
+    function findSelectedIndex(taskID) {
+      return currentItems.findIndex((item) => item.task_id === taskID);
+    }
+
+    function syncSelectedRow() {
+      const rows = reportRows.querySelectorAll("[data-task-row]");
+      for (const row of rows) {
+        const selected = row.getAttribute("data-task-row") === currentTaskID && currentTaskID !== "";
+        row.classList.toggle("task-row-selected", selected);
+        if (selected) {
+          row.setAttribute("aria-current", "true");
+          row.scrollIntoView({ block: "nearest", inline: "nearest" });
+        } else {
+          row.removeAttribute("aria-current");
+        }
+      }
+    }
+
+    function syncDetailNavigation() {
+      const index = findSelectedIndex(currentTaskID);
+      const visible = index !== -1 && currentItems.length > 0;
+      prevReportButton.hidden = !visible;
+      nextReportButton.hidden = !visible;
+      prevReportButton.disabled = !visible || index <= 0;
+      nextReportButton.disabled = !visible || index >= currentItems.length - 1;
     }
 
     function renderDetail(task) {
@@ -652,6 +702,8 @@
           </div>
         </div>
       `;
+      syncSelectedRow();
+      syncDetailNavigation();
     }
 
     async function loadDetail(taskID) {
@@ -660,6 +712,8 @@
         reportDetail.innerHTML = '<div class="empty">No report selected yet.</div>';
         openBoardForCurrentLink.href = "/admin/task-board";
         syncURL("");
+        syncSelectedRow();
+        syncDetailNavigation();
         return;
       }
 
@@ -674,7 +728,21 @@
         renderDetail(await response.json());
       } catch (error) {
         reportDetail.innerHTML = `<div class="empty">${escapeHTML(error.message || "Unable to load report detail.")}</div>`;
+        syncSelectedRow();
+        syncDetailNavigation();
       }
+    }
+
+    function navigateVisible(delta) {
+      const index = findSelectedIndex(currentTaskID);
+      if (index === -1) {
+        return;
+      }
+      const nextIndex = index + delta;
+      if (nextIndex < 0 || nextIndex >= currentItems.length) {
+        return;
+      }
+      loadDetail(currentItems[nextIndex].task_id);
     }
 
     async function loadReports(selectedTaskID = "") {
@@ -734,6 +802,9 @@
       }
       loadDetail(button.dataset.taskId);
     });
+
+    prevReportButton.addEventListener("click", () => navigateVisible(-1));
+    nextReportButton.addEventListener("click", () => navigateVisible(1));
 
     const initialTaskID = populateFiltersFromURL();
     loadReports(initialTaskID);
