@@ -66,6 +66,7 @@ Current Milestone 1 slice:
 - PostgreSQL-backed async promotion records under `internal/workflow` for the API runtime
 - worker-side task progression from `queued` to `running/succeeded/failed`, with `report_generation` bridged through Temporal workflow execution
 - successful `report_generation` tasks now also persist a durable report read model, separate from task status, under `internal/report`
+- `internal/case` now holds the first durable operator case read model, linking follow-up work back to source tasks and reports through stable IDs
 - approval-gated `approved_tool_execution` tasks now start a waiting Temporal workflow at promote time, fail the current Temporal run on execution error, and use retry to start a new failed-only Temporal run for the same task
 - `POST /api/v1/sessions` for session creation
 - `GET /api/v1/sessions/{session_id}/messages` for message listing
@@ -86,6 +87,7 @@ Current Milestone 1 slice:
 - the same reports page can now reveal and copy the raw durable report JSON from `GET /api/v1/reports/{report_id}`, so operators can compare the report artifact directly with task provenance
 - the same reports page now degrades gracefully when a legacy successful report task has no durable report row yet, showing task provenance fallback instead of a broken detail pane
 - `GET /api/v1/reports/{report_id}` now exposes the durable report read model emitted by a successful `report_generation` task
+- `POST /api/v1/cases` and `GET /api/v1/cases/{case_id}` now expose a durable operator case contract for task/report follow-up
 - successful report tasks now finalize their `succeeded` task state and durable report row together, so report `ready_at` and `metadata.audit_ref` stay aligned with the final task success event
 - common operator slices can now be applied from quick-view buttons instead of manually composing the same filters each time
 - the detail panel can now reveal the full single-task JSON payload and copy it to the clipboard for debugging and escalation flows

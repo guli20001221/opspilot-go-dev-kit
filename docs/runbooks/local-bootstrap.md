@@ -49,6 +49,8 @@ Successful build artifacts are emitted under `bin/`.
 - `GET /admin/task-board`
 - `GET /admin/reports`
 - `GET /api/v1/reports/{report_id}`
+- `POST /api/v1/cases`
+- `GET /api/v1/cases/{case_id}`
 - `POST /api/v1/chat/stream`
 
 The current chat stream implementation is a Milestone 1 skeleton:
@@ -93,6 +95,8 @@ The current chat stream implementation is a Milestone 1 skeleton:
 - use `Show raw report JSON` on `/admin/reports` when you need the exact durable report artifact, and `Copy raw report JSON` when you want to paste that artifact into an incident or escalation thread
 - if a legacy successful report task has no durable report row yet, `/admin/reports` now falls back to task provenance and keeps the detail panel readable instead of failing the inspect flow
 - use `GET /api/v1/reports/report-<task_id>` when you need the canonical report read model behind a successful report task, without parsing task audit history yourself
+- use `POST /api/v1/cases` when you need a durable operator follow-up object that can point at a source task, a source report, or both
+- use `GET /api/v1/cases/{case_id}` when you need the canonical case record for that follow-up object
 - successful `report_generation` tasks now finalize the durable report row and task `succeeded` transition together, so `ready_at` and report `metadata.audit_ref` line up with the final task state
 - the local Compose app services now start from dedicated runtime images, which removes the previous startup dependence on downloading Go modules inside the running container
 - the last successful `audit_event.detail` now carries an execution summary, such as which ticket comment was created
@@ -103,12 +107,14 @@ The current chat stream implementation is a Milestone 1 skeleton:
 - assistant output is a fixed placeholder response
 - the current HTTP contract is documented in `docs/openapi/openapi.yaml`
 
-If your local PostgreSQL volume predates `db/migrations/000002_workflow_tasks.sql`, `db/migrations/000003_workflow_task_events.sql`, or `db/migrations/000004_workflow_task_payload.sql`, apply them manually before starting the API:
+If your local PostgreSQL volume predates the workflow, report, or case migrations under `db/migrations/`, apply them manually before starting the API:
 
 ```powershell
 docker compose exec -T postgres psql -U opspilot -d opspilot -f /docker-entrypoint-initdb.d/000002_workflow_tasks.sql
 docker compose exec -T postgres psql -U opspilot -d opspilot -f /docker-entrypoint-initdb.d/000003_workflow_task_events.sql
 docker compose exec -T postgres psql -U opspilot -d opspilot -f /docker-entrypoint-initdb.d/000004_workflow_task_payload.sql
+docker compose exec -T postgres psql -U opspilot -d opspilot -f /docker-entrypoint-initdb.d/000005_reports.sql
+docker compose exec -T postgres psql -U opspilot -d opspilot -f /docker-entrypoint-initdb.d/000006_cases.sql
 ```
 
 If you change Compose environment variables such as `OPSPILOT_POSTGRES_DSN`, `OPSPILOT_TEMPORAL_ENABLED`, or `OPSPILOT_WORKER_POLL_INTERVAL`, recreate the app containers instead of only restarting them:

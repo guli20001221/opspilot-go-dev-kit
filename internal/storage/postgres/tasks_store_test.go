@@ -887,6 +887,7 @@ func applyMigration(t *testing.T, ctx context.Context, pool *pgxpool.Pool) {
 		"000003_workflow_task_events.sql",
 		"000004_workflow_task_payload.sql",
 		"000005_reports.sql",
+		"000006_cases.sql",
 	} {
 		path := filepath.Join("..", "..", "..", "db", "migrations", name)
 		sql, err := os.ReadFile(path)

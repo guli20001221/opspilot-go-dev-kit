@@ -29,6 +29,7 @@ The current Milestone 1 slice adds:
 - the same page now reuses `POST /api/v1/tasks/{task_id}/approve` and `POST /api/v1/tasks/{task_id}/retry` for operator actions, so the admin UI does not fork workflow mutation contracts
 - the same embedded admin surface now includes `/admin/reports`, a report-lane view derived from the existing task-board and task-detail contracts rather than a new backend read model
 - `internal/report` now holds the first durable report read model, emitted from successful `report_generation` workflow completion rather than inferred only from task audit history
+- `internal/case` now holds the first durable operator case read model, so follow-up work can reference a source task, a source report, or both through stable IDs
 - `internal/contextengine` for deterministic block assembly and assembly logging
 - `internal/agent/planner` for deterministic typed execution plans
 - `internal/retrieval` for deterministic structured-query retrieval and provenance-bearing evidence blocks
@@ -67,6 +68,7 @@ The current HTTP layer also exposes the same PostgreSQL-backed workflow records 
 - the same report lane now also supports lightweight polling against the existing admin read model, so no report-specific watch contract is needed for basic operator monitoring
 - the same report lane now also supports copyable report summaries and shareable report links derived from the current task detail response, so operator handoff still reuses canonical task contracts
 - `GET /api/v1/reports/{report_id}` now exposes the durable report artifact emitted by a successful report task without forcing clients to parse task audit history
+- `POST /api/v1/cases` and `GET /api/v1/cases/{case_id}` now expose the durable operator case contract, separate from task/report runtime status
 - the same report lane now reads report title, summary, and readiness metadata from the durable report endpoint while still reusing task detail for audit timeline and Temporal links
 - the same report lane can now surface and copy the raw durable report JSON directly from the report endpoint, so artifact troubleshooting stays contract-first too
 - the same report lane now falls back to task provenance when a legacy or partially recovered successful report task has no durable report row, so operator drill-down remains readable

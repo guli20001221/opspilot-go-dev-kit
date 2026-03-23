@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"net/http"
 
+	casesvc "opspilot-go/internal/case"
 	"opspilot-go/internal/report"
 	toolregistry "opspilot-go/internal/tools/registry"
 	"opspilot-go/internal/workflow"
@@ -17,6 +18,7 @@ type statusResponse struct {
 type Dependencies struct {
 	Workflows *workflow.Service
 	Reports   *report.Service
+	Cases     *casesvc.Service
 	Registry  *toolregistry.Registry
 }
 
@@ -28,7 +30,7 @@ func NewHandler() http.Handler {
 // NewHandlerWithDependencies constructs the HTTP handler tree with injected services.
 func NewHandlerWithDependencies(deps Dependencies) http.Handler {
 	mux := http.NewServeMux()
-	app := newAppHandler(deps.Workflows, deps.Reports, deps.Registry)
+	app := newAppHandler(deps.Workflows, deps.Reports, deps.Cases, deps.Registry)
 	mux.HandleFunc("/healthz", writeStatus("ok"))
 	mux.HandleFunc("/readyz", writeStatus("ready"))
 	app.registerRoutes(mux)

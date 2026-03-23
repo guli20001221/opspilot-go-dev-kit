@@ -40,6 +40,7 @@ Keep the HTTP surface explicit, documented, stable, and friendly to streaming ag
 9. Task action endpoints such as approve or retry should surface invalid state transitions as explicit 409-style contract errors.
 10. List endpoints for async jobs should document supported filters, including operator-centric booleans, reason enums, or created/updated time-window parameters when relevant, plus pagination semantics, and keep heavy per-item detail, such as audit history, off the summary response unless explicitly needed.
 11. When async workflow execution produces a durable artifact such as a report, expose a stable artifact read endpoint separate from task status instead of forcing clients to reconstruct artifact metadata from task audit events.
+12. When a durable follow-up object such as a case links existing tasks or reports, validate tenant-safe source references at the API boundary and surface lineage mismatches as explicit 409-style contract errors.
 
 ## Output contract
 When you finish, always report:

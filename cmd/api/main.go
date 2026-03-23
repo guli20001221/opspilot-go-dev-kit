@@ -13,6 +13,7 @@ import (
 	"opspilot-go/internal/app/config"
 	"opspilot-go/internal/app/httpapi"
 	"opspilot-go/internal/app/logging"
+	casesvc "opspilot-go/internal/case"
 	"opspilot-go/internal/report"
 	storagepostgres "opspilot-go/internal/storage/postgres"
 	toolregistry "opspilot-go/internal/tools/registry"
@@ -59,6 +60,7 @@ func main() {
 
 	workflowService := workflow.NewServiceWithHooks(storagepostgres.NewWorkflowTaskStore(pool), taskStarter)
 	reportService := report.NewServiceWithStore(storagepostgres.NewReportStore(pool))
+	caseService := casesvc.NewServiceWithStore(storagepostgres.NewCaseStore(pool))
 	registry := toolregistry.NewDefaultRegistryWithOptions(toolregistry.Options{
 		TicketAPIBaseURL: cfg.TicketAPIBaseURL,
 		TicketAPIToken:   cfg.TicketAPIToken,
@@ -66,7 +68,7 @@ func main() {
 
 	server := &http.Server{
 		Addr:              cfg.APIListenAddr,
-		Handler:           httpapi.NewHandlerWithDependencies(httpapi.Dependencies{Workflows: workflowService, Reports: reportService, Registry: registry}),
+		Handler:           httpapi.NewHandlerWithDependencies(httpapi.Dependencies{Workflows: workflowService, Reports: reportService, Cases: caseService, Registry: registry}),
 		ReadHeaderTimeout: 5 * time.Second,
 	}
 
