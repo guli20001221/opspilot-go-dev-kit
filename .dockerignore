@@ -1,0 +1,10 @@
+.git
+.gitignore
+.claude
+.agents
+bin
+postgres-data
+temporal-postgres-data
+*.exe
+*.log
+docs/plans

@@ -29,7 +29,7 @@ try {
             & $PSCommandPath -Task build
         }
         "dev-up" {
-            docker compose up -d
+            docker compose up -d --build
         }
         "dev-down" {
             docker compose down

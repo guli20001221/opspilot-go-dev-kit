@@ -26,6 +26,7 @@ It does not yet wire real DB access from the app code or a real OpenTelemetry ex
 3. If `make` is not installed, run `powershell -File scripts/dev/tasks.ps1 test` and `powershell -File scripts/dev/tasks.ps1 build`.
 4. Validate the Compose file with `docker compose config`.
 5. Start the local stack with `make dev-up` or `powershell -File scripts/dev/tasks.ps1 dev-up`.
+   This now runs `docker compose up -d --build`, so the app services start from prebuilt binaries rather than runtime `go run`.
 6. Check `http://localhost:18080/healthz`.
 7. Check `http://localhost:18080/readyz`.
 8. Check Temporal UI at `http://localhost:8088`.
@@ -65,6 +66,7 @@ The current chat stream implementation is a Milestone 1 skeleton:
 - `GET /api/v1/admin/task-board` reuses the same filters but returns a backend task-board read model with visible-slice summary counts for the current page
 - `GET /admin/task-board` is the first embedded operator UI and mirrors the same filters in a simple browser form while keeping all summary logic on the backend
 - the same page now supports read-only task drill-down, so operators can inspect `audit_events`, `error_reason`, and `audit_ref` without leaving the board
+- the local Compose app services now start from dedicated runtime images, which removes the previous startup dependence on downloading Go modules inside the running container
 - the last successful `audit_event.detail` now carries an execution summary, such as which ticket comment was created
 - failed `audit_event.detail` values now carry a coarse category prefix, such as `validation_error:` or `authorization_error:`
 - failed tasks expose a summarized `error_reason` instead of the full wrapped Temporal error chain
@@ -84,7 +86,7 @@ docker compose exec -T postgres psql -U opspilot -d opspilot -f /docker-entrypoi
 If you change Compose environment variables such as `OPSPILOT_POSTGRES_DSN`, `OPSPILOT_TEMPORAL_ENABLED`, or `OPSPILOT_WORKER_POLL_INTERVAL`, recreate the app containers instead of only restarting them:
 
 ```powershell
-docker compose up -d --force-recreate api worker
+docker compose up -d --build --force-recreate api worker
 ```
 
 To override the built-in fake ticket API and point both app processes at a different ticket API, recreate them with:
@@ -92,7 +94,7 @@ To override the built-in fake ticket API and point both app processes at a diffe
 ```powershell
 $env:OPSPILOT_TICKET_API_BASE_URL = "http://host.docker.internal:19090"
 $env:OPSPILOT_TICKET_API_TOKEN = "secret-token"
-docker compose up -d --force-recreate api worker
+docker compose up -d --build --force-recreate api worker
 ```
 
 If an approval-gated task fails after approval, recover it with:
@@ -112,7 +114,7 @@ To force this path locally without changing code, recreate only the worker with:
 
 ```powershell
 $env:OPSPILOT_APPROVED_TOOL_FAIL_ON_APPROVE = "true"
-docker compose up -d --force-recreate worker
+docker compose up -d --build --force-recreate worker
 ```
 
 ## Current gaps

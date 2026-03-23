@@ -17,6 +17,7 @@ The current foundation slice also includes a local development stack:
 - Redis for future coordination and caching flows
 - Temporal plus Temporal UI for workflow development
 - API and worker processes bootstrapped through the same local Compose topology
+- local Compose now starts prebuilt runtime images for the Go services instead of bind-mounting source and calling `go run` inside containers
 
 The current Milestone 1 slice adds:
 

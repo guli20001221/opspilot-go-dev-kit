@@ -42,9 +42,10 @@ Create or realign the repository to a clean modular-monolith Golang layout with 
    - health and readiness endpoints
    - make targets for fmt, lint, test, dev-up, and dev-down
 4. Add the minimum local stack definition for app dependencies.
-5. Add entrypoints that compile even if business logic is still stubbed.
-6. Update README and local runbooks with tested commands.
-7. Leave clear TODO boundaries instead of half-implemented infrastructure.
+5. Prefer prebuilt runtime images for Compose-managed Go services once the local stack needs to be reliable across restarts; avoid long-lived bind-mounted `go run` containers.
+6. Add entrypoints that compile even if business logic is still stubbed.
+7. Update README and local runbooks with tested commands.
+8. Leave clear TODO boundaries instead of half-implemented infrastructure.
 
 ## Output contract
 When you finish, always report:

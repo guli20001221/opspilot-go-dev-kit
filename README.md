@@ -22,6 +22,7 @@ Current foundation slice:
 - a first SQL migration scaffold under `db/migrations`
 - `compose.yaml` for local PostgreSQL, Redis, Temporal, API, and worker bootstrapping
 - the local compose stack now also includes a fake ticket API so the configurable HTTP ticket adapters can be exercised end-to-end without an external system
+- the local compose stack now builds dedicated runtime images for `api`, `worker`, and `ticket-api`, so container start no longer depends on runtime `go run` downloads
 - API container published on host port `18080` to avoid common local `8080` conflicts
 - `Makefile` targets for `fmt`, `test`, `build`, and `check`
 - `scripts/dev/tasks.ps1` as the verified PowerShell fallback when `make` is unavailable

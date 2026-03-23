@@ -1,15 +1,13 @@
 services:
   ticket-api:
-    image: golang:1.24.2
-    working_dir: /workspace
-    command: ["go", "run", "./cmd/ticketapi"]
+    build:
+      context: .
+      dockerfile: docker/ticketapi.Dockerfile
     environment:
       OPSPILOT_ENV: development
       OPSPILOT_LOG_LEVEL: INFO
       OPSPILOT_TICKET_API_LISTEN_ADDR: :8090
       OPSPILOT_TICKET_API_TOKEN: local-dev-ticket-token
-    volumes:
-      - ./:/workspace
     ports:
       - "${OPSPILOT_TICKET_API_PORT:-19090}:8090"
 
@@ -86,7 +84,9 @@ services:
       - "8088:8080"
 
   api:
-    image: golang:1.24.2
+    build:
+      context: .
+      dockerfile: docker/api.Dockerfile
     depends_on:
       ticket-api:
         condition: service_started
@@ -96,8 +96,6 @@ services:
         condition: service_healthy
       temporal:
         condition: service_started
-    working_dir: /workspace
-    command: ["go", "run", "./cmd/api"]
     environment:
       OPSPILOT_ENV: development
       OPSPILOT_LOG_LEVEL: INFO
@@ -111,13 +109,13 @@ services:
       OPSPILOT_TICKET_API_TOKEN: local-dev-ticket-token
       OPSPILOT_WORKER_POLL_INTERVAL: 1s
       OPSPILOT_WORKER_SHUTDOWN_TIMEOUT: 10s
-    volumes:
-      - ./:/workspace
     ports:
       - "18080:8080"
 
   worker:
-    image: golang:1.24.2
+    build:
+      context: .
+      dockerfile: docker/worker.Dockerfile
     depends_on:
       ticket-api:
         condition: service_started
@@ -127,8 +125,6 @@ services:
         condition: service_healthy
       temporal:
         condition: service_started
-    working_dir: /workspace
-    command: ["go", "run", "./cmd/worker"]
     environment:
       OPSPILOT_ENV: development
       OPSPILOT_LOG_LEVEL: INFO
@@ -143,9 +139,6 @@ services:
       OPSPILOT_APPROVED_TOOL_FAIL_ON_APPROVE: ${OPSPILOT_APPROVED_TOOL_FAIL_ON_APPROVE:-false}
       OPSPILOT_WORKER_POLL_INTERVAL: 1s
       OPSPILOT_WORKER_SHUTDOWN_TIMEOUT: 10s
-    volumes:
-      - ./:/workspace
-
 volumes:
   postgres-data:
   temporal-postgres-data:
