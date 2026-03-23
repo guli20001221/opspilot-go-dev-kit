@@ -652,6 +652,7 @@
           <button class="ghost quick-view-button" type="button" data-view="waiting_approval">Needs approval</button>
           <button class="ghost quick-view-button" type="button" data-view="failed">Failed</button>
           <button class="ghost quick-view-button" type="button" data-view="running">Running</button>
+          <button class="ghost quick-view-button" type="button" data-view="succeeded">Succeeded</button>
           <button class="ghost quick-view-button" type="button" data-view="report_generation">Report tasks</button>
           <button class="ghost quick-view-button" type="button" data-view="approved_tool_execution">Approved tools</button>
         </div>
@@ -913,6 +914,8 @@
         form.elements.namedItem("status").value = "failed";
       } else if (view === "running") {
         form.elements.namedItem("status").value = "running";
+      } else if (view === "succeeded") {
+        form.elements.namedItem("status").value = "succeeded";
       } else if (view === "report_generation") {
         form.elements.namedItem("task_type").value = "report_generation";
       } else if (view === "approved_tool_execution") {
