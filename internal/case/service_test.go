@@ -274,3 +274,61 @@ func TestServiceAssignCaseRejectsStaleWrite(t *testing.T) {
 		t.Fatalf("AssignCase(second) error = %v, want %v", err, ErrCaseConflict)
 	}
 }
+
+func TestServiceAddAndListCaseNotes(t *testing.T) {
+	svc := NewService()
+
+	created, err := svc.CreateCase(context.Background(), CreateInput{
+		TenantID: "tenant-1",
+		Title:    "Case with notes",
+	})
+	if err != nil {
+		t.Fatalf("CreateCase() error = %v", err)
+	}
+	first, err := svc.AddNote(context.Background(), created, "first note", "operator-a")
+	if err != nil {
+		t.Fatalf("AddNote(first) error = %v", err)
+	}
+	second, err := svc.AddNote(context.Background(), created, "second note", "operator-b")
+	if err != nil {
+		t.Fatalf("AddNote(second) error = %v", err)
+	}
+
+	notes, err := svc.ListCaseNotes(context.Background(), created.ID, 20)
+	if err != nil {
+		t.Fatalf("ListCaseNotes() error = %v", err)
+	}
+	if len(notes) != 2 {
+		t.Fatalf("len(ListCaseNotes()) = %d, want %d", len(notes), 2)
+	}
+	if notes[0].ID != second.ID {
+		t.Fatalf("notes[0].ID = %q, want %q", notes[0].ID, second.ID)
+	}
+	if notes[1].ID != first.ID {
+		t.Fatalf("notes[1].ID = %q, want %q", notes[1].ID, first.ID)
+	}
+
+	refreshed, err := svc.GetCase(context.Background(), created.ID)
+	if err != nil {
+		t.Fatalf("GetCase() error = %v", err)
+	}
+	if !refreshed.UpdatedAt.Equal(second.CreatedAt) {
+		t.Fatalf("GetCase().UpdatedAt = %v, want %v", refreshed.UpdatedAt, second.CreatedAt)
+	}
+}
+
+func TestServiceAddNoteRejectsEmptyBody(t *testing.T) {
+	svc := NewService()
+
+	created, err := svc.CreateCase(context.Background(), CreateInput{
+		TenantID: "tenant-1",
+		Title:    "Case with invalid note",
+	})
+	if err != nil {
+		t.Fatalf("CreateCase() error = %v", err)
+	}
+
+	if _, err := svc.AddNote(context.Background(), created, "   ", "operator-a"); !errors.Is(err, ErrInvalidNote) {
+		t.Fatalf("AddNote() error = %v, want %v", err, ErrInvalidNote)
+	}
+}

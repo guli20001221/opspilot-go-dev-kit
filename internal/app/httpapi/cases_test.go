@@ -603,6 +603,99 @@ func TestAssignCaseEndpointRejectsStaleWrite(t *testing.T) {
 	}
 }
 
+func TestAddCaseNoteEndpointAndGetCaseIncludesNotes(t *testing.T) {
+	caseService := casesvc.NewService()
+	created, err := caseService.CreateCase(context.Background(), casesvc.CreateInput{
+		TenantID: "tenant-1",
+		Title:    "Case with note",
+	})
+	if err != nil {
+		t.Fatalf("CreateCase() error = %v", err)
+	}
+
+	server := httptest.NewServer(NewHandlerWithDependencies(Dependencies{Cases: caseService}))
+	defer server.Close()
+
+	req, err := http.NewRequest(http.MethodPost, server.URL+"/api/v1/cases/"+created.ID+"/notes?tenant_id=tenant-1", bytes.NewBufferString(`{"body":"note body","created_by":"operator-a"}`))
+	if err != nil {
+		t.Fatalf("NewRequest() error = %v", err)
+	}
+	req.Header.Set("Content-Type", "application/json")
+
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatalf("Do() error = %v", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusCreated {
+		t.Fatalf("StatusCode = %d, want %d", resp.StatusCode, http.StatusCreated)
+	}
+
+	var note caseNoteResponse
+	if err := json.NewDecoder(resp.Body).Decode(&note); err != nil {
+		t.Fatalf("Decode(note) error = %v", err)
+	}
+	if note.Body != "note body" {
+		t.Fatalf("note.Body = %q, want %q", note.Body, "note body")
+	}
+
+	getResp, err := http.Get(server.URL + "/api/v1/cases/" + created.ID + "?tenant_id=tenant-1")
+	if err != nil {
+		t.Fatalf("Get() error = %v", err)
+	}
+	defer getResp.Body.Close()
+
+	var got caseResponse
+	if err := json.NewDecoder(getResp.Body).Decode(&got); err != nil {
+		t.Fatalf("Decode(case) error = %v", err)
+	}
+	if len(got.Notes) != 1 {
+		t.Fatalf("len(got.Notes) = %d, want %d", len(got.Notes), 1)
+	}
+	if got.Notes[0].Body != "note body" {
+		t.Fatalf("got.Notes[0].Body = %q, want %q", got.Notes[0].Body, "note body")
+	}
+}
+
+func TestAddCaseNoteEndpointRejectsEmptyBody(t *testing.T) {
+	caseService := casesvc.NewService()
+	created, err := caseService.CreateCase(context.Background(), casesvc.CreateInput{
+		TenantID: "tenant-1",
+		Title:    "Case with empty note",
+	})
+	if err != nil {
+		t.Fatalf("CreateCase() error = %v", err)
+	}
+
+	server := httptest.NewServer(NewHandlerWithDependencies(Dependencies{Cases: caseService}))
+	defer server.Close()
+
+	req, err := http.NewRequest(http.MethodPost, server.URL+"/api/v1/cases/"+created.ID+"/notes?tenant_id=tenant-1", bytes.NewBufferString(`{"body":"   "}`))
+	if err != nil {
+		t.Fatalf("NewRequest() error = %v", err)
+	}
+	req.Header.Set("Content-Type", "application/json")
+
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatalf("Do() error = %v", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusBadRequest {
+		t.Fatalf("StatusCode = %d, want %d", resp.StatusCode, http.StatusBadRequest)
+	}
+
+	var got errorResponse
+	if err := json.NewDecoder(resp.Body).Decode(&got); err != nil {
+		t.Fatalf("Decode() error = %v", err)
+	}
+	if got.Code != "invalid_note" {
+		t.Fatalf("Code = %q, want %q", got.Code, "invalid_note")
+	}
+}
+
 type staleAssignStore struct {
 	item casesvc.Case
 }
@@ -621,6 +714,14 @@ func (s *staleAssignStore) Get(_ context.Context, caseID string) (casesvc.Case, 
 
 func (s *staleAssignStore) List(_ context.Context, _ casesvc.ListFilter) (casesvc.ListPage, error) {
 	return casesvc.ListPage{Cases: []casesvc.Case{s.item}}, nil
+}
+
+func (s *staleAssignStore) AppendNote(_ context.Context, note casesvc.Note) (casesvc.Note, error) {
+	return note, nil
+}
+
+func (s *staleAssignStore) ListNotes(_ context.Context, caseID string, limit int) ([]casesvc.Note, error) {
+	return []casesvc.Note{}, nil
 }
 
 func (s *staleAssignStore) Assign(_ context.Context, caseID string, assignedTo string, assignedAt time.Time, expectedUpdatedAt time.Time) (casesvc.Case, error) {

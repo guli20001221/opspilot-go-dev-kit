@@ -305,3 +305,81 @@ func TestCaseStoreAssignRejectsStaleWrite(t *testing.T) {
 		t.Fatalf("first.AssignedTo = %q, want %q", first.AssignedTo, "owner-1")
 	}
 }
+
+func TestCaseStoreAppendAndListNotes(t *testing.T) {
+	dsn := os.Getenv("OPSPILOT_TEST_POSTGRES_DSN")
+	if dsn == "" {
+		t.Skip("OPSPILOT_TEST_POSTGRES_DSN not set")
+	}
+
+	ctx := context.Background()
+	pool, err := OpenPool(ctx, dsn)
+	if err != nil {
+		t.Fatalf("OpenPool() error = %v", err)
+	}
+	defer pool.Close()
+
+	applyMigration(t, ctx, pool)
+	if _, err := pool.Exec(ctx, "TRUNCATE case_notes, cases, reports, workflow_task_events, workflow_tasks RESTART IDENTITY CASCADE"); err != nil {
+		t.Fatalf("TRUNCATE case_notes, cases, reports, workflow_task_events, workflow_tasks error = %v", err)
+	}
+
+	store := NewCaseStore(pool)
+	now := time.Unix(1700002400, 0).UTC()
+	item := casesvc.Case{
+		ID:        "case-note-1",
+		TenantID:  "tenant-1",
+		Status:    casesvc.StatusOpen,
+		Title:     "Case note test",
+		CreatedBy: "operator-1",
+		CreatedAt: now,
+		UpdatedAt: now,
+	}
+	if _, err := store.Save(ctx, item); err != nil {
+		t.Fatalf("Save() error = %v", err)
+	}
+	first, err := store.AppendNote(ctx, casesvc.Note{
+		ID:        "case-note-row-1",
+		TenantID:  "tenant-1",
+		CaseID:    item.ID,
+		Body:      "first note",
+		CreatedBy: "operator-a",
+		CreatedAt: now.Add(time.Second),
+	})
+	if err != nil {
+		t.Fatalf("AppendNote(first) error = %v", err)
+	}
+	second, err := store.AppendNote(ctx, casesvc.Note{
+		ID:        "case-note-row-2",
+		TenantID:  "tenant-1",
+		CaseID:    item.ID,
+		Body:      "second note",
+		CreatedBy: "operator-b",
+		CreatedAt: now.Add(2 * time.Second),
+	})
+	if err != nil {
+		t.Fatalf("AppendNote(second) error = %v", err)
+	}
+
+	notes, err := store.ListNotes(ctx, item.ID, 20)
+	if err != nil {
+		t.Fatalf("ListNotes() error = %v", err)
+	}
+	if len(notes) != 2 {
+		t.Fatalf("len(ListNotes()) = %d, want %d", len(notes), 2)
+	}
+	if notes[0].ID != second.ID {
+		t.Fatalf("notes[0].ID = %q, want %q", notes[0].ID, second.ID)
+	}
+	if notes[1].ID != first.ID {
+		t.Fatalf("notes[1].ID = %q, want %q", notes[1].ID, first.ID)
+	}
+
+	refreshed, err := store.Get(ctx, item.ID)
+	if err != nil {
+		t.Fatalf("Get() error = %v", err)
+	}
+	if !refreshed.UpdatedAt.Equal(second.CreatedAt) {
+		t.Fatalf("Get().UpdatedAt = %v, want %v", refreshed.UpdatedAt, second.CreatedAt)
+	}
+}

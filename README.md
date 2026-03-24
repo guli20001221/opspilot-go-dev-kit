@@ -91,10 +91,12 @@ Current Milestone 1 slice:
 - `POST /api/v1/cases` and `GET /api/v1/cases/{case_id}` now expose a durable operator case contract for task/report follow-up
 - `POST /api/v1/cases/{case_id}/close` now lets operators close a durable case while recording `closed_by`
 - `POST /api/v1/cases/{case_id}/assign` now lets operators claim or reassign an open durable case while recording `assigned_to` and `assigned_at`
+- `POST /api/v1/cases/{case_id}/notes` now appends durable operator notes, and `GET /api/v1/cases/{case_id}` returns recent notes for case handoff
 - `GET /admin/cases` now exposes the first case-focused operator page, backed by the durable case contract and existing task/report handoff endpoints
 - that first `/admin/cases` page now supports the minimal close action while still handing operators back into the canonical task/report surfaces instead of inventing case-only detail contracts
 - the same `/admin/cases` page now also supports copyable case summaries, shareable case links, and a direct handoff into the canonical case API detail
 - the same `/admin/cases` page now also supports the minimal ownership action, so an operator can assign an open case before closing or handing it off
+- the same `/admin/cases` page now also exposes append-only case notes so assignment and handoff have durable operator context
 - `/admin/task-board` and `/admin/reports` now both expose a `Create case` handoff that reuses `POST /api/v1/cases` and deep-links straight into `/admin/cases`
 - successful report tasks now finalize their `succeeded` task state and durable report row together, so report `ready_at` and `metadata.audit_ref` stay aligned with the final task success event
 - common operator slices can now be applied from quick-view buttons instead of manually composing the same filters each time

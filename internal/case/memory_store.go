@@ -11,11 +11,13 @@ import (
 type memoryStore struct {
 	mu      sync.RWMutex
 	records map[string]Case
+	notes   map[string][]Note
 }
 
 func newMemoryStore() *memoryStore {
 	return &memoryStore{
 		records: map[string]Case{},
+		notes:   map[string][]Note{},
 	}
 }
 
@@ -98,6 +100,50 @@ func (s *memoryStore) List(_ context.Context, filter ListFilter) (ListPage, erro
 	}
 
 	return page, nil
+}
+
+func (s *memoryStore) AppendNote(_ context.Context, note Note) (Note, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	item, ok := s.records[note.CaseID]
+	if !ok {
+		return Note{}, fmt.Errorf("%w: %s", ErrCaseNotFound, note.CaseID)
+	}
+	item.UpdatedAt = note.CreatedAt
+	s.records[note.CaseID] = item
+	s.notes[note.CaseID] = append(s.notes[note.CaseID], note)
+
+	return note, nil
+}
+
+func (s *memoryStore) ListNotes(_ context.Context, caseID string, limit int) ([]Note, error) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	if _, ok := s.records[caseID]; !ok {
+		return nil, fmt.Errorf("%w: %s", ErrCaseNotFound, caseID)
+	}
+	if limit <= 0 {
+		limit = 20
+	}
+
+	source := s.notes[caseID]
+	if len(source) == 0 {
+		return []Note{}, nil
+	}
+
+	count := len(source)
+	if count > limit {
+		count = limit
+	}
+
+	items := make([]Note, 0, count)
+	for i := len(source) - 1; i >= 0 && len(items) < count; i-- {
+		items = append(items, source[i])
+	}
+
+	return items, nil
 }
 
 func (s *memoryStore) Close(_ context.Context, caseID string, closedBy string, closedAt time.Time) (Case, error) {

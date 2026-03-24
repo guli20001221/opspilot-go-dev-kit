@@ -772,6 +772,58 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
+  /api/v1/cases/{case_id}/notes:
+    post:
+      summary: Append an operator note to a durable case
+      operationId: addCaseNote
+      parameters:
+        - name: case_id
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: tenant_id
+          in: query
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateCaseNoteRequest'
+      responses:
+        '201':
+          description: Case note created.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CaseNote'
+        '400':
+          description: Request body or query parameters were invalid.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Case not found.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '405':
+          description: Method not allowed.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Case note creation failed.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
   /api/v1/admin/task-board:
     get:
       summary: Get the admin task board view
@@ -1139,6 +1191,38 @@ components:
       properties:
         assigned_to:
           type: string
+    CreateCaseNoteRequest:
+      type: object
+      required:
+        - body
+      properties:
+        body:
+          type: string
+        created_by:
+          type: string
+    CaseNote:
+      type: object
+      required:
+        - note_id
+        - case_id
+        - tenant_id
+        - body
+        - created_by
+        - created_at
+      properties:
+        note_id:
+          type: string
+        case_id:
+          type: string
+        tenant_id:
+          type: string
+        body:
+          type: string
+        created_by:
+          type: string
+        created_at:
+          type: string
+          format: date-time
     Case:
       type: object
       required:
@@ -1177,6 +1261,10 @@ components:
           format: date-time
         closed_by:
           type: string
+        notes:
+          type: array
+          items:
+            $ref: '#/components/schemas/CaseNote'
         created_at:
           type: string
           format: date-time

@@ -21,6 +21,10 @@ type caseQuerier interface {
 	QueryRow(ctx context.Context, sql string, args ...any) pgx.Row
 }
 
+type caseNoteQuerierRow interface {
+	Scan(dest ...any) error
+}
+
 // NewCaseStore constructs the case repository.
 func NewCaseStore(pool *pgxpool.Pool) *CaseStore {
 	return &CaseStore{pool: pool}
@@ -195,6 +199,100 @@ LIMIT $5 OFFSET $6`
 	return page, nil
 }
 
+// AppendNote stores an append-only operator note for a case.
+func (s *CaseStore) AppendNote(ctx context.Context, note casesvc.Note) (casesvc.Note, error) {
+	tx, err := s.pool.Begin(ctx)
+	if err != nil {
+		return casesvc.Note{}, fmt.Errorf("begin case note tx: %w", err)
+	}
+	defer tx.Rollback(ctx)
+
+	const updateCaseQuery = `
+UPDATE cases
+SET updated_at = $2
+WHERE id = $1
+  AND tenant_id = $3
+RETURNING id`
+
+	var caseID string
+	if err := tx.QueryRow(ctx, updateCaseQuery, note.CaseID, note.CreatedAt, note.TenantID).Scan(&caseID); err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return casesvc.Note{}, fmt.Errorf("%w: %s", casesvc.ErrCaseNotFound, note.CaseID)
+		}
+		return casesvc.Note{}, fmt.Errorf("update case recency: %w", err)
+	}
+
+	const query = `
+INSERT INTO case_notes (
+    id,
+    tenant_id,
+    case_id,
+    body,
+    created_by,
+    created_at
+) VALUES (
+    $1, $2, $3, $4, $5, $6
+)
+RETURNING
+    id,
+    tenant_id,
+    case_id,
+    body,
+    created_by,
+    created_at`
+
+	row := tx.QueryRow(ctx, query, note.ID, note.TenantID, note.CaseID, note.Body, note.CreatedBy, note.CreatedAt)
+	item, err := scanCaseNote(row)
+	if err != nil {
+		return casesvc.Note{}, err
+	}
+	if err := tx.Commit(ctx); err != nil {
+		return casesvc.Note{}, fmt.Errorf("commit case note tx: %w", err)
+	}
+
+	return item, nil
+}
+
+// ListNotes returns recent notes for a case in newest-first order.
+func (s *CaseStore) ListNotes(ctx context.Context, caseID string, limit int) ([]casesvc.Note, error) {
+	if limit <= 0 {
+		limit = 20
+	}
+
+	const query = `
+SELECT
+    id,
+    tenant_id,
+    case_id,
+    body,
+    created_by,
+    created_at
+FROM case_notes
+WHERE case_id = $1
+ORDER BY created_at DESC, id DESC
+LIMIT $2`
+
+	rows, err := s.pool.Query(ctx, query, caseID, limit)
+	if err != nil {
+		return nil, fmt.Errorf("select case notes: %w", err)
+	}
+	defer rows.Close()
+
+	items := make([]casesvc.Note, 0, limit)
+	for rows.Next() {
+		item, err := scanCaseNote(rows)
+		if err != nil {
+			return nil, err
+		}
+		items = append(items, item)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("iterate case notes: %w", err)
+	}
+
+	return items, nil
+}
+
 // Close atomically transitions an open case to closed.
 func (s *CaseStore) Close(ctx context.Context, caseID string, closedBy string, closedAt time.Time) (casesvc.Case, error) {
 	const query = `
@@ -310,6 +408,25 @@ func scanCase(row caseQuerierRow) (casesvc.Case, error) {
 	}
 	if assignedAt != nil {
 		item.AssignedAt = *assignedAt
+	}
+
+	return item, nil
+}
+
+func scanCaseNote(row caseNoteQuerierRow) (casesvc.Note, error) {
+	var item casesvc.Note
+	if err := row.Scan(
+		&item.ID,
+		&item.TenantID,
+		&item.CaseID,
+		&item.Body,
+		&item.CreatedBy,
+		&item.CreatedAt,
+	); err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return casesvc.Note{}, casesvc.ErrCaseNotFound
+		}
+		return casesvc.Note{}, fmt.Errorf("scan case note: %w", err)
 	}
 
 	return item, nil

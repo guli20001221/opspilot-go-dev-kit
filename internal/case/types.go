@@ -21,6 +21,9 @@ var ErrInvalidCaseState = errors.New("invalid case state")
 // ErrCaseConflict identifies stale writes against an updated case row.
 var ErrCaseConflict = errors.New("case conflict")
 
+// ErrInvalidNote identifies invalid case note payloads.
+var ErrInvalidNote = errors.New("invalid case note")
+
 // Case is the durable read model for an operator-managed case.
 type Case struct {
 	ID             string
@@ -36,6 +39,16 @@ type Case struct {
 	ClosedBy       string
 	CreatedAt      time.Time
 	UpdatedAt      time.Time
+}
+
+// Note is an append-only operator note attached to a case.
+type Note struct {
+	ID        string
+	TenantID  string
+	CaseID    string
+	Body      string
+	CreatedBy string
+	CreatedAt time.Time
 }
 
 // CreateInput is the typed case creation request.

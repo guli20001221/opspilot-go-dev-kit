@@ -282,6 +282,12 @@ func TestAdminCasesPageRendersHTML(t *testing.T) {
 	if !strings.Contains(body, "Assign case") {
 		t.Fatal("assign case action missing from cases page HTML")
 	}
+	if !strings.Contains(body, "Add note") {
+		t.Fatal("add note action missing from cases page HTML")
+	}
+	if !strings.Contains(body, "Recent notes") {
+		t.Fatal("case notes section missing from cases page HTML")
+	}
 	if !strings.Contains(body, "Copy case summary") {
 		t.Fatal("case summary handoff missing from cases page HTML")
 	}

@@ -9,12 +9,15 @@ import (
 )
 
 var caseIDSequence atomic.Uint64
+var caseNoteIDSequence atomic.Uint64
 
 // Store persists case read models.
 type Store interface {
 	Save(ctx context.Context, item Case) (Case, error)
 	Get(ctx context.Context, caseID string) (Case, error)
 	List(ctx context.Context, filter ListFilter) (ListPage, error)
+	AppendNote(ctx context.Context, note Note) (Note, error)
+	ListNotes(ctx context.Context, caseID string, limit int) ([]Note, error)
 	Assign(ctx context.Context, caseID string, assignedTo string, assignedAt time.Time, expectedUpdatedAt time.Time) (Case, error)
 	Close(ctx context.Context, caseID string, closedBy string, closedAt time.Time) (Case, error)
 }
@@ -67,6 +70,11 @@ func (s *Service) ListCases(ctx context.Context, filter ListFilter) (ListPage, e
 	return s.store.List(ctx, filter)
 }
 
+// ListCaseNotes returns recent append-only notes for a case.
+func (s *Service) ListCaseNotes(ctx context.Context, caseID string, limit int) ([]Note, error) {
+	return s.store.ListNotes(ctx, caseID, limit)
+}
+
 // CloseCase marks an operator case as closed.
 func (s *Service) CloseCase(ctx context.Context, caseID string, closedBy string) (Case, error) {
 	return s.store.Close(ctx, caseID, fallbackString(closedBy, "operator"), time.Now().UTC())
@@ -83,8 +91,30 @@ func (s *Service) AssignCase(ctx context.Context, existing Case, assignedTo stri
 	)
 }
 
+// AddNote appends a durable operator note to an existing case.
+func (s *Service) AddNote(ctx context.Context, existing Case, body string, createdBy string) (Note, error) {
+	body = strings.TrimSpace(body)
+	if body == "" {
+		return Note{}, ErrInvalidNote
+	}
+
+	now := time.Now().UTC()
+	return s.store.AppendNote(ctx, Note{
+		ID:        newCaseNoteID(now),
+		TenantID:  existing.TenantID,
+		CaseID:    existing.ID,
+		Body:      body,
+		CreatedBy: fallbackString(strings.TrimSpace(createdBy), "operator"),
+		CreatedAt: now,
+	})
+}
+
 func newCaseID(now time.Time) string {
 	return fmt.Sprintf("case-%d-%d", now.UnixNano(), caseIDSequence.Add(1))
+}
+
+func newCaseNoteID(now time.Time) string {
+	return fmt.Sprintf("case-note-%d-%d", now.UnixNano(), caseNoteIDSequence.Add(1))
 }
 
 func fallbackString(value string, fallback string) string {

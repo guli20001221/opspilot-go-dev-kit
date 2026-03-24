@@ -23,19 +23,29 @@ type createCaseRequest struct {
 }
 
 type caseResponse struct {
-	CaseID         string `json:"case_id"`
-	TenantID       string `json:"tenant_id"`
-	Status         string `json:"status"`
-	Title          string `json:"title"`
-	Summary        string `json:"summary"`
-	SourceTaskID   string `json:"source_task_id,omitempty"`
-	SourceReportID string `json:"source_report_id,omitempty"`
-	CreatedBy      string `json:"created_by"`
-	AssignedTo     string `json:"assigned_to,omitempty"`
-	AssignedAt     string `json:"assigned_at,omitempty"`
-	ClosedBy       string `json:"closed_by,omitempty"`
-	CreatedAt      string `json:"created_at"`
-	UpdatedAt      string `json:"updated_at"`
+	CaseID         string             `json:"case_id"`
+	TenantID       string             `json:"tenant_id"`
+	Status         string             `json:"status"`
+	Title          string             `json:"title"`
+	Summary        string             `json:"summary"`
+	SourceTaskID   string             `json:"source_task_id,omitempty"`
+	SourceReportID string             `json:"source_report_id,omitempty"`
+	CreatedBy      string             `json:"created_by"`
+	AssignedTo     string             `json:"assigned_to,omitempty"`
+	AssignedAt     string             `json:"assigned_at,omitempty"`
+	ClosedBy       string             `json:"closed_by,omitempty"`
+	Notes          []caseNoteResponse `json:"notes,omitempty"`
+	CreatedAt      string             `json:"created_at"`
+	UpdatedAt      string             `json:"updated_at"`
+}
+
+type caseNoteResponse struct {
+	NoteID    string `json:"note_id"`
+	CaseID    string `json:"case_id"`
+	TenantID  string `json:"tenant_id"`
+	Body      string `json:"body"`
+	CreatedBy string `json:"created_by"`
+	CreatedAt string `json:"created_at"`
 }
 
 type listCasesResponse struct {
@@ -50,6 +60,11 @@ type closeCaseRequest struct {
 
 type assignCaseRequest struct {
 	AssignedTo string `json:"assigned_to,omitempty"`
+}
+
+type createCaseNoteRequest struct {
+	Body      string `json:"body"`
+	CreatedBy string `json:"created_by,omitempty"`
 }
 
 func (a *appHandler) handleCases(w http.ResponseWriter, r *http.Request) {
@@ -144,6 +159,12 @@ func (a *appHandler) handleCaseByID(w http.ResponseWriter, r *http.Request) {
 		a.handleAssignCase(w, r, caseID)
 		return
 	}
+	if strings.HasSuffix(path, "/notes") {
+		caseID := strings.TrimSuffix(path, "/notes")
+		caseID = strings.TrimSuffix(caseID, "/")
+		a.handleAddCaseNote(w, r, caseID)
+		return
+	}
 	if r.Method != http.MethodGet {
 		writeError(w, http.StatusMethodNotAllowed, "method_not_allowed", "method not allowed")
 		return
@@ -175,7 +196,13 @@ func (a *appHandler) handleCaseByID(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	writeJSON(w, http.StatusOK, newCaseResponse(item))
+	notes, err := a.cases.ListCaseNotes(r.Context(), caseID, 20)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "case_notes_failed", err.Error())
+		return
+	}
+
+	writeJSON(w, http.StatusOK, newCaseResponse(item, notes))
 }
 
 func (a *appHandler) handleCloseCase(w http.ResponseWriter, r *http.Request, caseID string) {
@@ -288,6 +315,58 @@ func (a *appHandler) handleAssignCase(w http.ResponseWriter, r *http.Request, ca
 	writeJSON(w, http.StatusOK, newCaseResponse(assigned))
 }
 
+func (a *appHandler) handleAddCaseNote(w http.ResponseWriter, r *http.Request, caseID string) {
+	if r.Method != http.MethodPost {
+		writeError(w, http.StatusMethodNotAllowed, "method_not_allowed", "method not allowed")
+		return
+	}
+	if caseID == "" || strings.Contains(caseID, "/") {
+		writeError(w, http.StatusNotFound, "not_found", "not found")
+		return
+	}
+
+	tenantID := strings.TrimSpace(r.URL.Query().Get("tenant_id"))
+	if tenantID == "" {
+		writeError(w, http.StatusBadRequest, "invalid_query", "tenant_id is required")
+		return
+	}
+
+	item, err := a.cases.GetCase(r.Context(), caseID)
+	if err != nil {
+		if errors.Is(err, casesvc.ErrCaseNotFound) {
+			writeError(w, http.StatusNotFound, "case_not_found", "case not found")
+			return
+		}
+		writeError(w, http.StatusInternalServerError, "case_lookup_failed", err.Error())
+		return
+	}
+	if item.TenantID != tenantID {
+		writeError(w, http.StatusNotFound, "case_not_found", "case not found")
+		return
+	}
+
+	var req createCaseNoteRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid_json", "invalid json body")
+		return
+	}
+
+	note, err := a.cases.AddNote(r.Context(), item, req.Body, req.CreatedBy)
+	if err != nil {
+		switch {
+		case errors.Is(err, casesvc.ErrInvalidNote):
+			writeError(w, http.StatusBadRequest, "invalid_note", "body is required")
+		case errors.Is(err, casesvc.ErrCaseNotFound):
+			writeError(w, http.StatusNotFound, "case_not_found", "case not found")
+		default:
+			writeError(w, http.StatusInternalServerError, "case_note_create_failed", err.Error())
+		}
+		return
+	}
+
+	writeJSON(w, http.StatusCreated, newCaseNoteResponse(note))
+}
+
 func validateCreateCaseRequest(req createCaseRequest) error {
 	switch {
 	case req.TenantID == "":
@@ -368,8 +447,8 @@ func writeCaseSourceError(w http.ResponseWriter, err error) {
 	}
 }
 
-func newCaseResponse(item casesvc.Case) caseResponse {
-	return caseResponse{
+func newCaseResponse(item casesvc.Case, notes ...[]casesvc.Note) caseResponse {
+	resp := caseResponse{
 		CaseID:         item.ID,
 		TenantID:       item.TenantID,
 		Status:         item.Status,
@@ -383,6 +462,25 @@ func newCaseResponse(item casesvc.Case) caseResponse {
 		ClosedBy:       item.ClosedBy,
 		CreatedAt:      item.CreatedAt.Format(time.RFC3339Nano),
 		UpdatedAt:      item.UpdatedAt.Format(time.RFC3339Nano),
+	}
+	if len(notes) > 0 && len(notes[0]) > 0 {
+		resp.Notes = make([]caseNoteResponse, 0, len(notes[0]))
+		for _, note := range notes[0] {
+			resp.Notes = append(resp.Notes, newCaseNoteResponse(note))
+		}
+	}
+
+	return resp
+}
+
+func newCaseNoteResponse(note casesvc.Note) caseNoteResponse {
+	return caseNoteResponse{
+		NoteID:    note.ID,
+		CaseID:    note.CaseID,
+		TenantID:  note.TenantID,
+		Body:      note.Body,
+		CreatedBy: note.CreatedBy,
+		CreatedAt: note.CreatedAt.Format(time.RFC3339Nano),
 	}
 }
 
