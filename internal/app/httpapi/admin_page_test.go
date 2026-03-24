@@ -180,8 +180,8 @@ func TestAdminReportsPageRendersHTML(t *testing.T) {
 	if !strings.Contains(body, "<title>OpsPilot Reports</title>") {
 		t.Fatal("page title missing from admin reports HTML")
 	}
-	if !strings.Contains(body, "/api/v1/admin/task-board") {
-		t.Fatal("report lane API path missing from page HTML")
+	if !strings.Contains(body, "/api/v1/reports") {
+		t.Fatal("report list API path missing from page HTML")
 	}
 	if !strings.Contains(body, "/api/v1/tasks/") {
 		t.Fatal("task detail API path missing from reports page HTML")
@@ -210,8 +210,8 @@ func TestAdminReportsPageRendersHTML(t *testing.T) {
 	if !strings.Contains(body, "Create case") {
 		t.Fatal("report-to-case action missing from reports page HTML")
 	}
-	if !strings.Contains(body, "Case creation stays disabled until the durable report is available.") {
-		t.Fatal("report fallback case-creation guard missing from reports page HTML")
+	if !strings.Contains(body, "source task can be loaded") {
+		t.Fatal("report task-provenance fallback guard missing from reports page HTML")
 	}
 	if !strings.Contains(body, "Show raw report JSON") {
 		t.Fatal("report raw json toggle missing from reports page HTML")
@@ -230,6 +230,12 @@ func TestAdminReportsPageRendersHTML(t *testing.T) {
 	}
 	if !strings.Contains(body, "Auto refresh") {
 		t.Fatal("report lane auto refresh controls missing from reports page HTML")
+	}
+	if !strings.Contains(body, "Status fixed to ready") {
+		t.Fatal("report status summary missing from reports page HTML")
+	}
+	if !strings.Contains(body, "Type fixed to workflow_summary") {
+		t.Fatal("report type summary missing from reports page HTML")
 	}
 	if !strings.Contains(body, "task-row-selected") {
 		t.Fatal("selected report row styling missing from reports page HTML")

@@ -400,8 +400,8 @@
       <p class="eyebrow">OpsPilot Admin</p>
       <h1>Report Lane</h1>
       <p class="lead">
-        Operator-facing view over successful report-generation tasks. This page stays contract-first:
-        list data comes from <code>/api/v1/admin/task-board</code> with fixed report filters, report metadata
+        Operator-facing view over durable report artifacts. This page stays contract-first:
+        list data comes from <code>/api/v1/reports</code> with fixed report filters, report metadata
         comes from <code>/api/v1/reports/{report_id}</code>, and execution provenance still reuses
         <code>/api/v1/tasks/{task_id}</code>.
       </p>
@@ -416,7 +416,7 @@
       <aside class="panel">
         <h2>Filters</h2>
         <p class="panel-copy">
-          This page keeps the report lane fixed to successful report-generation tasks. Operators only adjust tenant,
+          This page keeps the report lane fixed to ready workflow-summary reports. Operators only adjust tenant,
           page size, and offset.
         </p>
         <form id="reportFilters" class="filters">
@@ -442,26 +442,26 @@
       <section class="panel">
         <h2>Reports</h2>
         <p class="panel-copy">
-          This report lane is derived from the existing admin task board read model. It is intentionally narrow: only
-          successful report tasks appear here.
+          This report lane is derived from the durable report read model. It is intentionally narrow: only
+          ready workflow-summary reports appear here.
         </p>
 
         <div class="summary-grid">
           <article class="summary-card">
             <small>Visible reports</small>
             <strong id="visibleCount">0</strong>
-            <span>Current slice size for successful report tasks.</span>
+            <span>Current slice size for durable reports.</span>
           </article>
           <article class="summary-card">
             <small>Latest update</small>
             <strong id="latestUpdated">Unknown</strong>
-            <span>Most recent report task update in the current slice.</span>
+            <span>Most recent durable report readiness in the current slice.</span>
           </article>
         </div>
 
         <div class="summary-meta">
-          <span id="summaryReasons">Reasons: workflow 0, approval 0</span>
-          <span id="summaryTypes">Task types: report 0, approved-tool 0</span>
+          <span id="summaryStatus">Status fixed to ready</span>
+          <span id="summaryType">Type fixed to workflow_summary</span>
         </div>
 
         <div class="detail-actions" style="margin-bottom: 18px;">
@@ -476,10 +476,10 @@
           <table>
             <thead>
               <tr>
-                <th>Task</th>
+                <th>Report</th>
                 <th>Status</th>
                 <th>Tenant</th>
-                <th>Updated</th>
+                <th>Ready</th>
                 <th>Inspect</th>
               </tr>
             </thead>
@@ -492,7 +492,7 @@
     <section class="panel" style="margin-top: 18px;">
       <h2>Report Detail</h2>
       <p class="panel-copy">
-        Pick a report task to inspect execution provenance, task audit, and a direct handoff path back to the task board.
+        Pick a report to inspect artifact metadata, task audit provenance, and a direct handoff path back to the task board.
       </p>
       <div class="detail-actions">
         <button class="ghost" type="button" id="prevReportButton" hidden>Previous visible</button>
@@ -509,9 +509,9 @@
   </main>
 
   <script>
-    const boardEndpoint = "/api/v1/admin/task-board";
-    const taskEndpointBase = "/api/v1/tasks/";
+    const reportListEndpoint = "/api/v1/reports";
     const reportEndpointBase = "/api/v1/reports/";
+    const taskEndpointBase = "/api/v1/tasks/";
     const caseEndpoint = "/api/v1/cases";
     const form = document.getElementById("reportFilters");
     const resetFiltersButton = document.getElementById("resetFilters");
@@ -521,8 +521,8 @@
     const reportDetail = document.getElementById("reportDetail");
     const visibleCount = document.getElementById("visibleCount");
     const latestUpdated = document.getElementById("latestUpdated");
-    const summaryReasons = document.getElementById("summaryReasons");
-    const summaryTypes = document.getElementById("summaryTypes");
+    const summaryStatus = document.getElementById("summaryStatus");
+    const summaryType = document.getElementById("summaryType");
     const openBoardForCurrentLink = document.getElementById("openBoardForCurrentLink");
     const prevReportButton = document.getElementById("prevReportButton");
     const nextReportButton = document.getElementById("nextReportButton");
@@ -535,7 +535,7 @@
     const autoRefreshToggle = document.getElementById("autoRefreshToggle");
 
     let currentItems = [];
-    let currentTaskID = "";
+    let currentReportID = "";
     let currentTaskDetail = null;
     let currentReportDetail = null;
     let reportLoadInFlight = false;
@@ -597,15 +597,15 @@
       if (tenantID) params.set("tenant_id", tenantID);
       if (limit) params.set("limit", limit);
       if (offset) params.set("offset", offset);
-      params.set("status", "succeeded");
-      params.set("task_type", "report_generation");
+      params.set("status", "ready");
+      params.set("report_type", "workflow_summary");
       return params;
     }
 
-    function syncURL(taskID = "") {
+    function syncURL(reportID = "") {
       const params = buildParams();
-      if (taskID) {
-        params.set("task_id", taskID);
+      if (reportID) {
+        params.set("report_id", reportID);
       }
       history.replaceState(null, "", `/admin/reports?${params.toString()}`);
     }
@@ -615,16 +615,14 @@
       form.elements.namedItem("tenant_id").value = params.get("tenant_id") || "";
       form.elements.namedItem("limit").value = params.get("limit") || "10";
       form.elements.namedItem("offset").value = params.get("offset") || "0";
-      return params.get("task_id") || "";
+      return params.get("report_id") || "";
     }
 
-    function renderSummary(summary) {
-      visibleCount.textContent = String(summary.visible_count ?? 0);
-      latestUpdated.textContent = summary.latest_updated_at ? fmtDate(summary.latest_updated_at) : "Unknown";
-      summaryReasons.textContent =
-        `Reasons: workflow ${summary.reason_counts?.workflow_required ?? 0}, approval ${summary.reason_counts?.approval_required ?? 0}`;
-      summaryTypes.textContent =
-        `Task types: report ${summary.task_type_counts?.report_generation ?? 0}, approved-tool ${summary.task_type_counts?.approved_tool_execution ?? 0}`;
+    function renderSummary(items) {
+      visibleCount.textContent = String(items.length);
+      latestUpdated.textContent = items.length && items[0].ready_at ? fmtDate(items[0].ready_at) : "Unknown";
+      summaryStatus.textContent = "Status fixed to ready";
+      summaryType.textContent = "Type fixed to workflow_summary";
     }
 
     function setReportJSONActionsVisible(visible) {
@@ -640,41 +638,41 @@
         tableWrap.hidden = true;
         reportListState.hidden = false;
         reportListState.className = "empty";
-        reportListState.textContent = "No successful report tasks matched the current slice.";
+        reportListState.textContent = "No durable reports matched the current slice.";
         return;
       }
 
       reportListState.hidden = true;
       tableWrap.hidden = false;
       reportRows.innerHTML = currentItems.map((item) => `
-        <tr data-task-row="${escapeHTML(item.task_id)}">
+        <tr data-report-row="${escapeHTML(item.report_id)}">
           <td>
-            <strong>${escapeHTML(item.task_id)}</strong>
-            <small>${item.session_id ? `session: ${escapeHTML(item.session_id)}` : "No session id"}</small>
+            <strong>${escapeHTML(item.report_id)}</strong>
+            <small>${item.title ? escapeHTML(item.title) : "No title"}</small>
           </td>
-          <td><span class="status">${escapeHTML(item.status)}</span></td>
+          <td><span class="status">${escapeHTML(item.status)}</span><small>${escapeHTML(item.report_type || "unknown type")}</small></td>
           <td>
             <strong>${escapeHTML(item.tenant_id)}</strong>
-            <small>${item.request_id ? `request: ${escapeHTML(item.request_id)}` : "No request id"}</small>
+            <small>${item.source_task_id ? `source task: ${escapeHTML(item.source_task_id)}` : "No source task"}</small>
           </td>
           <td>
-            <strong>${escapeHTML(fmtDate(item.updated_at))}</strong>
+            <strong>${escapeHTML(fmtDate(item.ready_at || item.created_at))}</strong>
             <small>created ${escapeHTML(fmtDate(item.created_at))}</small>
           </td>
-          <td><button class="ghost" type="button" data-task-id="${escapeHTML(item.task_id)}">Inspect</button></td>
+          <td><button class="ghost" type="button" data-report-id="${escapeHTML(item.report_id)}">Inspect</button></td>
         </tr>
       `).join("");
       syncSelectedRow();
     }
 
-    function findSelectedIndex(taskID) {
-      return currentItems.findIndex((item) => item.task_id === taskID);
+    function findSelectedIndex(reportID) {
+      return currentItems.findIndex((item) => item.report_id === reportID);
     }
 
     function syncSelectedRow() {
-      const rows = reportRows.querySelectorAll("[data-task-row]");
+      const rows = reportRows.querySelectorAll("[data-report-row]");
       for (const row of rows) {
-        const selected = row.getAttribute("data-task-row") === currentTaskID && currentTaskID !== "";
+        const selected = row.getAttribute("data-report-row") === currentReportID && currentReportID !== "";
         row.classList.toggle("task-row-selected", selected);
         if (selected) {
           row.setAttribute("aria-current", "true");
@@ -686,7 +684,7 @@
     }
 
     function syncDetailNavigation() {
-      const index = findSelectedIndex(currentTaskID);
+      const index = findSelectedIndex(currentReportID);
       const visible = index !== -1 && currentItems.length > 0;
       prevReportButton.hidden = !visible;
       nextReportButton.hidden = !visible;
@@ -695,18 +693,18 @@
     }
 
     function buildReportSummary(task, report) {
-      const events = Array.isArray(task.audit_events) ? task.audit_events : [];
+      const events = Array.isArray(task?.audit_events) ? task.audit_events : [];
       const header = [
-        `Report: ${report?.report_id || reportIDFromTaskID(task.task_id)}`,
-        `Title: ${report?.title || "Report for " + task.task_id}`,
-        `Status: ${task.status}`,
+        `Report: ${report?.report_id || "none"}`,
+        `Title: ${report?.title || "unknown"}`,
+        `Status: ${task?.status || "unknown"}`,
         `Report status: ${report?.status || "unknown"}`,
-        `Tenant: ${task.tenant_id}`,
-        `Session: ${task.session_id || "none"}`,
-        `Source task: ${task.task_id}`,
-        `Audit ref: ${task.audit_ref || "none"}`,
+        `Tenant: ${report?.tenant_id || task?.tenant_id || "unknown"}`,
+        `Session: ${task?.session_id || "none"}`,
+        `Source task: ${report?.source_task_id || task?.task_id || "none"}`,
+        `Audit ref: ${task?.audit_ref || "none"}`,
         `Summary: ${report?.summary || "none"}`,
-        `Error: ${task.error_reason || "none"}`
+        `Error: ${task?.error_reason || "none"}`
       ];
       const lines = events.map((event) => {
         const actor = event.actor || "system";
@@ -716,31 +714,34 @@
       return [...header, "Timeline:", ...lines].join("\n");
     }
 
-    function renderDetail(task, report) {
-      currentTaskID = task.task_id;
+    function renderDetail(task, report, provenanceWarning = "") {
+      currentReportID = report.report_id;
       currentTaskDetail = task;
       currentReportDetail = report;
-      syncURL(task.task_id);
-      const temporal = parseTemporalRef(task.audit_ref);
-      const reportID = report?.report_id || reportIDFromTaskID(task.task_id);
+      syncURL(report.report_id);
+      const temporal = parseTemporalRef(task?.audit_ref);
+      const reportID = report.report_id;
       const reportAPIURL = `${reportEndpointBase}${encodeURIComponent(reportID)}`;
-      const taskBoardURL = `/admin/task-board?tenant_id=${encodeURIComponent(task.tenant_id)}&task_id=${encodeURIComponent(task.task_id)}&status=succeeded&task_type=report_generation&offset=0&limit=${encodeURIComponent(form.elements.namedItem("limit").value || "10")}`;
-        openBoardForCurrentLink.href = taskBoardURL;
-        setReportJSONActionsVisible(Boolean(report));
-        copyReportSummaryButton.hidden = false;
-        createCaseButton.hidden = !report;
-        copyReportLinkButton.hidden = false;
-        reportDetailStatusNote.textContent = report
-          ? "Current report detail is ready for handoff actions."
-          : "Durable report row is missing; showing task provenance fallback. Case creation stays disabled until the durable report is available.";
+      const taskBoardURL = task
+        ? `/admin/task-board?tenant_id=${encodeURIComponent(task.tenant_id)}&task_id=${encodeURIComponent(task.task_id)}&status=succeeded&task_type=report_generation&offset=0&limit=${encodeURIComponent(form.elements.namedItem("limit").value || "10")}`
+        : "/admin/task-board";
+      openBoardForCurrentLink.href = taskBoardURL;
+      setReportJSONActionsVisible(true);
+      copyReportSummaryButton.hidden = false;
+      createCaseButton.hidden = !task;
+      copyReportLinkButton.hidden = false;
+      reportDetailStatusNote.textContent = task
+        ? "Current report detail is ready for handoff actions."
+        : (provenanceWarning || "Durable report loaded, but source task provenance is unavailable. Case creation stays disabled until the source task can be loaded.");
       toggleReportJSONButton.textContent = rawReportJSONVisible ? "Hide raw report JSON" : "Show raw report JSON";
 
-      const events = Array.isArray(task.audit_events) ? task.audit_events : [];
+      const events = Array.isArray(task?.audit_events) ? task.audit_events : [];
       const executionSummary = [...events].reverse().find((event) => event.action === "succeeded")?.detail
-        || task.audit_ref
+        || task?.audit_ref
+        || report.summary
         || "No report execution summary recorded.";
-      const reportSummary = report?.summary || executionSummary;
-      const reportTitle = report?.title || `Report for ${task.task_id}`;
+      const reportSummary = report.summary || executionSummary;
+      const reportTitle = report.title || `Report for ${report.source_task_id}`;
 
       reportDetail.innerHTML = `
         <div class="detail">
@@ -755,7 +756,7 @@
             </dl>
             <dl class="detail-card">
               <dt>Tenant</dt>
-              <dd>${escapeHTML(task.tenant_id)}</dd>
+              <dd>${escapeHTML(report.tenant_id)}</dd>
             </dl>
             <dl class="detail-card">
               <dt>Report summary</dt>
@@ -766,11 +767,11 @@
           <div class="detail-grid">
             <dl class="detail-card">
               <dt>Source task</dt>
-              <dd>${escapeHTML(task.task_id)}</dd>
+              <dd>${escapeHTML(report.source_task_id || "none")}</dd>
             </dl>
             <dl class="detail-card">
               <dt>Session</dt>
-              <dd>${escapeHTML(task.session_id || "none")}</dd>
+              <dd>${escapeHTML(task?.session_id || "none")}</dd>
             </dl>
             <dl class="detail-card">
               <dt>Execution summary</dt>
@@ -778,7 +779,7 @@
             </dl>
             <dl class="detail-card">
               <dt>Ready at</dt>
-              <dd>${escapeHTML(report?.ready_at ? fmtDate(report.ready_at) : "Unknown")}</dd>
+              <dd>${escapeHTML(report.ready_at ? fmtDate(report.ready_at) : "Unknown")}</dd>
             </dl>
           </div>
 
@@ -788,7 +789,7 @@
               <div class="actions">
                 <a class="button-link ghost" href="${taskBoardURL}">Open Task Board</a>
                 <a class="button-link ghost" href="${reportAPIURL}" target="_blank" rel="noreferrer">Open report API detail</a>
-                <a class="button-link ghost" href="${taskEndpointBase}${encodeURIComponent(task.task_id)}" target="_blank" rel="noreferrer">Open task API detail</a>
+                ${task ? `<a class="button-link ghost" href="${taskEndpointBase}${encodeURIComponent(task.task_id)}" target="_blank" rel="noreferrer">Open task API detail</a>` : ""}
                 ${temporal ? `<a class="button-link ghost" href="http://localhost:8088/namespaces/default/workflows/${encodeURIComponent(temporal.workflowID)}/${encodeURIComponent(temporal.runID)}/history" target="_blank" rel="noreferrer">Open Temporal history</a>` : ""}
               </div>
             </div>
@@ -823,9 +824,9 @@
       syncDetailNavigation();
     }
 
-    async function loadDetail(taskID) {
-      if (!taskID) {
-        currentTaskID = "";
+    async function loadDetail(reportID) {
+      if (!reportID) {
+        currentReportID = "";
         currentTaskDetail = null;
         currentReportDetail = null;
         rawReportJSONVisible = false;
@@ -844,27 +845,30 @@
 
       reportDetail.innerHTML = '<div class="loading">Loading report detail...</div>';
       try {
-        const response = await fetch(`${taskEndpointBase}${encodeURIComponent(taskID)}`, {
-          headers: { "Accept": "application/json" }
-        });
-        if (!response.ok) {
-          throw new Error(`Task detail request failed: ${response.statusText}`);
-        }
-        const task = await response.json();
-        const reportID = reportIDFromTaskID(task.task_id);
         const reportResponse = await fetch(`${reportEndpointBase}${encodeURIComponent(reportID)}`, {
           headers: { "Accept": "application/json" }
         });
-        if (reportResponse.status === 404) {
-          rawReportJSONVisible = false;
-          renderDetail(task, null);
-          return;
-        }
         if (!reportResponse.ok) {
           throw new Error(`Report detail request failed: ${reportResponse.statusText}`);
         }
-        renderDetail(task, await reportResponse.json());
+        const report = await reportResponse.json();
+        let task = null;
+        let provenanceWarning = "";
+        if (report.source_task_id) {
+          const taskResponse = await fetch(`${taskEndpointBase}${encodeURIComponent(report.source_task_id)}`, {
+            headers: { "Accept": "application/json" }
+          });
+          if (taskResponse.ok) {
+            task = await taskResponse.json();
+          } else if (taskResponse.status === 404) {
+            provenanceWarning = "Durable report loaded, but the source task no longer exists. Case creation stays disabled until task provenance is restored.";
+          } else {
+            provenanceWarning = `Durable report loaded, but task provenance is temporarily unavailable (${taskResponse.status} ${taskResponse.statusText}). Case creation stays disabled until the source task can be loaded.`;
+          }
+        }
+        renderDetail(task, report, provenanceWarning);
       } catch (error) {
+        currentReportID = "";
         currentTaskDetail = null;
         currentReportDetail = null;
         setReportJSONActionsVisible(false);
@@ -879,7 +883,7 @@
     }
 
     function navigateVisible(delta) {
-      const index = findSelectedIndex(currentTaskID);
+      const index = findSelectedIndex(currentReportID);
       if (index === -1) {
         return;
       }
@@ -887,10 +891,10 @@
       if (nextIndex < 0 || nextIndex >= currentItems.length) {
         return;
       }
-      loadDetail(currentItems[nextIndex].task_id);
+      loadDetail(currentItems[nextIndex].report_id);
     }
 
-    async function loadReports(selectedTaskID = "") {
+    async function loadReports(selectedReportID = "") {
       if (reportLoadInFlight) {
         return;
       }
@@ -901,24 +905,24 @@
       tableWrap.hidden = true;
 
       const params = buildParams();
-      syncURL(selectedTaskID);
+      syncURL(selectedReportID);
       try {
-        const response = await fetch(`${boardEndpoint}?${params.toString()}`, {
+        const response = await fetch(`${reportListEndpoint}?${params.toString()}`, {
           headers: { "Accept": "application/json" }
         });
         if (!response.ok) {
-          throw new Error(`Task board request failed: ${response.statusText}`);
+          throw new Error(`Report list request failed: ${response.statusText}`);
         }
 
-        const board = await response.json();
-        renderSummary(board.summary || {});
-        renderRows(board.items || []);
+        const page = await response.json();
+        renderSummary(page.reports || []);
+        renderRows(page.reports || []);
 
-        const visibleTaskIDs = new Set((board.items || []).map((item) => item.task_id));
-        if (selectedTaskID && visibleTaskIDs.has(selectedTaskID)) {
-          await loadDetail(selectedTaskID);
-        } else if ((board.items || []).length > 0) {
-          await loadDetail(board.items[0].task_id);
+        const visibleReportIDs = new Set((page.reports || []).map((item) => item.report_id));
+        if (selectedReportID && visibleReportIDs.has(selectedReportID)) {
+          await loadDetail(selectedReportID);
+        } else if ((page.reports || []).length > 0) {
+          await loadDetail(page.reports[0].report_id);
         } else {
           await loadDetail("");
         }
@@ -942,12 +946,12 @@
         return;
       }
       autoRefreshTimer = window.setInterval(() => {
-        loadReports(currentTaskID);
+        loadReports(currentReportID);
       }, 5000);
     }
 
     async function copyReportSummary() {
-      if (!currentTaskDetail) {
+      if (!currentReportDetail) {
         return;
       }
 
@@ -967,7 +971,7 @@
     }
 
     async function copyReportLink() {
-      if (!currentTaskDetail) {
+      if (!currentReportDetail) {
         return;
       }
 
@@ -1063,7 +1067,7 @@
     form.addEventListener("submit", (event) => {
       event.preventDefault();
       form.elements.namedItem("offset").value = "0";
-      loadReports(currentTaskID);
+      loadReports(currentReportID);
     });
 
     resetFiltersButton.addEventListener("click", () => {
@@ -1074,17 +1078,17 @@
     });
 
     reportRows.addEventListener("click", (event) => {
-      const button = event.target.closest("[data-task-id]");
+      const button = event.target.closest("[data-report-id]");
       if (!button) {
         return;
       }
-      loadDetail(button.dataset.taskId);
+      loadDetail(button.dataset.reportId);
     });
 
     prevReportButton.addEventListener("click", () => navigateVisible(-1));
     nextReportButton.addEventListener("click", () => navigateVisible(1));
     toggleReportJSONButton.addEventListener("click", () => {
-      if (!currentTaskDetail || !currentReportDetail) {
+      if (!currentReportDetail) {
         return;
       }
       rawReportJSONVisible = !rawReportJSONVisible;
@@ -1096,8 +1100,8 @@
     copyReportLinkButton.addEventListener("click", () => copyReportLink());
     autoRefreshToggle.addEventListener("change", () => syncAutoRefresh());
 
-    const initialTaskID = populateFiltersFromURL();
-    loadReports(initialTaskID);
+    const initialReportID = populateFiltersFromURL();
+    loadReports(initialReportID);
     syncAutoRefresh();
   </script>
 </body>

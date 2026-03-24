@@ -38,7 +38,7 @@ Current Milestone 1 slice:
 - the same page now exposes `approve` and `retry` controls in the detail panel by reusing the existing task action endpoints instead of adding admin-only mutation APIs
 - the same detail panel now derives a Temporal workflow history deep link from `audit_ref` when the task is running on a Temporal-backed execution path
 - the board now offers an optional 5-second auto-refresh mode so operators can watch task transitions without manually reloading the page
-- `web/admin` now also ships a first embedded report lane at `/admin/reports`, derived entirely from the existing admin task-board and task-detail contracts
+- `web/admin` now also ships a first embedded report lane at `/admin/reports`, with the list sourced from the canonical durable report contract and task detail reused only for execution provenance
 - the board now also offers quick-view presets for common operator slices such as `Needs approval`, `Failed`, and `Running`
 - the same quick-view strip now also supports `Queued`, which reuses the existing `status` filter for pending-work triage
 - the same quick-view strip now also supports `Succeeded`, which reuses the existing `status` filter for terminal success triage
@@ -81,13 +81,14 @@ Current Milestone 1 slice:
 - the admin page keeps the board summary lightweight while letting operators inspect per-task audit history, navigate adjacent visible tasks, and trigger existing task actions from one detail panel
 - Temporal-backed tasks now expose a direct workflow-history deep link in that same detail panel, so operators can jump from the board into Temporal UI without a second lookup step
 - the same page can now poll the existing board and task-detail endpoints every 5 seconds when the operator enables auto-refresh
-- `GET /admin/reports` for the first report-focused operator page, fixed to the successful report lane while reusing the same admin task-board and task-detail contracts
+- `GET /admin/reports` for the first report-focused operator page, fixed to the durable `ready + workflow_summary` report lane while still reusing task detail for execution provenance
 - the same reports page now supports visible-slice navigation, so operators can step through neighboring successful reports without returning to the task board
 - the same reports page now also supports optional 5-second auto-refresh against the existing admin read model, so operators can watch new successful reports arrive without manual reload
 - the same reports page now supports `Copy report summary` and `Copy report link`, both derived directly from the existing single-task detail response so report handoff stays contract-first
 - the same reports page now reads durable report metadata from `GET /api/v1/reports/{report_id}` while still using task detail for audit timeline and Temporal provenance
 - the same reports page can now reveal and copy the raw durable report JSON from `GET /api/v1/reports/{report_id}`, so operators can compare the report artifact directly with task provenance
 - the same reports page now degrades gracefully when a legacy successful report task has no durable report row yet, showing task provenance fallback instead of a broken detail pane
+- `GET /api/v1/reports` now exposes the durable report list contract with tenant, status, report-type, source-task, limit, and offset filters
 - `GET /api/v1/reports/{report_id}` now exposes the durable report read model emitted by a successful `report_generation` task
 - `POST /api/v1/cases` and `GET /api/v1/cases/{case_id}` now expose a durable operator case contract for task/report follow-up
 - `POST /api/v1/cases/{case_id}/close` now lets operators close a durable case while recording `closed_by`

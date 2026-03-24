@@ -453,6 +453,75 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
+  /api/v1/reports:
+    get:
+      summary: List durable reports
+      description: |
+        Returns durable report artifacts with simple filter and offset pagination support.
+        This endpoint is the canonical report list surface and stays separate from workflow task lists.
+      operationId: listReports
+      parameters:
+        - name: tenant_id
+          in: query
+          required: false
+          schema:
+            type: string
+        - name: status
+          in: query
+          required: false
+          schema:
+            type: string
+            enum:
+              - ready
+        - name: report_type
+          in: query
+          required: false
+          schema:
+            type: string
+            enum:
+              - workflow_summary
+        - name: source_task_id
+          in: query
+          required: false
+          schema:
+            type: string
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+        - name: offset
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 0
+      responses:
+        '200':
+          description: Report page returned.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ListReportsResponse'
+        '400':
+          description: Invalid query.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '405':
+          description: Method not allowed.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Report list failed.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
   /api/v1/reports/{report_id}:
     get:
       summary: Get a generated report
@@ -1217,6 +1286,20 @@ components:
         ready_at:
           type: string
           format: date-time
+    ListReportsResponse:
+      type: object
+      required:
+        - reports
+        - has_more
+      properties:
+        reports:
+          type: array
+          items:
+            $ref: '#/components/schemas/Report'
+        has_more:
+          type: boolean
+        next_offset:
+          type: integer
     CreateCaseRequest:
       type: object
       required:

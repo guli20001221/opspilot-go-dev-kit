@@ -64,16 +64,18 @@ Provide a practical operator UI for evaluation and runtime analysis while keepin
 36. For report-lane handoff, prefer copy actions that derive report links and compact summaries from the existing single-task detail response before introducing report-specific export endpoints or backend formatters.
 37. Once successful report tasks persist a durable report entity, prefer wiring report-focused pages to the stable report read endpoint before introducing a separate case or comparison surface.
 38. When a report page needs both artifact metadata and execution provenance, prefer reading title/summary/status from the report endpoint and keeping audit timeline or Temporal drill-down on the existing task detail path.
-39. When a stable artifact read endpoint exists, prefer exposing its raw JSON on the page for troubleshooting before inventing an admin-only debug contract.
-40. When an operator page depends on a derived artifact row that may be missing for legacy or partially recovered tasks, degrade to the surviving task provenance instead of failing the entire detail panel.
-41. Before building a case page, land a durable case contract that can reference existing task and report IDs, so operator handoff is rooted in backend state instead of frontend-only bookmarks.
-42. Once a durable case contract exists, prefer adding `Create case` actions to existing task/report detail panes that reuse `POST /api/v1/cases` and deep-link into the case page over inventing admin-only write endpoints.
-43. Once durable cases have an explicit lifecycle mutation, prefer wiring close or reopen controls to the canonical case endpoint, such as `POST /api/v1/cases/{case_id}/close`, instead of inventing admin-only write surfaces.
-44. For case handoff, prefer copy actions and deep links that reuse the canonical case detail response over inventing a separate case-export contract.
-45. Once cases have explicit ownership, prefer wiring assign or claim controls to the canonical case endpoint, such as `POST /api/v1/cases/{case_id}/assign`, instead of inventing admin-only ownership state.
-46. Prefer append-only case collaboration through `POST /api/v1/cases/{case_id}/notes` and `GET /api/v1/cases/{case_id}` note reads instead of inventing admin-only comment stores.
-47. When cases become operator-owned, prefer queue views built on canonical `GET /api/v1/cases` filters such as `status=open`, `assigned_to=<actor>`, and `unassigned_only=true` instead of frontend-only task lists.
-48. When a case page becomes the primary operator queue, prefer promoting current-actor and unassigned slices plus provenance badges in the existing case list over inventing a separate queue-specific backend contract.
+39. Once a durable artifact list endpoint exists, prefer sourcing report-lane tables from that canonical artifact list contract rather than continuing to derive the list from task-board slices.
+40. When a report page consumes the canonical artifact list, keep task detail as a provenance drill-down path instead of forcing the artifact list contract to carry workflow audit history.
+41. When a stable artifact read endpoint exists, prefer exposing its raw JSON on the page for troubleshooting before inventing an admin-only debug contract.
+42. When an operator page depends on a derived artifact row that may be missing for legacy or partially recovered tasks, degrade to the surviving task provenance instead of failing the entire detail panel.
+43. Before building a case page, land a durable case contract that can reference existing task and report IDs, so operator handoff is rooted in backend state instead of frontend-only bookmarks.
+44. Once a durable case contract exists, prefer adding `Create case` actions to existing task/report detail panes that reuse `POST /api/v1/cases` and deep-link into the case page over inventing admin-only write endpoints.
+45. Once durable cases have an explicit lifecycle mutation, prefer wiring close or reopen controls to the canonical case endpoint, such as `POST /api/v1/cases/{case_id}/close`, instead of inventing admin-only write surfaces.
+46. For case handoff, prefer copy actions and deep links that reuse the canonical case detail response over inventing a separate case-export contract.
+47. Once cases have explicit ownership, prefer wiring assign or claim controls to the canonical case endpoint, such as `POST /api/v1/cases/{case_id}/assign`, instead of inventing admin-only ownership state.
+48. Prefer append-only case collaboration through `POST /api/v1/cases/{case_id}/notes` and `GET /api/v1/cases/{case_id}` note reads instead of inventing admin-only comment stores.
+49. When cases become operator-owned, prefer queue views built on canonical `GET /api/v1/cases` filters such as `status=open`, `assigned_to=<actor>`, and `unassigned_only=true` instead of frontend-only task lists.
+50. When a case page becomes the primary operator queue, prefer promoting current-actor and unassigned slices plus provenance badges in the existing case list over inventing a separate queue-specific backend contract.
 
 ## Output contract
 When you finish, always report:

@@ -175,3 +175,107 @@ func TestReportStoreFinalizeSucceededTaskWithReport(t *testing.T) {
 		t.Fatalf("metadata audit_ref = %v, want final temporal ref", metadata["audit_ref"])
 	}
 }
+
+func TestReportStoreListAppliesFiltersAndPagination(t *testing.T) {
+	dsn := os.Getenv("OPSPILOT_TEST_POSTGRES_DSN")
+	if dsn == "" {
+		t.Skip("OPSPILOT_TEST_POSTGRES_DSN not set")
+	}
+
+	ctx := context.Background()
+	pool, err := OpenPool(ctx, dsn)
+	if err != nil {
+		t.Fatalf("OpenPool() error = %v", err)
+	}
+	defer pool.Close()
+
+	applyMigration(t, ctx, pool)
+	if _, err := pool.Exec(ctx, "TRUNCATE reports, workflow_task_events, workflow_tasks RESTART IDENTITY"); err != nil {
+		t.Fatalf("TRUNCATE reports, workflow_task_events, workflow_tasks error = %v", err)
+	}
+
+	store := NewReportStore(pool)
+	readyOne := time.Unix(1700002100, 0).UTC()
+	readyTwo := time.Unix(1700002200, 0).UTC()
+	readyThree := time.Unix(1700002300, 0).UTC()
+	fixtures := []report.Report{
+		{
+			ID:           "report-list-a",
+			TenantID:     "tenant-a",
+			SourceTaskID: "task-a",
+			ReportType:   report.TypeWorkflowSummary,
+			Status:       report.StatusReady,
+			Title:        "Report A",
+			Summary:      "A",
+			MetadataJSON: json.RawMessage(`{"task_id":"task-a"}`),
+			CreatedBy:    "worker",
+			CreatedAt:    time.Unix(1700002000, 0).UTC(),
+			ReadyAt:      &readyOne,
+		},
+		{
+			ID:           "report-list-b",
+			TenantID:     "tenant-a",
+			SourceTaskID: "task-b",
+			ReportType:   report.TypeWorkflowSummary,
+			Status:       report.StatusReady,
+			Title:        "Report B",
+			Summary:      "B",
+			MetadataJSON: json.RawMessage(`{"task_id":"task-b"}`),
+			CreatedBy:    "worker",
+			CreatedAt:    time.Unix(1700002001, 0).UTC(),
+			ReadyAt:      &readyTwo,
+		},
+		{
+			ID:           "report-list-c",
+			TenantID:     "tenant-b",
+			SourceTaskID: "task-c",
+			ReportType:   report.TypeWorkflowSummary,
+			Status:       report.StatusReady,
+			Title:        "Report C",
+			Summary:      "C",
+			MetadataJSON: json.RawMessage(`{"task_id":"task-c"}`),
+			CreatedBy:    "worker",
+			CreatedAt:    time.Unix(1700002002, 0).UTC(),
+			ReadyAt:      &readyThree,
+		},
+	}
+
+	for _, item := range fixtures {
+		if _, err := store.Save(ctx, item); err != nil {
+			t.Fatalf("Save(%s) error = %v", item.ID, err)
+		}
+	}
+
+	page, err := store.List(ctx, report.ListFilter{
+		TenantID:   "tenant-a",
+		Status:     report.StatusReady,
+		ReportType: report.TypeWorkflowSummary,
+		Limit:      1,
+	})
+	if err != nil {
+		t.Fatalf("List() error = %v", err)
+	}
+	if len(page.Reports) != 1 || page.Reports[0].ID != "report-list-b" {
+		t.Fatalf("page.Reports = %#v, want report-list-b first", page.Reports)
+	}
+	if !page.HasMore || page.NextOffset != 1 {
+		t.Fatalf("pagination = %#v, want has_more with next_offset=1", page)
+	}
+
+	nextPage, err := store.List(ctx, report.ListFilter{
+		TenantID:   "tenant-a",
+		Status:     report.StatusReady,
+		ReportType: report.TypeWorkflowSummary,
+		Limit:      1,
+		Offset:     1,
+	})
+	if err != nil {
+		t.Fatalf("List(offset) error = %v", err)
+	}
+	if len(nextPage.Reports) != 1 || nextPage.Reports[0].ID != "report-list-a" {
+		t.Fatalf("nextPage.Reports = %#v, want report-list-a", nextPage.Reports)
+	}
+	if nextPage.HasMore {
+		t.Fatalf("HasMore = true, want false on final page")
+	}
+}

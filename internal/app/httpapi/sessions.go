@@ -91,6 +91,7 @@ func (a *appHandler) registerRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("/api/v1/cases/", a.handleCaseByID)
 	mux.HandleFunc("/api/v1/tasks", a.handleTasks)
 	mux.HandleFunc("/api/v1/tasks/", a.handleTaskByID)
+	mux.HandleFunc("/api/v1/reports", a.handleReports)
 	mux.HandleFunc("/api/v1/reports/", a.handleReportByID)
 	mux.HandleFunc("/api/v1/chat/stream", a.handleChatStream)
 }

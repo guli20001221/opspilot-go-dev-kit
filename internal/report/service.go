@@ -13,6 +13,7 @@ import (
 type Store interface {
 	Save(ctx context.Context, item Report) (Report, error)
 	Get(ctx context.Context, reportID string) (Report, error)
+	List(ctx context.Context, filter ListFilter) (ListPage, error)
 }
 
 type taskReportFinalizingStore interface {
@@ -47,6 +48,15 @@ func NewServiceWithStore(store Store) *Service {
 // GetReport returns a report by ID.
 func (s *Service) GetReport(ctx context.Context, reportID string) (Report, error) {
 	return s.store.Get(ctx, reportID)
+}
+
+// ListReports returns a durable report page.
+func (s *Service) ListReports(ctx context.Context, filter ListFilter) (ListPage, error) {
+	if filter.Limit <= 0 {
+		filter.Limit = 20
+	}
+
+	return s.store.List(ctx, filter)
 }
 
 // RecordGeneratedReport persists the durable report emitted by a successful task.

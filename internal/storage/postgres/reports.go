@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"strings"
 
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -98,6 +99,86 @@ WHERE id = $1`
 	}
 
 	return got, nil
+}
+
+// List returns a durable report page.
+func (s *ReportStore) List(ctx context.Context, filter report.ListFilter) (report.ListPage, error) {
+	limit := filter.Limit
+	if limit <= 0 {
+		limit = 20
+	}
+
+	var (
+		where []string
+		args  []any
+	)
+	if filter.TenantID != "" {
+		args = append(args, filter.TenantID)
+		where = append(where, fmt.Sprintf("tenant_id = $%d", len(args)))
+	}
+	if filter.Status != "" {
+		args = append(args, filter.Status)
+		where = append(where, fmt.Sprintf("status = $%d", len(args)))
+	}
+	if filter.ReportType != "" {
+		args = append(args, filter.ReportType)
+		where = append(where, fmt.Sprintf("report_type = $%d", len(args)))
+	}
+	if filter.SourceTaskID != "" {
+		args = append(args, filter.SourceTaskID)
+		where = append(where, fmt.Sprintf("source_task_id = $%d", len(args)))
+	}
+
+	query := `
+SELECT
+    id,
+    tenant_id,
+    source_task_id,
+    report_type,
+    status,
+    title,
+    summary,
+    content_uri,
+    metadata_json,
+    created_by,
+    created_at,
+    ready_at
+FROM reports`
+	if len(where) > 0 {
+		query += "\nWHERE " + strings.Join(where, " AND ")
+	}
+
+	args = append(args, limit+1, filter.Offset)
+	query += fmt.Sprintf(`
+ORDER BY COALESCE(ready_at, created_at) DESC, created_at DESC, id DESC
+LIMIT $%d OFFSET $%d`, len(args)-1, len(args))
+
+	rows, err := s.pool.Query(ctx, query, args...)
+	if err != nil {
+		return report.ListPage{}, fmt.Errorf("query reports: %w", err)
+	}
+	defer rows.Close()
+
+	items := make([]report.Report, 0, limit+1)
+	for rows.Next() {
+		item, err := scanReport(rows)
+		if err != nil {
+			return report.ListPage{}, err
+		}
+		items = append(items, item)
+	}
+	if err := rows.Err(); err != nil {
+		return report.ListPage{}, fmt.Errorf("iterate reports: %w", err)
+	}
+
+	page := report.ListPage{Reports: items}
+	if len(items) > limit {
+		page.HasMore = true
+		page.NextOffset = filter.Offset + limit
+		page.Reports = items[:limit]
+	}
+
+	return page, nil
 }
 
 func scanReport(row pgx.Row) (report.Report, error) {

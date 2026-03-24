@@ -32,3 +32,20 @@ type Report struct {
 	CreatedAt    time.Time
 	ReadyAt      *time.Time
 }
+
+// ListFilter constrains report list reads.
+type ListFilter struct {
+	TenantID     string
+	Status       string
+	ReportType   string
+	SourceTaskID string
+	Limit        int
+	Offset       int
+}
+
+// ListPage is a single report list page.
+type ListPage struct {
+	Reports    []Report
+	HasMore    bool
+	NextOffset int
+}

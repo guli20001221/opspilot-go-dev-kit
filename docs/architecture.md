@@ -27,7 +27,7 @@ The current Milestone 1 slice adds:
 - `web/admin` as the home for embedded operator pages, starting with the task board served directly by the API process
 - the embedded task board page now drills into `GET /api/v1/tasks/{task_id}` for audit history and failure context instead of duplicating detail logic in the browser
 - the same page now reuses `POST /api/v1/tasks/{task_id}/approve` and `POST /api/v1/tasks/{task_id}/retry` for operator actions, so the admin UI does not fork workflow mutation contracts
-- the same embedded admin surface now includes `/admin/reports`, a report-lane view derived from the existing task-board and task-detail contracts rather than a new backend read model
+- the same embedded admin surface now includes `/admin/reports`, a report-lane view backed by the durable report list contract while still reusing task detail for execution provenance
 - `internal/report` now holds the first durable report read model, emitted from successful `report_generation` workflow completion rather than inferred only from task audit history
 - `internal/case` now holds the first durable operator case read model, so follow-up work can reference a source task, a source report, or both through stable IDs
 - the same `internal/case` package now also supports filtered list reads for operator-facing case slices
@@ -64,10 +64,11 @@ The current HTTP layer also exposes the same PostgreSQL-backed workflow records 
 - the board's quick-view presets now cover pending queues, queue-oriented slices, terminal success slices, report-success slices, approval-failure slices, reason slices, approval-lane slices, and task-type slices while still writing back into the same filter form and URL state
 - the same page now exposes a task detail panel backed by the existing single-task API, keeping board, audit views, adjacent-task navigation, and existing task actions on one operator surface
 - when a task `audit_ref` points at `temporal:workflow:<workflow_id>/<run_id>`, the detail panel now derives a direct Temporal UI history link without expanding the backend contract
-- `GET /admin/reports` is the first report-focused operator page, fixed to `status=succeeded` and `task_type=report_generation` while still consuming the existing admin read-model endpoint and single-task detail endpoint
+- `GET /admin/reports` is the first report-focused operator page, fixed to `status=ready` and `report_type=workflow_summary` while consuming the canonical report list endpoint and the single-task detail endpoint for provenance
 - the same report lane now keeps the selected report row visually synced with the detail pane and supports previous/next navigation within the current visible slice
 - the same report lane now also supports lightweight polling against the existing admin read model, so no report-specific watch contract is needed for basic operator monitoring
 - the same report lane now also supports copyable report summaries and shareable report links derived from the current task detail response, so operator handoff still reuses canonical task contracts
+- `GET /api/v1/reports` now exposes the durable report artifact list, separate from workflow task queues
 - `GET /api/v1/reports/{report_id}` now exposes the durable report artifact emitted by a successful report task without forcing clients to parse task audit history
 - `POST /api/v1/cases` and `GET /api/v1/cases/{case_id}` now expose the durable operator case contract, separate from task/report runtime status
 - `GET /api/v1/cases` now exposes the first operator-facing case list with tenant, status, source-task, and source-report filters plus offset pagination
