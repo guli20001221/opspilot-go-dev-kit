@@ -41,6 +41,7 @@ Keep the HTTP surface explicit, documented, stable, and friendly to streaming ag
 10. When a durable follow-up object such as a case links existing tasks or reports, validate tenant-safe source references at the API boundary and surface lineage mismatches as explicit 409-style contract errors.
 11. When exposing lifecycle actions for durable follow-up objects such as cases, keep each transition explicit as its own endpoint, return the updated object, and surface invalid state transitions as explicit 409-style contract errors.
 12. When operators need to compare two durable artifacts such as reports, prefer a read-only compare endpoint with explicit left/right IDs and a typed summary instead of pushing diff logic into the client.
+13. When multiple operator pages need the same provenance context, prefer one read-only trace-drilldown endpoint with explicit lookup keys instead of duplicating trace-resolution logic across several page-specific contracts.
 
 ## Output contract
 When you finish, always report:

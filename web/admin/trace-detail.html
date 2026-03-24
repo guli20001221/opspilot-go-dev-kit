@@ -1,0 +1,392 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>OpsPilot Trace Detail</title>
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='16' fill='%231b4965'/%3E%3Cpath d='M18 18h28v28H18zm6 6h16v4H24zm0 8h16v4H24zm0 8h10v4H24z' fill='%23fff'/%3E%3C/svg%3E">
+  <style>
+    :root {
+      --bg: #eef3f8;
+      --panel: rgba(251, 253, 255, 0.9);
+      --ink: #14212b;
+      --muted: #5b6a78;
+      --line: rgba(20, 33, 43, 0.12);
+      --accent: #1d4ed8;
+      --accent-2: #155e75;
+      --shadow: 0 18px 48px rgba(39, 63, 88, 0.14);
+      --radius-lg: 24px;
+      --radius-md: 18px;
+      --radius-sm: 12px;
+      --font-sans: "Segoe UI Variable", "Aptos", "IBM Plex Sans", "Helvetica Neue", sans-serif;
+      --font-serif: "Iowan Old Style", "Georgia", serif;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      min-height: 100vh;
+      font-family: var(--font-sans);
+      color: var(--ink);
+      background:
+        radial-gradient(circle at top left, rgba(29, 78, 216, 0.16), transparent 26%),
+        radial-gradient(circle at top right, rgba(21, 94, 117, 0.12), transparent 24%),
+        linear-gradient(180deg, #f4f8fc 0%, var(--bg) 46%, #e6edf5 100%);
+    }
+    .page { width: min(1180px, calc(100% - 32px)); margin: 0 auto; padding: 28px 0 40px; }
+    .hero, .panel {
+      background: var(--panel);
+      border: 1px solid rgba(255,255,255,0.8);
+      box-shadow: var(--shadow);
+      backdrop-filter: blur(18px);
+    }
+    .hero { padding: 28px; border-radius: 32px; margin-bottom: 18px; }
+    .eyebrow {
+      margin: 0 0 12px;
+      font-size: 12px;
+      font-weight: 700;
+      letter-spacing: 0.18em;
+      text-transform: uppercase;
+      color: var(--accent);
+    }
+    h1 {
+      margin: 0 0 10px;
+      font-family: var(--font-serif);
+      font-size: clamp(2rem, 3.6vw, 3.1rem);
+      line-height: 0.95;
+      letter-spacing: -0.04em;
+    }
+    .lead { margin: 0; color: var(--muted); line-height: 1.6; max-width: 860px; }
+    .hero-links, .actions { display: flex; flex-wrap: wrap; gap: 10px; }
+    .hero-links { margin-top: 18px; }
+    .layout { display: grid; gap: 18px; grid-template-columns: minmax(280px, 340px) minmax(0, 1fr); }
+    .panel { border-radius: var(--radius-lg); padding: 20px; }
+    .panel-copy { margin: 0 0 18px; color: var(--muted); font-size: 0.92rem; line-height: 1.5; }
+    .filters, .summary-grid, .detail-grid { display: grid; gap: 12px; }
+    .filters { align-content: start; }
+    .field { display: grid; gap: 6px; }
+    .field label {
+      font-size: 0.82rem;
+      font-weight: 700;
+      color: var(--muted);
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+    }
+    .field input, button, a.button-link {
+      font: inherit;
+      border-radius: 999px;
+    }
+    .field input {
+      width: 100%;
+      border: 1px solid var(--line);
+      border-radius: var(--radius-sm);
+      padding: 11px 12px;
+      background: rgba(255,255,255,0.94);
+      color: var(--ink);
+    }
+    button, a.button-link, a.link-chip {
+      text-decoration: none;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      padding: 10px 14px;
+      border: 1px solid rgba(20,33,43,0.08);
+      background: rgba(255,255,255,0.8);
+      color: var(--ink);
+      font-weight: 700;
+      cursor: pointer;
+      transition: transform 120ms ease;
+    }
+    button:hover, a.button-link:hover, a.link-chip:hover { transform: translateY(-1px); }
+    .primary {
+      border: none;
+      color: #fff;
+      background: linear-gradient(135deg, var(--accent), var(--accent-2));
+      box-shadow: 0 12px 24px rgba(29,78,216,0.22);
+    }
+    .summary-grid { grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); margin-bottom: 18px; }
+    .summary-card, .detail-card {
+      border-radius: 16px;
+      border: 1px solid rgba(20,33,43,0.08);
+      background: rgba(255,255,255,0.82);
+      padding: 14px;
+    }
+    .summary-card strong { display: block; margin-top: 6px; font-size: 1.15rem; letter-spacing: -0.03em; }
+    .summary-card small, .empty, .warning-list { color: var(--muted); line-height: 1.5; }
+    .detail-grid { grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); }
+    dl { margin: 0; }
+    dt {
+      font-size: 0.76rem;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: var(--muted);
+      margin-bottom: 6px;
+      font-weight: 700;
+    }
+    dd { margin: 0; line-height: 1.5; word-break: break-word; }
+    .empty {
+      padding: 18px;
+      border-radius: var(--radius-md);
+      background: rgba(255,255,255,0.76);
+      border: 1px dashed rgba(20,33,43,0.16);
+    }
+    .warning-list { margin: 12px 0 0; padding-left: 18px; }
+    code { font-family: "IBM Plex Mono", "SFMono-Regular", Consolas, monospace; font-size: 0.9em; background: rgba(20,33,43,0.08); padding: 2px 6px; border-radius: 6px; }
+    @media (max-width: 980px) { .layout { grid-template-columns: 1fr; } }
+  </style>
+</head>
+<body>
+  <main class="page">
+    <section class="hero">
+      <p class="eyebrow">OpsPilot Admin</p>
+      <h1>Trace Detail</h1>
+      <p class="lead">Inspect the current trace lineage for one durable task, report, or case. This page stays narrow on purpose: it reads <code>/api/v1/trace-drilldown</code> and shows the durable links, request/session correlation, audit ref, and Temporal workflow pointer without reimplementing workflow logic in the browser.</p>
+      <div class="hero-links">
+        <a class="link-chip" href="/admin/task-board">Open Task Board</a>
+        <a class="link-chip" href="/admin/reports">Open Reports</a>
+        <a class="link-chip" href="/admin/report-compare">Open Report Compare</a>
+        <a class="link-chip" href="/admin/cases">Open Cases</a>
+      </div>
+    </section>
+
+    <section class="layout">
+      <aside class="panel">
+        <h2>Lookup</h2>
+        <p class="panel-copy">Provide exactly one durable object ID. The backend resolves the lineage and current trace pointer; the page only renders what the contract returns.</p>
+        <form id="lookup-form" class="filters">
+          <div class="field">
+            <label for="task-id">Task ID</label>
+            <input id="task-id" name="task_id" type="text" placeholder="task-..." autocomplete="off">
+          </div>
+          <div class="field">
+            <label for="report-id">Report ID</label>
+            <input id="report-id" name="report_id" type="text" placeholder="report-..." autocomplete="off">
+          </div>
+          <div class="field">
+            <label for="case-id">Case ID</label>
+            <input id="case-id" name="case_id" type="text" placeholder="case-..." autocomplete="off">
+          </div>
+          <div class="actions">
+            <button class="primary" type="submit">Load trace detail</button>
+            <button class="ghost" id="reset-button" type="button">Reset</button>
+          </div>
+        </form>
+      </aside>
+
+      <section class="panel">
+        <h2>Trace drill-down</h2>
+        <p class="panel-copy">Use this page to answer a simple operator question: which durable object am I looking at, what lineage led here, and where is the current Temporal or request-level provenance?</p>
+        <div id="trace-state" class="empty">Provide one task, report, or case ID to load the drill-down.</div>
+
+        <div id="trace-content" hidden>
+          <div class="summary-grid">
+            <article class="summary-card">
+              <div>Subject</div>
+              <strong id="subject-label">-</strong>
+              <small>The durable object that initiated the trace lookup.</small>
+            </article>
+            <article class="summary-card">
+              <div>Tenant</div>
+              <strong id="tenant-label">-</strong>
+              <small>Tenant scope attached to the resolved subject.</small>
+            </article>
+            <article class="summary-card">
+              <div>Temporal run</div>
+              <strong id="temporal-label">-</strong>
+              <small>Workflow run derived from the current audit ref.</small>
+            </article>
+            <article class="summary-card">
+              <div>Warnings</div>
+              <strong id="warning-count">-</strong>
+              <small>Resolution gaps or missing lineage in the current skeleton.</small>
+            </article>
+          </div>
+
+          <div class="detail-grid">
+            <dl class="detail-card"><dt>Request ID</dt><dd id="request-id">-</dd></dl>
+            <dl class="detail-card"><dt>Session ID</dt><dd id="session-id">-</dd></dl>
+            <dl class="detail-card"><dt>Trace ID</dt><dd id="trace-id">-</dd></dl>
+            <dl class="detail-card"><dt>Audit ref</dt><dd id="audit-ref">-</dd></dl>
+            <dl class="detail-card"><dt>Task status</dt><dd id="task-status">-</dd></dl>
+            <dl class="detail-card"><dt>Report status</dt><dd id="report-status">-</dd></dl>
+            <dl class="detail-card"><dt>Report type</dt><dd id="report-type">-</dd></dl>
+            <dl class="detail-card"><dt>Case status</dt><dd id="case-status">-</dd></dl>
+          </div>
+
+          <div class="detail-card" style="margin-top:18px;">
+            <h3 style="margin-top:0;">Lineage</h3>
+            <div class="detail-grid">
+              <dl><dt>Task</dt><dd id="lineage-task">-</dd></dl>
+              <dl><dt>Report</dt><dd id="lineage-report">-</dd></dl>
+              <dl><dt>Case</dt><dd id="lineage-case">-</dd></dl>
+            </div>
+            <div class="actions" style="margin-top:14px;">
+              <a class="button-link ghost" id="open-task-board" href="/admin/task-board">Open Task Board</a>
+              <a class="button-link ghost" id="open-reports" href="/admin/reports">Open Reports</a>
+              <a class="button-link ghost" id="open-cases" href="/admin/cases">Open Cases</a>
+              <a class="button-link ghost" id="open-temporal" href="#" target="_blank" rel="noreferrer" hidden>Open Temporal history</a>
+            </div>
+          </div>
+
+          <div class="detail-card" style="margin-top:18px;">
+            <h3 style="margin-top:0;">Warnings</h3>
+            <ul id="warning-list" class="warning-list"></ul>
+          </div>
+        </div>
+      </section>
+    </section>
+  </main>
+
+  <script>
+    const drilldownEndpoint = "/api/v1/trace-drilldown";
+    const form = document.getElementById("lookup-form");
+    const resetButton = document.getElementById("reset-button");
+    const traceState = document.getElementById("trace-state");
+    const traceContent = document.getElementById("trace-content");
+    const subjectLabel = document.getElementById("subject-label");
+    const tenantLabel = document.getElementById("tenant-label");
+    const temporalLabel = document.getElementById("temporal-label");
+    const warningCount = document.getElementById("warning-count");
+    const requestID = document.getElementById("request-id");
+    const sessionID = document.getElementById("session-id");
+    const traceID = document.getElementById("trace-id");
+    const auditRef = document.getElementById("audit-ref");
+    const taskStatus = document.getElementById("task-status");
+    const reportStatus = document.getElementById("report-status");
+    const reportType = document.getElementById("report-type");
+    const caseStatus = document.getElementById("case-status");
+    const lineageTask = document.getElementById("lineage-task");
+    const lineageReport = document.getElementById("lineage-report");
+    const lineageCase = document.getElementById("lineage-case");
+    const warningList = document.getElementById("warning-list");
+    const openTaskBoard = document.getElementById("open-task-board");
+    const openReports = document.getElementById("open-reports");
+    const openCases = document.getElementById("open-cases");
+    const openTemporal = document.getElementById("open-temporal");
+
+    function escapeHTML(value) {
+      return String(value ?? "").replace(/[&<>"']/g, (char) => ({
+        "&": "&amp;",
+        "<": "&lt;",
+        ">": "&gt;",
+        "\"": "&quot;",
+        "'": "&#39;"
+      }[char]));
+    }
+
+    function buildParams() {
+      const formData = new FormData(form);
+      const params = new URLSearchParams();
+      for (const key of ["task_id", "report_id", "case_id"]) {
+        const value = String(formData.get(key) || "").trim();
+        if (value) {
+          params.set(key, value);
+        }
+      }
+      return params;
+    }
+
+    function syncURL() {
+      const params = buildParams();
+      const next = params.toString() ? `${window.location.pathname}?${params.toString()}` : window.location.pathname;
+      window.history.replaceState({}, "", next);
+    }
+
+    function renderWarnings(warnings) {
+      if (!warnings.length) {
+        warningList.innerHTML = "<li>No warnings recorded for this drill-down.</li>";
+        return;
+      }
+      warningList.innerHTML = warnings.map((warning) => `<li>${escapeHTML(warning)}</li>`).join("");
+    }
+
+    function renderResult(payload) {
+      const subjectText = `${payload.subject.kind}:${payload.subject.id}`;
+      const temporalText = payload.temporal ? `${payload.temporal.workflow_id}/${payload.temporal.run_id}` : "Not available";
+      const warnings = Array.isArray(payload.warnings) ? payload.warnings : [];
+
+      traceState.hidden = true;
+      traceContent.hidden = false;
+      subjectLabel.textContent = subjectText;
+      tenantLabel.textContent = payload.subject.tenant_id || "Unknown";
+      temporalLabel.textContent = temporalText;
+      warningCount.textContent = String(warnings.length);
+      requestID.textContent = payload.request_id || "Unavailable";
+      sessionID.textContent = payload.session_id || "Unavailable";
+      traceID.textContent = payload.trace_id || "Unavailable";
+      auditRef.textContent = payload.audit_ref || "Unavailable";
+      taskStatus.textContent = payload.task_status || "Unavailable";
+      reportStatus.textContent = payload.report_status || "Unavailable";
+      reportType.textContent = payload.report_type || "Unavailable";
+      caseStatus.textContent = payload.case_status || "Unavailable";
+      lineageTask.textContent = payload.lineage.task_id || "None";
+      lineageReport.textContent = payload.lineage.report_id || "None";
+      lineageCase.textContent = payload.lineage.case_id || "None";
+      renderWarnings(warnings);
+
+      const tenantParam = payload.subject.tenant_id ? `tenant_id=${encodeURIComponent(payload.subject.tenant_id)}&` : "";
+      openTaskBoard.href = payload.lineage.task_id
+        ? `/admin/task-board?${tenantParam}task_id=${encodeURIComponent(payload.lineage.task_id)}&limit=10`
+        : "/admin/task-board";
+      openReports.href = payload.lineage.report_id
+        ? `/admin/reports?${tenantParam}report_id=${encodeURIComponent(payload.lineage.report_id)}&limit=10`
+        : "/admin/reports";
+      openCases.href = payload.lineage.case_id
+        ? `/admin/cases?${tenantParam}case_id=${encodeURIComponent(payload.lineage.case_id)}&limit=10`
+        : "/admin/cases";
+
+      if (payload.temporal) {
+        openTemporal.hidden = false;
+        openTemporal.href = `http://localhost:8088/namespaces/default/workflows/${encodeURIComponent(payload.temporal.workflow_id)}/${encodeURIComponent(payload.temporal.run_id)}/history`;
+      } else {
+        openTemporal.hidden = true;
+        openTemporal.href = "#";
+      }
+    }
+
+    async function loadTraceDetail() {
+      const params = buildParams();
+      syncURL();
+      if (!params.toString()) {
+        traceContent.hidden = true;
+        traceState.hidden = false;
+        traceState.textContent = "Provide one task, report, or case ID to load the drill-down.";
+        return;
+      }
+
+      traceContent.hidden = true;
+      traceState.hidden = false;
+      traceState.textContent = "Loading trace drill-down...";
+      try {
+        const response = await fetch(`${drilldownEndpoint}?${params.toString()}`, {
+          headers: { "Accept": "application/json" }
+        });
+        if (!response.ok) {
+          throw new Error(`Trace drill-down request failed: ${response.status} ${response.statusText}`);
+        }
+        renderResult(await response.json());
+      } catch (error) {
+        traceContent.hidden = true;
+        traceState.hidden = false;
+        traceState.textContent = error.message || "Unable to load trace drill-down.";
+      }
+    }
+
+    form.addEventListener("submit", (event) => {
+      event.preventDefault();
+      loadTraceDetail();
+    });
+
+    resetButton.addEventListener("click", () => {
+      form.reset();
+      loadTraceDetail();
+    });
+
+    const initialParams = new URLSearchParams(window.location.search);
+    form.elements.namedItem("task_id").value = initialParams.get("task_id") || "";
+    form.elements.namedItem("report_id").value = initialParams.get("report_id") || "";
+    form.elements.namedItem("case_id").value = initialParams.get("case_id") || "";
+    loadTraceDetail();
+  </script>
+</body>
+</html>

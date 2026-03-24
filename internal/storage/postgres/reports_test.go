@@ -25,8 +25,8 @@ func TestReportStoreRoundTrip(t *testing.T) {
 	defer pool.Close()
 
 	applyMigration(t, ctx, pool)
-	if _, err := pool.Exec(ctx, "TRUNCATE reports, workflow_task_events, workflow_tasks RESTART IDENTITY"); err != nil {
-		t.Fatalf("TRUNCATE reports, workflow_task_events, workflow_tasks error = %v", err)
+	if _, err := pool.Exec(ctx, "TRUNCATE case_notes, cases, reports, workflow_task_events, workflow_tasks RESTART IDENTITY CASCADE"); err != nil {
+		t.Fatalf("TRUNCATE case_notes, cases, reports, workflow_task_events, workflow_tasks error = %v", err)
 	}
 
 	taskStore := NewWorkflowTaskStore(pool)
@@ -94,8 +94,8 @@ func TestReportStoreFinalizeSucceededTaskWithReport(t *testing.T) {
 	defer pool.Close()
 
 	applyMigration(t, ctx, pool)
-	if _, err := pool.Exec(ctx, "TRUNCATE reports, workflow_task_events, workflow_tasks RESTART IDENTITY"); err != nil {
-		t.Fatalf("TRUNCATE reports, workflow_task_events, workflow_tasks error = %v", err)
+	if _, err := pool.Exec(ctx, "TRUNCATE case_notes, cases, reports, workflow_task_events, workflow_tasks RESTART IDENTITY CASCADE"); err != nil {
+		t.Fatalf("TRUNCATE case_notes, cases, reports, workflow_task_events, workflow_tasks error = %v", err)
 	}
 
 	taskStore := NewWorkflowTaskStore(pool)
@@ -190,14 +190,54 @@ func TestReportStoreListAppliesFiltersAndPagination(t *testing.T) {
 	defer pool.Close()
 
 	applyMigration(t, ctx, pool)
-	if _, err := pool.Exec(ctx, "TRUNCATE reports, workflow_task_events, workflow_tasks RESTART IDENTITY"); err != nil {
-		t.Fatalf("TRUNCATE reports, workflow_task_events, workflow_tasks error = %v", err)
+	if _, err := pool.Exec(ctx, "TRUNCATE case_notes, cases, reports, workflow_task_events, workflow_tasks RESTART IDENTITY CASCADE"); err != nil {
+		t.Fatalf("TRUNCATE case_notes, cases, reports, workflow_task_events, workflow_tasks error = %v", err)
 	}
 
 	store := NewReportStore(pool)
 	readyOne := time.Unix(1700002100, 0).UTC()
 	readyTwo := time.Unix(1700002200, 0).UTC()
 	readyThree := time.Unix(1700002300, 0).UTC()
+	taskStore := NewWorkflowTaskStore(pool)
+	for _, task := range []workflow.Task{
+		{
+			ID:        "task-a",
+			RequestID: "req-task-a",
+			TenantID:  "tenant-a",
+			SessionID: "session-a",
+			TaskType:  workflow.TaskTypeReportGeneration,
+			Status:    workflow.StatusSucceeded,
+			Reason:    workflow.PromotionReasonWorkflowRequired,
+			CreatedAt: time.Unix(1700002050, 0).UTC(),
+			UpdatedAt: time.Unix(1700002051, 0).UTC(),
+		},
+		{
+			ID:        "task-b",
+			RequestID: "req-task-b",
+			TenantID:  "tenant-a",
+			SessionID: "session-b",
+			TaskType:  workflow.TaskTypeReportGeneration,
+			Status:    workflow.StatusSucceeded,
+			Reason:    workflow.PromotionReasonWorkflowRequired,
+			CreatedAt: time.Unix(1700002052, 0).UTC(),
+			UpdatedAt: time.Unix(1700002053, 0).UTC(),
+		},
+		{
+			ID:        "task-c",
+			RequestID: "req-task-c",
+			TenantID:  "tenant-b",
+			SessionID: "session-c",
+			TaskType:  workflow.TaskTypeReportGeneration,
+			Status:    workflow.StatusSucceeded,
+			Reason:    workflow.PromotionReasonWorkflowRequired,
+			CreatedAt: time.Unix(1700002054, 0).UTC(),
+			UpdatedAt: time.Unix(1700002055, 0).UTC(),
+		},
+	} {
+		if _, err := taskStore.SaveTask(ctx, task); err != nil {
+			t.Fatalf("SaveTask(%s) error = %v", task.ID, err)
+		}
+	}
 	fixtures := []report.Report{
 		{
 			ID:           "report-list-a",

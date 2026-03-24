@@ -753,6 +753,7 @@
                 <button class="ghost" type="button" id="createCaseButton" hidden>Create case</button>
                 <button class="ghost" type="button" id="copyTaskLinkButton" hidden>Copy task link</button>
                 <a class="ghost" id="openTaskAPI" href="#" target="_blank" rel="noreferrer" hidden>Open API detail</a>
+                <a class="ghost" id="openTraceDetailLink" href="#" hidden>Open Trace Detail</a>
               </div>
             </div>
             <div class="detail-status-note" id="detailStatusNote">
@@ -797,6 +798,7 @@
     const createCaseButton = document.getElementById("createCaseButton");
     const copyTaskLinkButton = document.getElementById("copyTaskLinkButton");
     const openTaskAPILink = document.getElementById("openTaskAPI");
+    const openTraceDetailLink = document.getElementById("openTraceDetailLink");
     const detailStatusNote = document.getElementById("detailStatusNote");
     let currentTaskID = new URLSearchParams(window.location.search).get("task_id") || "";
     let currentTaskDetail = null;
@@ -1083,6 +1085,8 @@
       copyTaskLinkButton.hidden = false;
       openTaskAPILink.hidden = false;
       openTaskAPILink.href = `${taskEndpointBase}${encodeURIComponent(task.task_id)}`;
+      openTraceDetailLink.hidden = false;
+      openTraceDetailLink.href = `/admin/trace-detail?task_id=${encodeURIComponent(task.task_id)}`;
       toggleJSONButton.textContent = rawJSONVisible ? "Hide raw JSON" : "Show raw JSON";
       const temporalRef = parseTemporalAuditRef(task.audit_ref);
       const temporalExecution = temporalRef
@@ -1212,7 +1216,9 @@
         createCaseButton.hidden = true;
         copyTaskLinkButton.hidden = true;
         openTaskAPILink.hidden = true;
+        openTraceDetailLink.hidden = true;
         openTaskAPILink.href = "#";
+        openTraceDetailLink.href = "#";
         detailContent.innerHTML = '<div class="empty">No task selected yet.</div>';
         syncSelectedTaskRow(false);
         syncURL(buildParams(), "");
@@ -1248,6 +1254,12 @@
         focusApprovalLaneButton.hidden = true;
         focusReasonButton.hidden = true;
         focusStatusButton.hidden = true;
+        createCaseButton.hidden = true;
+        copyTaskLinkButton.hidden = true;
+        openTaskAPILink.hidden = true;
+        openTraceDetailLink.hidden = true;
+        openTaskAPILink.href = "#";
+        openTraceDetailLink.href = "#";
         detailContent.innerHTML = `<div class="empty">${escapeHTML(error.message || "Unable to load task detail.")}</div>`;
         syncSelectedTaskRow(false);
       }
@@ -1625,6 +1637,12 @@
           focusApprovalLaneButton.hidden = true;
           focusReasonButton.hidden = true;
           focusStatusButton.hidden = true;
+          createCaseButton.hidden = true;
+          copyTaskLinkButton.hidden = true;
+          openTaskAPILink.hidden = true;
+          openTraceDetailLink.hidden = true;
+          openTaskAPILink.href = "#";
+          openTraceDetailLink.href = "#";
           detailContent.innerHTML = '<div class="empty">Adjust filters or offset to bring that task into view.</div>';
         } else {
           await loadTaskDetail("");

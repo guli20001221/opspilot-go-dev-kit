@@ -409,6 +409,7 @@
         <a class="link-chip" href="/admin/task-board">Open Task Board</a>
         <a class="link-chip" href="/admin/cases">Open Cases</a>
         <a class="link-chip" href="/admin/report-compare">Open Report Compare</a>
+        <a class="link-chip" href="/admin/trace-detail">Open Trace Detail</a>
         <a class="link-chip" id="openBoardForCurrentLink" href="/admin/task-board">Open current report in Task Board</a>
       </div>
     </section>
@@ -791,6 +792,7 @@
               <div class="actions">
                 <a class="button-link ghost" href="${taskBoardURL}">Open Task Board</a>
                 <a class="button-link ghost" href="${compareURL}">Open report compare</a>
+                <a class="button-link ghost" href="/admin/trace-detail?report_id=${encodeURIComponent(reportID)}">Open trace detail</a>
                 <a class="button-link ghost" href="${reportAPIURL}" target="_blank" rel="noreferrer">Open report API detail</a>
                 ${task ? `<a class="button-link ghost" href="${taskEndpointBase}${encodeURIComponent(task.task_id)}" target="_blank" rel="noreferrer">Open task API detail</a>` : ""}
                 ${temporal ? `<a class="button-link ghost" href="http://localhost:8088/namespaces/default/workflows/${encodeURIComponent(temporal.workflowID)}/${encodeURIComponent(temporal.runID)}/history" target="_blank" rel="noreferrer">Open Temporal history</a>` : ""}

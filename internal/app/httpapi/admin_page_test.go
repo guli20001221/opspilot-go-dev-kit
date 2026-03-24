@@ -135,6 +135,9 @@ func TestAdminTaskBoardPageRendersHTML(t *testing.T) {
 	if !strings.Contains(body, "/admin/reports") {
 		t.Fatal("reports page link missing from task board HTML")
 	}
+	if !strings.Contains(body, "/admin/trace-detail") {
+		t.Fatal("trace detail link missing from task board HTML")
+	}
 	if !strings.Contains(body, "/admin/cases") {
 		t.Fatal("cases page link missing from task board HTML")
 	}
@@ -200,6 +203,9 @@ func TestAdminReportsPageRendersHTML(t *testing.T) {
 	}
 	if !strings.Contains(body, "/admin/report-compare") {
 		t.Fatal("report compare handoff link missing from reports page HTML")
+	}
+	if !strings.Contains(body, "/admin/trace-detail") {
+		t.Fatal("trace detail handoff missing from reports page HTML")
 	}
 	if !strings.Contains(body, "Open current report in Task Board") {
 		t.Fatal("current report handoff link missing from reports page HTML")
@@ -291,6 +297,9 @@ func TestAdminReportComparePageRendersHTML(t *testing.T) {
 	if !strings.Contains(body, "/api/v1/report-compare") {
 		t.Fatal("report compare API path missing from page HTML")
 	}
+	if !strings.Contains(body, "/admin/trace-detail") {
+		t.Fatal("trace detail handoff missing from report compare HTML")
+	}
 	if !strings.Contains(body, "/api/v1/reports/") {
 		t.Fatal("report detail API path missing from report compare page HTML")
 	}
@@ -310,6 +319,57 @@ func TestAdminReportComparePageRejectsUnknownSubpath(t *testing.T) {
 	defer server.Close()
 
 	resp, err := http.Get(server.URL + "/admin/report-compare/unknown")
+	if err != nil {
+		t.Fatalf("Get() error = %v", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusNotFound {
+		t.Fatalf("StatusCode = %d, want %d", resp.StatusCode, http.StatusNotFound)
+	}
+}
+
+func TestAdminTraceDetailPageRendersHTML(t *testing.T) {
+	server := httptest.NewServer(NewHandler())
+	defer server.Close()
+
+	resp, err := http.Get(server.URL + "/admin/trace-detail")
+	if err != nil {
+		t.Fatalf("Get() error = %v", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("StatusCode = %d, want %d", resp.StatusCode, http.StatusOK)
+	}
+	if got := resp.Header.Get("Content-Type"); !strings.Contains(got, "text/html") {
+		t.Fatalf("Content-Type = %q, want text/html", got)
+	}
+
+	bodyBytes, err := io.ReadAll(resp.Body)
+	if err != nil {
+		t.Fatalf("ReadAll() error = %v", err)
+	}
+	body := string(bodyBytes)
+	if !strings.Contains(body, "<title>OpsPilot Trace Detail</title>") {
+		t.Fatal("page title missing from trace detail HTML")
+	}
+	if !strings.Contains(body, "/api/v1/trace-drilldown") {
+		t.Fatal("trace drilldown API path missing from page HTML")
+	}
+	if !strings.Contains(body, "Load trace detail") {
+		t.Fatal("trace detail action missing from page HTML")
+	}
+	if !strings.Contains(body, "Open Temporal history") {
+		t.Fatal("temporal handoff missing from trace detail HTML")
+	}
+}
+
+func TestAdminTraceDetailPageRejectsUnknownSubpath(t *testing.T) {
+	server := httptest.NewServer(NewHandler())
+	defer server.Close()
+
+	resp, err := http.Get(server.URL + "/admin/trace-detail/unknown")
 	if err != nil {
 		t.Fatalf("Get() error = %v", err)
 	}
@@ -401,6 +461,9 @@ func TestAdminCasesPageRendersHTML(t *testing.T) {
 	}
 	if !strings.Contains(body, "Open case API detail") {
 		t.Fatal("case api handoff missing from cases page HTML")
+	}
+	if !strings.Contains(body, "/admin/trace-detail") {
+		t.Fatal("trace detail handoff missing from cases page HTML")
 	}
 	if !strings.Contains(body, "<option value=\"closed\">Closed</option>") {
 		t.Fatal("closed status filter missing from cases page HTML")

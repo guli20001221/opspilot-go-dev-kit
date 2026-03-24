@@ -302,6 +302,7 @@
         <a class="link-chip" href="/admin/reports">Open Reports</a>
         <a class="link-chip" href="/admin/task-board">Open Task Board</a>
         <a class="link-chip" href="/admin/cases">Open Cases</a>
+        <a class="link-chip" href="/admin/trace-detail">Open Trace Detail</a>
       </div>
     </section>
 
@@ -363,6 +364,7 @@
                 <div class="actions" style="margin-top:14px;">
                   <a class="button-link ghost" id="left-report-api-link" href="#" target="_blank" rel="noreferrer">Open left report API</a>
                   <a class="button-link ghost" id="left-report-lane-link" href="#">Open left in Reports</a>
+                  <a class="button-link ghost" id="left-trace-link" href="#">Open left trace detail</a>
                 </div>
               </div>
             </section>
@@ -374,6 +376,7 @@
                 <div class="actions" style="margin-top:14px;">
                   <a class="button-link ghost" id="right-report-api-link" href="#" target="_blank" rel="noreferrer">Open right report API</a>
                   <a class="button-link ghost" id="right-report-lane-link" href="#">Open right in Reports</a>
+                  <a class="button-link ghost" id="right-trace-link" href="#">Open right trace detail</a>
                 </div>
               </div>
             </section>
@@ -408,6 +411,8 @@
     const rightReportAPILink = document.getElementById("right-report-api-link");
     const leftReportLaneLink = document.getElementById("left-report-lane-link");
     const rightReportLaneLink = document.getElementById("right-report-lane-link");
+    const leftTraceLink = document.getElementById("left-trace-link");
+    const rightTraceLink = document.getElementById("right-trace-link");
     const diffList = document.getElementById("diff-list");
 
     function escapeHTML(value) {
@@ -508,6 +513,8 @@
       rightReportAPILink.href = `${reportEndpointBase}${encodeURIComponent(payload.right.report_id)}`;
       leftReportLaneLink.href = `${reportsPageBase}?tenant_id=${encodeURIComponent(payload.left.tenant_id)}&report_id=${encodeURIComponent(payload.left.report_id)}&limit=10`;
       rightReportLaneLink.href = `${reportsPageBase}?tenant_id=${encodeURIComponent(payload.right.tenant_id)}&report_id=${encodeURIComponent(payload.right.report_id)}&limit=10`;
+      leftTraceLink.href = `/admin/trace-detail?report_id=${encodeURIComponent(payload.left.report_id)}`;
+      rightTraceLink.href = `/admin/trace-detail?report_id=${encodeURIComponent(payload.right.report_id)}`;
 
       diffList.innerHTML = [
         renderDiffItem("Tenant", !summary.same_tenant),

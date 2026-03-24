@@ -72,6 +72,8 @@ The current HTTP layer also exposes the same PostgreSQL-backed workflow records 
 - `GET /api/v1/reports/{report_id}` now exposes the durable report artifact emitted by a successful report task without forcing clients to parse task audit history
 - `GET /api/v1/report-compare` now exposes a narrow read-only comparison contract over two durable report IDs, so regression-style operator review does not require the frontend to diff report artifacts on its own
 - `GET /admin/report-compare` now exposes the first report-comparison page, wired directly to the durable compare contract and report read endpoints
+- `internal/observability/tracedetail` now exposes a narrow read-only lineage resolver over durable tasks, reports, and cases, so operator pages can share one trace drill-down path without each page re-deriving provenance
+- `GET /api/v1/trace-drilldown` and `GET /admin/trace-detail` now form the first shared trace drill-down surface across task, report, comparison, and case pages
 - `POST /api/v1/cases` and `GET /api/v1/cases/{case_id}` now expose the durable operator case contract, separate from task/report runtime status
 - `GET /api/v1/cases` now exposes the first operator-facing case list with tenant, status, source-task, and source-report filters plus offset pagination
 - the same case list now supports explicit `assigned_to` and `unassigned_only` filtering so queue views can map cleanly onto owned and shared operator lanes without inventing frontend-only state

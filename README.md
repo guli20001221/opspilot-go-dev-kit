@@ -92,6 +92,8 @@ Current Milestone 1 slice:
 - `GET /api/v1/reports/{report_id}` now exposes the durable report read model emitted by a successful `report_generation` task
 - `GET /api/v1/report-compare` now exposes a read-only durable report comparison contract for left/right report IDs
 - `GET /admin/report-compare` now exposes the first report-comparison operator page, reusing durable report IDs instead of diffing artifacts ad hoc in the browser
+- `GET /api/v1/trace-drilldown` now exposes a narrow lineage-and-provenance contract over one durable task, report, or case
+- `GET /admin/trace-detail` now exposes a shared trace drill-down page, and the task/report/case/compare pages now hand off into it instead of each page inventing its own trace view
 - `POST /api/v1/cases` and `GET /api/v1/cases/{case_id}` now expose a durable operator case contract for task/report follow-up
 - `POST /api/v1/cases/{case_id}/close` now lets operators close a durable case while recording `closed_by`
 - `POST /api/v1/cases/{case_id}/reopen` now returns a closed case back to the open queue and appends a durable operator note for the reopen action

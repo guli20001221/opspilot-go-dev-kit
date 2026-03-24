@@ -38,6 +38,7 @@ Make every important runtime step inspectable, measurable, and debuggable withou
 5. Redact or hash sensitive fields before emitting logs or traces.
 6. Ensure report and admin views can deep-link into trace contexts where possible.
 7. Update runbooks with how to debug the new path.
+8. When a full trace explorer is not available yet, prefer a narrow read-only trace drill-down contract that resolves lineage, request/session ids, audit refs, warnings, and Temporal pointers from durable runtime state.
 
 ## Output contract
 When you finish, always report:

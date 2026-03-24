@@ -77,6 +77,93 @@ func TestWorkflowTaskStoreRoundTrip(t *testing.T) {
 	}
 }
 
+func TestWorkflowTaskStoreHandlesNullableToolColumns(t *testing.T) {
+	dsn := os.Getenv("OPSPILOT_TEST_POSTGRES_DSN")
+	if dsn == "" {
+		t.Skip("OPSPILOT_TEST_POSTGRES_DSN not set")
+	}
+
+	ctx := context.Background()
+	pool, err := OpenPool(ctx, dsn)
+	if err != nil {
+		t.Fatalf("OpenPool() error = %v", err)
+	}
+	defer pool.Close()
+
+	applyMigration(t, ctx, pool)
+	if _, err := pool.Exec(ctx, "TRUNCATE reports, workflow_task_events, workflow_tasks RESTART IDENTITY CASCADE"); err != nil {
+		t.Fatalf("TRUNCATE reports, workflow_task_events, workflow_tasks error = %v", err)
+	}
+
+	const insert = `
+INSERT INTO workflow_tasks (
+    id,
+    request_id,
+    tenant_id,
+    session_id,
+    task_type,
+    tool_name,
+    tool_arguments,
+    status,
+    reason,
+    error_reason,
+    audit_ref,
+    requires_approval,
+    created_at,
+    updated_at
+) VALUES (
+    $1, $2, $3, $4, $5, NULL, NULL, $6, $7, $8, $9, $10, $11, $12
+)`
+	createdAt := time.Unix(1700000005, 0).UTC()
+	if _, err := pool.Exec(
+		ctx,
+		insert,
+		"task-nullable-tools",
+		"req-nullable-tools",
+		"tenant-nullable-tools",
+		"session-nullable-tools",
+		workflow.TaskTypeReportGeneration,
+		workflow.StatusSucceeded,
+		workflow.PromotionReasonWorkflowRequired,
+		"",
+		"temporal:workflow:task-nullable-tools/run-1",
+		false,
+		createdAt,
+		createdAt,
+	); err != nil {
+		t.Fatalf("insert nullable workflow task error = %v", err)
+	}
+
+	store := NewWorkflowTaskStore(pool)
+	got, err := store.GetTask(ctx, "task-nullable-tools")
+	if err != nil {
+		t.Fatalf("GetTask() error = %v", err)
+	}
+	if got.ToolName != "" {
+		t.Fatalf("GetTask().ToolName = %q, want empty string", got.ToolName)
+	}
+	if got.ToolArguments != nil {
+		t.Fatalf("GetTask().ToolArguments = %v, want nil", got.ToolArguments)
+	}
+
+	page, err := store.ListTasks(ctx, workflow.TaskListFilter{
+		TenantID: "tenant-nullable-tools",
+		Limit:    10,
+	})
+	if err != nil {
+		t.Fatalf("ListTasks() error = %v", err)
+	}
+	if len(page.Tasks) != 1 {
+		t.Fatalf("len(ListTasks().Tasks) = %d, want %d", len(page.Tasks), 1)
+	}
+	if page.Tasks[0].ToolName != "" {
+		t.Fatalf("ListTasks().Tasks[0].ToolName = %q, want empty string", page.Tasks[0].ToolName)
+	}
+	if page.Tasks[0].ToolArguments != nil {
+		t.Fatalf("ListTasks().Tasks[0].ToolArguments = %v, want nil", page.Tasks[0].ToolArguments)
+	}
+}
+
 func TestWorkflowTaskStoreClaimAndUpdate(t *testing.T) {
 	dsn := os.Getenv("OPSPILOT_TEST_POSTGRES_DSN")
 	if dsn == "" {

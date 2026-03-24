@@ -8,6 +8,7 @@ import (
 
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
+	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"opspilot-go/internal/workflow"
@@ -77,25 +78,9 @@ SELECT
 FROM workflow_tasks
 WHERE id = $1`
 
-	var task workflow.Task
-	err := s.pool.QueryRow(ctx, query, taskID).Scan(
-		&task.ID,
-		&task.RequestID,
-		&task.TenantID,
-		&task.SessionID,
-		&task.TaskType,
-		&task.ToolName,
-		&task.ToolArguments,
-		&task.Status,
-		&task.Reason,
-		&task.ErrorReason,
-		&task.AuditRef,
-		&task.RequiresApproval,
-		&task.CreatedAt,
-		&task.UpdatedAt,
-	)
+	task, err := scanTask(s.pool.QueryRow(ctx, query, taskID))
 	if err != nil {
-		if errors.Is(err, pgx.ErrNoRows) {
+		if errors.Is(err, workflow.ErrTaskNotFound) {
 			return workflow.Task{}, fmt.Errorf("%w: %s", workflow.ErrTaskNotFound, taskID)
 		}
 
@@ -467,14 +452,16 @@ type taskScanner interface {
 
 func scanTask(row taskScanner) (workflow.Task, error) {
 	var task workflow.Task
+	var toolName pgtype.Text
+	var toolArguments []byte
 	err := row.Scan(
 		&task.ID,
 		&task.RequestID,
 		&task.TenantID,
 		&task.SessionID,
 		&task.TaskType,
-		&task.ToolName,
-		&task.ToolArguments,
+		&toolName,
+		&toolArguments,
 		&task.Status,
 		&task.Reason,
 		&task.ErrorReason,
@@ -489,6 +476,13 @@ func scanTask(row taskScanner) (workflow.Task, error) {
 		}
 
 		return workflow.Task{}, fmt.Errorf("scan workflow task: %w", err)
+	}
+
+	if toolName.Valid {
+		task.ToolName = toolName.String
+	}
+	if len(toolArguments) > 0 {
+		task.ToolArguments = append([]byte(nil), toolArguments...)
 	}
 
 	return task, nil

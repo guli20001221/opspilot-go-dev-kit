@@ -11,6 +11,8 @@ var (
 	reportsHTML []byte
 	//go:embed report-compare.html
 	reportCompareHTML []byte
+	//go:embed trace-detail.html
+	traceDetailHTML []byte
 )
 
 // TaskBoardHTML returns the embedded admin task board page.
@@ -31,4 +33,9 @@ func ReportsHTML() []byte {
 // ReportCompareHTML returns the embedded admin report comparison page.
 func ReportCompareHTML() []byte {
 	return append([]byte(nil), reportCompareHTML...)
+}
+
+// TraceDetailHTML returns the embedded admin trace detail page.
+func TraceDetailHTML() []byte {
+	return append([]byte(nil), traceDetailHTML...)
 }

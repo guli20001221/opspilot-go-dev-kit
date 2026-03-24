@@ -571,6 +571,60 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
+  /api/v1/trace-drilldown:
+    get:
+      summary: Resolve durable trace drill-down context
+      description: |
+        Returns the current durable lineage and provenance pointers for exactly one task, report, or case.
+        This endpoint is intentionally narrow: it surfaces request/session correlation, audit ref, warnings, and the current Temporal pointer without reconstructing a full trace timeline.
+      operationId: getTraceDrilldown
+      parameters:
+        - name: task_id
+          in: query
+          required: false
+          schema:
+            type: string
+        - name: report_id
+          in: query
+          required: false
+          schema:
+            type: string
+        - name: case_id
+          in: query
+          required: false
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Trace drill-down returned.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TraceDrilldown'
+        '400':
+          description: Invalid query.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Trace subject not found.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '405':
+          description: Method not allowed.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Trace lookup failed.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
   /api/v1/reports/{report_id}:
     get:
       summary: Get a generated report
@@ -1396,6 +1450,73 @@ components:
           $ref: '#/components/schemas/Report'
         summary:
           $ref: '#/components/schemas/ReportComparisonSummary'
+    TraceDrilldownSubject:
+      type: object
+      required:
+        - kind
+        - id
+      properties:
+        kind:
+          type: string
+          enum:
+            - task
+            - report
+            - case
+        id:
+          type: string
+        tenant_id:
+          type: string
+    TraceDrilldownLineage:
+      type: object
+      properties:
+        task_id:
+          type: string
+        report_id:
+          type: string
+        case_id:
+          type: string
+    TraceDrilldownTemporal:
+      type: object
+      required:
+        - workflow_id
+        - run_id
+      properties:
+        workflow_id:
+          type: string
+        run_id:
+          type: string
+    TraceDrilldown:
+      type: object
+      required:
+        - subject
+        - lineage
+      properties:
+        subject:
+          $ref: '#/components/schemas/TraceDrilldownSubject'
+        lineage:
+          $ref: '#/components/schemas/TraceDrilldownLineage'
+        request_id:
+          type: string
+        session_id:
+          type: string
+        trace_id:
+          type: string
+        audit_ref:
+          type: string
+        task_status:
+          type: string
+        report_type:
+          type: string
+        report_status:
+          type: string
+        case_status:
+          type: string
+        temporal:
+          $ref: '#/components/schemas/TraceDrilldownTemporal'
+        warnings:
+          type: array
+          items:
+            type: string
     CreateCaseRequest:
       type: object
       required:

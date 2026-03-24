@@ -77,6 +77,7 @@ Provide a practical operator UI for evaluation and runtime analysis while keepin
 49. When cases become operator-owned, prefer queue views built on canonical `GET /api/v1/cases` filters such as `status=open`, `assigned_to=<actor>`, and `unassigned_only=true` instead of frontend-only task lists.
 50. When a case page becomes the primary operator queue, prefer promoting current-actor and unassigned slices plus provenance badges in the existing case list over inventing a separate queue-specific backend contract.
 51. Once durable report artifacts exist, prefer a narrow read-only compare contract over two report IDs plus a dedicated `/admin/report-compare` page instead of diffing report payloads ad hoc inside the report lane.
+52. When multiple operator pages need the same provenance context, prefer one shared `/admin/trace-detail` page backed by a narrow read-only trace drill-down contract instead of teaching each page its own trace-resolution logic.
 
 ## Output contract
 When you finish, always report:

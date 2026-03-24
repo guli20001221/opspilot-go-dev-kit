@@ -8,6 +8,7 @@ import (
 	admintaskboard "opspilot-go/internal/app/admin/taskboard"
 	appchat "opspilot-go/internal/app/chat"
 	casesvc "opspilot-go/internal/case"
+	"opspilot-go/internal/observability/tracedetail"
 	"opspilot-go/internal/report"
 	"opspilot-go/internal/session"
 	toolregistry "opspilot-go/internal/tools/registry"
@@ -19,6 +20,7 @@ type appHandler struct {
 	adminTaskBoard *admintaskboard.Service
 	cases          *casesvc.Service
 	reports        *report.Service
+	traceDetails   *tracedetail.Service
 	sessions       *session.Service
 	workflows      *workflow.Service
 	chat           *appchat.Service
@@ -74,6 +76,7 @@ func newAppHandler(workflowService *workflow.Service, reportService *report.Serv
 		adminTaskBoard: admintaskboard.NewService(workflowService),
 		cases:          caseService,
 		reports:        reportService,
+		traceDetails:   tracedetail.NewService(workflowService, reportService, caseService),
 		sessions:       sessionService,
 		workflows:      workflowService,
 		chat:           appchat.NewServiceWithRegistry(sessionService, workflowService, registry),
@@ -85,6 +88,7 @@ func (a *appHandler) registerRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("/admin/cases", a.handleAdminCasesPage)
 	mux.HandleFunc("/admin/reports", a.handleAdminReportsPage)
 	mux.HandleFunc("/admin/report-compare", a.handleAdminReportComparePage)
+	mux.HandleFunc("/admin/trace-detail", a.handleAdminTraceDetailPage)
 	mux.HandleFunc("/api/v1/sessions", a.handleSessions)
 	mux.HandleFunc("/api/v1/sessions/", a.handleSessionMessages)
 	mux.HandleFunc("/api/v1/admin/task-board", a.handleAdminTaskBoard)
@@ -95,6 +99,7 @@ func (a *appHandler) registerRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("/api/v1/reports", a.handleReports)
 	mux.HandleFunc("/api/v1/reports/", a.handleReportByID)
 	mux.HandleFunc("/api/v1/report-compare", a.handleReportCompare)
+	mux.HandleFunc("/api/v1/trace-drilldown", a.handleTraceDrilldown)
 	mux.HandleFunc("/api/v1/chat/stream", a.handleChatStream)
 }
 
@@ -156,6 +161,21 @@ func (a *appHandler) handleAdminReportComparePage(w http.ResponseWriter, r *http
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	w.WriteHeader(http.StatusOK)
 	_, _ = w.Write(adminweb.ReportCompareHTML())
+}
+
+func (a *appHandler) handleAdminTraceDetailPage(w http.ResponseWriter, r *http.Request) {
+	if r.URL.Path != "/admin/trace-detail" {
+		writeError(w, http.StatusNotFound, "not_found", "not found")
+		return
+	}
+	if r.Method != http.MethodGet {
+		writeError(w, http.StatusMethodNotAllowed, "method_not_allowed", "method not allowed")
+		return
+	}
+
+	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	w.WriteHeader(http.StatusOK)
+	_, _ = w.Write(adminweb.TraceDetailHTML())
 }
 
 func (a *appHandler) handleSessions(w http.ResponseWriter, r *http.Request) {
