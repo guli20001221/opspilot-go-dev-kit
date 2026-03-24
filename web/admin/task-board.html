@@ -1040,6 +1040,10 @@
       return "No execution detail recorded yet.";
     }
 
+    function reportIDFromTaskID(taskID) {
+      return taskID ? `report-${taskID}` : "";
+    }
+
     function buildTimelineDigest(task) {
       const events = Array.isArray(task.audit_events) ? task.audit_events : [];
       if (events.length === 0) {
@@ -1338,18 +1342,53 @@
       };
     }
 
+    async function resolveSourceReportIDForTask(task) {
+      if (task.task_type !== "report_generation" || task.status !== "succeeded") {
+        return "";
+      }
+
+      const reportID = reportIDFromTaskID(task.task_id);
+      try {
+        const response = await fetch(`/api/v1/reports/${encodeURIComponent(reportID)}`, {
+          headers: { "Accept": "application/json" }
+        });
+        if (response.ok) {
+          return reportID;
+        }
+        if (response.status === 404) {
+          return "";
+        }
+        console.warn("report lookup unavailable; falling back to task-only case handoff", {
+          reportID,
+          status: response.status
+        });
+        return "";
+      } catch (error) {
+        console.warn("report lookup failed; falling back to task-only case handoff", {
+          reportID,
+          message: error && error.message ? error.message : "unknown error"
+        });
+        return "";
+      }
+    }
+
     async function createCaseFromTask() {
       if (!currentTaskDetail) {
         return;
       }
 
-      const payload = buildCasePayloadFromTask(currentTaskDetail);
+      const task = { ...currentTaskDetail };
       const originalText = createCaseButton.textContent;
       createCaseButton.disabled = true;
       createCaseButton.textContent = "Creating...";
-      detailStatusNote.textContent = `Creating a case for ${currentTaskDetail.task_id}...`;
+      detailStatusNote.textContent = `Creating a case for ${task.task_id}...`;
 
       try {
+        const payload = buildCasePayloadFromTask(task);
+        const sourceReportID = await resolveSourceReportIDForTask(task);
+        if (sourceReportID) {
+          payload.source_report_id = sourceReportID;
+        }
         const response = await fetch(caseEndpoint, {
           method: "POST",
           headers: {

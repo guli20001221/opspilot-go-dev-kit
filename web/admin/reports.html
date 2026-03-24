@@ -725,14 +725,14 @@
       const reportID = report?.report_id || reportIDFromTaskID(task.task_id);
       const reportAPIURL = `${reportEndpointBase}${encodeURIComponent(reportID)}`;
       const taskBoardURL = `/admin/task-board?tenant_id=${encodeURIComponent(task.tenant_id)}&task_id=${encodeURIComponent(task.task_id)}&status=succeeded&task_type=report_generation&offset=0&limit=${encodeURIComponent(form.elements.namedItem("limit").value || "10")}`;
-      openBoardForCurrentLink.href = taskBoardURL;
-      setReportJSONActionsVisible(Boolean(report));
-      copyReportSummaryButton.hidden = false;
-      createCaseButton.hidden = false;
-      copyReportLinkButton.hidden = false;
-      reportDetailStatusNote.textContent = report
-        ? "Current report detail is ready for handoff actions."
-        : "Durable report row is missing; showing task provenance fallback.";
+        openBoardForCurrentLink.href = taskBoardURL;
+        setReportJSONActionsVisible(Boolean(report));
+        copyReportSummaryButton.hidden = false;
+        createCaseButton.hidden = !report;
+        copyReportLinkButton.hidden = false;
+        reportDetailStatusNote.textContent = report
+          ? "Current report detail is ready for handoff actions."
+          : "Durable report row is missing; showing task provenance fallback. Case creation stays disabled until the durable report is available.";
       toggleReportJSONButton.textContent = rawReportJSONVisible ? "Hide raw report JSON" : "Show raw report JSON";
 
       const events = Array.isArray(task.audit_events) ? task.audit_events : [];
@@ -1021,7 +1021,8 @@
     }
 
     async function createCaseFromReport() {
-      if (!currentTaskDetail) {
+      if (!currentTaskDetail || !currentReportDetail) {
+        reportDetailStatusNote.textContent = "Create case is unavailable until the durable report row is available.";
         return;
       }
 

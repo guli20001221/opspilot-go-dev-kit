@@ -99,6 +99,7 @@ Current Milestone 1 slice:
 - the same `/admin/cases` page now also supports the minimal ownership action, so an operator can assign an open case before closing or handing it off
 - the same `/admin/cases` page now also exposes append-only case notes so assignment and handoff have durable operator context
 - `/admin/task-board` and `/admin/reports` now both expose a `Create case` handoff that reuses `POST /api/v1/cases` and deep-links straight into `/admin/cases`
+- the task-board `Create case` handoff now preserves `source_report_id` for successful `report_generation` tasks when the durable report row exists, but degrades to a task-only case if that durable report lookup is missing or temporarily unavailable; the reports page disables case creation when the row is missing
 - successful report tasks now finalize their `succeeded` task state and durable report row together, so report `ready_at` and `metadata.audit_ref` stay aligned with the final task success event
 - common operator slices can now be applied from quick-view buttons instead of manually composing the same filters each time
 - the detail panel can now reveal the full single-task JSON payload and copy it to the clipboard for debugging and escalation flows

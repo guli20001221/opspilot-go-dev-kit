@@ -96,6 +96,15 @@ func TestAdminTaskBoardPageRendersHTML(t *testing.T) {
 	if !strings.Contains(body, "Create case") {
 		t.Fatal("case creation control missing from task board HTML")
 	}
+	if !strings.Contains(body, "source_report_id") {
+		t.Fatal("report lineage handoff missing from task board HTML")
+	}
+	if !strings.Contains(body, "/api/v1/reports/") {
+		t.Fatal("report lookup endpoint missing from task board HTML")
+	}
+	if !strings.Contains(body, "falling back to task-only case handoff") {
+		t.Fatal("report lookup fallback missing from task board HTML")
+	}
 	if !strings.Contains(body, "Previous visible") {
 		t.Fatal("detail navigation controls missing from page HTML")
 	}
@@ -200,6 +209,9 @@ func TestAdminReportsPageRendersHTML(t *testing.T) {
 	}
 	if !strings.Contains(body, "Create case") {
 		t.Fatal("report-to-case action missing from reports page HTML")
+	}
+	if !strings.Contains(body, "Case creation stays disabled until the durable report is available.") {
+		t.Fatal("report fallback case-creation guard missing from reports page HTML")
 	}
 	if !strings.Contains(body, "Show raw report JSON") {
 		t.Fatal("report raw json toggle missing from reports page HTML")

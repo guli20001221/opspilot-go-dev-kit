@@ -82,6 +82,7 @@ The current HTTP layer also exposes the same PostgreSQL-backed workflow records 
 - the same case page now also shows and appends recent notes, so operator handoff context lives on the case instead of being implied by task/report provenance
 - the same case page now defaults into an open-case queue view, adds `My open cases` and `Unassigned` shortcuts, and computes age/staleness from canonical `updated_at`
 - the existing task-board and report-lane detail panes can now create durable cases by reusing `POST /api/v1/cases`, keeping case creation on canonical task/report surfaces instead of inventing admin-only write APIs
+- the task-board handoff now preserves durable report lineage for successful report tasks only when the durable report row actually exists, and otherwise degrades to a task-only case if the durable report lookup is missing or temporarily unavailable; the report-lane fallback path keeps case creation disabled until that row is present
 - the same report lane can now surface and copy the raw durable report JSON directly from the report endpoint, so artifact troubleshooting stays contract-first too
 - the same report lane now falls back to task provenance when a legacy or partially recovered successful report task has no durable report row, so operator drill-down remains readable
 - the worker now finalizes report success and durable report persistence together, so report `ready_at` and `metadata.audit_ref` match the final task success surface
