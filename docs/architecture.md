@@ -81,6 +81,7 @@ The current HTTP layer also exposes the same PostgreSQL-backed workflow records 
 - the same case page now also surfaces and updates assignment, so ownership stays in the canonical case contract instead of drifting into frontend-only state
 - the same case page now also shows and appends recent notes, so operator handoff context lives on the case instead of being implied by task/report provenance
 - the same case page now defaults into an open-case queue view, adds `My open cases` and `Unassigned` shortcuts, and computes age/staleness from canonical `updated_at`
+- the same case page now also foregrounds operator queue slices by highlighting `My open cases` and `Unassigned`, and it surfaces task-only versus report-backed provenance directly from the canonical case contract
 - the existing task-board and report-lane detail panes can now create durable cases by reusing `POST /api/v1/cases`, keeping case creation on canonical task/report surfaces instead of inventing admin-only write APIs
 - the task-board handoff now preserves durable report lineage for successful report tasks only when the durable report row actually exists, and otherwise degrades to a task-only case if the durable report lookup is missing or temporarily unavailable; the report-lane fallback path keeps case creation disabled until that row is present
 - the same report lane can now surface and copy the raw durable report JSON directly from the report endpoint, so artifact troubleshooting stays contract-first too

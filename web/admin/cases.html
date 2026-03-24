@@ -171,6 +171,25 @@
       font-family: var(--font-serif);
       letter-spacing: -0.04em;
     }
+    .quick-view-button.quick-view-active {
+      color: #fff;
+      background: linear-gradient(135deg, var(--accent), var(--accent-2));
+      box-shadow: 0 12px 24px rgba(124, 58, 237, 0.18);
+      border-color: transparent;
+    }
+    .provenance-pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 5px 10px;
+      border-radius: 999px;
+      background: rgba(124, 58, 237, 0.1);
+      color: var(--accent-2);
+      font-size: 0.74rem;
+      font-weight: 700;
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+    }
     .loading, .empty {
       padding: 18px;
       border-radius: 16px;
@@ -315,9 +334,9 @@
           </div>
         </form>
         <div class="actions" style="margin-top: 14px;">
-          <button class="ghost" id="openCasesQuickView" type="button">Open cases</button>
-          <button class="ghost" id="myOpenCasesQuickView" type="button">My open cases</button>
-          <button class="ghost" id="unassignedCasesQuickView" type="button">Unassigned</button>
+          <button class="ghost quick-view-button" id="myOpenCasesQuickView" type="button">My open cases</button>
+          <button class="ghost quick-view-button" id="unassignedCasesQuickView" type="button">Unassigned</button>
+          <button class="ghost quick-view-button" id="openCasesQuickView" type="button">Open cases</button>
         </div>
       </aside>
 
@@ -332,6 +351,16 @@
             <small>Visible cases</small>
             <strong id="visibleCount">0</strong>
             <span>Current filtered case slice.</span>
+          </article>
+          <article class="summary-card">
+            <small>Assigned to me</small>
+            <strong id="mineOpenCount">0</strong>
+            <span>Open cases owned by the current operator actor in this slice.</span>
+          </article>
+          <article class="summary-card">
+            <small>Unassigned</small>
+            <strong id="unassignedCount">0</strong>
+            <span>Open cases with no owner yet in this slice.</span>
           </article>
           <article class="summary-card">
             <small>Latest update</small>
@@ -407,6 +436,8 @@
     const tableWrap = document.getElementById("tableWrap");
     const caseRows = document.getElementById("caseRows");
     const visibleCount = document.getElementById("visibleCount");
+    const mineOpenCount = document.getElementById("mineOpenCount");
+    const unassignedCount = document.getElementById("unassignedCount");
     const latestUpdated = document.getElementById("latestUpdated");
     const pageMeta = document.getElementById("pageMeta");
     const prevPageButton = document.getElementById("prevPageButton");
@@ -455,6 +486,53 @@
         minute: "2-digit",
         second: "2-digit"
       }).format(date);
+    }
+
+    function currentActor() {
+      return caseActorInput.value.trim() || "cases-operator";
+    }
+
+    function provenanceLabel(item) {
+      if (item.source_report_id && item.source_task_id) {
+        return "Task + report";
+      }
+      if (item.source_report_id) {
+        return "Report-backed";
+      }
+      if (item.source_task_id) {
+        return "Task-only";
+      }
+      return "Manual";
+    }
+
+    function syncQuickViewButtons() {
+      const currentAssignedTo = form.elements.namedItem("assigned_to").value.trim();
+      const currentStatus = form.elements.namedItem("status").value.trim();
+      const currentUnassignedOnly = form.elements.namedItem("unassigned_only").value.trim();
+      const actor = currentActor();
+
+      const mineActive = currentStatus === "open" && currentAssignedTo === actor && currentUnassignedOnly !== "true";
+      const unassignedActive = currentStatus === "open" && currentAssignedTo === "" && currentUnassignedOnly === "true";
+      const openActive = currentStatus === "open" && currentAssignedTo === "" && currentUnassignedOnly !== "true";
+
+      [
+        [myOpenCasesQuickView, mineActive],
+        [unassignedCasesQuickView, unassignedActive],
+        [openCasesQuickView, openActive]
+      ].forEach(([button, active]) => {
+        button.classList.toggle("quick-view-active", active);
+        button.setAttribute("aria-pressed", active ? "true" : "false");
+      });
+    }
+
+    function renderSummary(items) {
+      const cases = Array.isArray(items) ? items : [];
+      const actor = currentActor();
+      visibleCount.textContent = String(cases.length);
+      mineOpenCount.textContent = String(cases.filter((item) => item.status === "open" && item.assigned_to === actor).length);
+      unassignedCount.textContent = String(cases.filter((item) => item.status === "open" && !item.assigned_to).length);
+      latestUpdated.textContent = cases.length ? fmtDate(cases[0].updated_at) : "Unknown";
+      syncQuickViewButtons();
     }
 
     function setDetailStatus(message, isError = false) {
@@ -542,6 +620,7 @@
 
     function renderRows(items) {
       currentCases = Array.isArray(items) ? items : [];
+      renderSummary(currentCases);
       if (!currentCases.length) {
         tableWrap.hidden = true;
         caseListState.hidden = false;
@@ -574,6 +653,7 @@
           <td>
             <strong>${escapeHTML(item.source_task_id || "No task source")}</strong>
             <small>${escapeHTML(item.source_report_id || "No report source")}</small>
+            <small><span class="provenance-pill">${escapeHTML(provenanceLabel(item))}</span></small>
           </td>
           <td>
             <strong>${escapeHTML(fmtDate(item.updated_at))}</strong>
@@ -673,6 +753,10 @@
             <dt>Source report</dt>
             <dd>${escapeHTML(item.source_report_id || "None")}</dd>
           </dl>
+          <dl class="detail-card">
+            <dt>Provenance</dt>
+            <dd><span class="provenance-pill">${escapeHTML(provenanceLabel(item))}</span></dd>
+          </dl>
           <dl class="detail-card" style="grid-column: 1 / -1;">
             <dt>Title</dt>
             <dd>${escapeHTML(item.title)}</dd>
@@ -761,8 +845,7 @@
     async function loadCases(selectedCaseID = "") {
       const tenantID = form.elements.namedItem("tenant_id").value.trim();
       if (!tenantID) {
-        visibleCount.textContent = "0";
-        latestUpdated.textContent = "Unknown";
+        renderSummary([]);
         tableWrap.hidden = true;
         caseListState.hidden = false;
         caseListState.className = "empty";
@@ -789,8 +872,6 @@
           throw new Error(`Case list request failed: ${response.statusText}`);
         }
         const payload = await response.json();
-        visibleCount.textContent = String((payload.cases || []).length);
-        latestUpdated.textContent = (payload.cases || []).length ? fmtDate(payload.cases[0].updated_at) : "Unknown";
         renderRows(payload.cases || []);
         renderPage(payload.has_more, payload.next_offset);
 
@@ -802,8 +883,7 @@
           await loadCaseDetail("");
         }
       } catch (error) {
-        visibleCount.textContent = "0";
-        latestUpdated.textContent = "Unknown";
+        renderSummary([]);
         tableWrap.hidden = true;
         caseListState.hidden = false;
         caseListState.className = "empty";
@@ -1006,6 +1086,10 @@
       } catch (error) {
         setDetailStatus(error.message || "Unable to copy case link.", true);
       }
+    });
+
+    caseActorInput.addEventListener("input", () => {
+      renderSummary(currentCases);
     });
 
     const initialCaseID = readParamsFromURL();
