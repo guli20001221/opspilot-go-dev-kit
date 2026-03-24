@@ -3,6 +3,7 @@ package cases
 import (
 	"context"
 	"fmt"
+	"strings"
 	"sync/atomic"
 	"time"
 )
@@ -14,6 +15,7 @@ type Store interface {
 	Save(ctx context.Context, item Case) (Case, error)
 	Get(ctx context.Context, caseID string) (Case, error)
 	List(ctx context.Context, filter ListFilter) (ListPage, error)
+	Assign(ctx context.Context, caseID string, assignedTo string, assignedAt time.Time, expectedUpdatedAt time.Time) (Case, error)
 	Close(ctx context.Context, caseID string, closedBy string, closedAt time.Time) (Case, error)
 }
 
@@ -68,6 +70,17 @@ func (s *Service) ListCases(ctx context.Context, filter ListFilter) (ListPage, e
 // CloseCase marks an operator case as closed.
 func (s *Service) CloseCase(ctx context.Context, caseID string, closedBy string) (Case, error) {
 	return s.store.Close(ctx, caseID, fallbackString(closedBy, "operator"), time.Now().UTC())
+}
+
+// AssignCase assigns an open case to an operator using optimistic concurrency.
+func (s *Service) AssignCase(ctx context.Context, existing Case, assignedTo string) (Case, error) {
+	return s.store.Assign(
+		ctx,
+		existing.ID,
+		fallbackString(strings.TrimSpace(assignedTo), "operator"),
+		time.Now().UTC(),
+		existing.UpdatedAt,
+	)
 }
 
 func newCaseID(now time.Time) string {

@@ -70,6 +70,7 @@ Provide a practical operator UI for evaluation and runtime analysis while keepin
 42. Once a durable case contract exists, prefer adding `Create case` actions to existing task/report detail panes that reuse `POST /api/v1/cases` and deep-link into the case page over inventing admin-only write endpoints.
 43. Once durable cases have an explicit lifecycle mutation, prefer wiring close or reopen controls to the canonical case endpoint, such as `POST /api/v1/cases/{case_id}/close`, instead of inventing admin-only write surfaces.
 44. For case handoff, prefer copy actions and deep links that reuse the canonical case detail response over inventing a separate case-export contract.
+45. Once cases have explicit ownership, prefer wiring assign or claim controls to the canonical case endpoint, such as `POST /api/v1/cases/{case_id}/assign`, instead of inventing admin-only ownership state.
 
 ## Output contract
 When you finish, always report:

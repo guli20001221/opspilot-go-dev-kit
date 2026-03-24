@@ -31,6 +31,8 @@ type caseResponse struct {
 	SourceTaskID   string `json:"source_task_id,omitempty"`
 	SourceReportID string `json:"source_report_id,omitempty"`
 	CreatedBy      string `json:"created_by"`
+	AssignedTo     string `json:"assigned_to,omitempty"`
+	AssignedAt     string `json:"assigned_at,omitempty"`
 	ClosedBy       string `json:"closed_by,omitempty"`
 	CreatedAt      string `json:"created_at"`
 	UpdatedAt      string `json:"updated_at"`
@@ -44,6 +46,10 @@ type listCasesResponse struct {
 
 type closeCaseRequest struct {
 	ClosedBy string `json:"closed_by,omitempty"`
+}
+
+type assignCaseRequest struct {
+	AssignedTo string `json:"assigned_to,omitempty"`
 }
 
 func (a *appHandler) handleCases(w http.ResponseWriter, r *http.Request) {
@@ -132,6 +138,12 @@ func (a *appHandler) handleCaseByID(w http.ResponseWriter, r *http.Request) {
 		a.handleCloseCase(w, r, caseID)
 		return
 	}
+	if strings.HasSuffix(path, "/assign") {
+		caseID := strings.TrimSuffix(path, "/assign")
+		caseID = strings.TrimSuffix(caseID, "/")
+		a.handleAssignCase(w, r, caseID)
+		return
+	}
 	if r.Method != http.MethodGet {
 		writeError(w, http.StatusMethodNotAllowed, "method_not_allowed", "method not allowed")
 		return
@@ -216,6 +228,64 @@ func (a *appHandler) handleCloseCase(w http.ResponseWriter, r *http.Request, cas
 	}
 
 	writeJSON(w, http.StatusOK, newCaseResponse(closed))
+}
+
+func (a *appHandler) handleAssignCase(w http.ResponseWriter, r *http.Request, caseID string) {
+	if r.Method != http.MethodPost {
+		writeError(w, http.StatusMethodNotAllowed, "method_not_allowed", "method not allowed")
+		return
+	}
+	if caseID == "" || strings.Contains(caseID, "/") {
+		writeError(w, http.StatusNotFound, "not_found", "not found")
+		return
+	}
+
+	tenantID := strings.TrimSpace(r.URL.Query().Get("tenant_id"))
+	if tenantID == "" {
+		writeError(w, http.StatusBadRequest, "invalid_query", "tenant_id is required")
+		return
+	}
+
+	item, err := a.cases.GetCase(r.Context(), caseID)
+	if err != nil {
+		if errors.Is(err, casesvc.ErrCaseNotFound) {
+			writeError(w, http.StatusNotFound, "case_not_found", "case not found")
+			return
+		}
+		writeError(w, http.StatusInternalServerError, "case_lookup_failed", err.Error())
+		return
+	}
+	if item.TenantID != tenantID {
+		writeError(w, http.StatusNotFound, "case_not_found", "case not found")
+		return
+	}
+
+	var req assignCaseRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid_json", "invalid json body")
+		return
+	}
+	if strings.TrimSpace(req.AssignedTo) == "" {
+		writeError(w, http.StatusBadRequest, "invalid_case", "assigned_to is required")
+		return
+	}
+
+	assigned, err := a.cases.AssignCase(r.Context(), item, req.AssignedTo)
+	if err != nil {
+		switch {
+		case errors.Is(err, casesvc.ErrCaseNotFound):
+			writeError(w, http.StatusNotFound, "case_not_found", "case not found")
+		case errors.Is(err, casesvc.ErrCaseConflict):
+			writeError(w, http.StatusConflict, "case_conflict", "case assignment is stale; reload and retry")
+		case errors.Is(err, casesvc.ErrInvalidCaseState):
+			writeError(w, http.StatusConflict, "invalid_case_state", "case is not in a valid state for assign")
+		default:
+			writeError(w, http.StatusInternalServerError, "case_assign_failed", err.Error())
+		}
+		return
+	}
+
+	writeJSON(w, http.StatusOK, newCaseResponse(assigned))
 }
 
 func validateCreateCaseRequest(req createCaseRequest) error {
@@ -308,8 +378,18 @@ func newCaseResponse(item casesvc.Case) caseResponse {
 		SourceTaskID:   item.SourceTaskID,
 		SourceReportID: item.SourceReportID,
 		CreatedBy:      item.CreatedBy,
+		AssignedTo:     item.AssignedTo,
+		AssignedAt:     formatOptionalTime(item.AssignedAt),
 		ClosedBy:       item.ClosedBy,
 		CreatedAt:      item.CreatedAt.Format(time.RFC3339Nano),
 		UpdatedAt:      item.UpdatedAt.Format(time.RFC3339Nano),
 	}
+}
+
+func formatOptionalTime(value time.Time) string {
+	if value.IsZero() {
+		return ""
+	}
+
+	return value.Format(time.RFC3339Nano)
 }

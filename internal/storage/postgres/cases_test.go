@@ -2,6 +2,7 @@ package postgres
 
 import (
 	"context"
+	"errors"
 	"os"
 	"testing"
 	"time"
@@ -209,5 +210,98 @@ func TestCaseStorePersistsClosedBy(t *testing.T) {
 	}
 	if got.ClosedBy != "operator-2" {
 		t.Fatalf("Get().ClosedBy = %q, want %q", got.ClosedBy, "operator-2")
+	}
+}
+
+func TestCaseStorePersistsAssignee(t *testing.T) {
+	dsn := os.Getenv("OPSPILOT_TEST_POSTGRES_DSN")
+	if dsn == "" {
+		t.Skip("OPSPILOT_TEST_POSTGRES_DSN not set")
+	}
+
+	ctx := context.Background()
+	pool, err := OpenPool(ctx, dsn)
+	if err != nil {
+		t.Fatalf("OpenPool() error = %v", err)
+	}
+	defer pool.Close()
+
+	applyMigration(t, ctx, pool)
+	if _, err := pool.Exec(ctx, "TRUNCATE cases, reports, workflow_task_events, workflow_tasks RESTART IDENTITY CASCADE"); err != nil {
+		t.Fatalf("TRUNCATE cases, reports, workflow_task_events, workflow_tasks error = %v", err)
+	}
+
+	store := NewCaseStore(pool)
+	now := time.Unix(1700002200, 0).UTC()
+	item := casesvc.Case{
+		ID:         "case-assigned-1",
+		TenantID:   "tenant-1",
+		Status:     casesvc.StatusOpen,
+		Title:      "Assigned case",
+		CreatedBy:  "operator-1",
+		AssignedTo: "owner-1",
+		AssignedAt: now.Add(time.Second),
+		CreatedAt:  now,
+		UpdatedAt:  now.Add(2 * time.Second),
+	}
+
+	if _, err := store.Save(ctx, item); err != nil {
+		t.Fatalf("Save() error = %v", err)
+	}
+
+	got, err := store.Get(ctx, item.ID)
+	if err != nil {
+		t.Fatalf("Get() error = %v", err)
+	}
+	if got.AssignedTo != "owner-1" {
+		t.Fatalf("Get().AssignedTo = %q, want %q", got.AssignedTo, "owner-1")
+	}
+	if got.AssignedAt.IsZero() {
+		t.Fatal("Get().AssignedAt is zero")
+	}
+}
+
+func TestCaseStoreAssignRejectsStaleWrite(t *testing.T) {
+	dsn := os.Getenv("OPSPILOT_TEST_POSTGRES_DSN")
+	if dsn == "" {
+		t.Skip("OPSPILOT_TEST_POSTGRES_DSN not set")
+	}
+
+	ctx := context.Background()
+	pool, err := OpenPool(ctx, dsn)
+	if err != nil {
+		t.Fatalf("OpenPool() error = %v", err)
+	}
+	defer pool.Close()
+
+	applyMigration(t, ctx, pool)
+	if _, err := pool.Exec(ctx, "TRUNCATE cases, reports, workflow_task_events, workflow_tasks RESTART IDENTITY CASCADE"); err != nil {
+		t.Fatalf("TRUNCATE cases, reports, workflow_task_events, workflow_tasks error = %v", err)
+	}
+
+	store := NewCaseStore(pool)
+	now := time.Unix(1700002300, 0).UTC()
+	item := casesvc.Case{
+		ID:        "case-stale-assign-1",
+		TenantID:  "tenant-1",
+		Status:    casesvc.StatusOpen,
+		Title:     "Stale assign case",
+		CreatedBy: "operator-1",
+		CreatedAt: now,
+		UpdatedAt: now,
+	}
+	saved, err := store.Save(ctx, item)
+	if err != nil {
+		t.Fatalf("Save() error = %v", err)
+	}
+	first, err := store.Assign(ctx, saved.ID, "owner-1", now.Add(time.Second), saved.UpdatedAt)
+	if err != nil {
+		t.Fatalf("Assign(first) error = %v", err)
+	}
+	if _, err := store.Assign(ctx, saved.ID, "owner-2", now.Add(2*time.Second), saved.UpdatedAt); !errors.Is(err, casesvc.ErrCaseConflict) {
+		t.Fatalf("Assign(second) error = %v, want %v", err, casesvc.ErrCaseConflict)
+	}
+	if first.AssignedTo != "owner-1" {
+		t.Fatalf("first.AssignedTo = %q, want %q", first.AssignedTo, "owner-1")
 	}
 }

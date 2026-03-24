@@ -5,6 +5,7 @@ import (
 	"errors"
 	"sync"
 	"testing"
+	"time"
 )
 
 func TestServiceCreateAndGetCase(t *testing.T) {
@@ -208,5 +209,68 @@ func TestServiceCloseCaseAllowsOnlyOneConcurrentCloser(t *testing.T) {
 	}
 	if invalidCount != 1 {
 		t.Fatalf("invalidCount = %d, want %d", invalidCount, 1)
+	}
+}
+
+func TestServiceAssignCase(t *testing.T) {
+	svc := NewService()
+
+	created, err := svc.CreateCase(context.Background(), CreateInput{
+		TenantID: "tenant-1",
+		Title:    "Assign me",
+	})
+	if err != nil {
+		t.Fatalf("CreateCase() error = %v", err)
+	}
+
+	assigned, err := svc.AssignCase(context.Background(), created, "owner-1")
+	if err != nil {
+		t.Fatalf("AssignCase() error = %v", err)
+	}
+	if assigned.AssignedTo != "owner-1" {
+		t.Fatalf("AssignCase().AssignedTo = %q, want %q", assigned.AssignedTo, "owner-1")
+	}
+	if assigned.AssignedAt.IsZero() {
+		t.Fatal("AssignCase().AssignedAt is zero")
+	}
+}
+
+func TestServiceAssignCaseRejectsClosedCase(t *testing.T) {
+	svc := NewService()
+
+	created, err := svc.CreateCase(context.Background(), CreateInput{
+		TenantID: "tenant-1",
+		Title:    "Closed before assign",
+	})
+	if err != nil {
+		t.Fatalf("CreateCase() error = %v", err)
+	}
+	if _, err := svc.CloseCase(context.Background(), created.ID, "operator-1"); err != nil {
+		t.Fatalf("CloseCase() error = %v", err)
+	}
+
+	if _, err := svc.AssignCase(context.Background(), created, "owner-1"); !errors.Is(err, ErrInvalidCaseState) {
+		t.Fatalf("AssignCase() error = %v, want %v", err, ErrInvalidCaseState)
+	}
+}
+
+func TestServiceAssignCaseRejectsStaleWrite(t *testing.T) {
+	svc := NewService()
+
+	created, err := svc.CreateCase(context.Background(), CreateInput{
+		TenantID: "tenant-1",
+		Title:    "Stale assign",
+	})
+	if err != nil {
+		t.Fatalf("CreateCase() error = %v", err)
+	}
+	if _, err := svc.AssignCase(context.Background(), created, "owner-1"); err != nil {
+		t.Fatalf("AssignCase(first) error = %v", err)
+	}
+	stale := created
+	stale.UpdatedAt = stale.UpdatedAt.Add(-time.Nanosecond)
+
+	if _, err := svc.AssignCase(context.Background(), stale, "owner-2"); !errors.Is(err, ErrCaseConflict) {
+		t.Fatalf("AssignCase(second) error = %v, want %v", err, ErrCaseConflict)
 	}
 }

@@ -338,6 +338,7 @@
                 <th>Case</th>
                 <th>Status</th>
                 <th>Tenant</th>
+                <th>Assignee</th>
                 <th>Sources</th>
                 <th>Updated</th>
                 <th>Inspect</th>
@@ -364,6 +365,8 @@
       </p>
       <div class="detail-actions">
         <input id="caseActor" type="text" value="cases-operator" aria-label="Case operator actor" style="min-width: 180px; border: 1px solid var(--line); border-radius: 999px; padding: 10px 14px; background: rgba(255, 255, 255, 0.92); color: var(--ink);">
+        <input id="caseAssignee" type="text" value="cases-owner" aria-label="Case assignee" style="min-width: 180px; border: 1px solid var(--line); border-radius: 999px; padding: 10px 14px; background: rgba(255, 255, 255, 0.92); color: var(--ink);">
+        <button class="primary" id="assignCaseButton" type="button">Assign case</button>
         <button class="primary" id="closeCaseButton" type="button" hidden>Close case</button>
         <button class="ghost" id="copyCaseSummaryButton" type="button">Copy case summary</button>
         <button class="ghost" id="copyCaseLinkButton" type="button">Copy case link</button>
@@ -382,6 +385,7 @@
     const listEndpoint = "/api/v1/cases";
     const detailEndpointBase = "/api/v1/cases/";
     const closeActionSuffix = "/close";
+    const assignActionSuffix = "/assign";
     const taskEndpointBase = "/api/v1/tasks/";
     const reportEndpointBase = "/api/v1/reports/";
     const form = document.getElementById("caseFilters");
@@ -396,6 +400,8 @@
     const nextPageButton = document.getElementById("nextPageButton");
     const caseDetail = document.getElementById("caseDetail");
     const caseActorInput = document.getElementById("caseActor");
+    const caseAssigneeInput = document.getElementById("caseAssignee");
+    const assignCaseButton = document.getElementById("assignCaseButton");
     const closeCaseButton = document.getElementById("closeCaseButton");
     const copyCaseSummaryButton = document.getElementById("copyCaseSummaryButton");
     const copyCaseLinkButton = document.getElementById("copyCaseLinkButton");
@@ -524,6 +530,10 @@
             <small>created by ${escapeHTML(item.created_by || "operator")}</small>
           </td>
           <td>
+            <strong>${escapeHTML(item.assigned_to || "Unassigned")}</strong>
+            <small>${escapeHTML(item.assigned_at ? `assigned ${fmtDate(item.assigned_at)}` : "No assignment yet")}</small>
+          </td>
+          <td>
             <strong>${escapeHTML(item.source_task_id || "No task source")}</strong>
             <small>${escapeHTML(item.source_report_id || "No report source")}</small>
           </td>
@@ -553,6 +563,8 @@
       currentCaseID = item.case_id;
       currentCaseDetail = item;
       syncURL(item.case_id);
+      assignCaseButton.hidden = item.status !== "open";
+      assignCaseButton.disabled = false;
       closeCaseButton.hidden = item.status !== "open";
       closeCaseButton.disabled = false;
       copyCaseSummaryButton.disabled = false;
@@ -576,7 +588,7 @@
       if (item.status === "closed") {
         setDetailStatus(`Case already closed${item.closed_by ? ` by ${item.closed_by}` : ""}.`);
       } else {
-        setDetailStatus("Case is open. Use Close case to mark operator follow-up complete.");
+        setDetailStatus(`Case is open${item.assigned_to ? ` and assigned to ${item.assigned_to}` : " and currently unassigned"}.`);
       }
 
       caseDetail.innerHTML = `
@@ -596,6 +608,14 @@
           <dl class="detail-card">
             <dt>Created by</dt>
             <dd>${escapeHTML(item.created_by)}</dd>
+          </dl>
+          <dl class="detail-card">
+            <dt>Assigned to</dt>
+            <dd>${escapeHTML(item.assigned_to || "Unassigned")}</dd>
+          </dl>
+          <dl class="detail-card">
+            <dt>Assigned at</dt>
+            <dd>${escapeHTML(item.assigned_at ? fmtDate(item.assigned_at) : "Not assigned yet")}</dd>
           </dl>
           <dl class="detail-card">
             <dt>Closed by</dt>
@@ -626,6 +646,7 @@
       if (!caseID) {
         currentCaseID = "";
         currentCaseDetail = null;
+        assignCaseButton.hidden = true;
         closeCaseButton.hidden = true;
         openCaseAPILink.hidden = true;
         caseDetail.innerHTML = '<div class="empty">No case selected yet.</div>';
@@ -639,6 +660,7 @@
       if (!tenantID) {
         currentCaseID = "";
         currentCaseDetail = null;
+        assignCaseButton.hidden = true;
         closeCaseButton.hidden = true;
         openCaseAPILink.hidden = true;
         caseDetail.innerHTML = '<div class="empty">Enter a tenant before opening case detail.</div>';
@@ -648,6 +670,7 @@
         return;
       }
 
+      assignCaseButton.hidden = true;
       closeCaseButton.hidden = true;
       openCaseAPILink.hidden = true;
       caseDetail.innerHTML = '<div class="loading">Loading case detail...</div>';
@@ -662,6 +685,7 @@
         renderDetail(await response.json());
       } catch (error) {
         currentCaseDetail = null;
+        assignCaseButton.hidden = true;
         closeCaseButton.hidden = true;
         openCaseAPILink.hidden = true;
         setDetailStatus(error.message || "Unable to load case detail.", true);
@@ -705,8 +729,7 @@
         renderRows(payload.cases || []);
         renderPage(payload.has_more, payload.next_offset);
 
-        const visibleIDs = new Set((payload.cases || []).map((item) => item.case_id));
-        if (selectedCaseID && visibleIDs.has(selectedCaseID)) {
+        if (selectedCaseID) {
           await loadCaseDetail(selectedCaseID);
         } else if ((payload.cases || []).length > 0) {
           await loadCaseDetail(payload.cases[0].case_id);
@@ -721,6 +744,7 @@
         caseListState.className = "empty";
         caseListState.textContent = error.message || "Unable to load cases.";
         currentCaseDetail = null;
+        assignCaseButton.hidden = true;
         closeCaseButton.hidden = true;
         openCaseAPILink.hidden = true;
         setDetailStatus("Unable to refresh the current case slice.", true);
@@ -787,6 +811,39 @@
       } catch (error) {
         closeCaseButton.disabled = false;
         setDetailStatus(error.message || "Unable to close case.", true);
+      }
+    });
+
+    assignCaseButton.addEventListener("click", async () => {
+      if (!currentCaseID) return;
+      const tenantID = form.elements.namedItem("tenant_id").value.trim();
+      if (!tenantID) {
+        setDetailStatus("Tenant scope is required before assigning a case.", true);
+        return;
+      }
+
+      assignCaseButton.disabled = true;
+      setDetailStatus("Assigning case...");
+      try {
+        const response = await fetch(`${detailEndpointBase}${encodeURIComponent(currentCaseID)}${assignActionSuffix}?tenant_id=${encodeURIComponent(tenantID)}`, {
+          method: "POST",
+          headers: {
+            "Accept": "application/json",
+            "Content-Type": "application/json"
+          },
+          body: JSON.stringify({
+            assigned_to: caseAssigneeInput.value.trim()
+          })
+        });
+        const payload = await response.json().catch(() => ({}));
+        if (!response.ok) {
+          throw new Error(payload.message || `Assign case failed: ${response.statusText}`);
+        }
+        setDetailStatus(`Case assigned to ${payload.assigned_to || caseAssigneeInput.value.trim()}.`);
+        await loadCases(currentCaseID);
+      } catch (error) {
+        assignCaseButton.disabled = false;
+        setDetailStatus(error.message || "Unable to assign case.", true);
       }
     });
 

@@ -38,11 +38,13 @@ INSERT INTO cases (
     source_task_id,
     source_report_id,
     created_by,
+    assigned_to,
+    assigned_at,
     closed_by,
     created_at,
     updated_at
 ) VALUES (
-    $1, $2, $3, $4, $5, NULLIF($6, ''), NULLIF($7, ''), $8, $9, $10, $11
+    $1, $2, $3, $4, $5, NULLIF($6, ''), NULLIF($7, ''), $8, $9, $10, $11, $12, $13
 )
 ON CONFLICT (id) DO UPDATE SET
     tenant_id = EXCLUDED.tenant_id,
@@ -52,6 +54,8 @@ ON CONFLICT (id) DO UPDATE SET
     source_task_id = EXCLUDED.source_task_id,
     source_report_id = EXCLUDED.source_report_id,
     created_by = EXCLUDED.created_by,
+    assigned_to = EXCLUDED.assigned_to,
+    assigned_at = EXCLUDED.assigned_at,
     closed_by = EXCLUDED.closed_by,
     created_at = EXCLUDED.created_at,
     updated_at = EXCLUDED.updated_at
@@ -64,6 +68,8 @@ RETURNING
     COALESCE(source_task_id, ''),
     COALESCE(source_report_id, ''),
     created_by,
+    assigned_to,
+    assigned_at,
     closed_by,
     created_at,
     updated_at`
@@ -79,6 +85,8 @@ RETURNING
 		item.SourceTaskID,
 		item.SourceReportID,
 		item.CreatedBy,
+		item.AssignedTo,
+		nullTime(item.AssignedAt),
 		item.ClosedBy,
 		item.CreatedAt,
 		item.UpdatedAt,
@@ -99,6 +107,8 @@ SELECT
     COALESCE(source_task_id, ''),
     COALESCE(source_report_id, ''),
     created_by,
+    assigned_to,
+    assigned_at,
     closed_by,
     created_at,
     updated_at
@@ -138,6 +148,8 @@ SELECT
     COALESCE(source_task_id, ''),
     COALESCE(source_report_id, ''),
     created_by,
+    assigned_to,
+    assigned_at,
     closed_by,
     created_at,
     updated_at
@@ -225,8 +237,57 @@ RETURNING
 	return casesvc.Case{}, err
 }
 
+// Assign atomically assigns an open case using optimistic concurrency on updated_at.
+func (s *CaseStore) Assign(ctx context.Context, caseID string, assignedTo string, assignedAt time.Time, expectedUpdatedAt time.Time) (casesvc.Case, error) {
+	const query = `
+UPDATE cases
+SET assigned_to = $2,
+    assigned_at = $3,
+    updated_at = $3
+WHERE id = $1
+  AND status = $4
+  AND updated_at = $5
+RETURNING
+    id,
+    tenant_id,
+    status,
+    title,
+    summary,
+    COALESCE(source_task_id, ''),
+    COALESCE(source_report_id, ''),
+    created_by,
+    assigned_to,
+    assigned_at,
+    closed_by,
+    created_at,
+    updated_at`
+
+	row := s.pool.QueryRow(ctx, query, caseID, assignedTo, assignedAt, casesvc.StatusOpen, expectedUpdatedAt)
+	assigned, err := scanCase(row)
+	if err == nil {
+		return assigned, nil
+	}
+	if !errors.Is(err, casesvc.ErrCaseNotFound) {
+		return casesvc.Case{}, err
+	}
+
+	existing, getErr := s.Get(ctx, caseID)
+	if getErr != nil {
+		return casesvc.Case{}, getErr
+	}
+	if existing.Status == casesvc.StatusClosed {
+		return casesvc.Case{}, casesvc.ErrInvalidCaseState
+	}
+	if !existing.UpdatedAt.Equal(expectedUpdatedAt) {
+		return casesvc.Case{}, casesvc.ErrCaseConflict
+	}
+
+	return casesvc.Case{}, err
+}
+
 func scanCase(row caseQuerierRow) (casesvc.Case, error) {
 	var item casesvc.Case
+	var assignedAt *time.Time
 	if err := row.Scan(
 		&item.ID,
 		&item.TenantID,
@@ -236,6 +297,8 @@ func scanCase(row caseQuerierRow) (casesvc.Case, error) {
 		&item.SourceTaskID,
 		&item.SourceReportID,
 		&item.CreatedBy,
+		&item.AssignedTo,
+		&assignedAt,
 		&item.ClosedBy,
 		&item.CreatedAt,
 		&item.UpdatedAt,
@@ -245,8 +308,19 @@ func scanCase(row caseQuerierRow) (casesvc.Case, error) {
 		}
 		return casesvc.Case{}, fmt.Errorf("scan case: %w", err)
 	}
+	if assignedAt != nil {
+		item.AssignedAt = *assignedAt
+	}
 
 	return item, nil
+}
+
+func nullTime(value time.Time) any {
+	if value.IsZero() {
+		return nil
+	}
+
+	return value
 }
 
 type caseQuerierRow interface {

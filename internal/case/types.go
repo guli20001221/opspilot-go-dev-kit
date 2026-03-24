@@ -18,6 +18,9 @@ var ErrCaseNotFound = errors.New("case not found")
 // ErrInvalidCaseState identifies invalid case state transitions.
 var ErrInvalidCaseState = errors.New("invalid case state")
 
+// ErrCaseConflict identifies stale writes against an updated case row.
+var ErrCaseConflict = errors.New("case conflict")
+
 // Case is the durable read model for an operator-managed case.
 type Case struct {
 	ID             string
@@ -28,6 +31,8 @@ type Case struct {
 	SourceTaskID   string
 	SourceReportID string
 	CreatedBy      string
+	AssignedTo     string
+	AssignedAt     time.Time
 	ClosedBy       string
 	CreatedAt      time.Time
 	UpdatedAt      time.Time
