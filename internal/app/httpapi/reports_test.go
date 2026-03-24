@@ -20,6 +20,7 @@ func TestGetReportReturnsStoredReport(t *testing.T) {
 		TenantID:  "tenant-report-http",
 		SessionID: "session-report-http",
 		TaskType:  workflow.TaskTypeReportGeneration,
+		VersionID: "version-http-report-1",
 		Reason:    workflow.PromotionReasonWorkflowRequired,
 		AuditRef:  "temporal:workflow:task-report-http-1/run-1",
 		CreatedAt: time.Unix(1700001200, 0).UTC(),
@@ -53,6 +54,9 @@ func TestGetReportReturnsStoredReport(t *testing.T) {
 	}
 	if body.SourceTaskID != "task-report-http-1" {
 		t.Fatalf("SourceTaskID = %q, want %q", body.SourceTaskID, "task-report-http-1")
+	}
+	if body.VersionID != "version-http-report-1" {
+		t.Fatalf("VersionID = %q, want %q", body.VersionID, "version-http-report-1")
 	}
 	if body.Status != report.StatusReady {
 		t.Fatalf("Status = %q, want %q", body.Status, report.StatusReady)
@@ -215,6 +219,7 @@ func TestReportCompareReturnsDerivedSummary(t *testing.T) {
 		ID:           "report-http-compare-left",
 		TenantID:     "tenant-http-compare",
 		SourceTaskID: "task-http-left",
+		VersionID:    "version-http-left",
 		ReportType:   report.TypeWorkflowSummary,
 		Status:       report.StatusReady,
 		Title:        "Left",
@@ -229,6 +234,7 @@ func TestReportCompareReturnsDerivedSummary(t *testing.T) {
 		ID:           "report-http-compare-right",
 		TenantID:     "tenant-http-compare",
 		SourceTaskID: "task-http-right",
+		VersionID:    "version-http-right",
 		ReportType:   report.TypeWorkflowSummary,
 		Status:       report.StatusReady,
 		Title:        "Right",
@@ -246,6 +252,7 @@ func TestReportCompareReturnsDerivedSummary(t *testing.T) {
 			TenantID:  item.TenantID,
 			SessionID: "session-" + item.SourceTaskID,
 			TaskType:  workflow.TaskTypeReportGeneration,
+			VersionID: item.VersionID,
 			Reason:    workflow.PromotionReasonWorkflowRequired,
 			CreatedAt: item.CreatedAt,
 			UpdatedAt: *item.ReadyAt,
@@ -276,6 +283,9 @@ func TestReportCompareReturnsDerivedSummary(t *testing.T) {
 	}
 	if !body.Summary.SameTenant || !body.Summary.SourceTaskChanged || !body.Summary.SummaryChanged {
 		t.Fatalf("summary = %#v, want same tenant and changed source/summary", body.Summary)
+	}
+	if !body.Summary.VersionChanged {
+		t.Fatalf("VersionChanged = false, want true")
 	}
 	if body.Summary.ReadyAtDeltaSecond != 15 {
 		t.Fatalf("ReadyAtDeltaSecond = %d, want 15", body.Summary.ReadyAtDeltaSecond)

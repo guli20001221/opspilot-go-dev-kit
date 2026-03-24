@@ -117,12 +117,14 @@ func TestReportStoreFinalizeSucceededTaskWithReport(t *testing.T) {
 	readyAt := time.Unix(1700001302, 0).UTC()
 	finalTask := task
 	finalTask.Status = workflow.StatusSucceeded
+	finalTask.VersionID = "version-skeleton-2026-03-24"
 	finalTask.AuditRef = "temporal:workflow:task-report-finalize-1/run-1"
 	finalTask.UpdatedAt = readyAt
 	reportItem := report.Report{
 		ID:           report.ReportIDFromTaskID(task.ID),
 		TenantID:     task.TenantID,
 		SourceTaskID: task.ID,
+		VersionID:    finalTask.VersionID,
 		ReportType:   report.TypeWorkflowSummary,
 		Status:       report.StatusReady,
 		Title:        "Report for task-report-finalize-1",
@@ -151,6 +153,9 @@ func TestReportStoreFinalizeSucceededTaskWithReport(t *testing.T) {
 	if updated.AuditRef != "temporal:workflow:task-report-finalize-1/run-1" {
 		t.Fatalf("updated.AuditRef = %q, want final temporal ref", updated.AuditRef)
 	}
+	if updated.VersionID != finalTask.VersionID {
+		t.Fatalf("updated.VersionID = %q, want %q", updated.VersionID, finalTask.VersionID)
+	}
 	if saved.ID != report.ReportIDFromTaskID(task.ID) {
 		t.Fatalf("saved.ID = %q, want %q", saved.ID, report.ReportIDFromTaskID(task.ID))
 	}
@@ -173,6 +178,9 @@ func TestReportStoreFinalizeSucceededTaskWithReport(t *testing.T) {
 	}
 	if metadata["audit_ref"] != "temporal:workflow:task-report-finalize-1/run-1" {
 		t.Fatalf("metadata audit_ref = %v, want final temporal ref", metadata["audit_ref"])
+	}
+	if got.VersionID != finalTask.VersionID {
+		t.Fatalf("got.VersionID = %q, want %q", got.VersionID, finalTask.VersionID)
 	}
 }
 

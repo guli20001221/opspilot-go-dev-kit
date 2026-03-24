@@ -62,6 +62,7 @@ type Task struct {
 	TenantID         string
 	SessionID        string
 	TaskType         string
+	VersionID        string
 	ToolName         string
 	ToolArguments    json.RawMessage
 	Status           string

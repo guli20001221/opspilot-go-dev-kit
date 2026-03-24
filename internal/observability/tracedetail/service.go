@@ -84,6 +84,7 @@ func (s *Service) lookupTask(ctx context.Context, taskID string) (Result, error)
 		Lineage: Lineage{
 			TaskID: task.ID,
 		},
+		VersionID:  task.VersionID,
 		RequestID:  task.RequestID,
 		SessionID:  task.SessionID,
 		AuditRef:   task.AuditRef,
@@ -174,6 +175,9 @@ func (s *Service) lookupCase(ctx context.Context, caseID string) (Result, error)
 
 func applyTask(result *Result, task workflow.Task) {
 	result.Lineage.TaskID = task.ID
+	if result.VersionID == "" {
+		result.VersionID = task.VersionID
+	}
 	result.RequestID = task.RequestID
 	result.SessionID = task.SessionID
 	result.AuditRef = task.AuditRef
@@ -182,6 +186,9 @@ func applyTask(result *Result, task workflow.Task) {
 
 func applyReportMetadata(result *Result, item report.Report) {
 	result.Lineage.ReportID = item.ID
+	if result.VersionID == "" {
+		result.VersionID = item.VersionID
+	}
 	result.ReportType = item.ReportType
 	result.ReportStatus = item.Status
 	if result.AuditRef == "" || result.RequestID == "" || result.SessionID == "" {

@@ -12,6 +12,7 @@ import (
 	"opspilot-go/internal/report"
 	"opspilot-go/internal/session"
 	toolregistry "opspilot-go/internal/tools/registry"
+	"opspilot-go/internal/version"
 	"opspilot-go/internal/workflow"
 	adminweb "opspilot-go/web/admin"
 )
@@ -22,6 +23,7 @@ type appHandler struct {
 	reports        *report.Service
 	traceDetails   *tracedetail.Service
 	sessions       *session.Service
+	versions       *version.Service
 	workflows      *workflow.Service
 	chat           *appchat.Service
 }
@@ -60,7 +62,7 @@ type errorResponse struct {
 	Message string `json:"message"`
 }
 
-func newAppHandler(workflowService *workflow.Service, reportService *report.Service, caseService *casesvc.Service, registry *toolregistry.Registry) *appHandler {
+func newAppHandler(workflowService *workflow.Service, reportService *report.Service, caseService *casesvc.Service, versionService *version.Service, registry *toolregistry.Registry) *appHandler {
 	sessionService := session.NewService()
 	if workflowService == nil {
 		workflowService = workflow.NewService()
@@ -71,6 +73,9 @@ func newAppHandler(workflowService *workflow.Service, reportService *report.Serv
 	if caseService == nil {
 		caseService = casesvc.NewService()
 	}
+	if versionService == nil {
+		versionService = version.NewService()
+	}
 
 	return &appHandler{
 		adminTaskBoard: admintaskboard.NewService(workflowService),
@@ -78,6 +83,7 @@ func newAppHandler(workflowService *workflow.Service, reportService *report.Serv
 		reports:        reportService,
 		traceDetails:   tracedetail.NewService(workflowService, reportService, caseService),
 		sessions:       sessionService,
+		versions:       versionService,
 		workflows:      workflowService,
 		chat:           appchat.NewServiceWithRegistry(sessionService, workflowService, registry),
 	}
@@ -89,6 +95,7 @@ func (a *appHandler) registerRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("/admin/reports", a.handleAdminReportsPage)
 	mux.HandleFunc("/admin/report-compare", a.handleAdminReportComparePage)
 	mux.HandleFunc("/admin/trace-detail", a.handleAdminTraceDetailPage)
+	mux.HandleFunc("/admin/version-detail", a.handleAdminVersionDetailPage)
 	mux.HandleFunc("/api/v1/sessions", a.handleSessions)
 	mux.HandleFunc("/api/v1/sessions/", a.handleSessionMessages)
 	mux.HandleFunc("/api/v1/admin/task-board", a.handleAdminTaskBoard)
@@ -100,6 +107,8 @@ func (a *appHandler) registerRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("/api/v1/reports/", a.handleReportByID)
 	mux.HandleFunc("/api/v1/report-compare", a.handleReportCompare)
 	mux.HandleFunc("/api/v1/trace-drilldown", a.handleTraceDrilldown)
+	mux.HandleFunc("/api/v1/versions", a.handleVersions)
+	mux.HandleFunc("/api/v1/versions/", a.handleVersionByID)
 	mux.HandleFunc("/api/v1/chat/stream", a.handleChatStream)
 }
 
@@ -176,6 +185,21 @@ func (a *appHandler) handleAdminTraceDetailPage(w http.ResponseWriter, r *http.R
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	w.WriteHeader(http.StatusOK)
 	_, _ = w.Write(adminweb.TraceDetailHTML())
+}
+
+func (a *appHandler) handleAdminVersionDetailPage(w http.ResponseWriter, r *http.Request) {
+	if r.URL.Path != "/admin/version-detail" {
+		writeError(w, http.StatusNotFound, "not_found", "not found")
+		return
+	}
+	if r.Method != http.MethodGet {
+		writeError(w, http.StatusMethodNotAllowed, "method_not_allowed", "method not allowed")
+		return
+	}
+
+	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	w.WriteHeader(http.StatusOK)
+	_, _ = w.Write(adminweb.VersionDetailHTML())
 }
 
 func (a *appHandler) handleSessions(w http.ResponseWriter, r *http.Request) {

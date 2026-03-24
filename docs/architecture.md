@@ -70,10 +70,13 @@ The current HTTP layer also exposes the same PostgreSQL-backed workflow records 
 - the same report lane now also supports copyable report summaries and shareable report links derived from the current task detail response, so operator handoff still reuses canonical task contracts
 - `GET /api/v1/reports` now exposes the durable report artifact list, separate from workflow task queues
 - `GET /api/v1/reports/{report_id}` now exposes the durable report artifact emitted by a successful report task without forcing clients to parse task audit history
+- `internal/version` now holds the durable runtime version registry, so reproducibility metadata such as planner, retrieval, tool, critic, and workflow bundle versions have a stable backend contract
+- `GET /api/v1/versions` and `GET /api/v1/versions/{version_id}` now expose that runtime version registry directly
 - `GET /api/v1/report-compare` now exposes a narrow read-only comparison contract over two durable report IDs, so regression-style operator review does not require the frontend to diff report artifacts on its own
 - `GET /admin/report-compare` now exposes the first report-comparison page, wired directly to the durable compare contract and report read endpoints
 - `internal/observability/tracedetail` now exposes a narrow read-only lineage resolver over durable tasks, reports, and cases, so operator pages can share one trace drill-down path without each page re-deriving provenance
 - `GET /api/v1/trace-drilldown` and `GET /admin/trace-detail` now form the first shared trace drill-down surface across task, report, comparison, and case pages
+- `GET /admin/version-detail` now provides the shared version-drill-down surface, and the reports, report-compare, and trace-detail pages hand off into it using durable `version_id` references instead of duplicating runtime metadata in the browser
 - `POST /api/v1/cases` and `GET /api/v1/cases/{case_id}` now expose the durable operator case contract, separate from task/report runtime status
 - `GET /api/v1/cases` now exposes the first operator-facing case list with tenant, status, source-task, and source-report filters plus offset pagination
 - the same case list now supports explicit `assigned_to` and `unassigned_only` filtering so queue views can map cleanly onto owned and shared operator lanes without inventing frontend-only state
@@ -82,6 +85,7 @@ The current HTTP layer also exposes the same PostgreSQL-backed workflow records 
 - `POST /api/v1/cases/{case_id}/assign` now provides the first case ownership mutation, recording `assigned_to` and `assigned_at` while keeping ownership explicit and REST-first
 - `POST /api/v1/cases/{case_id}/notes` now provides append-only case collaboration, and `GET /api/v1/cases/{case_id}` returns recent notes without introducing a separate admin-only comment surface
 - the same report lane now reads report title, summary, and readiness metadata from the durable report endpoint while still reusing task detail for audit timeline and Temporal links
+- the same report lane now reads durable version metadata from the canonical version endpoint, so report provenance can jump from report artifact to runtime snapshot without treating task JSON as the source of truth
 - `GET /admin/cases` is the first case-focused operator page, backed directly by the durable case contract and existing task/report detail endpoints, and now supports the minimal close action for open cases
 - the same case page now also supports copyable case summaries, shareable case links, and a direct jump into the canonical case-detail JSON without any admin-only debug contract
 - the same case page now also surfaces and updates assignment, so ownership stays in the canonical case contract instead of drifting into frontend-only state

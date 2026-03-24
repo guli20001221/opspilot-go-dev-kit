@@ -82,6 +82,18 @@ func (r *Runner) ProcessNextBatch(ctx context.Context, limit int) (int, error) {
 		task.UpdatedAt = time.Now().UTC()
 		action := AuditActionSucceeded
 		if execErr == nil && task.TaskType == TaskTypeReportGeneration && r.reports != nil {
+			if task.VersionID == "" && r.service.versionSource != nil {
+				versionID, err := r.service.versionSource.CurrentVersionID(ctx)
+				if err != nil {
+					task.Status = StatusFailed
+					task.ErrorReason = summarizeExecutionError(err)
+					task.AuditRef = fallbackAuditRef(result.AuditRef, "worker:placeholder_failed")
+					task.UpdatedAt = time.Now().UTC()
+					action = AuditActionFailed
+				} else {
+					task.VersionID = versionID
+				}
+			}
 			successEvent := AuditEvent{
 				TaskID:    task.ID,
 				Action:    AuditActionSucceeded,

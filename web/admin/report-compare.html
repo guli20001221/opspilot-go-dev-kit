@@ -303,6 +303,7 @@
         <a class="link-chip" href="/admin/task-board">Open Task Board</a>
         <a class="link-chip" href="/admin/cases">Open Cases</a>
         <a class="link-chip" href="/admin/trace-detail">Open Trace Detail</a>
+        <a class="link-chip" href="/admin/version-detail">Open Version Detail</a>
       </div>
     </section>
 
@@ -365,6 +366,7 @@
                   <a class="button-link ghost" id="left-report-api-link" href="#" target="_blank" rel="noreferrer">Open left report API</a>
                   <a class="button-link ghost" id="left-report-lane-link" href="#">Open left in Reports</a>
                   <a class="button-link ghost" id="left-trace-link" href="#">Open left trace detail</a>
+                  <a class="button-link ghost" id="left-version-link" href="#" hidden>Open left version detail</a>
                 </div>
               </div>
             </section>
@@ -377,6 +379,7 @@
                   <a class="button-link ghost" id="right-report-api-link" href="#" target="_blank" rel="noreferrer">Open right report API</a>
                   <a class="button-link ghost" id="right-report-lane-link" href="#">Open right in Reports</a>
                   <a class="button-link ghost" id="right-trace-link" href="#">Open right trace detail</a>
+                  <a class="button-link ghost" id="right-version-link" href="#" hidden>Open right version detail</a>
                 </div>
               </div>
             </section>
@@ -413,6 +416,8 @@
     const rightReportLaneLink = document.getElementById("right-report-lane-link");
     const leftTraceLink = document.getElementById("left-trace-link");
     const rightTraceLink = document.getElementById("right-trace-link");
+    const leftVersionLink = document.getElementById("left-version-link");
+    const rightVersionLink = document.getElementById("right-version-link");
     const diffList = document.getElementById("diff-list");
 
     function escapeHTML(value) {
@@ -471,6 +476,7 @@
         <dl class="detail-card"><dt>Type</dt><dd>${escapeHTML(item.report_type)}</dd></dl>
         <dl class="detail-card"><dt>Status</dt><dd>${escapeHTML(item.status)}</dd></dl>
         <dl class="detail-card"><dt>Source task</dt><dd>${escapeHTML(item.source_task_id || "none")}</dd></dl>
+        <dl class="detail-card"><dt>Version</dt><dd>${escapeHTML(item.version_id || "Unavailable")}</dd></dl>
         <dl class="detail-card"><dt>Summary</dt><dd>${escapeHTML(item.summary || "none")}</dd></dl>
         <dl class="detail-card"><dt>Ready at</dt><dd>${escapeHTML(fmtDate(item.ready_at || item.created_at))}</dd></dl>
       `;
@@ -490,6 +496,7 @@
       const changedFlags = [
         !summary.same_tenant,
         !summary.same_report_type,
+        summary.version_changed,
         summary.source_task_changed,
         summary.title_changed,
         summary.summary_changed,
@@ -515,10 +522,25 @@
       rightReportLaneLink.href = `${reportsPageBase}?tenant_id=${encodeURIComponent(payload.right.tenant_id)}&report_id=${encodeURIComponent(payload.right.report_id)}&limit=10`;
       leftTraceLink.href = `/admin/trace-detail?report_id=${encodeURIComponent(payload.left.report_id)}`;
       rightTraceLink.href = `/admin/trace-detail?report_id=${encodeURIComponent(payload.right.report_id)}`;
+      if (payload.left.version_id) {
+        leftVersionLink.hidden = false;
+        leftVersionLink.href = `/admin/version-detail?version_id=${encodeURIComponent(payload.left.version_id)}`;
+      } else {
+        leftVersionLink.hidden = true;
+        leftVersionLink.href = "#";
+      }
+      if (payload.right.version_id) {
+        rightVersionLink.hidden = false;
+        rightVersionLink.href = `/admin/version-detail?version_id=${encodeURIComponent(payload.right.version_id)}`;
+      } else {
+        rightVersionLink.hidden = true;
+        rightVersionLink.href = "#";
+      }
 
       diffList.innerHTML = [
         renderDiffItem("Tenant", !summary.same_tenant),
         renderDiffItem("Report type", !summary.same_report_type),
+        renderDiffItem("Version", summary.version_changed),
         renderDiffItem("Source task", summary.source_task_changed),
         renderDiffItem("Title", summary.title_changed),
         renderDiffItem("Summary", summary.summary_changed),

@@ -66,6 +66,7 @@ SELECT
     tenant_id,
     session_id,
     task_type,
+    version_id,
     tool_name,
     tool_arguments,
     status,
@@ -110,7 +111,7 @@ func (s *WorkflowTaskStore) ClaimQueuedTasks(ctx context.Context, limit int) ([]
 
 // UpdateTask persists task state after worker processing.
 func (s *WorkflowTaskStore) UpdateTask(ctx context.Context, task workflow.Task) (workflow.Task, error) {
-	row := s.pool.QueryRow(ctx, updateTaskQuery, task.ID, task.Status, task.ErrorReason, task.AuditRef, task.UpdatedAt)
+	row := s.pool.QueryRow(ctx, updateTaskQuery, task.ID, task.Status, task.ErrorReason, task.AuditRef, task.VersionID, task.UpdatedAt)
 	updated, err := scanTask(row)
 	if err != nil {
 		return workflow.Task{}, err
@@ -123,7 +124,7 @@ func (s *WorkflowTaskStore) UpdateTask(ctx context.Context, task workflow.Task) 
 func (s *WorkflowTaskStore) UpdateTaskWithEvent(ctx context.Context, task workflow.Task, event workflow.AuditEvent) (workflow.Task, error) {
 	var updated workflow.Task
 	if err := s.withTx(ctx, func(tx pgx.Tx) error {
-		row := tx.QueryRow(ctx, updateTaskQuery, task.ID, task.Status, task.ErrorReason, task.AuditRef, task.UpdatedAt)
+		row := tx.QueryRow(ctx, updateTaskQuery, task.ID, task.Status, task.ErrorReason, task.AuditRef, task.VersionID, task.UpdatedAt)
 		var err error
 		updated, err = scanTask(row)
 		if err != nil {
@@ -207,6 +208,7 @@ SELECT
     tenant_id,
     session_id,
     task_type,
+    version_id,
     tool_name,
     tool_arguments,
     status,
@@ -296,6 +298,7 @@ RETURNING
     t.tenant_id,
     t.session_id,
     t.task_type,
+    t.version_id,
     t.tool_name,
     t.tool_arguments,
     t.status,
@@ -312,7 +315,8 @@ SET
     status = $2,
     error_reason = $3,
     audit_ref = $4,
-    updated_at = $5
+    version_id = NULLIF($5, ''),
+    updated_at = $6
 WHERE id = $1
 RETURNING
     id,
@@ -320,6 +324,7 @@ RETURNING
     tenant_id,
     session_id,
     task_type,
+    version_id,
     tool_name,
     tool_arguments,
     status,
@@ -349,6 +354,7 @@ INSERT INTO workflow_tasks (
     tenant_id,
     session_id,
     task_type,
+    version_id,
     tool_name,
     tool_arguments,
     status,
@@ -359,7 +365,7 @@ INSERT INTO workflow_tasks (
     created_at,
     updated_at
 ) VALUES (
-    $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14
+    $1, $2, $3, $4, $5, NULLIF($6, ''), $7, $8, $9, $10, $11, $12, $13, $14, $15
 )`
 
 func (s *WorkflowTaskStore) withTx(ctx context.Context, fn func(pgx.Tx) error) error {
@@ -389,6 +395,7 @@ func (s *WorkflowTaskStore) insertTask(ctx context.Context, db taskQuerier, task
 		task.TenantID,
 		task.SessionID,
 		task.TaskType,
+		task.VersionID,
 		task.ToolName,
 		task.ToolArguments,
 		task.Status,
@@ -452,6 +459,7 @@ type taskScanner interface {
 
 func scanTask(row taskScanner) (workflow.Task, error) {
 	var task workflow.Task
+	var versionID pgtype.Text
 	var toolName pgtype.Text
 	var toolArguments []byte
 	err := row.Scan(
@@ -460,6 +468,7 @@ func scanTask(row taskScanner) (workflow.Task, error) {
 		&task.TenantID,
 		&task.SessionID,
 		&task.TaskType,
+		&versionID,
 		&toolName,
 		&toolArguments,
 		&task.Status,
@@ -478,6 +487,9 @@ func scanTask(row taskScanner) (workflow.Task, error) {
 		return workflow.Task{}, fmt.Errorf("scan workflow task: %w", err)
 	}
 
+	if versionID.Valid {
+		task.VersionID = versionID.String
+	}
 	if toolName.Valid {
 		task.ToolName = toolName.String
 	}

@@ -1,0 +1,503 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>OpsPilot Version Detail</title>
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='16' fill='%231b4965'/%3E%3Cpath d='M18 18h28v28H18zm6 6h16v4H24zm0 8h16v4H24zm0 8h10v4H24z' fill='%23fff'/%3E%3C/svg%3E">
+  <style>
+    :root {
+      --bg: #eef3f8;
+      --panel: rgba(251, 253, 255, 0.9);
+      --ink: #14212b;
+      --muted: #5b6a78;
+      --line: rgba(20, 33, 43, 0.12);
+      --accent: #1d4ed8;
+      --accent-2: #155e75;
+      --shadow: 0 18px 48px rgba(39, 63, 88, 0.14);
+      --radius-lg: 24px;
+      --radius-md: 18px;
+      --radius-sm: 12px;
+      --font-sans: "Segoe UI Variable", "Aptos", "IBM Plex Sans", "Helvetica Neue", sans-serif;
+      --font-serif: "Iowan Old Style", "Georgia", serif;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      min-height: 100vh;
+      font-family: var(--font-sans);
+      color: var(--ink);
+      background:
+        radial-gradient(circle at top left, rgba(29, 78, 216, 0.16), transparent 26%),
+        radial-gradient(circle at top right, rgba(21, 94, 117, 0.12), transparent 24%),
+        linear-gradient(180deg, #f4f8fc 0%, var(--bg) 46%, #e6edf5 100%);
+    }
+    .page { width: min(1180px, calc(100% - 32px)); margin: 0 auto; padding: 28px 0 40px; }
+    .hero, .panel {
+      background: var(--panel);
+      border: 1px solid rgba(255,255,255,0.8);
+      box-shadow: var(--shadow);
+      backdrop-filter: blur(18px);
+    }
+    .hero { padding: 28px; border-radius: 32px; margin-bottom: 18px; }
+    .eyebrow {
+      margin: 0 0 12px;
+      font-size: 12px;
+      font-weight: 700;
+      letter-spacing: 0.18em;
+      text-transform: uppercase;
+      color: var(--accent);
+    }
+    h1 {
+      margin: 0 0 10px;
+      font-family: var(--font-serif);
+      font-size: clamp(2rem, 3.6vw, 3.1rem);
+      line-height: 0.95;
+      letter-spacing: -0.04em;
+    }
+    .lead { margin: 0; color: var(--muted); line-height: 1.6; max-width: 860px; }
+    .hero-links, .actions { display: flex; flex-wrap: wrap; gap: 10px; }
+    .hero-links { margin-top: 18px; }
+    .layout { display: grid; gap: 18px; grid-template-columns: minmax(280px, 340px) minmax(0, 1fr); }
+    .panel { border-radius: var(--radius-lg); padding: 20px; }
+    .panel-copy { margin: 0 0 18px; color: var(--muted); font-size: 0.92rem; line-height: 1.5; }
+    .filters, .summary-grid, .detail-grid { display: grid; gap: 12px; }
+    .field { display: grid; gap: 6px; }
+    .field label {
+      font-size: 0.82rem;
+      font-weight: 700;
+      color: var(--muted);
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+    }
+    .field input {
+      width: 100%;
+      border: 1px solid var(--line);
+      border-radius: var(--radius-sm);
+      padding: 11px 12px;
+      background: rgba(255,255,255,0.94);
+      color: var(--ink);
+      font: inherit;
+    }
+    button, a.button-link, a.link-chip {
+      font: inherit;
+      text-decoration: none;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      padding: 10px 14px;
+      border-radius: 999px;
+      border: 1px solid rgba(20,33,43,0.08);
+      background: rgba(255,255,255,0.8);
+      color: var(--ink);
+      font-weight: 700;
+      cursor: pointer;
+      transition: transform 120ms ease;
+    }
+    button:hover, a.button-link:hover, a.link-chip:hover { transform: translateY(-1px); }
+    .primary {
+      border: none;
+      color: #fff;
+      background: linear-gradient(135deg, var(--accent), var(--accent-2));
+      box-shadow: 0 12px 24px rgba(29,78,216,0.22);
+    }
+    .summary-grid { grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); margin-bottom: 18px; }
+    .summary-card, .detail-card {
+      border-radius: 16px;
+      border: 1px solid rgba(20,33,43,0.08);
+      background: rgba(255,255,255,0.82);
+      padding: 14px;
+    }
+    .summary-card strong { display: block; margin-top: 6px; font-size: 1.15rem; letter-spacing: -0.03em; }
+    .summary-card small, .empty, .list-note { color: var(--muted); line-height: 1.5; }
+    .detail-grid { grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); }
+    dl { margin: 0; }
+    dt {
+      font-size: 0.76rem;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: var(--muted);
+      margin-bottom: 6px;
+      font-weight: 700;
+    }
+    dd { margin: 0; line-height: 1.5; word-break: break-word; }
+    .empty {
+      padding: 18px;
+      border-radius: var(--radius-md);
+      background: rgba(255,255,255,0.76);
+      border: 1px dashed rgba(20,33,43,0.16);
+    }
+    .version-list {
+      display: grid;
+      gap: 10px;
+    }
+    .version-item {
+      width: 100%;
+      text-align: left;
+      justify-content: flex-start;
+      border-radius: 16px;
+    }
+    .version-item.selected {
+      background: rgba(29, 78, 216, 0.1);
+      box-shadow: inset 4px 0 0 var(--accent);
+    }
+    .version-item strong, .version-item small {
+      display: block;
+    }
+    .version-json {
+      margin: 0;
+      overflow: auto;
+      font-size: 0.85rem;
+      line-height: 1.5;
+    }
+    @media (max-width: 980px) { .layout { grid-template-columns: 1fr; } }
+  </style>
+</head>
+<body>
+  <main class="page">
+    <section class="hero">
+      <p class="eyebrow">OpsPilot Admin</p>
+      <h1>Version Detail</h1>
+      <p class="lead">Inspect the durable runtime version snapshot that produced a task or report. This page stays contract-first: it lists from <code>/api/v1/versions</code> and reads detail from <code>/api/v1/versions/{version_id}</code>.</p>
+      <div class="hero-links">
+        <a class="link-chip" href="/admin/reports">Open Reports</a>
+        <a class="link-chip" href="/admin/report-compare">Open Report Compare</a>
+        <a class="link-chip" href="/admin/trace-detail">Open Trace Detail</a>
+        <a class="link-chip" href="/admin/task-board">Open Task Board</a>
+      </div>
+    </section>
+
+    <section class="layout">
+      <aside class="panel">
+        <h2>Lookup</h2>
+        <p class="panel-copy">Load one durable version directly, or inspect the most recent versions in the current registry.</p>
+        <form id="version-form" class="filters">
+          <div class="field">
+            <label for="version-id">Version ID</label>
+            <input id="version-id" name="version_id" type="text" placeholder="version-skeleton-2026-03-24" autocomplete="off">
+          </div>
+          <div class="field">
+            <label for="limit">Recent versions</label>
+            <input id="limit" name="limit" type="number" min="1" max="50" value="10">
+          </div>
+          <div class="actions">
+            <button class="primary" type="submit">Load version</button>
+            <button class="ghost" id="reset-button" type="button">Reset</button>
+          </div>
+        </form>
+
+        <div style="margin-top:18px;">
+          <h3 style="margin:0 0 8px;">Recent registry rows</h3>
+          <p class="list-note">The list comes from the canonical durable version registry.</p>
+          <div id="version-list" class="version-list"></div>
+        </div>
+      </aside>
+
+      <section class="panel">
+        <h2>Runtime snapshot</h2>
+        <p class="panel-copy">Use this page to answer a reproducibility question quickly: which planner, retrieval, tool, critic, and workflow versions were active for this runtime snapshot?</p>
+        <div id="detail-state" class="empty">Load a version ID or let the page pick the newest durable runtime snapshot.</div>
+
+        <div id="detail-content" hidden>
+          <div class="summary-grid">
+            <article class="summary-card">
+              <div>Runtime</div>
+              <strong id="runtime-version">-</strong>
+              <small>The top-level runtime build or bundle name.</small>
+            </article>
+            <article class="summary-card">
+              <div>Prompt bundle</div>
+              <strong id="prompt-bundle">-</strong>
+              <small>The prompt/rubric package currently associated with this runtime.</small>
+            </article>
+            <article class="summary-card">
+              <div>Workflow</div>
+              <strong id="workflow-version">-</strong>
+              <small>The async orchestration/runtime path for this snapshot.</small>
+            </article>
+            <article class="summary-card">
+              <div>Created</div>
+              <strong id="created-at">-</strong>
+              <small>Durable creation time for this registry row.</small>
+            </article>
+          </div>
+
+          <div class="detail-grid">
+            <dl class="detail-card"><dt>Version ID</dt><dd id="version-id-value">-</dd></dl>
+            <dl class="detail-card"><dt>Provider</dt><dd id="provider-value">-</dd></dl>
+            <dl class="detail-card"><dt>Model</dt><dd id="model-value">-</dd></dl>
+            <dl class="detail-card"><dt>Planner</dt><dd id="planner-version">-</dd></dl>
+            <dl class="detail-card"><dt>Retrieval</dt><dd id="retrieval-version">-</dd></dl>
+            <dl class="detail-card"><dt>Tool registry</dt><dd id="tool-version">-</dd></dl>
+            <dl class="detail-card"><dt>Critic</dt><dd id="critic-version">-</dd></dl>
+            <dl class="detail-card"><dt>Notes</dt><dd id="notes-value">-</dd></dl>
+          </div>
+
+          <div class="detail-card" style="margin-top:18px;">
+            <h3 style="margin-top:0;">Handoff</h3>
+            <div class="actions">
+              <a class="button-link ghost" id="openVersionAPI" href="#" target="_blank" rel="noreferrer">Open version API detail</a>
+              <button class="ghost" type="button" id="copyVersionIDButton">Copy version ID</button>
+              <button class="ghost" type="button" id="copyVersionSummaryButton">Copy version summary</button>
+            </div>
+          </div>
+
+          <div class="detail-card" style="margin-top:18px;">
+            <h3 style="margin-top:0;">Raw JSON</h3>
+            <pre id="version-json" class="version-json"></pre>
+          </div>
+        </div>
+      </section>
+    </section>
+  </main>
+
+  <script>
+    const versionsEndpoint = "/api/v1/versions";
+    const versionEndpointBase = "/api/v1/versions/";
+    const form = document.getElementById("version-form");
+    const resetButton = document.getElementById("reset-button");
+    const versionList = document.getElementById("version-list");
+    const detailState = document.getElementById("detail-state");
+    const detailContent = document.getElementById("detail-content");
+    const runtimeVersion = document.getElementById("runtime-version");
+    const promptBundle = document.getElementById("prompt-bundle");
+    const workflowVersion = document.getElementById("workflow-version");
+    const createdAt = document.getElementById("created-at");
+    const versionIDValue = document.getElementById("version-id-value");
+    const providerValue = document.getElementById("provider-value");
+    const modelValue = document.getElementById("model-value");
+    const plannerVersion = document.getElementById("planner-version");
+    const retrievalVersion = document.getElementById("retrieval-version");
+    const toolVersion = document.getElementById("tool-version");
+    const criticVersion = document.getElementById("critic-version");
+    const notesValue = document.getElementById("notes-value");
+    const versionJSON = document.getElementById("version-json");
+    const openVersionAPI = document.getElementById("openVersionAPI");
+    const copyVersionIDButton = document.getElementById("copyVersionIDButton");
+    const copyVersionSummaryButton = document.getElementById("copyVersionSummaryButton");
+
+    let currentVersions = [];
+    let currentVersion = null;
+
+    function escapeHTML(value) {
+      return String(value ?? "").replace(/[&<>"']/g, (char) => ({
+        "&": "&amp;",
+        "<": "&lt;",
+        ">": "&gt;",
+        "\"": "&quot;",
+        "'": "&#39;"
+      }[char]));
+    }
+
+    function fmtDate(value) {
+      if (!value) {
+        return "Unknown";
+      }
+      const date = new Date(value);
+      if (Number.isNaN(date.valueOf())) {
+        return value;
+      }
+      return new Intl.DateTimeFormat(undefined, {
+        year: "numeric",
+        month: "short",
+        day: "2-digit",
+        hour: "2-digit",
+        minute: "2-digit",
+        second: "2-digit"
+      }).format(date);
+    }
+
+    function buildParams() {
+      const params = new URLSearchParams();
+      const versionID = form.elements.namedItem("version_id").value.trim();
+      const limit = form.elements.namedItem("limit").value;
+      if (versionID) {
+        params.set("version_id", versionID);
+      }
+      if (limit) {
+        params.set("limit", limit);
+      }
+      return params;
+    }
+
+    function syncURL(versionID = "") {
+      const params = buildParams();
+      if (versionID) {
+        params.set("version_id", versionID);
+      }
+      const next = params.toString() ? `${window.location.pathname}?${params.toString()}` : window.location.pathname;
+      window.history.replaceState({}, "", next);
+    }
+
+    function populateFromURL() {
+      const params = new URLSearchParams(window.location.search);
+      form.elements.namedItem("version_id").value = params.get("version_id") || "";
+      form.elements.namedItem("limit").value = params.get("limit") || "10";
+      return params.get("version_id") || "";
+    }
+
+    function renderVersionList() {
+      if (!currentVersions.length) {
+        versionList.innerHTML = '<div class="empty">No versions in the durable registry yet.</div>';
+        return;
+      }
+
+      versionList.innerHTML = currentVersions.map((item) => `
+        <button class="version-item ghost ${currentVersion && currentVersion.version_id === item.version_id ? "selected" : ""}" type="button" data-version-id="${escapeHTML(item.version_id)}">
+          <span>
+            <strong>${escapeHTML(item.version_id)}</strong>
+            <small>${escapeHTML(item.runtime_version || "unknown runtime")} · ${escapeHTML(fmtDate(item.created_at))}</small>
+          </span>
+        </button>
+      `).join("");
+    }
+
+    function renderDetail(item) {
+      currentVersion = item;
+      syncURL(item.version_id);
+      detailState.hidden = true;
+      detailContent.hidden = false;
+      runtimeVersion.textContent = item.runtime_version || "Unknown";
+      promptBundle.textContent = item.prompt_bundle || "Unknown";
+      workflowVersion.textContent = item.workflow_version || "Unknown";
+      createdAt.textContent = fmtDate(item.created_at);
+      versionIDValue.textContent = item.version_id || "Unknown";
+      providerValue.textContent = item.provider || "None";
+      modelValue.textContent = item.model || "None";
+      plannerVersion.textContent = item.planner_version || "Unknown";
+      retrievalVersion.textContent = item.retrieval_version || "Unknown";
+      toolVersion.textContent = item.tool_registry_version || "Unknown";
+      criticVersion.textContent = item.critic_version || "Unknown";
+      notesValue.textContent = item.notes || "No notes";
+      versionJSON.textContent = JSON.stringify(item, null, 2);
+      openVersionAPI.href = `${versionEndpointBase}${encodeURIComponent(item.version_id)}`;
+      renderVersionList();
+    }
+
+    async function loadDetail(versionID) {
+      detailState.hidden = false;
+      detailContent.hidden = true;
+      detailState.textContent = "Loading version detail...";
+
+      try {
+        const response = await fetch(`${versionEndpointBase}${encodeURIComponent(versionID)}`, {
+          headers: { "Accept": "application/json" }
+        });
+        if (!response.ok) {
+          throw new Error(`Version detail request failed: ${response.status} ${response.statusText}`);
+        }
+        renderDetail(await response.json());
+      } catch (error) {
+        currentVersion = null;
+        renderVersionList();
+        detailState.hidden = false;
+        detailContent.hidden = true;
+        detailState.textContent = error.message || "Unable to load version detail.";
+      }
+    }
+
+    async function loadVersions(selectedVersionID = "") {
+      const limit = form.elements.namedItem("limit").value || "10";
+      try {
+        const response = await fetch(`${versionsEndpoint}?limit=${encodeURIComponent(limit)}`, {
+          headers: { "Accept": "application/json" }
+        });
+        if (!response.ok) {
+          throw new Error(`Version list request failed: ${response.status} ${response.statusText}`);
+        }
+        const page = await response.json();
+        currentVersions = page.versions || [];
+        renderVersionList();
+        const nextVersionID = selectedVersionID || currentVersions[0]?.version_id || "";
+        if (nextVersionID) {
+          await loadDetail(nextVersionID);
+        } else {
+          detailState.hidden = false;
+          detailContent.hidden = true;
+          detailState.textContent = "No versions in the durable registry yet.";
+        }
+      } catch (error) {
+        currentVersions = [];
+        renderVersionList();
+        detailState.hidden = false;
+        detailContent.hidden = true;
+        detailState.textContent = error.message || "Unable to load version registry.";
+      }
+    }
+
+    async function copyVersionID() {
+      if (!currentVersion) {
+        return;
+      }
+      const original = copyVersionIDButton.textContent;
+      try {
+        await navigator.clipboard.writeText(currentVersion.version_id);
+        copyVersionIDButton.textContent = "Version ID copied";
+      } catch (error) {
+        copyVersionIDButton.textContent = "Copy failed";
+      } finally {
+        window.setTimeout(() => {
+          copyVersionIDButton.textContent = original;
+        }, 1200);
+      }
+    }
+
+    async function copyVersionSummary() {
+      if (!currentVersion) {
+        return;
+      }
+      const original = copyVersionSummaryButton.textContent;
+      const lines = [
+        `Version: ${currentVersion.version_id}`,
+        `Runtime: ${currentVersion.runtime_version || "unknown"}`,
+        `Prompt bundle: ${currentVersion.prompt_bundle || "unknown"}`,
+        `Planner: ${currentVersion.planner_version || "unknown"}`,
+        `Retrieval: ${currentVersion.retrieval_version || "unknown"}`,
+        `Tool registry: ${currentVersion.tool_registry_version || "unknown"}`,
+        `Critic: ${currentVersion.critic_version || "unknown"}`,
+        `Workflow: ${currentVersion.workflow_version || "unknown"}`,
+        `Provider: ${currentVersion.provider || "none"}`,
+        `Model: ${currentVersion.model || "none"}`
+      ];
+      try {
+        await navigator.clipboard.writeText(lines.join("\n"));
+        copyVersionSummaryButton.textContent = "Summary copied";
+      } catch (error) {
+        copyVersionSummaryButton.textContent = "Copy failed";
+      } finally {
+        window.setTimeout(() => {
+          copyVersionSummaryButton.textContent = original;
+        }, 1200);
+      }
+    }
+
+    form.addEventListener("submit", (event) => {
+      event.preventDefault();
+      const requestedVersionID = form.elements.namedItem("version_id").value.trim();
+      loadVersions(requestedVersionID);
+    });
+
+    resetButton.addEventListener("click", () => {
+      form.elements.namedItem("version_id").value = "";
+      form.elements.namedItem("limit").value = "10";
+      loadVersions("");
+    });
+
+    versionList.addEventListener("click", (event) => {
+      const button = event.target.closest("[data-version-id]");
+      if (!button) {
+        return;
+      }
+      form.elements.namedItem("version_id").value = button.dataset.versionId;
+      loadDetail(button.dataset.versionId);
+    });
+
+    copyVersionIDButton.addEventListener("click", () => copyVersionID());
+    copyVersionSummaryButton.addEventListener("click", () => copyVersionSummary());
+
+    const initialVersionID = populateFromURL();
+    loadVersions(initialVersionID);
+  </script>
+</body>
+</html>

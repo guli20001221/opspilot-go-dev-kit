@@ -10,11 +10,12 @@ import (
 
 	cases "opspilot-go/internal/case"
 	"opspilot-go/internal/report"
+	"opspilot-go/internal/version"
 	"opspilot-go/internal/workflow"
 )
 
 func TestTraceDrilldownReturnsTaskSubject(t *testing.T) {
-	workflowService := workflow.NewService()
+	workflowService := workflow.NewServiceWithDependencies(nil, nil, version.NewService())
 	ctx := context.Background()
 	now := time.Unix(1700007000, 0).UTC()
 	task, err := workflowService.Promote(ctx, workflow.PromoteRequest{
@@ -60,10 +61,13 @@ func TestTraceDrilldownReturnsTaskSubject(t *testing.T) {
 	if body.Temporal == nil || body.Temporal.WorkflowID != task.ID || body.Temporal.RunID != "run-1" {
 		t.Fatalf("Temporal = %#v, want %s/run-1", body.Temporal, task.ID)
 	}
+	if body.VersionID != version.DefaultVersionID {
+		t.Fatalf("VersionID = %q, want %q", body.VersionID, version.DefaultVersionID)
+	}
 }
 
 func TestTraceDrilldownReturnsCaseLineage(t *testing.T) {
-	workflowService := workflow.NewService()
+	workflowService := workflow.NewServiceWithDependencies(nil, nil, version.NewService())
 	reportService := report.NewService()
 	caseService := cases.NewService()
 	ctx := context.Background()
@@ -127,6 +131,9 @@ func TestTraceDrilldownReturnsCaseLineage(t *testing.T) {
 	}
 	if body.CaseStatus != cases.StatusOpen || body.ReportStatus != report.StatusReady || body.TaskStatus != workflow.StatusSucceeded {
 		t.Fatalf("statuses = %#v", body)
+	}
+	if body.VersionID != version.DefaultVersionID {
+		t.Fatalf("VersionID = %q, want %q", body.VersionID, version.DefaultVersionID)
 	}
 }
 

@@ -15,6 +15,7 @@ type reportResponse struct {
 	ReportID     string          `json:"report_id"`
 	TenantID     string          `json:"tenant_id"`
 	SourceTaskID string          `json:"source_task_id"`
+	VersionID    string          `json:"version_id,omitempty"`
 	ReportType   string          `json:"report_type"`
 	Status       string          `json:"status"`
 	Title        string          `json:"title"`
@@ -35,6 +36,7 @@ type listReportsResponse struct {
 type reportComparisonSummaryResponse struct {
 	SameTenant         bool  `json:"same_tenant"`
 	SameReportType     bool  `json:"same_report_type"`
+	VersionChanged     bool  `json:"version_changed"`
 	SourceTaskChanged  bool  `json:"source_task_changed"`
 	TitleChanged       bool  `json:"title_changed"`
 	SummaryChanged     bool  `json:"summary_changed"`
@@ -117,6 +119,7 @@ func (a *appHandler) handleReportCompare(w http.ResponseWriter, r *http.Request)
 		Summary: reportComparisonSummaryResponse{
 			SameTenant:         comparison.Summary.SameTenant,
 			SameReportType:     comparison.Summary.SameReportType,
+			VersionChanged:     comparison.Summary.VersionChanged,
 			SourceTaskChanged:  comparison.Summary.SourceTaskChanged,
 			TitleChanged:       comparison.Summary.TitleChanged,
 			SummaryChanged:     comparison.Summary.SummaryChanged,
@@ -192,6 +195,7 @@ func newReportResponse(item report.Report) reportResponse {
 		ReportID:     item.ID,
 		TenantID:     item.TenantID,
 		SourceTaskID: item.SourceTaskID,
+		VersionID:    item.VersionID,
 		ReportType:   item.ReportType,
 		Status:       item.Status,
 		Title:        item.Title,

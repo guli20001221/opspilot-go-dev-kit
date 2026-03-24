@@ -39,6 +39,7 @@ Current Milestone 1 slice:
 - the same detail panel now derives a Temporal workflow history deep link from `audit_ref` when the task is running on a Temporal-backed execution path
 - the board now offers an optional 5-second auto-refresh mode so operators can watch task transitions without manually reloading the page
 - `web/admin` now also ships a first embedded report lane at `/admin/reports`, with the list sourced from the canonical durable report contract and task detail reused only for execution provenance
+- `web/admin` now also ships `/admin/version-detail`, backed by the durable runtime version registry so operators can inspect the runtime bundle that produced a task, report, or trace drill-down
 - the board now also offers quick-view presets for common operator slices such as `Needs approval`, `Failed`, and `Running`
 - the same quick-view strip now also supports `Queued`, which reuses the existing `status` filter for pending-work triage
 - the same quick-view strip now also supports `Succeeded`, which reuses the existing `status` filter for terminal success triage
@@ -90,10 +91,12 @@ Current Milestone 1 slice:
 - the same reports page now degrades gracefully when a legacy successful report task has no durable report row yet, showing task provenance fallback instead of a broken detail pane
 - `GET /api/v1/reports` now exposes the durable report list contract with tenant, status, report-type, source-task, limit, and offset filters
 - `GET /api/v1/reports/{report_id}` now exposes the durable report read model emitted by a successful `report_generation` task
+- `GET /api/v1/versions` and `GET /api/v1/versions/{version_id}` now expose the durable runtime version registry used for reproducibility and runtime drill-down
 - `GET /api/v1/report-compare` now exposes a read-only durable report comparison contract for left/right report IDs
 - `GET /admin/report-compare` now exposes the first report-comparison operator page, reusing durable report IDs instead of diffing artifacts ad hoc in the browser
 - `GET /api/v1/trace-drilldown` now exposes a narrow lineage-and-provenance contract over one durable task, report, or case
 - `GET /admin/trace-detail` now exposes a shared trace drill-down page, and the task/report/case/compare pages now hand off into it instead of each page inventing its own trace view
+- the reports, report-compare, and trace-detail pages now also hand off into `/admin/version-detail`, and task/report/trace contracts now carry `version_id` so reproducibility navigation does not depend on frontend-only inference
 - `POST /api/v1/cases` and `GET /api/v1/cases/{case_id}` now expose a durable operator case contract for task/report follow-up
 - `POST /api/v1/cases/{case_id}/close` now lets operators close a durable case while recording `closed_by`
 - `POST /api/v1/cases/{case_id}/reopen` now returns a closed case back to the open queue and appends a durable operator note for the reopen action

@@ -22,10 +22,15 @@ type taskReportFinalizingStore interface {
 	FinalizeSucceededTaskWithReport(ctx context.Context, task workflow.Task, event workflow.AuditEvent, item Report) (Report, workflow.Task, error)
 }
 
+type currentVersionSource interface {
+	CurrentVersionID(ctx context.Context) (string, error)
+}
+
 // Service manages durable report read models.
 type Service struct {
-	store     Store
-	finalizer taskReportFinalizingStore
+	store          Store
+	finalizer      taskReportFinalizingStore
+	currentVersion currentVersionSource
 }
 
 // NewService constructs the report service with a memory-backed default store.
@@ -35,11 +40,19 @@ func NewService() *Service {
 
 // NewServiceWithStore constructs the report service with a caller-provided store.
 func NewServiceWithStore(store Store) *Service {
+	return NewServiceWithDependencies(store, nil)
+}
+
+// NewServiceWithDependencies constructs the report service with caller-provided dependencies.
+func NewServiceWithDependencies(store Store, currentVersion currentVersionSource) *Service {
 	if store == nil {
 		store = newMemoryStore()
 	}
 
-	service := &Service{store: store}
+	service := &Service{
+		store:          store,
+		currentVersion: currentVersion,
+	}
 	if finalizer, ok := store.(taskReportFinalizingStore); ok {
 		service.finalizer = finalizer
 	}
@@ -89,7 +102,10 @@ func (s *Service) CompareReports(ctx context.Context, leftReportID string, right
 
 // RecordGeneratedReport persists the durable report emitted by a successful task.
 func (s *Service) RecordGeneratedReport(ctx context.Context, task workflow.Task, result workflow.ExecutionResult) (string, error) {
-	record := buildGeneratedReport(task, result)
+	record, err := s.buildGeneratedReport(ctx, task, result)
+	if err != nil {
+		return "", err
+	}
 	saved, err := s.store.Save(ctx, record)
 	if err != nil {
 		return "", err
@@ -101,9 +117,15 @@ func (s *Service) RecordGeneratedReport(ctx context.Context, task workflow.Task,
 // FinalizeGeneratedReportTask atomically persists the report and successful task state
 // when the underlying store supports combined task/report transactions.
 func (s *Service) FinalizeGeneratedReportTask(ctx context.Context, task workflow.Task, result workflow.ExecutionResult, event workflow.AuditEvent) (workflow.Task, string, error) {
-	record := buildGeneratedReport(task, result)
+	record, err := s.buildGeneratedReport(ctx, task, result)
+	if err != nil {
+		return workflow.Task{}, "", err
+	}
 	if s.finalizer == nil {
 		return workflow.Task{}, "", fmt.Errorf("report store does not support atomic task finalization")
+	}
+	if task.VersionID == "" && record.VersionID != "" {
+		task.VersionID = record.VersionID
 	}
 
 	saved, updated, err := s.finalizer.FinalizeSucceededTaskWithReport(ctx, task, event, record)
@@ -125,12 +147,13 @@ func ReportIDFromTaskID(taskID string) string {
 	return "report-" + taskID
 }
 
-func buildMetadata(task workflow.Task, result workflow.ExecutionResult, readyAt time.Time) json.RawMessage {
+func buildMetadata(task workflow.Task, result workflow.ExecutionResult, readyAt time.Time, versionID string) json.RawMessage {
 	payload, err := json.Marshal(map[string]any{
 		"task_id":           task.ID,
 		"request_id":        task.RequestID,
 		"session_id":        task.SessionID,
 		"task_type":         task.TaskType,
+		"version_id":        versionID,
 		"reason":            task.Reason,
 		"audit_ref":         task.AuditRef,
 		"execution_summary": result.Detail,
@@ -143,7 +166,16 @@ func buildMetadata(task workflow.Task, result workflow.ExecutionResult, readyAt 
 	return payload
 }
 
-func buildGeneratedReport(task workflow.Task, result workflow.ExecutionResult) Report {
+func (s *Service) buildGeneratedReport(ctx context.Context, task workflow.Task, result workflow.ExecutionResult) (Report, error) {
+	versionID := task.VersionID
+	if versionID == "" && s.currentVersion != nil {
+		currentVersionID, err := s.currentVersion.CurrentVersionID(ctx)
+		if err != nil {
+			return Report{}, err
+		}
+		versionID = currentVersionID
+	}
+
 	now := task.UpdatedAt
 	if now.IsZero() {
 		now = time.Now().UTC()
@@ -154,12 +186,13 @@ func buildGeneratedReport(task workflow.Task, result workflow.ExecutionResult) R
 		ID:           ReportIDFromTaskID(task.ID),
 		TenantID:     task.TenantID,
 		SourceTaskID: task.ID,
+		VersionID:    versionID,
 		ReportType:   TypeWorkflowSummary,
 		Status:       StatusReady,
 		Title:        fmt.Sprintf("Report for %s", task.ID),
 		Summary:      fallbackString(result.Detail, fmt.Sprintf("Generated report from task %s", task.ID)),
 		ContentURI:   "",
-		MetadataJSON: buildMetadata(task, result, now),
+		MetadataJSON: buildMetadata(task, result, now, versionID),
 		CreatedBy:    "worker",
 		CreatedAt:    task.CreatedAt,
 		ReadyAt:      &readyAt,
@@ -168,7 +201,7 @@ func buildGeneratedReport(task workflow.Task, result workflow.ExecutionResult) R
 		record.CreatedAt = now
 	}
 
-	return record
+	return record, nil
 }
 
 func fallbackString(value string, fallback string) string {
@@ -183,6 +216,7 @@ func buildComparisonSummary(left Report, right Report) ComparisonSummary {
 	summary := ComparisonSummary{
 		SameTenant:        left.TenantID == right.TenantID,
 		SameReportType:    left.ReportType == right.ReportType,
+		VersionChanged:    left.VersionID != right.VersionID,
 		SourceTaskChanged: left.SourceTaskID != right.SourceTaskID,
 		TitleChanged:      left.Title != right.Title,
 		SummaryChanged:    left.Summary != right.Summary,

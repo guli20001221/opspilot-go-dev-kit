@@ -192,6 +192,9 @@ func TestAdminReportsPageRendersHTML(t *testing.T) {
 	if !strings.Contains(body, "/api/v1/reports/") {
 		t.Fatal("report detail API path missing from reports page HTML")
 	}
+	if !strings.Contains(body, "/admin/version-detail") {
+		t.Fatal("version detail handoff missing from reports page HTML")
+	}
 	if !strings.Contains(body, "Report Lane") {
 		t.Fatal("report lane heading missing from page HTML")
 	}
@@ -300,6 +303,12 @@ func TestAdminReportComparePageRendersHTML(t *testing.T) {
 	if !strings.Contains(body, "/admin/trace-detail") {
 		t.Fatal("trace detail handoff missing from report compare HTML")
 	}
+	if !strings.Contains(body, "Open left version detail") {
+		t.Fatal("left version handoff missing from report compare HTML")
+	}
+	if !strings.Contains(body, "Open right version detail") {
+		t.Fatal("right version handoff missing from report compare HTML")
+	}
 	if !strings.Contains(body, "/api/v1/reports/") {
 		t.Fatal("report detail API path missing from report compare page HTML")
 	}
@@ -363,6 +372,9 @@ func TestAdminTraceDetailPageRendersHTML(t *testing.T) {
 	if !strings.Contains(body, "Open Temporal history") {
 		t.Fatal("temporal handoff missing from trace detail HTML")
 	}
+	if !strings.Contains(body, "Open Version Detail") {
+		t.Fatal("version handoff missing from trace detail HTML")
+	}
 }
 
 func TestAdminTraceDetailPageRejectsUnknownSubpath(t *testing.T) {
@@ -370,6 +382,54 @@ func TestAdminTraceDetailPageRejectsUnknownSubpath(t *testing.T) {
 	defer server.Close()
 
 	resp, err := http.Get(server.URL + "/admin/trace-detail/unknown")
+	if err != nil {
+		t.Fatalf("Get() error = %v", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusNotFound {
+		t.Fatalf("StatusCode = %d, want %d", resp.StatusCode, http.StatusNotFound)
+	}
+}
+
+func TestAdminVersionDetailPageRendersHTML(t *testing.T) {
+	server := httptest.NewServer(NewHandler())
+	defer server.Close()
+
+	resp, err := http.Get(server.URL + "/admin/version-detail")
+	if err != nil {
+		t.Fatalf("Get() error = %v", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("StatusCode = %d, want %d", resp.StatusCode, http.StatusOK)
+	}
+	if got := resp.Header.Get("Content-Type"); !strings.Contains(got, "text/html") {
+		t.Fatalf("Content-Type = %q, want text/html", got)
+	}
+
+	bodyBytes, err := io.ReadAll(resp.Body)
+	if err != nil {
+		t.Fatalf("ReadAll() error = %v", err)
+	}
+	body := string(bodyBytes)
+	if !strings.Contains(body, "<title>OpsPilot Version Detail</title>") {
+		t.Fatal("page title missing from version detail HTML")
+	}
+	if !strings.Contains(body, "/api/v1/versions") {
+		t.Fatal("version API path missing from version detail HTML")
+	}
+	if !strings.Contains(body, "Copy version summary") {
+		t.Fatal("version summary action missing from version detail HTML")
+	}
+}
+
+func TestAdminVersionDetailPageRejectsUnknownSubpath(t *testing.T) {
+	server := httptest.NewServer(NewHandler())
+	defer server.Close()
+
+	resp, err := http.Get(server.URL + "/admin/version-detail/unknown")
 	if err != nil {
 		t.Fatalf("Get() error = %v", err)
 	}

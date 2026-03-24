@@ -62,6 +62,73 @@ func TestServiceSupportsAtomicFinalizationDependsOnStore(t *testing.T) {
 	}
 }
 
+type fakeCurrentVersionSource struct {
+	versionID string
+}
+
+func (s fakeCurrentVersionSource) CurrentVersionID(context.Context) (string, error) {
+	return s.versionID, nil
+}
+
+type finalizingStore struct {
+	Store
+	lastTask   workflow.Task
+	lastReport Report
+}
+
+func (s *finalizingStore) FinalizeSucceededTaskWithReport(ctx context.Context, task workflow.Task, _ workflow.AuditEvent, item Report) (Report, workflow.Task, error) {
+	s.lastTask = task
+	s.lastReport = item
+
+	saved, err := s.Store.Save(ctx, item)
+	if err != nil {
+		return Report{}, workflow.Task{}, err
+	}
+
+	return saved, task, nil
+}
+
+func TestServiceFinalizeGeneratedReportTaskPropagatesFallbackVersionToTask(t *testing.T) {
+	store := &finalizingStore{Store: newMemoryStore()}
+	svc := NewServiceWithDependencies(store, fakeCurrentVersionSource{versionID: "version-fallback-v1"})
+
+	task := workflow.Task{
+		ID:        "task-report-fallback-version",
+		TenantID:  "tenant-1",
+		TaskType:  workflow.TaskTypeReportGeneration,
+		Status:    workflow.StatusSucceeded,
+		Reason:    workflow.PromotionReasonWorkflowRequired,
+		CreatedAt: time.Unix(1700005000, 0).UTC(),
+		UpdatedAt: time.Unix(1700005001, 0).UTC(),
+	}
+
+	updated, reportID, err := svc.FinalizeGeneratedReportTask(context.Background(), task, workflow.ExecutionResult{
+		Detail: "generated:task-report-fallback-version",
+	}, workflow.AuditEvent{
+		TaskID:    task.ID,
+		Action:    workflow.AuditActionSucceeded,
+		Actor:     "worker",
+		Detail:    "generated:task-report-fallback-version",
+		CreatedAt: task.UpdatedAt,
+	})
+	if err != nil {
+		t.Fatalf("FinalizeGeneratedReportTask() error = %v", err)
+	}
+
+	if updated.VersionID != "version-fallback-v1" {
+		t.Fatalf("updated.VersionID = %q, want %q", updated.VersionID, "version-fallback-v1")
+	}
+	if store.lastTask.VersionID != "version-fallback-v1" {
+		t.Fatalf("finalizer task.VersionID = %q, want %q", store.lastTask.VersionID, "version-fallback-v1")
+	}
+	if store.lastReport.VersionID != "version-fallback-v1" {
+		t.Fatalf("finalizer report.VersionID = %q, want %q", store.lastReport.VersionID, "version-fallback-v1")
+	}
+	if reportID != ReportIDFromTaskID(task.ID) {
+		t.Fatalf("reportID = %q, want %q", reportID, ReportIDFromTaskID(task.ID))
+	}
+}
+
 func TestServiceListReportsAppliesFiltersAndPagination(t *testing.T) {
 	svc := NewService()
 	ctx := context.Background()

@@ -33,6 +33,7 @@ type taskResponse struct {
 	TenantID         string               `json:"tenant_id"`
 	SessionID        string               `json:"session_id,omitempty"`
 	TaskType         string               `json:"task_type"`
+	VersionID        string               `json:"version_id,omitempty"`
 	Status           string               `json:"status"`
 	Reason           string               `json:"reason"`
 	ErrorReason      string               `json:"error_reason,omitempty"`
@@ -298,6 +299,7 @@ func newTaskResponse(task workflow.Task) taskResponse {
 		TenantID:         task.TenantID,
 		SessionID:        task.SessionID,
 		TaskType:         task.TaskType,
+		VersionID:        task.VersionID,
 		Status:           task.Status,
 		Reason:           task.Reason,
 		ErrorReason:      task.ErrorReason,

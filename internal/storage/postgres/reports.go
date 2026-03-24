@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"opspilot-go/internal/report"
@@ -51,7 +52,7 @@ func (s *ReportStore) FinalizeSucceededTaskWithReport(ctx context.Context, task 
 		_ = tx.Rollback(ctx)
 	}()
 
-	row := tx.QueryRow(ctx, updateTaskQuery, task.ID, task.Status, task.ErrorReason, task.AuditRef, task.UpdatedAt)
+	row := tx.QueryRow(ctx, updateTaskQuery, task.ID, task.Status, task.ErrorReason, task.AuditRef, task.VersionID, task.UpdatedAt)
 	updated, err = scanTask(row)
 	if err != nil {
 		return report.Report{}, workflow.Task{}, err
@@ -77,6 +78,7 @@ SELECT
     id,
     tenant_id,
     source_task_id,
+    version_id,
     report_type,
     status,
     title,
@@ -134,6 +136,7 @@ SELECT
     id,
     tenant_id,
     source_task_id,
+    version_id,
     report_type,
     status,
     title,
@@ -183,11 +186,13 @@ LIMIT $%d OFFSET $%d`, len(args)-1, len(args))
 
 func scanReport(row pgx.Row) (report.Report, error) {
 	var item report.Report
+	var versionID pgtype.Text
 	var metadata json.RawMessage
 	if err := row.Scan(
 		&item.ID,
 		&item.TenantID,
 		&item.SourceTaskID,
+		&versionID,
 		&item.ReportType,
 		&item.Status,
 		&item.Title,
@@ -204,6 +209,9 @@ func scanReport(row pgx.Row) (report.Report, error) {
 
 		return report.Report{}, fmt.Errorf("scan report: %w", err)
 	}
+	if versionID.Valid {
+		item.VersionID = versionID.String
+	}
 	item.MetadataJSON = metadata
 
 	return item, nil
@@ -215,6 +223,7 @@ INSERT INTO reports (
     id,
     tenant_id,
     source_task_id,
+    version_id,
     report_type,
     status,
     title,
@@ -225,11 +234,12 @@ INSERT INTO reports (
     created_at,
     ready_at
 ) VALUES (
-    $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12
+    $1, $2, $3, NULLIF($4, ''), $5, $6, $7, $8, $9, $10, $11, $12, $13
 )
 ON CONFLICT (id) DO UPDATE SET
     tenant_id = EXCLUDED.tenant_id,
     source_task_id = EXCLUDED.source_task_id,
+    version_id = EXCLUDED.version_id,
     report_type = EXCLUDED.report_type,
     status = EXCLUDED.status,
     title = EXCLUDED.title,
@@ -243,6 +253,7 @@ RETURNING
     id,
     tenant_id,
     source_task_id,
+    version_id,
     report_type,
     status,
     title,
@@ -259,6 +270,7 @@ RETURNING
 		item.ID,
 		item.TenantID,
 		item.SourceTaskID,
+		item.VersionID,
 		item.ReportType,
 		item.Status,
 		item.Title,

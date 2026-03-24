@@ -35,10 +35,15 @@ type TaskStarter interface {
 	StartTask(ctx context.Context, task Task) error
 }
 
+type versionSource interface {
+	CurrentVersionID(ctx context.Context) (string, error)
+}
+
 // Service persists promoted tasks through a caller-provided store.
 type Service struct {
-	store   TaskStore
-	starter TaskStarter
+	store         TaskStore
+	starter       TaskStarter
+	versionSource versionSource
 }
 
 // NewService constructs the workflow promotion service.
@@ -55,25 +60,41 @@ func NewServiceWithStore(store TaskStore) *Service {
 // NewServiceWithHooks constructs the workflow promotion service with optional
 // runtime hooks.
 func NewServiceWithHooks(store TaskStore, starter TaskStarter) *Service {
+	return NewServiceWithDependencies(store, starter, nil)
+}
+
+// NewServiceWithDependencies constructs the workflow promotion service with optional
+// runtime hooks and version linkage.
+func NewServiceWithDependencies(store TaskStore, starter TaskStarter, currentVersion versionSource) *Service {
 	if store == nil {
 		store = NewMemoryStore()
 	}
 
 	return &Service{
-		store:   store,
-		starter: starter,
+		store:         store,
+		starter:       starter,
+		versionSource: currentVersion,
 	}
 }
 
 // Promote creates a new async task record from the current synchronous request.
 func (s *Service) Promote(ctx context.Context, req PromoteRequest) (Task, error) {
 	now := time.Now().UTC()
+	currentVersionID := ""
+	if s.versionSource != nil {
+		versionID, err := s.versionSource.CurrentVersionID(ctx)
+		if err != nil {
+			return Task{}, err
+		}
+		currentVersionID = versionID
+	}
 	task := Task{
 		ID:               newTaskID(now),
 		RequestID:        req.RequestID,
 		TenantID:         req.TenantID,
 		SessionID:        req.SessionID,
 		TaskType:         req.TaskType,
+		VersionID:        currentVersionID,
 		ToolName:         req.ToolName,
 		ToolArguments:    req.ToolArguments,
 		Status:           StatusQueued,

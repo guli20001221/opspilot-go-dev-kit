@@ -30,6 +30,7 @@ type traceDrilldownTemporalResponse struct {
 type traceDrilldownResponse struct {
 	Subject      traceDrilldownSubjectResponse   `json:"subject"`
 	Lineage      traceDrilldownLineageResponse   `json:"lineage"`
+	VersionID    string                          `json:"version_id,omitempty"`
 	RequestID    string                          `json:"request_id,omitempty"`
 	SessionID    string                          `json:"session_id,omitempty"`
 	TraceID      string                          `json:"trace_id,omitempty"`
@@ -76,6 +77,7 @@ func (a *appHandler) handleTraceDrilldown(w http.ResponseWriter, r *http.Request
 			ReportID: result.Lineage.ReportID,
 			CaseID:   result.Lineage.CaseID,
 		},
+		VersionID:    result.VersionID,
 		RequestID:    result.RequestID,
 		SessionID:    result.SessionID,
 		TraceID:      result.TraceID,

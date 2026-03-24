@@ -336,7 +336,7 @@ func TestRunnerFailsTaskWhenReportPersistenceFails(t *testing.T) {
 }
 
 func TestRunnerFallsBackToNonAtomicReportRecorder(t *testing.T) {
-	svc := NewService()
+	svc := NewServiceWithDependencies(nil, nil, fakeCurrentVersionSource{versionID: "version-runner-fallback-v1"})
 	recorder := &fakeNonAtomicReportRecorder{reportID: "report-task-non-atomic"}
 	runner := NewRunnerWithReports(svc, &fakeRunnerExecutor{
 		result: ExecutionResult{
@@ -376,11 +376,25 @@ func TestRunnerFallsBackToNonAtomicReportRecorder(t *testing.T) {
 	if recorder.lastTaskAuditRef != "temporal:workflow:task-1/run-1" {
 		t.Fatalf("recorder.lastTaskAuditRef = %q, want final success audit ref", recorder.lastTaskAuditRef)
 	}
+	if got.VersionID != "version-runner-fallback-v1" {
+		t.Fatalf("got.VersionID = %q, want %q", got.VersionID, "version-runner-fallback-v1")
+	}
+	if recorder.lastTaskVersionID != "version-runner-fallback-v1" {
+		t.Fatalf("recorder.lastTaskVersionID = %q, want %q", recorder.lastTaskVersionID, "version-runner-fallback-v1")
+	}
 }
 
 type fakeRunnerExecutor struct {
 	result ExecutionResult
 	err    error
+}
+
+type fakeCurrentVersionSource struct {
+	versionID string
+}
+
+func (s fakeCurrentVersionSource) CurrentVersionID(context.Context) (string, error) {
+	return s.versionID, nil
 }
 
 func (f *fakeRunnerExecutor) Execute(_ context.Context, _ Task) (ExecutionResult, error) {
@@ -398,12 +412,13 @@ type fakeReportRecorder struct {
 }
 
 type fakeNonAtomicReportRecorder struct {
-	reportID         string
-	err              error
-	calls            int
-	lastTaskID       string
-	lastTaskAuditRef string
-	lastTaskStatus   string
+	reportID          string
+	err               error
+	calls             int
+	lastTaskID        string
+	lastTaskAuditRef  string
+	lastTaskStatus    string
+	lastTaskVersionID string
 }
 
 func (f *fakeReportRecorder) RecordGeneratedReport(_ context.Context, task Task, _ ExecutionResult) (string, error) {
@@ -440,6 +455,7 @@ func (f *fakeNonAtomicReportRecorder) RecordGeneratedReport(_ context.Context, t
 	f.lastTaskID = task.ID
 	f.lastTaskAuditRef = task.AuditRef
 	f.lastTaskStatus = task.Status
+	f.lastTaskVersionID = task.VersionID
 	if f.err != nil {
 		return "", f.err
 	}

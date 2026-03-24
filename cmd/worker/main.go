@@ -14,6 +14,7 @@ import (
 	"opspilot-go/internal/report"
 	storagepostgres "opspilot-go/internal/storage/postgres"
 	toolregistry "opspilot-go/internal/tools/registry"
+	"opspilot-go/internal/version"
 	"opspilot-go/internal/workflow"
 
 	temporalworker "go.temporal.io/sdk/worker"
@@ -39,8 +40,9 @@ func main() {
 	}
 	defer pool.Close()
 
-	service := workflow.NewServiceWithStore(storagepostgres.NewWorkflowTaskStore(pool))
-	reportService := report.NewServiceWithStore(storagepostgres.NewReportStore(pool))
+	versionService := version.NewServiceWithStore(storagepostgres.NewVersionStore(pool))
+	service := workflow.NewServiceWithDependencies(storagepostgres.NewWorkflowTaskStore(pool), nil, versionService)
+	reportService := report.NewServiceWithDependencies(storagepostgres.NewReportStore(pool), versionService)
 	executor := workflow.Executor(workflow.NewPlaceholderExecutor())
 	registry := toolregistry.NewDefaultRegistryWithOptions(toolregistry.Options{
 		TicketAPIBaseURL: cfg.TicketAPIBaseURL,

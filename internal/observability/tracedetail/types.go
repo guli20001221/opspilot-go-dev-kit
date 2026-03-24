@@ -40,6 +40,7 @@ type TemporalRef struct {
 type Result struct {
 	Subject      Subject
 	Lineage      Lineage
+	VersionID    string
 	RequestID    string
 	SessionID    string
 	TraceID      string

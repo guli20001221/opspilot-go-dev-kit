@@ -453,6 +453,92 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
+  /api/v1/versions:
+    get:
+      summary: List durable runtime versions
+      description: |
+        Returns durable runtime version snapshots ordered by `created_at` descending.
+        This is the canonical registry for reproducibility metadata such as planner, retrieval,
+        tool, critic, and workflow version references.
+      operationId: listVersions
+      parameters:
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            default: 20
+        - name: offset
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 0
+            default: 0
+      responses:
+        '200':
+          description: Version page returned.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ListVersionsResponse'
+        '400':
+          description: Invalid query.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '405':
+          description: Method not allowed.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Version list failed.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+  /api/v1/versions/{version_id}:
+    get:
+      summary: Get a durable runtime version
+      description: |
+        Returns one durable runtime version snapshot by stable `version_id`.
+        Operators use this contract to explain which runtime bundle produced a task, report, or trace drill-down.
+      operationId: getVersion
+      parameters:
+        - name: version_id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Version returned.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Version'
+        '404':
+          description: Version not found.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '405':
+          description: Method not allowed.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Version lookup failed.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
   /api/v1/reports:
     get:
       summary: List durable reports
@@ -1297,6 +1383,8 @@ components:
           enum:
             - report_generation
             - approved_tool_execution
+        version_id:
+          type: string
         status:
           type: string
           enum:
@@ -1346,6 +1434,59 @@ components:
               type: array
               items:
                 $ref: '#/components/schemas/TaskAuditEvent'
+    Version:
+      type: object
+      required:
+        - version_id
+        - runtime_version
+        - prompt_bundle
+        - planner_version
+        - retrieval_version
+        - tool_registry_version
+        - critic_version
+        - workflow_version
+        - created_at
+      properties:
+        version_id:
+          type: string
+        runtime_version:
+          type: string
+        provider:
+          type: string
+        model:
+          type: string
+        prompt_bundle:
+          type: string
+        planner_version:
+          type: string
+        retrieval_version:
+          type: string
+        tool_registry_version:
+          type: string
+        critic_version:
+          type: string
+        workflow_version:
+          type: string
+        notes:
+          type: string
+        created_at:
+          type: string
+          format: date-time
+    ListVersionsResponse:
+      type: object
+      required:
+        - versions
+        - has_more
+      properties:
+        versions:
+          type: array
+          items:
+            $ref: '#/components/schemas/Version'
+        has_more:
+          type: boolean
+        next_offset:
+          type: integer
+          minimum: 0
     Report:
       type: object
       required:
@@ -1363,6 +1504,8 @@ components:
         tenant_id:
           type: string
         source_task_id:
+          type: string
+        version_id:
           type: string
         report_type:
           type: string
@@ -1408,6 +1551,7 @@ components:
       required:
         - same_tenant
         - same_report_type
+        - version_changed
         - source_task_changed
         - title_changed
         - summary_changed
@@ -1420,6 +1564,8 @@ components:
         same_tenant:
           type: boolean
         same_report_type:
+          type: boolean
+        version_changed:
           type: boolean
         source_task_changed:
           type: boolean
@@ -1495,6 +1641,8 @@ components:
           $ref: '#/components/schemas/TraceDrilldownSubject'
         lineage:
           $ref: '#/components/schemas/TraceDrilldownLineage'
+        version_id:
+          type: string
         request_id:
           type: string
         session_id:

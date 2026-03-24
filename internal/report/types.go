@@ -22,6 +22,7 @@ type Report struct {
 	ID           string
 	TenantID     string
 	SourceTaskID string
+	VersionID    string
 	ReportType   string
 	Status       string
 	Title        string
@@ -54,6 +55,7 @@ type ListPage struct {
 type ComparisonSummary struct {
 	SameTenant         bool
 	SameReportType     bool
+	VersionChanged     bool
 	SourceTaskChanged  bool
 	TitleChanged       bool
 	SummaryChanged     bool

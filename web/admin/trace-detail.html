@@ -146,6 +146,7 @@
         <a class="link-chip" href="/admin/reports">Open Reports</a>
         <a class="link-chip" href="/admin/report-compare">Open Report Compare</a>
         <a class="link-chip" href="/admin/cases">Open Cases</a>
+        <a class="link-chip" href="/admin/version-detail">Open Version Detail</a>
       </div>
     </section>
 
@@ -206,6 +207,7 @@
             <dl class="detail-card"><dt>Request ID</dt><dd id="request-id">-</dd></dl>
             <dl class="detail-card"><dt>Session ID</dt><dd id="session-id">-</dd></dl>
             <dl class="detail-card"><dt>Trace ID</dt><dd id="trace-id">-</dd></dl>
+            <dl class="detail-card"><dt>Version ID</dt><dd id="version-id">-</dd></dl>
             <dl class="detail-card"><dt>Audit ref</dt><dd id="audit-ref">-</dd></dl>
             <dl class="detail-card"><dt>Task status</dt><dd id="task-status">-</dd></dl>
             <dl class="detail-card"><dt>Report status</dt><dd id="report-status">-</dd></dl>
@@ -224,6 +226,7 @@
               <a class="button-link ghost" id="open-task-board" href="/admin/task-board">Open Task Board</a>
               <a class="button-link ghost" id="open-reports" href="/admin/reports">Open Reports</a>
               <a class="button-link ghost" id="open-cases" href="/admin/cases">Open Cases</a>
+              <a class="button-link ghost" id="open-version" href="/admin/version-detail" hidden>Open Version Detail</a>
               <a class="button-link ghost" id="open-temporal" href="#" target="_blank" rel="noreferrer" hidden>Open Temporal history</a>
             </div>
           </div>
@@ -250,6 +253,7 @@
     const requestID = document.getElementById("request-id");
     const sessionID = document.getElementById("session-id");
     const traceID = document.getElementById("trace-id");
+    const versionID = document.getElementById("version-id");
     const auditRef = document.getElementById("audit-ref");
     const taskStatus = document.getElementById("task-status");
     const reportStatus = document.getElementById("report-status");
@@ -262,6 +266,7 @@
     const openTaskBoard = document.getElementById("open-task-board");
     const openReports = document.getElementById("open-reports");
     const openCases = document.getElementById("open-cases");
+    const openVersion = document.getElementById("open-version");
     const openTemporal = document.getElementById("open-temporal");
 
     function escapeHTML(value) {
@@ -314,6 +319,7 @@
       requestID.textContent = payload.request_id || "Unavailable";
       sessionID.textContent = payload.session_id || "Unavailable";
       traceID.textContent = payload.trace_id || "Unavailable";
+      versionID.textContent = payload.version_id || "Unavailable";
       auditRef.textContent = payload.audit_ref || "Unavailable";
       taskStatus.textContent = payload.task_status || "Unavailable";
       reportStatus.textContent = payload.report_status || "Unavailable";
@@ -334,6 +340,13 @@
       openCases.href = payload.lineage.case_id
         ? `/admin/cases?${tenantParam}case_id=${encodeURIComponent(payload.lineage.case_id)}&limit=10`
         : "/admin/cases";
+      if (payload.version_id) {
+        openVersion.hidden = false;
+        openVersion.href = `/admin/version-detail?version_id=${encodeURIComponent(payload.version_id)}`;
+      } else {
+        openVersion.hidden = true;
+        openVersion.href = "/admin/version-detail";
+      }
 
       if (payload.temporal) {
         openTemporal.hidden = false;

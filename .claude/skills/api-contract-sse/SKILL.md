@@ -42,6 +42,8 @@ Keep the HTTP surface explicit, documented, stable, and friendly to streaming ag
 11. When exposing lifecycle actions for durable follow-up objects such as cases, keep each transition explicit as its own endpoint, return the updated object, and surface invalid state transitions as explicit 409-style contract errors.
 12. When operators need to compare two durable artifacts such as reports, prefer a read-only compare endpoint with explicit left/right IDs and a typed summary instead of pushing diff logic into the client.
 13. When multiple operator pages need the same provenance context, prefer one read-only trace-drilldown endpoint with explicit lookup keys instead of duplicating trace-resolution logic across several page-specific contracts.
+14. When reproducibility depends on runtime bundle metadata, expose a stable version-registry read contract, such as `GET /api/v1/versions` and `GET /api/v1/versions/{version_id}`, instead of forcing clients to reconstruct planner, retrieval, tool, or workflow versions from task payloads.
+15. Once a durable version registry exists, propagate `version_id` through related task, report, compare, or trace read contracts instead of duplicating full runtime-version payloads on every endpoint.
 
 ## Output contract
 When you finish, always report:

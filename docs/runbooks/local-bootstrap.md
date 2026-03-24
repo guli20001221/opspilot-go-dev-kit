@@ -49,7 +49,10 @@ Successful build artifacts are emitted under `bin/`.
 - `GET /admin/task-board`
 - `GET /admin/cases`
 - `GET /admin/reports`
+- `GET /admin/version-detail`
 - `GET /api/v1/reports/{report_id}`
+- `GET /api/v1/versions`
+- `GET /api/v1/versions/{version_id}`
 - `GET /api/v1/cases`
 - `POST /api/v1/cases`
 - `GET /api/v1/cases/{case_id}`
@@ -97,6 +100,9 @@ The current chat stream implementation is a Milestone 1 skeleton:
 - enable `Auto refresh every 5s` on `/admin/reports` when you want the report lane and selected report detail to track newly completed reports without manual reload
 - use `Copy report summary` on `/admin/reports` when you need a compact, paste-ready handoff note for the selected successful report, and `Copy report link` when you want to share the exact filtered reports URL with the current report selected
 - the `/admin/reports` detail panel now reads report title, summary, and ready time from `GET /api/v1/reports/{report_id}`, while still using task detail for audit timeline and Temporal history handoff
+- open `http://localhost:18080/admin/version-detail` when you want the canonical runtime version registry and one-click handoff into a specific version snapshot
+- use `GET /api/v1/versions` when you need the current durable runtime version registry, and `GET /api/v1/versions/{version_id}` when you need the canonical reproducibility record behind a task, report, or trace drill-down
+- task, report, and trace responses now carry `version_id`, and the report, report-compare, and trace-detail admin pages hand off into `/admin/version-detail` using that stable reference instead of reconstructing runtime metadata in the browser
 - use `Show raw report JSON` on `/admin/reports` when you need the exact durable report artifact, and `Copy raw report JSON` when you want to paste that artifact into an incident or escalation thread
 - if a legacy successful report task has no durable report row yet, `/admin/reports` now falls back to task provenance and keeps the detail panel readable instead of failing the inspect flow
 - use `GET /api/v1/reports/report-<task_id>` when you need the canonical report read model behind a successful report task, without parsing task audit history yourself
@@ -134,6 +140,8 @@ docker compose exec -T postgres psql -U opspilot -d opspilot -f /docker-entrypoi
 docker compose exec -T postgres psql -U opspilot -d opspilot -f /docker-entrypoint-initdb.d/000007_case_close_fields.sql
 docker compose exec -T postgres psql -U opspilot -d opspilot -f /docker-entrypoint-initdb.d/000008_case_assignment_fields.sql
 docker compose exec -T postgres psql -U opspilot -d opspilot -f /docker-entrypoint-initdb.d/000009_case_notes.sql
+docker compose exec -T postgres psql -U opspilot -d opspilot -f /docker-entrypoint-initdb.d/000010_versions.sql
+docker compose exec -T postgres psql -U opspilot -d opspilot -f /docker-entrypoint-initdb.d/000011_version_refs.sql
 ```
 
 If you change Compose environment variables such as `OPSPILOT_POSTGRES_DSN`, `OPSPILOT_TEMPORAL_ENABLED`, or `OPSPILOT_WORKER_POLL_INTERVAL`, recreate the app containers instead of only restarting them:
