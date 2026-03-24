@@ -410,6 +410,7 @@
         <textarea id="caseNoteBody" aria-label="Case note body" rows="2" placeholder="Add an append-only case note" style="min-width: min(420px, 100%); border: 1px solid var(--line); border-radius: 18px; padding: 12px 14px; background: rgba(255, 255, 255, 0.92); color: var(--ink); resize: vertical;"></textarea>
         <button class="primary" id="addCaseNoteButton" type="button">Add note</button>
         <button class="primary" id="closeCaseButton" type="button" hidden>Close case</button>
+        <button class="primary" id="reopenCaseButton" type="button" hidden>Reopen case</button>
         <button class="ghost" id="copyCaseSummaryButton" type="button">Copy case summary</button>
         <button class="ghost" id="copyCaseLinkButton" type="button">Copy case link</button>
         <a class="button-link ghost" id="openCaseAPILink" href="#" hidden>Open case API detail</a>
@@ -418,7 +419,7 @@
         <a class="button-link ghost" id="openReportLink" href="#" hidden>Open source report</a>
         <a class="button-link ghost" id="openReportsLink" href="#" hidden>Open source report in Reports</a>
       </div>
-      <p class="panel-copy" id="detailStatusNote" style="margin-top: 12px;">Select an open case to close it or hand off its linked sources.</p>
+      <p class="panel-copy" id="detailStatusNote" style="margin-top: 12px;">Select a case to manage its lifecycle and hand off its linked sources.</p>
       <div id="caseDetail" class="empty">No case selected yet.</div>
     </section>
   </main>
@@ -427,6 +428,7 @@
     const listEndpoint = "/api/v1/cases";
     const detailEndpointBase = "/api/v1/cases/";
     const closeActionSuffix = "/close";
+    const reopenActionSuffix = "/reopen";
     const assignActionSuffix = "/assign";
     const taskEndpointBase = "/api/v1/tasks/";
     const reportEndpointBase = "/api/v1/reports/";
@@ -449,6 +451,7 @@
     const assignCaseButton = document.getElementById("assignCaseButton");
     const addCaseNoteButton = document.getElementById("addCaseNoteButton");
     const closeCaseButton = document.getElementById("closeCaseButton");
+    const reopenCaseButton = document.getElementById("reopenCaseButton");
     const copyCaseSummaryButton = document.getElementById("copyCaseSummaryButton");
     const copyCaseLinkButton = document.getElementById("copyCaseLinkButton");
     const openCasesQuickView = document.getElementById("openCasesQuickView");
@@ -687,6 +690,8 @@
       addCaseNoteButton.disabled = false;
       closeCaseButton.hidden = item.status !== "open";
       closeCaseButton.disabled = false;
+      reopenCaseButton.hidden = item.status !== "closed";
+      reopenCaseButton.disabled = false;
       copyCaseSummaryButton.disabled = false;
       copyCaseLinkButton.disabled = false;
       openCaseAPILink.hidden = false;
@@ -706,7 +711,7 @@
         openReportsLink.href = `/admin/reports?tenant_id=${encodeURIComponent(item.tenant_id)}&task_id=${encodeURIComponent(item.source_task_id)}`;
       }
       if (item.status === "closed") {
-        setDetailStatus(`Case already closed${item.closed_by ? ` by ${item.closed_by}` : ""}.`);
+        setDetailStatus(`Case already closed${item.closed_by ? ` by ${item.closed_by}` : ""}. Reopen it to return the case to the open queue.`);
       } else {
         setDetailStatus(`Case is open${item.assigned_to ? ` and assigned to ${item.assigned_to}` : " and currently unassigned"}.`);
       }
@@ -794,11 +799,12 @@
         assignCaseButton.hidden = true;
         addCaseNoteButton.hidden = true;
         closeCaseButton.hidden = true;
+        reopenCaseButton.hidden = true;
         openCaseAPILink.hidden = true;
         caseDetail.innerHTML = '<div class="empty">No case selected yet.</div>';
         syncSelectedRow();
         syncURL("");
-        setDetailStatus("Select an open case to close it or hand off its linked sources.");
+        setDetailStatus("Select a case to manage its lifecycle and hand off its linked sources.");
         return;
       }
 
@@ -809,6 +815,7 @@
         assignCaseButton.hidden = true;
         addCaseNoteButton.hidden = true;
         closeCaseButton.hidden = true;
+        reopenCaseButton.hidden = true;
         openCaseAPILink.hidden = true;
         caseDetail.innerHTML = '<div class="empty">Enter a tenant before opening case detail.</div>';
         syncSelectedRow();
@@ -820,6 +827,7 @@
       assignCaseButton.hidden = true;
       addCaseNoteButton.hidden = true;
       closeCaseButton.hidden = true;
+      reopenCaseButton.hidden = true;
       openCaseAPILink.hidden = true;
       caseDetail.innerHTML = '<div class="loading">Loading case detail...</div>';
       setDetailStatus("Loading case detail...");
@@ -836,6 +844,7 @@
         assignCaseButton.hidden = true;
         addCaseNoteButton.hidden = true;
         closeCaseButton.hidden = true;
+        reopenCaseButton.hidden = true;
         openCaseAPILink.hidden = true;
         setDetailStatus(error.message || "Unable to load case detail.", true);
         caseDetail.innerHTML = `<div class="empty">${escapeHTML(error.message || "Unable to load case detail.")}</div>`;
@@ -892,6 +901,7 @@
         assignCaseButton.hidden = true;
         addCaseNoteButton.hidden = true;
         closeCaseButton.hidden = true;
+        reopenCaseButton.hidden = true;
         openCaseAPILink.hidden = true;
         setDetailStatus("Unable to refresh the current case slice.", true);
         caseDetail.innerHTML = '<div class="empty">Unable to load case detail because the case list request failed.</div>';
@@ -983,6 +993,41 @@
       } catch (error) {
         closeCaseButton.disabled = false;
         setDetailStatus(error.message || "Unable to close case.", true);
+      }
+    });
+
+    reopenCaseButton.addEventListener("click", async () => {
+      if (!currentCaseID) return;
+      const tenantID = form.elements.namedItem("tenant_id").value.trim();
+      if (!tenantID) {
+        setDetailStatus("Tenant scope is required before reopening a case.", true);
+        return;
+      }
+
+      reopenCaseButton.disabled = true;
+      setDetailStatus("Reopening case...");
+      try {
+        const response = await fetch(`${detailEndpointBase}${encodeURIComponent(currentCaseID)}${reopenActionSuffix}?tenant_id=${encodeURIComponent(tenantID)}`, {
+          method: "POST",
+          headers: {
+            "Accept": "application/json",
+            "Content-Type": "application/json"
+          },
+          body: JSON.stringify({
+            reopened_by: caseActorInput.value.trim() || "cases-operator"
+          })
+        });
+        const payload = await response.json().catch(() => ({}));
+        if (!response.ok) {
+          throw new Error(payload.message || `Reopen case failed: ${response.statusText}`);
+        }
+        form.elements.namedItem("status").value = "open";
+        form.elements.namedItem("offset").value = "0";
+        setDetailStatus(`Case reopened by ${caseActorInput.value.trim() || "cases-operator"} and returned to the open queue.`);
+        await loadCases(currentCaseID);
+      } catch (error) {
+        reopenCaseButton.disabled = false;
+        setDetailStatus(error.message || "Unable to reopen case.", true);
       }
     });
 

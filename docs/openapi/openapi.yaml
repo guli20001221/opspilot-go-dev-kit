@@ -722,6 +722,52 @@ paths:
           description: Case close failed.
           content:
             application/json:
+                schema:
+                  $ref: '#/components/schemas/ErrorResponse'
+  /api/v1/cases/{case_id}/reopen:
+    post:
+      summary: Reopen a durable operator case
+      operationId: reopenCase
+      parameters:
+        - name: case_id
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: tenant_id
+          in: query
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ReopenCaseRequest'
+      responses:
+        '200':
+          description: Case reopened.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Case'
+        '400':
+          description: Invalid request.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Case not found.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '409':
+          description: Case not in a valid state for reopen.
+          content:
+            application/json:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
   /api/v1/cases/{case_id}/assign:
@@ -1193,6 +1239,11 @@ components:
       type: object
       properties:
         closed_by:
+          type: string
+    ReopenCaseRequest:
+      type: object
+      properties:
+        reopened_by:
           type: string
     AssignCaseRequest:
       type: object

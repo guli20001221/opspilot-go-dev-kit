@@ -242,6 +242,59 @@ func TestServiceCloseCaseRejectsClosedCase(t *testing.T) {
 	}
 }
 
+func TestServiceReopenCase(t *testing.T) {
+	svc := NewService()
+
+	created, err := svc.CreateCase(context.Background(), CreateInput{
+		TenantID: "tenant-1",
+		Title:    "Reopen me",
+	})
+	if err != nil {
+		t.Fatalf("CreateCase() error = %v", err)
+	}
+	if _, err := svc.CloseCase(context.Background(), created.ID, "operator-1"); err != nil {
+		t.Fatalf("CloseCase() error = %v", err)
+	}
+
+	reopened, err := svc.ReopenCase(context.Background(), created.ID, "operator-2")
+	if err != nil {
+		t.Fatalf("ReopenCase() error = %v", err)
+	}
+	if reopened.Status != StatusOpen {
+		t.Fatalf("ReopenCase().Status = %q, want %q", reopened.Status, StatusOpen)
+	}
+	if reopened.ClosedBy != "" {
+		t.Fatalf("ReopenCase().ClosedBy = %q, want empty", reopened.ClosedBy)
+	}
+
+	notes, err := svc.ListCaseNotes(context.Background(), created.ID, 10)
+	if err != nil {
+		t.Fatalf("ListCaseNotes() error = %v", err)
+	}
+	if len(notes) != 1 {
+		t.Fatalf("len(ListCaseNotes()) = %d, want %d", len(notes), 1)
+	}
+	if notes[0].Body != "case reopened by operator-2" {
+		t.Fatalf("notes[0].Body = %q, want %q", notes[0].Body, "case reopened by operator-2")
+	}
+}
+
+func TestServiceReopenCaseRejectsOpenCase(t *testing.T) {
+	svc := NewService()
+
+	created, err := svc.CreateCase(context.Background(), CreateInput{
+		TenantID: "tenant-1",
+		Title:    "Already open",
+	})
+	if err != nil {
+		t.Fatalf("CreateCase() error = %v", err)
+	}
+
+	if _, err := svc.ReopenCase(context.Background(), created.ID, "operator-1"); !errors.Is(err, ErrInvalidCaseState) {
+		t.Fatalf("ReopenCase() error = %v, want %v", err, ErrInvalidCaseState)
+	}
+}
+
 func TestServiceCloseCaseAllowsOnlyOneConcurrentCloser(t *testing.T) {
 	svc := NewService()
 

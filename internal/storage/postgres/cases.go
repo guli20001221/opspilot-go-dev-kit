@@ -313,6 +313,8 @@ RETURNING
     COALESCE(source_task_id, ''),
     COALESCE(source_report_id, ''),
     created_by,
+    assigned_to,
+    assigned_at,
     closed_by,
     created_at,
     updated_at`
@@ -335,6 +337,85 @@ RETURNING
 	}
 
 	return casesvc.Case{}, err
+}
+
+// Reopen atomically transitions a closed case back to open and appends an audit note.
+func (s *CaseStore) Reopen(ctx context.Context, caseID string, reopenedBy string, reopenedAt time.Time) (casesvc.Case, error) {
+	tx, err := s.pool.Begin(ctx)
+	if err != nil {
+		return casesvc.Case{}, fmt.Errorf("begin case reopen tx: %w", err)
+	}
+	defer tx.Rollback(ctx)
+
+	const query = `
+UPDATE cases
+SET status = $2,
+    closed_by = '',
+    updated_at = $3
+WHERE id = $1
+  AND status = $4
+RETURNING
+    id,
+    tenant_id,
+    status,
+    title,
+    summary,
+    COALESCE(source_task_id, ''),
+    COALESCE(source_report_id, ''),
+    created_by,
+    assigned_to,
+    assigned_at,
+    closed_by,
+    created_at,
+    updated_at`
+
+	row := tx.QueryRow(ctx, query, caseID, casesvc.StatusOpen, reopenedAt, casesvc.StatusClosed)
+	reopened, err := scanCase(row)
+	if err != nil {
+		if !errors.Is(err, casesvc.ErrCaseNotFound) {
+			return casesvc.Case{}, err
+		}
+
+		existing, getErr := s.Get(ctx, caseID)
+		if getErr != nil {
+			return casesvc.Case{}, getErr
+		}
+		if existing.Status != casesvc.StatusClosed {
+			return casesvc.Case{}, casesvc.ErrInvalidCaseState
+		}
+
+		return casesvc.Case{}, err
+	}
+
+	const noteQuery = `
+INSERT INTO case_notes (
+    id,
+    tenant_id,
+    case_id,
+    body,
+    created_by,
+    created_at
+) VALUES (
+    $1, $2, $3, $4, $5, $6
+)`
+	if _, err := tx.Exec(
+		ctx,
+		noteQuery,
+		fmt.Sprintf("case-note-%d-%s-reopen", reopenedAt.UnixNano(), caseID),
+		reopened.TenantID,
+		reopened.ID,
+		fmt.Sprintf("case reopened by %s", reopenedBy),
+		reopenedBy,
+		reopenedAt,
+	); err != nil {
+		return casesvc.Case{}, fmt.Errorf("insert reopen case note: %w", err)
+	}
+
+	if err := tx.Commit(ctx); err != nil {
+		return casesvc.Case{}, fmt.Errorf("commit case reopen tx: %w", err)
+	}
+
+	return reopened, nil
 }
 
 // Assign atomically assigns an open case using optimistic concurrency on updated_at.

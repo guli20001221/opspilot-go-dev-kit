@@ -683,6 +683,95 @@ func TestAssignCaseEndpointRejectsClosedCase(t *testing.T) {
 	}
 }
 
+func TestReopenCaseEndpoint(t *testing.T) {
+	caseService := casesvc.NewService()
+	created, err := caseService.CreateCase(context.Background(), casesvc.CreateInput{
+		TenantID: "tenant-1",
+		Title:    "Case to reopen",
+	})
+	if err != nil {
+		t.Fatalf("CreateCase() error = %v", err)
+	}
+	if _, err := caseService.CloseCase(context.Background(), created.ID, "operator-1"); err != nil {
+		t.Fatalf("CloseCase() error = %v", err)
+	}
+
+	server := httptest.NewServer(NewHandlerWithDependencies(Dependencies{Cases: caseService}))
+	defer server.Close()
+
+	req, err := http.NewRequest(http.MethodPost, server.URL+"/api/v1/cases/"+created.ID+"/reopen?tenant_id=tenant-1", bytes.NewBufferString(`{"reopened_by":"operator-2"}`))
+	if err != nil {
+		t.Fatalf("NewRequest() error = %v", err)
+	}
+	req.Header.Set("Content-Type", "application/json")
+
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatalf("Do() error = %v", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("StatusCode = %d, want %d", resp.StatusCode, http.StatusOK)
+	}
+
+	var got caseResponse
+	if err := json.NewDecoder(resp.Body).Decode(&got); err != nil {
+		t.Fatalf("Decode() error = %v", err)
+	}
+	if got.Status != casesvc.StatusOpen {
+		t.Fatalf("Status = %q, want %q", got.Status, casesvc.StatusOpen)
+	}
+	if got.ClosedBy != "" {
+		t.Fatalf("ClosedBy = %q, want empty", got.ClosedBy)
+	}
+
+	reloaded, err := caseService.GetCase(context.Background(), created.ID)
+	if err != nil {
+		t.Fatalf("GetCase() error = %v", err)
+	}
+	notes, err := caseService.ListCaseNotes(context.Background(), reloaded.ID, 10)
+	if err != nil {
+		t.Fatalf("ListCaseNotes() error = %v", err)
+	}
+	if len(notes) != 1 {
+		t.Fatalf("len(notes) = %d, want %d", len(notes), 1)
+	}
+	if notes[0].Body != "case reopened by operator-2" {
+		t.Fatalf("notes[0].Body = %q, want %q", notes[0].Body, "case reopened by operator-2")
+	}
+}
+
+func TestReopenCaseEndpointRejectsOpenCase(t *testing.T) {
+	caseService := casesvc.NewService()
+	created, err := caseService.CreateCase(context.Background(), casesvc.CreateInput{
+		TenantID: "tenant-1",
+		Title:    "Already open",
+	})
+	if err != nil {
+		t.Fatalf("CreateCase() error = %v", err)
+	}
+
+	server := httptest.NewServer(NewHandlerWithDependencies(Dependencies{Cases: caseService}))
+	defer server.Close()
+
+	req, err := http.NewRequest(http.MethodPost, server.URL+"/api/v1/cases/"+created.ID+"/reopen?tenant_id=tenant-1", bytes.NewBufferString(`{"reopened_by":"operator-2"}`))
+	if err != nil {
+		t.Fatalf("NewRequest() error = %v", err)
+	}
+	req.Header.Set("Content-Type", "application/json")
+
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatalf("Do() error = %v", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusConflict {
+		t.Fatalf("StatusCode = %d, want %d", resp.StatusCode, http.StatusConflict)
+	}
+}
+
 func TestAssignCaseEndpointRejectsStaleWrite(t *testing.T) {
 	store := &staleAssignStore{
 		item: casesvc.Case{
@@ -854,6 +943,13 @@ func (s *staleAssignStore) Assign(_ context.Context, caseID string, assignedTo s
 }
 
 func (s *staleAssignStore) Close(_ context.Context, caseID string, closedBy string, closedAt time.Time) (casesvc.Case, error) {
+	if s.item.ID != caseID {
+		return casesvc.Case{}, casesvc.ErrCaseNotFound
+	}
+	return casesvc.Case{}, casesvc.ErrInvalidCaseState
+}
+
+func (s *staleAssignStore) Reopen(_ context.Context, caseID string, reopenedBy string, reopenedAt time.Time) (casesvc.Case, error) {
 	if s.item.ID != caseID {
 		return casesvc.Case{}, casesvc.ErrCaseNotFound
 	}

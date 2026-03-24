@@ -172,6 +172,34 @@ func (s *memoryStore) Close(_ context.Context, caseID string, closedBy string, c
 	return item, nil
 }
 
+func (s *memoryStore) Reopen(_ context.Context, caseID string, reopenedBy string, reopenedAt time.Time) (Case, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	item, ok := s.records[caseID]
+	if !ok {
+		return Case{}, fmt.Errorf("%w: %s", ErrCaseNotFound, caseID)
+	}
+	if item.Status != StatusClosed {
+		return Case{}, ErrInvalidCaseState
+	}
+
+	item.Status = StatusOpen
+	item.ClosedBy = ""
+	item.UpdatedAt = reopenedAt
+	s.records[caseID] = item
+	s.notes[caseID] = append(s.notes[caseID], Note{
+		ID:        newCaseNoteID(reopenedAt),
+		TenantID:  item.TenantID,
+		CaseID:    item.ID,
+		Body:      fmt.Sprintf("case reopened by %s", reopenedBy),
+		CreatedBy: reopenedBy,
+		CreatedAt: reopenedAt,
+	})
+
+	return item, nil
+}
+
 func (s *memoryStore) Assign(_ context.Context, caseID string, assignedTo string, assignedAt time.Time, expectedUpdatedAt time.Time) (Case, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()

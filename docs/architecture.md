@@ -73,6 +73,7 @@ The current HTTP layer also exposes the same PostgreSQL-backed workflow records 
 - `GET /api/v1/cases` now exposes the first operator-facing case list with tenant, status, source-task, and source-report filters plus offset pagination
 - the same case list now supports explicit `assigned_to` and `unassigned_only` filtering so queue views can map cleanly onto owned and shared operator lanes without inventing frontend-only state
 - `POST /api/v1/cases/{case_id}/close` now provides the first case lifecycle mutation, recording `closed_by` while keeping case status transitions explicit and REST-first
+- `POST /api/v1/cases/{case_id}/reopen` now provides the inverse lifecycle mutation, returning a closed case to the open queue and appending a durable operator note for the reopen action
 - `POST /api/v1/cases/{case_id}/assign` now provides the first case ownership mutation, recording `assigned_to` and `assigned_at` while keeping ownership explicit and REST-first
 - `POST /api/v1/cases/{case_id}/notes` now provides append-only case collaboration, and `GET /api/v1/cases/{case_id}` returns recent notes without introducing a separate admin-only comment surface
 - the same report lane now reads report title, summary, and readiness metadata from the durable report endpoint while still reusing task detail for audit timeline and Temporal links
@@ -82,6 +83,7 @@ The current HTTP layer also exposes the same PostgreSQL-backed workflow records 
 - the same case page now also shows and appends recent notes, so operator handoff context lives on the case instead of being implied by task/report provenance
 - the same case page now defaults into an open-case queue view, adds `My open cases` and `Unassigned` shortcuts, and computes age/staleness from canonical `updated_at`
 - the same case page now also foregrounds operator queue slices by highlighting `My open cases` and `Unassigned`, and it surfaces task-only versus report-backed provenance directly from the canonical case contract
+- the same case page now also lets an operator reopen a closed case and return it directly to the open queue, instead of forcing a new case record for follow-up
 - the existing task-board and report-lane detail panes can now create durable cases by reusing `POST /api/v1/cases`, keeping case creation on canonical task/report surfaces instead of inventing admin-only write APIs
 - the task-board handoff now preserves durable report lineage for successful report tasks only when the durable report row actually exists, and otherwise degrades to a task-only case if the durable report lookup is missing or temporarily unavailable; the report-lane fallback path keeps case creation disabled until that row is present
 - the same report lane can now surface and copy the raw durable report JSON directly from the report endpoint, so artifact troubleshooting stays contract-first too

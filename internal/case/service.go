@@ -20,6 +20,7 @@ type Store interface {
 	ListNotes(ctx context.Context, caseID string, limit int) ([]Note, error)
 	Assign(ctx context.Context, caseID string, assignedTo string, assignedAt time.Time, expectedUpdatedAt time.Time) (Case, error)
 	Close(ctx context.Context, caseID string, closedBy string, closedAt time.Time) (Case, error)
+	Reopen(ctx context.Context, caseID string, reopenedBy string, reopenedAt time.Time) (Case, error)
 }
 
 // Service manages durable operator case records.
@@ -78,6 +79,12 @@ func (s *Service) ListCaseNotes(ctx context.Context, caseID string, limit int) (
 // CloseCase marks an operator case as closed.
 func (s *Service) CloseCase(ctx context.Context, caseID string, closedBy string) (Case, error) {
 	return s.store.Close(ctx, caseID, fallbackString(closedBy, "operator"), time.Now().UTC())
+}
+
+// ReopenCase returns a closed case back to the open queue.
+func (s *Service) ReopenCase(ctx context.Context, caseID string, reopenedBy string) (Case, error) {
+	reopenedAt := time.Now().UTC()
+	return s.store.Reopen(ctx, caseID, fallbackString(strings.TrimSpace(reopenedBy), "operator"), reopenedAt)
 }
 
 // AssignCase assigns an open case to an operator using optimistic concurrency.

@@ -342,6 +342,73 @@ func TestCaseStorePersistsClosedBy(t *testing.T) {
 	}
 }
 
+func TestCaseStoreCloseAndReopenRoundTrip(t *testing.T) {
+	dsn := os.Getenv("OPSPILOT_TEST_POSTGRES_DSN")
+	if dsn == "" {
+		t.Skip("OPSPILOT_TEST_POSTGRES_DSN not set")
+	}
+
+	ctx := context.Background()
+	pool, err := OpenPool(ctx, dsn)
+	if err != nil {
+		t.Fatalf("OpenPool() error = %v", err)
+	}
+	defer pool.Close()
+
+	applyMigration(t, ctx, pool)
+	if _, err := pool.Exec(ctx, "TRUNCATE case_notes, cases, reports, workflow_task_events, workflow_tasks RESTART IDENTITY CASCADE"); err != nil {
+		t.Fatalf("TRUNCATE case_notes, cases, reports, workflow_task_events, workflow_tasks error = %v", err)
+	}
+
+	store := NewCaseStore(pool)
+	now := time.Unix(1700002150, 0).UTC()
+	saved, err := store.Save(ctx, casesvc.Case{
+		ID:        "case-reopen-1",
+		TenantID:  "tenant-1",
+		Status:    casesvc.StatusOpen,
+		Title:     "Reopenable case",
+		CreatedBy: "operator-1",
+		CreatedAt: now,
+		UpdatedAt: now,
+	})
+	if err != nil {
+		t.Fatalf("Save() error = %v", err)
+	}
+
+	closed, err := store.Close(ctx, saved.ID, "operator-2", now.Add(time.Second))
+	if err != nil {
+		t.Fatalf("Close() error = %v", err)
+	}
+	if closed.Status != casesvc.StatusClosed {
+		t.Fatalf("Close().Status = %q, want %q", closed.Status, casesvc.StatusClosed)
+	}
+	if closed.ClosedBy != "operator-2" {
+		t.Fatalf("Close().ClosedBy = %q, want %q", closed.ClosedBy, "operator-2")
+	}
+
+	reopened, err := store.Reopen(ctx, saved.ID, "operator-3", now.Add(2*time.Second))
+	if err != nil {
+		t.Fatalf("Reopen() error = %v", err)
+	}
+	if reopened.Status != casesvc.StatusOpen {
+		t.Fatalf("Reopen().Status = %q, want %q", reopened.Status, casesvc.StatusOpen)
+	}
+	if reopened.ClosedBy != "" {
+		t.Fatalf("Reopen().ClosedBy = %q, want empty", reopened.ClosedBy)
+	}
+
+	notes, err := store.ListNotes(ctx, saved.ID, 10)
+	if err != nil {
+		t.Fatalf("ListNotes() error = %v", err)
+	}
+	if len(notes) != 1 {
+		t.Fatalf("len(ListNotes()) = %d, want %d", len(notes), 1)
+	}
+	if notes[0].Body != "case reopened by operator-3" {
+		t.Fatalf("notes[0].Body = %q, want %q", notes[0].Body, "case reopened by operator-3")
+	}
+}
+
 func TestCaseStorePersistsAssignee(t *testing.T) {
 	dsn := os.Getenv("OPSPILOT_TEST_POSTGRES_DSN")
 	if dsn == "" {
