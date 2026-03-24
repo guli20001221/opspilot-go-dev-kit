@@ -84,6 +84,7 @@ func (a *appHandler) registerRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("/admin/task-board", a.handleAdminTaskBoardPage)
 	mux.HandleFunc("/admin/cases", a.handleAdminCasesPage)
 	mux.HandleFunc("/admin/reports", a.handleAdminReportsPage)
+	mux.HandleFunc("/admin/report-compare", a.handleAdminReportComparePage)
 	mux.HandleFunc("/api/v1/sessions", a.handleSessions)
 	mux.HandleFunc("/api/v1/sessions/", a.handleSessionMessages)
 	mux.HandleFunc("/api/v1/admin/task-board", a.handleAdminTaskBoard)
@@ -93,6 +94,7 @@ func (a *appHandler) registerRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("/api/v1/tasks/", a.handleTaskByID)
 	mux.HandleFunc("/api/v1/reports", a.handleReports)
 	mux.HandleFunc("/api/v1/reports/", a.handleReportByID)
+	mux.HandleFunc("/api/v1/report-compare", a.handleReportCompare)
 	mux.HandleFunc("/api/v1/chat/stream", a.handleChatStream)
 }
 
@@ -139,6 +141,21 @@ func (a *appHandler) handleAdminReportsPage(w http.ResponseWriter, r *http.Reque
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	w.WriteHeader(http.StatusOK)
 	_, _ = w.Write(adminweb.ReportsHTML())
+}
+
+func (a *appHandler) handleAdminReportComparePage(w http.ResponseWriter, r *http.Request) {
+	if r.URL.Path != "/admin/report-compare" {
+		writeError(w, http.StatusNotFound, "not_found", "not found")
+		return
+	}
+	if r.Method != http.MethodGet {
+		writeError(w, http.StatusMethodNotAllowed, "method_not_allowed", "method not allowed")
+		return
+	}
+
+	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	w.WriteHeader(http.StatusOK)
+	_, _ = w.Write(adminweb.ReportCompareHTML())
 }
 
 func (a *appHandler) handleSessions(w http.ResponseWriter, r *http.Request) {

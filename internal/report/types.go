@@ -49,3 +49,24 @@ type ListPage struct {
 	HasMore    bool
 	NextOffset int
 }
+
+// ComparisonSummary captures the operator-facing differences between two reports.
+type ComparisonSummary struct {
+	SameTenant         bool
+	SameReportType     bool
+	SourceTaskChanged  bool
+	TitleChanged       bool
+	SummaryChanged     bool
+	ContentURIChanged  bool
+	MetadataChanged    bool
+	CreatedAtChanged   bool
+	ReadyAtChanged     bool
+	ReadyAtDeltaSecond int64
+}
+
+// Comparison holds two durable reports and their derived comparison summary.
+type Comparison struct {
+	Left    Report
+	Right   Report
+	Summary ComparisonSummary
+}

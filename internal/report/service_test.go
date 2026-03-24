@@ -150,3 +150,107 @@ func TestServiceListReportsAppliesFiltersAndPagination(t *testing.T) {
 		t.Fatalf("HasMore = true, want false on final page")
 	}
 }
+
+func TestServiceCompareReportsBuildsOperatorFacingSummary(t *testing.T) {
+	svc := NewService()
+	ctx := context.Background()
+
+	leftReady := time.Unix(1700004000, 0).UTC()
+	rightReady := time.Unix(1700004012, 0).UTC()
+	left := Report{
+		ID:           "report-compare-left",
+		TenantID:     "tenant-compare",
+		SourceTaskID: "task-left",
+		ReportType:   TypeWorkflowSummary,
+		Status:       StatusReady,
+		Title:        "Left Report",
+		Summary:      "left summary",
+		ContentURI:   "s3://reports/left",
+		MetadataJSON: json.RawMessage(`{"version":"v1"}`),
+		CreatedBy:    "worker",
+		CreatedAt:    time.Unix(1700003990, 0).UTC(),
+		ReadyAt:      &leftReady,
+	}
+	right := Report{
+		ID:           "report-compare-right",
+		TenantID:     "tenant-compare",
+		SourceTaskID: "task-right",
+		ReportType:   TypeWorkflowSummary,
+		Status:       StatusReady,
+		Title:        "Right Report",
+		Summary:      "right summary",
+		ContentURI:   "s3://reports/right",
+		MetadataJSON: json.RawMessage(`{"version":"v2"}`),
+		CreatedBy:    "worker",
+		CreatedAt:    time.Unix(1700003995, 0).UTC(),
+		ReadyAt:      &rightReady,
+	}
+	for _, item := range []Report{left, right} {
+		if _, err := svc.store.Save(ctx, item); err != nil {
+			t.Fatalf("Save(%s) error = %v", item.ID, err)
+		}
+	}
+
+	got, err := svc.CompareReports(ctx, left.ID, right.ID)
+	if err != nil {
+		t.Fatalf("CompareReports() error = %v", err)
+	}
+	if got.Left.ID != left.ID || got.Right.ID != right.ID {
+		t.Fatalf("comparison IDs = %#v, want %q and %q", got, left.ID, right.ID)
+	}
+	if !got.Summary.SameTenant || !got.Summary.SameReportType {
+		t.Fatalf("summary tenant/type = %#v, want same tenant and type", got.Summary)
+	}
+	if !got.Summary.SourceTaskChanged || !got.Summary.TitleChanged || !got.Summary.SummaryChanged {
+		t.Fatalf("summary diff flags = %#v, want source/title/summary changes", got.Summary)
+	}
+	if !got.Summary.ContentURIChanged || !got.Summary.MetadataChanged || !got.Summary.ReadyAtChanged {
+		t.Fatalf("summary content/metadata/ready flags = %#v, want changes", got.Summary)
+	}
+	if got.Summary.ReadyAtDeltaSecond != 12 {
+		t.Fatalf("ReadyAtDeltaSecond = %d, want 12", got.Summary.ReadyAtDeltaSecond)
+	}
+}
+
+func TestServiceCompareReportsIgnoresMetadataKeyOrder(t *testing.T) {
+	svc := NewService()
+	ctx := context.Background()
+
+	left := Report{
+		ID:           "report-compare-meta-left",
+		TenantID:     "tenant-compare",
+		SourceTaskID: "task-meta-left",
+		ReportType:   TypeWorkflowSummary,
+		Status:       StatusReady,
+		Title:        "Same",
+		Summary:      "Same",
+		MetadataJSON: json.RawMessage(`{"version":"v1","dataset":"incidents"}`),
+		CreatedBy:    "worker",
+		CreatedAt:    time.Unix(1700004100, 0).UTC(),
+	}
+	right := Report{
+		ID:           "report-compare-meta-right",
+		TenantID:     "tenant-compare",
+		SourceTaskID: "task-meta-right",
+		ReportType:   TypeWorkflowSummary,
+		Status:       StatusReady,
+		Title:        "Same",
+		Summary:      "Same",
+		MetadataJSON: json.RawMessage(`{"dataset":"incidents","version":"v1"}`),
+		CreatedBy:    "worker",
+		CreatedAt:    time.Unix(1700004100, 0).UTC(),
+	}
+	for _, item := range []Report{left, right} {
+		if _, err := svc.store.Save(ctx, item); err != nil {
+			t.Fatalf("Save(%s) error = %v", item.ID, err)
+		}
+	}
+
+	got, err := svc.CompareReports(ctx, left.ID, right.ID)
+	if err != nil {
+		t.Fatalf("CompareReports() error = %v", err)
+	}
+	if got.Summary.MetadataChanged {
+		t.Fatalf("MetadataChanged = true, want false for semantically identical JSON: %#v", got.Summary)
+	}
+}

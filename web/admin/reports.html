@@ -408,6 +408,7 @@
       <div class="hero-links">
         <a class="link-chip" href="/admin/task-board">Open Task Board</a>
         <a class="link-chip" href="/admin/cases">Open Cases</a>
+        <a class="link-chip" href="/admin/report-compare">Open Report Compare</a>
         <a class="link-chip" id="openBoardForCurrentLink" href="/admin/task-board">Open current report in Task Board</a>
       </div>
     </section>
@@ -725,6 +726,7 @@
       const taskBoardURL = task
         ? `/admin/task-board?tenant_id=${encodeURIComponent(task.tenant_id)}&task_id=${encodeURIComponent(task.task_id)}&status=succeeded&task_type=report_generation&offset=0&limit=${encodeURIComponent(form.elements.namedItem("limit").value || "10")}`
         : "/admin/task-board";
+      const compareURL = `/admin/report-compare?left_report_id=${encodeURIComponent(reportID)}`;
       openBoardForCurrentLink.href = taskBoardURL;
       setReportJSONActionsVisible(true);
       copyReportSummaryButton.hidden = false;
@@ -788,6 +790,7 @@
               <h3 style="margin-top:0;">Handoff</h3>
               <div class="actions">
                 <a class="button-link ghost" href="${taskBoardURL}">Open Task Board</a>
+                <a class="button-link ghost" href="${compareURL}">Open report compare</a>
                 <a class="button-link ghost" href="${reportAPIURL}" target="_blank" rel="noreferrer">Open report API detail</a>
                 ${task ? `<a class="button-link ghost" href="${taskEndpointBase}${encodeURIComponent(task.task_id)}" target="_blank" rel="noreferrer">Open task API detail</a>` : ""}
                 ${temporal ? `<a class="button-link ghost" href="http://localhost:8088/namespaces/default/workflows/${encodeURIComponent(temporal.workflowID)}/${encodeURIComponent(temporal.runID)}/history" target="_blank" rel="noreferrer">Open Temporal history</a>` : ""}

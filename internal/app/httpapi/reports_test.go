@@ -206,6 +206,97 @@ func TestListReportsRejectsInvalidReportType(t *testing.T) {
 	}
 }
 
+func TestReportCompareReturnsDerivedSummary(t *testing.T) {
+	reportService := report.NewService()
+	ctx := context.Background()
+	leftReady := time.Unix(1700005000, 0).UTC()
+	rightReady := time.Unix(1700005015, 0).UTC()
+	left := report.Report{
+		ID:           "report-http-compare-left",
+		TenantID:     "tenant-http-compare",
+		SourceTaskID: "task-http-left",
+		ReportType:   report.TypeWorkflowSummary,
+		Status:       report.StatusReady,
+		Title:        "Left",
+		Summary:      "left summary",
+		ContentURI:   "s3://left",
+		MetadataJSON: json.RawMessage(`{"version":"left"}`),
+		CreatedBy:    "worker",
+		CreatedAt:    time.Unix(1700004990, 0).UTC(),
+		ReadyAt:      &leftReady,
+	}
+	right := report.Report{
+		ID:           "report-http-compare-right",
+		TenantID:     "tenant-http-compare",
+		SourceTaskID: "task-http-right",
+		ReportType:   report.TypeWorkflowSummary,
+		Status:       report.StatusReady,
+		Title:        "Right",
+		Summary:      "right summary",
+		ContentURI:   "s3://right",
+		MetadataJSON: json.RawMessage(`{"version":"right"}`),
+		CreatedBy:    "worker",
+		CreatedAt:    time.Unix(1700004995, 0).UTC(),
+		ReadyAt:      &rightReady,
+	}
+	for _, item := range []report.Report{left, right} {
+		if _, err := reportService.RecordGeneratedReport(ctx, workflow.Task{
+			ID:        item.SourceTaskID,
+			RequestID: "req-" + item.SourceTaskID,
+			TenantID:  item.TenantID,
+			SessionID: "session-" + item.SourceTaskID,
+			TaskType:  workflow.TaskTypeReportGeneration,
+			Reason:    workflow.PromotionReasonWorkflowRequired,
+			CreatedAt: item.CreatedAt,
+			UpdatedAt: *item.ReadyAt,
+		}, workflow.ExecutionResult{Detail: item.Summary}); err != nil {
+			t.Fatalf("RecordGeneratedReport(%s) error = %v", item.ID, err)
+		}
+	}
+
+	server := httptest.NewServer(NewHandlerWithDependencies(Dependencies{Reports: reportService}))
+	defer server.Close()
+
+	resp, err := http.Get(server.URL + "/api/v1/report-compare?left_report_id=report-task-http-left&right_report_id=report-task-http-right")
+	if err != nil {
+		t.Fatalf("Get() error = %v", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("StatusCode = %d, want %d", resp.StatusCode, http.StatusOK)
+	}
+
+	var body reportComparisonResponse
+	if err := json.NewDecoder(resp.Body).Decode(&body); err != nil {
+		t.Fatalf("Decode() error = %v", err)
+	}
+	if body.Left.ReportID != "report-task-http-left" || body.Right.ReportID != "report-task-http-right" {
+		t.Fatalf("comparison reports = %#v", body)
+	}
+	if !body.Summary.SameTenant || !body.Summary.SourceTaskChanged || !body.Summary.SummaryChanged {
+		t.Fatalf("summary = %#v, want same tenant and changed source/summary", body.Summary)
+	}
+	if body.Summary.ReadyAtDeltaSecond != 15 {
+		t.Fatalf("ReadyAtDeltaSecond = %d, want 15", body.Summary.ReadyAtDeltaSecond)
+	}
+}
+
+func TestReportCompareRejectsMissingRightReportID(t *testing.T) {
+	server := httptest.NewServer(NewHandlerWithDependencies(Dependencies{Reports: report.NewService()}))
+	defer server.Close()
+
+	resp, err := http.Get(server.URL + "/api/v1/report-compare?left_report_id=report-a")
+	if err != nil {
+		t.Fatalf("Get() error = %v", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusBadRequest {
+		t.Fatalf("StatusCode = %d, want %d", resp.StatusCode, http.StatusBadRequest)
+	}
+}
+
 func ptrTime(value time.Time) *time.Time {
 	return &value
 }

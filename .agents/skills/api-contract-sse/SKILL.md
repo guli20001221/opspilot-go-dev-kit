@@ -42,6 +42,7 @@ Keep the HTTP surface explicit, documented, stable, and friendly to streaming ag
 11. When async workflow execution produces a durable artifact such as a report, expose a stable artifact read endpoint separate from task status instead of forcing clients to reconstruct artifact metadata from task audit events.
 12. When a durable follow-up object such as a case links existing tasks or reports, validate tenant-safe source references at the API boundary and surface lineage mismatches as explicit 409-style contract errors.
 13. When exposing lifecycle actions for durable follow-up objects such as cases, keep each transition explicit as its own endpoint, return the updated object, and surface invalid state transitions as explicit 409-style contract errors.
+14. When operators need to compare two durable artifacts such as reports, prefer a read-only compare endpoint with explicit left/right IDs and a typed summary instead of pushing diff logic into the client.
 
 ## Output contract
 When you finish, always report:

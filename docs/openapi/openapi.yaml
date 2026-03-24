@@ -522,6 +522,55 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
+  /api/v1/report-compare:
+    get:
+      summary: Compare two durable reports
+      description: |
+        Returns a read-only comparison between two durable report artifacts.
+        This endpoint stays separate from report execution provenance so operators can compare artifacts without replaying workflow history in the client.
+      operationId: compareReports
+      parameters:
+        - name: left_report_id
+          in: query
+          required: true
+          schema:
+            type: string
+        - name: right_report_id
+          in: query
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Report comparison returned.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ReportComparison'
+        '400':
+          description: Invalid query.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: One or both reports not found.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '405':
+          description: Method not allowed.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Report comparison failed.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
   /api/v1/reports/{report_id}:
     get:
       summary: Get a generated report
@@ -1300,6 +1349,53 @@ components:
           type: boolean
         next_offset:
           type: integer
+    ReportComparisonSummary:
+      type: object
+      required:
+        - same_tenant
+        - same_report_type
+        - source_task_changed
+        - title_changed
+        - summary_changed
+        - content_uri_changed
+        - metadata_changed
+        - created_at_changed
+        - ready_at_changed
+        - ready_at_delta_second
+      properties:
+        same_tenant:
+          type: boolean
+        same_report_type:
+          type: boolean
+        source_task_changed:
+          type: boolean
+        title_changed:
+          type: boolean
+        summary_changed:
+          type: boolean
+        content_uri_changed:
+          type: boolean
+        metadata_changed:
+          type: boolean
+        created_at_changed:
+          type: boolean
+        ready_at_changed:
+          type: boolean
+        ready_at_delta_second:
+          type: integer
+    ReportComparison:
+      type: object
+      required:
+        - left
+        - right
+        - summary
+      properties:
+        left:
+          $ref: '#/components/schemas/Report'
+        right:
+          $ref: '#/components/schemas/Report'
+        summary:
+          $ref: '#/components/schemas/ReportComparisonSummary'
     CreateCaseRequest:
       type: object
       required:

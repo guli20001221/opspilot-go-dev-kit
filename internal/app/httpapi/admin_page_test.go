@@ -198,6 +198,9 @@ func TestAdminReportsPageRendersHTML(t *testing.T) {
 	if !strings.Contains(body, "Open Cases") {
 		t.Fatal("cases handoff link missing from reports page HTML")
 	}
+	if !strings.Contains(body, "/admin/report-compare") {
+		t.Fatal("report compare handoff link missing from reports page HTML")
+	}
 	if !strings.Contains(body, "Open current report in Task Board") {
 		t.Fatal("current report handoff link missing from reports page HTML")
 	}
@@ -221,6 +224,9 @@ func TestAdminReportsPageRendersHTML(t *testing.T) {
 	}
 	if !strings.Contains(body, "Open report API detail") {
 		t.Fatal("report api handoff link missing from reports page HTML")
+	}
+	if !strings.Contains(body, "Open report compare") {
+		t.Fatal("report compare detail handoff missing from reports page HTML")
 	}
 	if !strings.Contains(body, "Report ID") {
 		t.Fatal("report identity section missing from reports page HTML")
@@ -247,6 +253,63 @@ func TestAdminReportsPageRejectsUnknownSubpath(t *testing.T) {
 	defer server.Close()
 
 	resp, err := http.Get(server.URL + "/admin/reports/unknown")
+	if err != nil {
+		t.Fatalf("Get() error = %v", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusNotFound {
+		t.Fatalf("StatusCode = %d, want %d", resp.StatusCode, http.StatusNotFound)
+	}
+}
+
+func TestAdminReportComparePageRendersHTML(t *testing.T) {
+	server := httptest.NewServer(NewHandler())
+	defer server.Close()
+
+	resp, err := http.Get(server.URL + "/admin/report-compare")
+	if err != nil {
+		t.Fatalf("Get() error = %v", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("StatusCode = %d, want %d", resp.StatusCode, http.StatusOK)
+	}
+	if got := resp.Header.Get("Content-Type"); !strings.Contains(got, "text/html") {
+		t.Fatalf("Content-Type = %q, want text/html", got)
+	}
+
+	bodyBytes, err := io.ReadAll(resp.Body)
+	if err != nil {
+		t.Fatalf("ReadAll() error = %v", err)
+	}
+	body := string(bodyBytes)
+	if !strings.Contains(body, "<title>OpsPilot Report Compare</title>") {
+		t.Fatal("page title missing from report compare HTML")
+	}
+	if !strings.Contains(body, "/api/v1/report-compare") {
+		t.Fatal("report compare API path missing from page HTML")
+	}
+	if !strings.Contains(body, "/api/v1/reports/") {
+		t.Fatal("report detail API path missing from report compare page HTML")
+	}
+	if !strings.Contains(body, "Load comparison") {
+		t.Fatal("load comparison action missing from report compare HTML")
+	}
+	if !strings.Contains(body, "Swap reports") {
+		t.Fatal("swap reports action missing from report compare HTML")
+	}
+	if !strings.Contains(body, "Comparison summary") {
+		t.Fatal("comparison summary section missing from report compare HTML")
+	}
+}
+
+func TestAdminReportComparePageRejectsUnknownSubpath(t *testing.T) {
+	server := httptest.NewServer(NewHandler())
+	defer server.Close()
+
+	resp, err := http.Get(server.URL + "/admin/report-compare/unknown")
 	if err != nil {
 		t.Fatalf("Get() error = %v", err)
 	}

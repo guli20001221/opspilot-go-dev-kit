@@ -90,6 +90,8 @@ Current Milestone 1 slice:
 - the same reports page now degrades gracefully when a legacy successful report task has no durable report row yet, showing task provenance fallback instead of a broken detail pane
 - `GET /api/v1/reports` now exposes the durable report list contract with tenant, status, report-type, source-task, limit, and offset filters
 - `GET /api/v1/reports/{report_id}` now exposes the durable report read model emitted by a successful `report_generation` task
+- `GET /api/v1/report-compare` now exposes a read-only durable report comparison contract for left/right report IDs
+- `GET /admin/report-compare` now exposes the first report-comparison operator page, reusing durable report IDs instead of diffing artifacts ad hoc in the browser
 - `POST /api/v1/cases` and `GET /api/v1/cases/{case_id}` now expose a durable operator case contract for task/report follow-up
 - `POST /api/v1/cases/{case_id}/close` now lets operators close a durable case while recording `closed_by`
 - `POST /api/v1/cases/{case_id}/reopen` now returns a closed case back to the open queue and appends a durable operator note for the reopen action

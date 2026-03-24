@@ -3,7 +3,9 @@ package report
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
+	"reflect"
 	"time"
 
 	"opspilot-go/internal/workflow"
@@ -57,6 +59,32 @@ func (s *Service) ListReports(ctx context.Context, filter ListFilter) (ListPage,
 	}
 
 	return s.store.List(ctx, filter)
+}
+
+// CompareReports returns two durable reports plus an operator-facing summary
+// of the differences that matter for triage and regression review.
+func (s *Service) CompareReports(ctx context.Context, leftReportID string, rightReportID string) (Comparison, error) {
+	if leftReportID == "" {
+		return Comparison{}, errors.New("left_report_id is required")
+	}
+	if rightReportID == "" {
+		return Comparison{}, errors.New("right_report_id is required")
+	}
+
+	left, err := s.store.Get(ctx, leftReportID)
+	if err != nil {
+		return Comparison{}, err
+	}
+	right, err := s.store.Get(ctx, rightReportID)
+	if err != nil {
+		return Comparison{}, err
+	}
+
+	return Comparison{
+		Left:    left,
+		Right:   right,
+		Summary: buildComparisonSummary(left, right),
+	}, nil
 }
 
 // RecordGeneratedReport persists the durable report emitted by a successful task.
@@ -149,4 +177,57 @@ func fallbackString(value string, fallback string) string {
 	}
 
 	return fallback
+}
+
+func buildComparisonSummary(left Report, right Report) ComparisonSummary {
+	summary := ComparisonSummary{
+		SameTenant:        left.TenantID == right.TenantID,
+		SameReportType:    left.ReportType == right.ReportType,
+		SourceTaskChanged: left.SourceTaskID != right.SourceTaskID,
+		TitleChanged:      left.Title != right.Title,
+		SummaryChanged:    left.Summary != right.Summary,
+		ContentURIChanged: left.ContentURI != right.ContentURI,
+		MetadataChanged:   !equalJSON(left.MetadataJSON, right.MetadataJSON),
+		CreatedAtChanged:  !left.CreatedAt.Equal(right.CreatedAt),
+		ReadyAtChanged:    !equalOptionalTimes(left.ReadyAt, right.ReadyAt),
+	}
+	summary.ReadyAtDeltaSecond = deltaSeconds(left.ReadyAt, right.ReadyAt)
+
+	return summary
+}
+
+func equalOptionalTimes(left *time.Time, right *time.Time) bool {
+	if left == nil && right == nil {
+		return true
+	}
+	if left == nil || right == nil {
+		return false
+	}
+
+	return left.Equal(*right)
+}
+
+func deltaSeconds(left *time.Time, right *time.Time) int64 {
+	if left == nil || right == nil {
+		return 0
+	}
+
+	return int64(right.Sub(*left).Seconds())
+}
+
+func equalJSON(left json.RawMessage, right json.RawMessage) bool {
+	if len(left) == 0 && len(right) == 0 {
+		return true
+	}
+
+	var leftValue any
+	if err := json.Unmarshal(left, &leftValue); err != nil {
+		return string(left) == string(right)
+	}
+	var rightValue any
+	if err := json.Unmarshal(right, &rightValue); err != nil {
+		return string(left) == string(right)
+	}
+
+	return reflect.DeepEqual(leftValue, rightValue)
 }
