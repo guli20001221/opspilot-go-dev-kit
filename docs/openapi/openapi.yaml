@@ -512,6 +512,11 @@ paths:
             enum:
               - open
               - closed
+        - name: assigned_to
+          in: query
+          required: false
+          schema:
+            type: string
         - name: source_task_id
           in: query
           required: false

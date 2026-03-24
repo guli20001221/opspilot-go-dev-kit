@@ -281,6 +281,10 @@
             <input id="tenant_id" name="tenant_id" type="text" placeholder="tenant-admin-example">
           </div>
           <div class="field">
+            <label for="assigned_to">Assigned To</label>
+            <input id="assigned_to" name="assigned_to" type="text" placeholder="cases-operator">
+          </div>
+          <div class="field">
             <label for="status">Status</label>
             <select id="status" name="status">
               <option value="">All statuses</option>
@@ -309,6 +313,10 @@
             <button class="ghost" id="resetFilters" type="button">Reset</button>
           </div>
         </form>
+        <div class="actions" style="margin-top: 14px;">
+          <button class="ghost" id="openCasesQuickView" type="button">Open cases</button>
+          <button class="ghost" id="myOpenCasesQuickView" type="button">My open cases</button>
+        </div>
       </aside>
 
       <section class="panel">
@@ -339,6 +347,7 @@
                 <th>Status</th>
                 <th>Tenant</th>
                 <th>Assignee</th>
+                <th>Age</th>
                 <th>Sources</th>
                 <th>Updated</th>
                 <th>Inspect</th>
@@ -409,6 +418,8 @@
     const closeCaseButton = document.getElementById("closeCaseButton");
     const copyCaseSummaryButton = document.getElementById("copyCaseSummaryButton");
     const copyCaseLinkButton = document.getElementById("copyCaseLinkButton");
+    const openCasesQuickView = document.getElementById("openCasesQuickView");
+    const myOpenCasesQuickView = document.getElementById("myOpenCasesQuickView");
     const openCaseAPILink = document.getElementById("openCaseAPILink");
     const detailStatusNote = document.getElementById("detailStatusNote");
     const openTaskLink = document.getElementById("openTaskLink");
@@ -450,7 +461,7 @@
 
     function buildParams() {
       const params = new URLSearchParams();
-      for (const name of ["tenant_id", "status", "source_task_id", "source_report_id", "limit", "offset"]) {
+      for (const name of ["tenant_id", "assigned_to", "status", "source_task_id", "source_report_id", "limit", "offset"]) {
         const value = form.elements.namedItem(name).value.trim();
         if (value) params.set(name, value);
       }
@@ -477,6 +488,7 @@
         `title: ${item.title}`,
         `summary: ${item.summary || ""}`,
         `latest_note: ${item.notes && item.notes.length ? item.notes[0].body : "none"}`,
+        `age: ${fmtAge(item.updated_at)}`,
         `source_task_id: ${item.source_task_id || "none"}`,
         `source_report_id: ${item.source_report_id || "none"}`,
         `created_by: ${item.created_by}`,
@@ -491,10 +503,24 @@
 
     function readParamsFromURL() {
       const params = new URLSearchParams(window.location.search);
-      for (const name of ["tenant_id", "status", "source_task_id", "source_report_id", "limit", "offset"]) {
-        form.elements.namedItem(name).value = params.get(name) || (name === "limit" ? "10" : name === "offset" ? "0" : "");
+      for (const name of ["tenant_id", "assigned_to", "status", "source_task_id", "source_report_id", "limit", "offset"]) {
+        form.elements.namedItem(name).value = params.get(name) || (name === "status" ? "open" : name === "limit" ? "10" : name === "offset" ? "0" : "");
       }
       return params.get("case_id") || "";
+    }
+
+    function fmtAge(value) {
+      if (!value) return "Unknown";
+      const updated = new Date(value);
+      if (Number.isNaN(updated.valueOf())) return value;
+      const seconds = Math.max(0, Math.floor((Date.now() - updated.valueOf()) / 1000));
+      if (seconds < 60) return `${seconds}s`;
+      const minutes = Math.floor(seconds / 60);
+      if (minutes < 60) return `${minutes}m`;
+      const hours = Math.floor(minutes / 60);
+      if (hours < 24) return `${hours}h`;
+      const days = Math.floor(hours / 24);
+      return `${days}d`;
     }
 
     function syncSelectedRow() {
@@ -537,6 +563,10 @@
           <td>
             <strong>${escapeHTML(item.assigned_to || "Unassigned")}</strong>
             <small>${escapeHTML(item.assigned_at ? `assigned ${fmtDate(item.assigned_at)}` : "No assignment yet")}</small>
+          </td>
+          <td>
+            <strong>${escapeHTML(fmtAge(item.updated_at))}</strong>
+            <small>since last activity</small>
           </td>
           <td>
             <strong>${escapeHTML(item.source_task_id || "No task source")}</strong>
@@ -623,6 +653,10 @@
           <dl class="detail-card">
             <dt>Assigned at</dt>
             <dd>${escapeHTML(item.assigned_at ? fmtDate(item.assigned_at) : "Not assigned yet")}</dd>
+          </dl>
+          <dl class="detail-card">
+            <dt>Age</dt>
+            <dd>${escapeHTML(fmtAge(item.updated_at))}</dd>
           </dl>
           <dl class="detail-card">
             <dt>Closed by</dt>
@@ -789,7 +823,22 @@
 
     resetFiltersButton.addEventListener("click", () => {
       form.reset();
+      form.elements.namedItem("status").value = "open";
       form.elements.namedItem("limit").value = "10";
+      form.elements.namedItem("offset").value = "0";
+      loadCases("");
+    });
+
+    openCasesQuickView.addEventListener("click", () => {
+      form.elements.namedItem("status").value = "open";
+      form.elements.namedItem("assigned_to").value = "";
+      form.elements.namedItem("offset").value = "0";
+      loadCases("");
+    });
+
+    myOpenCasesQuickView.addEventListener("click", () => {
+      form.elements.namedItem("status").value = "open";
+      form.elements.namedItem("assigned_to").value = caseActorInput.value.trim() || "cases-operator";
       form.elements.namedItem("offset").value = "0";
       loadCases("");
     });

@@ -65,6 +65,7 @@ type CreateInput struct {
 type ListFilter struct {
 	TenantID       string
 	Status         string
+	AssignedTo     string
 	SourceTaskID   string
 	SourceReportID string
 	Limit          int

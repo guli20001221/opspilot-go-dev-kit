@@ -107,6 +107,7 @@ The current chat stream implementation is a Milestone 1 skeleton:
 - use `POST /api/v1/cases/{case_id}/assign?tenant_id=<tenant>` when you need to claim or reassign an open follow-up object and capture who owns it
 - use `POST /api/v1/cases/{case_id}/notes?tenant_id=<tenant>` when you need to append a durable operator note to the case timeline
 - open `http://localhost:18080/admin/cases` when you want the first case-focused operator page, including source task/report handoff links and the minimal `Close case` action
+- use the `My open cases` shortcut on `/admin/cases` when you want a queue view for the current operator handle without manually composing `status=open&assigned_to=<actor>`
 - use `Copy case summary` on `/admin/cases` when you need a compact, paste-ready handoff note, `Copy case link` when you want to share the exact filtered case-board URL, and `Open case API detail` when you want the canonical case JSON in a separate tab
 - use `Assign case` on `/admin/cases` when you need to put an open follow-up object into a named operator lane before continuing triage or handoff
 - use `Add note` on `/admin/cases` when you need to capture operator progress without mutating the case lifecycle

@@ -205,6 +205,57 @@ func TestListCasesEndpointSupportsFiltersAndOffset(t *testing.T) {
 	}
 }
 
+func TestListCasesEndpointSupportsAssignedToFilter(t *testing.T) {
+	caseService := casesvc.NewService()
+
+	first, err := caseService.CreateCase(context.Background(), casesvc.CreateInput{
+		TenantID: "tenant-1",
+		Title:    "Mine",
+	})
+	if err != nil {
+		t.Fatalf("CreateCase(first) error = %v", err)
+	}
+	second, err := caseService.CreateCase(context.Background(), casesvc.CreateInput{
+		TenantID: "tenant-1",
+		Title:    "Other",
+	})
+	if err != nil {
+		t.Fatalf("CreateCase(second) error = %v", err)
+	}
+	if _, err := caseService.AssignCase(context.Background(), first, "cases-operator"); err != nil {
+		t.Fatalf("AssignCase(first) error = %v", err)
+	}
+	if _, err := caseService.AssignCase(context.Background(), second, "other-operator"); err != nil {
+		t.Fatalf("AssignCase(second) error = %v", err)
+	}
+
+	server := httptest.NewServer(NewHandlerWithDependencies(Dependencies{
+		Cases: caseService,
+	}))
+	defer server.Close()
+
+	resp, err := http.Get(server.URL + "/api/v1/cases?tenant_id=tenant-1&status=open&assigned_to=cases-operator&limit=10")
+	if err != nil {
+		t.Fatalf("Get() error = %v", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("StatusCode = %d, want %d", resp.StatusCode, http.StatusOK)
+	}
+
+	var page listCasesResponse
+	if err := json.NewDecoder(resp.Body).Decode(&page); err != nil {
+		t.Fatalf("Decode() error = %v", err)
+	}
+	if len(page.Cases) != 1 {
+		t.Fatalf("len(page.Cases) = %d, want %d", len(page.Cases), 1)
+	}
+	if page.Cases[0].CaseID != first.ID {
+		t.Fatalf("page.Cases[0].CaseID = %q, want %q", page.Cases[0].CaseID, first.ID)
+	}
+}
+
 func TestListCasesEndpointRejectsInvalidOffset(t *testing.T) {
 	server := httptest.NewServer(NewHandler())
 	defer server.Close()

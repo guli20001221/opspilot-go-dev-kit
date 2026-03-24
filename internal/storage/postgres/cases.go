@@ -160,12 +160,13 @@ SELECT
 FROM cases
 WHERE ($1 = '' OR tenant_id = $1)
   AND ($2 = '' OR status = $2)
-  AND ($3 = '' OR source_task_id = $3)
-  AND ($4 = '' OR source_report_id = $4)
+  AND ($3 = '' OR assigned_to = $3)
+  AND ($4 = '' OR source_task_id = $4)
+  AND ($5 = '' OR source_report_id = $5)
 ORDER BY updated_at DESC, created_at DESC, id DESC
-LIMIT $5 OFFSET $6`
+LIMIT $6 OFFSET $7`
 
-	rows, err := s.pool.Query(ctx, query, filter.TenantID, filter.Status, filter.SourceTaskID, filter.SourceReportID, limit+1, offset)
+	rows, err := s.pool.Query(ctx, query, filter.TenantID, filter.Status, filter.AssignedTo, filter.SourceTaskID, filter.SourceReportID, limit+1, offset)
 	if err != nil {
 		return casesvc.ListPage{}, fmt.Errorf("select cases: %w", err)
 	}

@@ -270,6 +270,9 @@ func TestAdminCasesPageRendersHTML(t *testing.T) {
 	if !strings.Contains(body, "/api/v1/cases/") {
 		t.Fatal("case detail API path missing from page HTML")
 	}
+	if !strings.Contains(body, "Assigned To") {
+		t.Fatal("assignee filter missing from cases page HTML")
+	}
 	if !strings.Contains(body, "Open source task") {
 		t.Fatal("source task handoff missing from cases page HTML")
 	}
@@ -287,6 +290,15 @@ func TestAdminCasesPageRendersHTML(t *testing.T) {
 	}
 	if !strings.Contains(body, "Recent notes") {
 		t.Fatal("case notes section missing from cases page HTML")
+	}
+	if !strings.Contains(body, "My open cases") {
+		t.Fatal("my-open-cases quick view missing from cases page HTML")
+	}
+	if !strings.Contains(body, "Open cases") {
+		t.Fatal("open-cases quick view missing from cases page HTML")
+	}
+	if !strings.Contains(body, "Age") {
+		t.Fatal("age indicator missing from cases page HTML")
 	}
 	if !strings.Contains(body, "Copy case summary") {
 		t.Fatal("case summary handoff missing from cases page HTML")

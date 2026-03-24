@@ -382,6 +382,7 @@ func parseCaseListFilter(r *http.Request) (casesvc.ListFilter, error) {
 	filter := casesvc.ListFilter{
 		TenantID:       r.URL.Query().Get("tenant_id"),
 		Status:         r.URL.Query().Get("status"),
+		AssignedTo:     r.URL.Query().Get("assigned_to"),
 		SourceTaskID:   r.URL.Query().Get("source_task_id"),
 		SourceReportID: r.URL.Query().Get("source_report_id"),
 		Limit:          20,

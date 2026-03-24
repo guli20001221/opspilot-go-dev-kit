@@ -118,6 +118,47 @@ func TestServiceListCasesSupportsFilterAndOffset(t *testing.T) {
 	}
 }
 
+func TestServiceListCasesSupportsAssignedToFilter(t *testing.T) {
+	svc := NewService()
+
+	first, err := svc.CreateCase(context.Background(), CreateInput{
+		TenantID: "tenant-1",
+		Title:    "Assigned to me",
+	})
+	if err != nil {
+		t.Fatalf("CreateCase(first) error = %v", err)
+	}
+	second, err := svc.CreateCase(context.Background(), CreateInput{
+		TenantID: "tenant-1",
+		Title:    "Assigned elsewhere",
+	})
+	if err != nil {
+		t.Fatalf("CreateCase(second) error = %v", err)
+	}
+	if _, err := svc.AssignCase(context.Background(), first, "cases-operator"); err != nil {
+		t.Fatalf("AssignCase(first) error = %v", err)
+	}
+	if _, err := svc.AssignCase(context.Background(), second, "other-operator"); err != nil {
+		t.Fatalf("AssignCase(second) error = %v", err)
+	}
+
+	page, err := svc.ListCases(context.Background(), ListFilter{
+		TenantID:   "tenant-1",
+		Status:     StatusOpen,
+		AssignedTo: "cases-operator",
+		Limit:      10,
+	})
+	if err != nil {
+		t.Fatalf("ListCases() error = %v", err)
+	}
+	if len(page.Cases) != 1 {
+		t.Fatalf("len(ListCases().Cases) = %d, want %d", len(page.Cases), 1)
+	}
+	if page.Cases[0].ID != first.ID {
+		t.Fatalf("ListCases().Cases[0].ID = %q, want %q", page.Cases[0].ID, first.ID)
+	}
+}
+
 func TestServiceCloseCase(t *testing.T) {
 	svc := NewService()
 

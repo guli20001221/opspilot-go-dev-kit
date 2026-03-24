@@ -72,6 +72,7 @@ Provide a practical operator UI for evaluation and runtime analysis while keepin
 44. For case handoff, prefer copy actions and deep links that reuse the canonical case detail response over inventing a separate case-export contract.
 45. Once cases have explicit ownership, prefer wiring assign or claim controls to the canonical case endpoint, such as `POST /api/v1/cases/{case_id}/assign`, instead of inventing admin-only ownership state.
 46. Prefer append-only case collaboration through `POST /api/v1/cases/{case_id}/notes` and `GET /api/v1/cases/{case_id}` note reads instead of inventing admin-only comment stores.
+47. When cases become operator-owned, prefer queue views built on canonical `GET /api/v1/cases` filters such as `status=open` and `assigned_to=<actor>` instead of frontend-only task lists.
 
 ## Output contract
 When you finish, always report:

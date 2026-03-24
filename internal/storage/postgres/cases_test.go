@@ -169,6 +169,72 @@ func TestCaseStoreListSupportsFiltersAndOffset(t *testing.T) {
 	}
 }
 
+func TestCaseStoreListSupportsAssignedToFilter(t *testing.T) {
+	dsn := os.Getenv("OPSPILOT_TEST_POSTGRES_DSN")
+	if dsn == "" {
+		t.Skip("OPSPILOT_TEST_POSTGRES_DSN not set")
+	}
+
+	ctx := context.Background()
+	pool, err := OpenPool(ctx, dsn)
+	if err != nil {
+		t.Fatalf("OpenPool() error = %v", err)
+	}
+	defer pool.Close()
+
+	applyMigration(t, ctx, pool)
+	if _, err := pool.Exec(ctx, "TRUNCATE case_notes, cases, reports, workflow_task_events, workflow_tasks RESTART IDENTITY CASCADE"); err != nil {
+		t.Fatalf("TRUNCATE case_notes, cases, reports, workflow_task_events, workflow_tasks error = %v", err)
+	}
+
+	store := NewCaseStore(pool)
+	now := time.Unix(1700002050, 0).UTC()
+	for _, item := range []casesvc.Case{
+		{
+			ID:         "case-assignee-1",
+			TenantID:   "tenant-1",
+			Status:     casesvc.StatusOpen,
+			Title:      "Mine",
+			CreatedBy:  "operator-1",
+			AssignedTo: "cases-operator",
+			AssignedAt: now.Add(time.Second),
+			CreatedAt:  now,
+			UpdatedAt:  now.Add(time.Second),
+		},
+		{
+			ID:         "case-assignee-2",
+			TenantID:   "tenant-1",
+			Status:     casesvc.StatusOpen,
+			Title:      "Other",
+			CreatedBy:  "operator-1",
+			AssignedTo: "other-operator",
+			AssignedAt: now.Add(2 * time.Second),
+			CreatedAt:  now.Add(2 * time.Second),
+			UpdatedAt:  now.Add(2 * time.Second),
+		},
+	} {
+		if _, err := store.Save(ctx, item); err != nil {
+			t.Fatalf("Save(%s) error = %v", item.ID, err)
+		}
+	}
+
+	page, err := store.List(ctx, casesvc.ListFilter{
+		TenantID:   "tenant-1",
+		Status:     casesvc.StatusOpen,
+		AssignedTo: "cases-operator",
+		Limit:      10,
+	})
+	if err != nil {
+		t.Fatalf("List() error = %v", err)
+	}
+	if len(page.Cases) != 1 {
+		t.Fatalf("len(List().Cases) = %d, want %d", len(page.Cases), 1)
+	}
+	if page.Cases[0].ID != "case-assignee-1" {
+		t.Fatalf("List().Cases[0].ID = %q, want %q", page.Cases[0].ID, "case-assignee-1")
+	}
+}
+
 func TestCaseStorePersistsClosedBy(t *testing.T) {
 	dsn := os.Getenv("OPSPILOT_TEST_POSTGRES_DSN")
 	if dsn == "" {
