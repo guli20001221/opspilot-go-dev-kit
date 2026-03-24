@@ -256,6 +256,77 @@ func TestListCasesEndpointSupportsAssignedToFilter(t *testing.T) {
 	}
 }
 
+func TestListCasesEndpointSupportsUnassignedOnlyFilter(t *testing.T) {
+	caseService := casesvc.NewService()
+
+	unassigned, err := caseService.CreateCase(context.Background(), casesvc.CreateInput{
+		TenantID: "tenant-1",
+		Title:    "Unassigned",
+	})
+	if err != nil {
+		t.Fatalf("CreateCase(unassigned) error = %v", err)
+	}
+	assigned, err := caseService.CreateCase(context.Background(), casesvc.CreateInput{
+		TenantID: "tenant-1",
+		Title:    "Assigned",
+	})
+	if err != nil {
+		t.Fatalf("CreateCase(assigned) error = %v", err)
+	}
+	if _, err := caseService.AssignCase(context.Background(), assigned, "cases-operator"); err != nil {
+		t.Fatalf("AssignCase() error = %v", err)
+	}
+
+	server := httptest.NewServer(NewHandlerWithDependencies(Dependencies{
+		Cases: caseService,
+	}))
+	defer server.Close()
+
+	resp, err := http.Get(server.URL + "/api/v1/cases?tenant_id=tenant-1&status=open&unassigned_only=true&limit=10")
+	if err != nil {
+		t.Fatalf("Get() error = %v", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("StatusCode = %d, want %d", resp.StatusCode, http.StatusOK)
+	}
+
+	var page listCasesResponse
+	if err := json.NewDecoder(resp.Body).Decode(&page); err != nil {
+		t.Fatalf("Decode() error = %v", err)
+	}
+	if len(page.Cases) != 1 {
+		t.Fatalf("len(page.Cases) = %d, want %d", len(page.Cases), 1)
+	}
+	if page.Cases[0].CaseID != unassigned.ID {
+		t.Fatalf("page.Cases[0].CaseID = %q, want %q", page.Cases[0].CaseID, unassigned.ID)
+	}
+}
+
+func TestListCasesEndpointRejectsInvalidUnassignedOnly(t *testing.T) {
+	server := httptest.NewServer(NewHandler())
+	defer server.Close()
+
+	resp, err := http.Get(server.URL + "/api/v1/cases?tenant_id=tenant-1&unassigned_only=maybe")
+	if err != nil {
+		t.Fatalf("Get() error = %v", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusBadRequest {
+		t.Fatalf("StatusCode = %d, want %d", resp.StatusCode, http.StatusBadRequest)
+	}
+
+	var got errorResponse
+	if err := json.NewDecoder(resp.Body).Decode(&got); err != nil {
+		t.Fatalf("Decode() error = %v", err)
+	}
+	if got.Code != "invalid_query" {
+		t.Fatalf("Code = %q, want %q", got.Code, "invalid_query")
+	}
+}
+
 func TestListCasesEndpointRejectsInvalidOffset(t *testing.T) {
 	server := httptest.NewServer(NewHandler())
 	defer server.Close()

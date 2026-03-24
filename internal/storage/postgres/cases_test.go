@@ -235,6 +235,69 @@ func TestCaseStoreListSupportsAssignedToFilter(t *testing.T) {
 	}
 }
 
+func TestCaseStoreListSupportsUnassignedOnlyFilter(t *testing.T) {
+	dsn := os.Getenv("OPSPILOT_TEST_POSTGRES_DSN")
+	if dsn == "" {
+		t.Skip("OPSPILOT_TEST_POSTGRES_DSN not set")
+	}
+
+	ctx := context.Background()
+	pool, err := OpenPool(ctx, dsn)
+	if err != nil {
+		t.Fatalf("OpenPool() error = %v", err)
+	}
+	defer pool.Close()
+
+	applyMigration(t, ctx, pool)
+	if _, err := pool.Exec(ctx, "TRUNCATE case_notes, cases, reports, workflow_task_events, workflow_tasks RESTART IDENTITY CASCADE"); err != nil {
+		t.Fatalf("TRUNCATE case_notes, cases, reports, workflow_task_events, workflow_tasks error = %v", err)
+	}
+
+	store := NewCaseStore(pool)
+	now := time.Unix(1700002060, 0).UTC()
+	unassigned, err := store.Save(ctx, casesvc.Case{
+		ID:        "case-unassigned-1",
+		TenantID:  "tenant-1",
+		Status:    casesvc.StatusOpen,
+		Title:     "Unassigned",
+		CreatedBy: "operator-1",
+		CreatedAt: now,
+		UpdatedAt: now,
+	})
+	if err != nil {
+		t.Fatalf("Save(unassigned) error = %v", err)
+	}
+	if _, err := store.Save(ctx, casesvc.Case{
+		ID:         "case-assigned-1",
+		TenantID:   "tenant-1",
+		Status:     casesvc.StatusOpen,
+		Title:      "Assigned",
+		CreatedBy:  "operator-1",
+		AssignedTo: "cases-operator",
+		AssignedAt: now.Add(time.Second),
+		CreatedAt:  now.Add(time.Second),
+		UpdatedAt:  now.Add(time.Second),
+	}); err != nil {
+		t.Fatalf("Save(assigned) error = %v", err)
+	}
+
+	page, err := store.List(ctx, casesvc.ListFilter{
+		TenantID:       "tenant-1",
+		Status:         casesvc.StatusOpen,
+		UnassignedOnly: true,
+		Limit:          10,
+	})
+	if err != nil {
+		t.Fatalf("List() error = %v", err)
+	}
+	if len(page.Cases) != 1 {
+		t.Fatalf("len(List().Cases) = %d, want %d", len(page.Cases), 1)
+	}
+	if page.Cases[0].ID != unassigned.ID {
+		t.Fatalf("List().Cases[0].ID = %q, want %q", page.Cases[0].ID, unassigned.ID)
+	}
+}
+
 func TestCaseStorePersistsClosedBy(t *testing.T) {
 	dsn := os.Getenv("OPSPILOT_TEST_POSTGRES_DSN")
 	if dsn == "" {

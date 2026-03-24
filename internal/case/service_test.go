@@ -159,6 +159,44 @@ func TestServiceListCasesSupportsAssignedToFilter(t *testing.T) {
 	}
 }
 
+func TestServiceListCasesSupportsUnassignedOnlyFilter(t *testing.T) {
+	svc := NewService()
+
+	unassigned, err := svc.CreateCase(context.Background(), CreateInput{
+		TenantID: "tenant-1",
+		Title:    "Unassigned",
+	})
+	if err != nil {
+		t.Fatalf("CreateCase(unassigned) error = %v", err)
+	}
+	assigned, err := svc.CreateCase(context.Background(), CreateInput{
+		TenantID: "tenant-1",
+		Title:    "Assigned",
+	})
+	if err != nil {
+		t.Fatalf("CreateCase(assigned) error = %v", err)
+	}
+	if _, err := svc.AssignCase(context.Background(), assigned, "cases-operator"); err != nil {
+		t.Fatalf("AssignCase() error = %v", err)
+	}
+
+	page, err := svc.ListCases(context.Background(), ListFilter{
+		TenantID:       "tenant-1",
+		Status:         StatusOpen,
+		UnassignedOnly: true,
+		Limit:          10,
+	})
+	if err != nil {
+		t.Fatalf("ListCases() error = %v", err)
+	}
+	if len(page.Cases) != 1 {
+		t.Fatalf("len(ListCases().Cases) = %d, want %d", len(page.Cases), 1)
+	}
+	if page.Cases[0].ID != unassigned.ID {
+		t.Fatalf("ListCases().Cases[0].ID = %q, want %q", page.Cases[0].ID, unassigned.ID)
+	}
+}
+
 func TestServiceCloseCase(t *testing.T) {
 	svc := NewService()
 

@@ -65,6 +65,9 @@ func (s *memoryStore) List(_ context.Context, filter ListFilter) (ListPage, erro
 		if filter.AssignedTo != "" && item.AssignedTo != filter.AssignedTo {
 			continue
 		}
+		if filter.UnassignedOnly && item.AssignedTo != "" {
+			continue
+		}
 		if filter.SourceTaskID != "" && item.SourceTaskID != filter.SourceTaskID {
 			continue
 		}

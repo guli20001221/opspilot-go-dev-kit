@@ -3,6 +3,7 @@ package httpapi
 import (
 	"encoding/json"
 	"errors"
+	"fmt"
 	"net/http"
 	"strconv"
 	"strings"
@@ -383,12 +384,20 @@ func parseCaseListFilter(r *http.Request) (casesvc.ListFilter, error) {
 		TenantID:       r.URL.Query().Get("tenant_id"),
 		Status:         r.URL.Query().Get("status"),
 		AssignedTo:     r.URL.Query().Get("assigned_to"),
+		UnassignedOnly: false,
 		SourceTaskID:   r.URL.Query().Get("source_task_id"),
 		SourceReportID: r.URL.Query().Get("source_report_id"),
 		Limit:          20,
 	}
 	if strings.TrimSpace(filter.TenantID) == "" {
 		return casesvc.ListFilter{}, errors.New("tenant_id is required")
+	}
+	if rawUnassignedOnly := r.URL.Query().Get("unassigned_only"); rawUnassignedOnly != "" {
+		value, err := strconv.ParseBool(rawUnassignedOnly)
+		if err != nil {
+			return casesvc.ListFilter{}, fmt.Errorf("unassigned_only must be a boolean")
+		}
+		filter.UnassignedOnly = value
 	}
 	if rawLimit := r.URL.Query().Get("limit"); rawLimit != "" {
 		limit, err := strconv.Atoi(rawLimit)

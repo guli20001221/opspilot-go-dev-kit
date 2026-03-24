@@ -68,7 +68,7 @@ Current Milestone 1 slice:
 - successful `report_generation` tasks now also persist a durable report read model, separate from task status, under `internal/report`
 - `internal/case` now holds the first durable operator case read model, linking follow-up work back to source tasks and reports through stable IDs
 - `GET /api/v1/cases` now exposes the first operator-facing case list with tenant, status, and source-link filters plus offset pagination
-- the same case list now supports `assigned_to` filtering, which powers operator queue views such as `My open cases`
+- the same case list now supports `assigned_to` and `unassigned_only` filtering, which powers operator queue views such as `My open cases` and `Unassigned`
 - approval-gated `approved_tool_execution` tasks now start a waiting Temporal workflow at promote time, fail the current Temporal run on execution error, and use retry to start a new failed-only Temporal run for the same task
 - `POST /api/v1/sessions` for session creation
 - `GET /api/v1/sessions/{session_id}/messages` for message listing

@@ -66,6 +66,7 @@ type ListFilter struct {
 	TenantID       string
 	Status         string
 	AssignedTo     string
+	UnassignedOnly bool
 	SourceTaskID   string
 	SourceReportID string
 	Limit          int

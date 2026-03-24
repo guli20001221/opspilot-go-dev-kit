@@ -71,7 +71,7 @@ The current HTTP layer also exposes the same PostgreSQL-backed workflow records 
 - `GET /api/v1/reports/{report_id}` now exposes the durable report artifact emitted by a successful report task without forcing clients to parse task audit history
 - `POST /api/v1/cases` and `GET /api/v1/cases/{case_id}` now expose the durable operator case contract, separate from task/report runtime status
 - `GET /api/v1/cases` now exposes the first operator-facing case list with tenant, status, source-task, and source-report filters plus offset pagination
-- the same case list now supports explicit `assigned_to` filtering so queue views can map cleanly onto operator ownership without inventing frontend-only state
+- the same case list now supports explicit `assigned_to` and `unassigned_only` filtering so queue views can map cleanly onto owned and shared operator lanes without inventing frontend-only state
 - `POST /api/v1/cases/{case_id}/close` now provides the first case lifecycle mutation, recording `closed_by` while keeping case status transitions explicit and REST-first
 - `POST /api/v1/cases/{case_id}/assign` now provides the first case ownership mutation, recording `assigned_to` and `assigned_at` while keeping ownership explicit and REST-first
 - `POST /api/v1/cases/{case_id}/notes` now provides append-only case collaboration, and `GET /api/v1/cases/{case_id}` returns recent notes without introducing a separate admin-only comment surface
@@ -80,7 +80,7 @@ The current HTTP layer also exposes the same PostgreSQL-backed workflow records 
 - the same case page now also supports copyable case summaries, shareable case links, and a direct jump into the canonical case-detail JSON without any admin-only debug contract
 - the same case page now also surfaces and updates assignment, so ownership stays in the canonical case contract instead of drifting into frontend-only state
 - the same case page now also shows and appends recent notes, so operator handoff context lives on the case instead of being implied by task/report provenance
-- the same case page now defaults into an open-case queue view, adds a `My open cases` shortcut, and computes age/staleness from canonical `updated_at`
+- the same case page now defaults into an open-case queue view, adds `My open cases` and `Unassigned` shortcuts, and computes age/staleness from canonical `updated_at`
 - the existing task-board and report-lane detail panes can now create durable cases by reusing `POST /api/v1/cases`, keeping case creation on canonical task/report surfaces instead of inventing admin-only write APIs
 - the same report lane can now surface and copy the raw durable report JSON directly from the report endpoint, so artifact troubleshooting stays contract-first too
 - the same report lane now falls back to task provenance when a legacy or partially recovered successful report task has no durable report row, so operator drill-down remains readable
