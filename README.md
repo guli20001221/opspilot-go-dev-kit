@@ -107,6 +107,7 @@ Current Milestone 1 slice:
 - `POST /api/v1/eval-datasets`, `GET /api/v1/eval-datasets`, and `GET /api/v1/eval-datasets/{dataset_id}` now expose the first durable dataset-draft contract plus its lightweight tenant-scoped browse surface
 - `POST /api/v1/eval-datasets/{dataset_id}/items` now lets operators append new durable eval cases into an existing draft dataset without rebuilding the dataset from scratch
 - `POST /api/v1/eval-datasets/{dataset_id}/publish` now freezes a draft dataset into an immutable published baseline with `published_by` and `published_at`
+- `POST /api/v1/eval-runs`, `GET /api/v1/eval-runs`, and `GET /api/v1/eval-runs/{run_id}` now expose the first durable eval-run kickoff contract, seeded only from published dataset baselines and intentionally stopping at queued run records before execution is wired
 - `GET /admin/cases` now exposes the first case-focused operator page, backed by the durable case contract and existing task/report handoff endpoints
 - that first `/admin/cases` page now supports the minimal close action while still handing operators back into the canonical task/report surfaces instead of inventing case-only detail contracts
 - the same `/admin/cases` page now also supports copyable case summaries, shareable case links, and a direct handoff into the canonical case API detail
@@ -120,6 +121,8 @@ Current Milestone 1 slice:
 - the same `/admin/evals` page now also supports `Add to dataset`, so operators can append the selected eval case into an existing draft dataset by stable dataset ID
 - `/admin/eval-datasets` now exposes the first dataset-focused operator page, backed by the canonical eval-dataset list/detail contracts instead of frontend-only saved views
 - the same `/admin/eval-datasets` page now also supports `Publish dataset`, and published datasets render as immutable read-only baselines instead of mutable drafts
+- the same `/admin/eval-datasets` page now also supports `Run dataset`, handing a published baseline straight into the shared `/admin/eval-runs` lane
+- `/admin/eval-runs` now exposes the first eval-run operator page, backed directly by the canonical run list/detail contracts with handoff back to datasets and evals
 - `/admin/task-board` and `/admin/reports` now both expose a `Create case` handoff that reuses `POST /api/v1/cases` and deep-links straight into `/admin/cases`
 - the task-board `Create case` handoff now preserves `source_report_id` for successful `report_generation` tasks when the durable report row exists, but degrades to a task-only case if that durable report lookup is missing or temporarily unavailable; the reports page disables case creation when the row is missing
 - successful report tasks now finalize their `succeeded` task state and durable report row together, so report `ready_at` and `metadata.audit_ref` stay aligned with the final task success event

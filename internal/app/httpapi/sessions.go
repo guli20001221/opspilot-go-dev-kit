@@ -23,6 +23,7 @@ type appHandler struct {
 	cases          *casesvc.Service
 	evalCases      *evalsvc.Service
 	evalDatasets   *evalsvc.DatasetService
+	evalRuns       *evalsvc.RunService
 	reports        *report.Service
 	traceDetails   *tracedetail.Service
 	sessions       *session.Service
@@ -65,7 +66,7 @@ type errorResponse struct {
 	Message string `json:"message"`
 }
 
-func newAppHandler(workflowService *workflow.Service, reportService *report.Service, caseService *casesvc.Service, evalCaseService *evalsvc.Service, evalDatasetService *evalsvc.DatasetService, versionService *version.Service, registry *toolregistry.Registry) *appHandler {
+func newAppHandler(workflowService *workflow.Service, reportService *report.Service, caseService *casesvc.Service, evalCaseService *evalsvc.Service, evalDatasetService *evalsvc.DatasetService, evalRunService *evalsvc.RunService, versionService *version.Service, registry *toolregistry.Registry) *appHandler {
 	sessionService := session.NewService()
 	if workflowService == nil {
 		workflowService = workflow.NewService()
@@ -86,12 +87,16 @@ func newAppHandler(workflowService *workflow.Service, reportService *report.Serv
 	if evalDatasetService == nil {
 		evalDatasetService = evalsvc.NewDatasetService(evalCaseService)
 	}
+	if evalRunService == nil {
+		evalRunService = evalsvc.NewRunService(evalDatasetService)
+	}
 
 	return &appHandler{
 		adminTaskBoard: admintaskboard.NewService(workflowService),
 		cases:          caseService,
 		evalCases:      evalCaseService,
 		evalDatasets:   evalDatasetService,
+		evalRuns:       evalRunService,
 		reports:        reportService,
 		traceDetails:   traceDetailService,
 		sessions:       sessionService,
@@ -106,6 +111,7 @@ func (a *appHandler) registerRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("/admin/cases", a.handleAdminCasesPage)
 	mux.HandleFunc("/admin/evals", a.handleAdminEvalsPage)
 	mux.HandleFunc("/admin/eval-datasets", a.handleAdminEvalDatasetsPage)
+	mux.HandleFunc("/admin/eval-runs", a.handleAdminEvalRunsPage)
 	mux.HandleFunc("/admin/reports", a.handleAdminReportsPage)
 	mux.HandleFunc("/admin/report-compare", a.handleAdminReportComparePage)
 	mux.HandleFunc("/admin/trace-detail", a.handleAdminTraceDetailPage)
@@ -119,6 +125,8 @@ func (a *appHandler) registerRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("/api/v1/eval-cases/", a.handleEvalCaseByID)
 	mux.HandleFunc("/api/v1/eval-datasets", a.handleEvalDatasets)
 	mux.HandleFunc("/api/v1/eval-datasets/", a.handleEvalDatasetByID)
+	mux.HandleFunc("/api/v1/eval-runs", a.handleEvalRuns)
+	mux.HandleFunc("/api/v1/eval-runs/", a.handleEvalRunByID)
 	mux.HandleFunc("/api/v1/tasks", a.handleTasks)
 	mux.HandleFunc("/api/v1/tasks/", a.handleTaskByID)
 	mux.HandleFunc("/api/v1/reports", a.handleReports)
@@ -188,6 +196,21 @@ func (a *appHandler) handleAdminEvalDatasetsPage(w http.ResponseWriter, r *http.
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	w.WriteHeader(http.StatusOK)
 	_, _ = w.Write(adminweb.EvalDatasetsHTML())
+}
+
+func (a *appHandler) handleAdminEvalRunsPage(w http.ResponseWriter, r *http.Request) {
+	if r.URL.Path != "/admin/eval-runs" {
+		writeError(w, http.StatusNotFound, "not_found", "not found")
+		return
+	}
+	if r.Method != http.MethodGet {
+		writeError(w, http.StatusMethodNotAllowed, "method_not_allowed", "method not allowed")
+		return
+	}
+
+	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	w.WriteHeader(http.StatusOK)
+	_, _ = w.Write(adminweb.EvalRunsHTML())
 }
 
 func (a *appHandler) handleAdminReportsPage(w http.ResponseWriter, r *http.Request) {

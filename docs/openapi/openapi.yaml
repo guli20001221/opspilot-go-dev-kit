@@ -1582,6 +1582,171 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
+  /api/v1/eval-runs:
+    get:
+      summary: List durable eval runs
+      description: |
+        Returns one tenant-scoped page of durable eval-run kickoff records.
+        This lane is intentionally lightweight and does not inline execution payloads.
+      operationId: listEvalRuns
+      parameters:
+        - name: tenant_id
+          in: query
+          required: true
+          schema:
+            type: string
+        - name: dataset_id
+          in: query
+          required: false
+          schema:
+            type: string
+        - name: status
+          in: query
+          required: false
+          schema:
+            type: string
+            enum:
+              - queued
+              - running
+              - succeeded
+              - failed
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            default: 20
+        - name: offset
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 0
+            default: 0
+      responses:
+        '200':
+          description: Eval-run page returned.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ListEvalRunsResponse'
+        '400':
+          description: Query was invalid.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '405':
+          description: Method not allowed.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Eval run list failed.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+    post:
+      summary: Create a durable eval run kickoff
+      description: |
+        Creates one durable queued eval run from a published dataset baseline.
+        The initial slice persists kickoff state before judge execution is wired.
+      operationId: createEvalRun
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateEvalRunRequest'
+      responses:
+        '201':
+          description: Eval run created.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/EvalRun'
+        '400':
+          description: Request body was invalid.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Dataset not found.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '405':
+          description: Method not allowed.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '409':
+          description: Dataset is not in a valid state for run kickoff.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Eval run creation failed.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+  /api/v1/eval-runs/{run_id}:
+    get:
+      summary: Get a durable eval run
+      description: |
+        Returns one durable eval run by stable ID.
+        Operators use this contract to inspect queued or terminal kickoff state.
+      operationId: getEvalRun
+      parameters:
+        - name: run_id
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: tenant_id
+          in: query
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Eval run returned.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/EvalRun'
+        '400':
+          description: Missing required tenant scope query.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Eval run not found.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '405':
+          description: Method not allowed.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Eval run lookup failed.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
   /api/v1/admin/task-board:
     get:
       summary: Get the admin task board view
@@ -2206,6 +2371,18 @@ components:
           type: string
         published_by:
           type: string
+    CreateEvalRunRequest:
+      type: object
+      required:
+        - tenant_id
+        - dataset_id
+      properties:
+        tenant_id:
+          type: string
+        dataset_id:
+          type: string
+        created_by:
+          type: string
     CaseNote:
       type: object
       required:
@@ -2450,6 +2627,68 @@ components:
           type: array
           items:
             $ref: '#/components/schemas/EvalDatasetSummary'
+        has_more:
+          type: boolean
+        next_offset:
+          type: integer
+          minimum: 0
+    EvalRun:
+      type: object
+      required:
+        - run_id
+        - tenant_id
+        - dataset_id
+        - dataset_name
+        - dataset_item_count
+        - status
+        - created_by
+        - created_at
+        - updated_at
+      properties:
+        run_id:
+          type: string
+        tenant_id:
+          type: string
+        dataset_id:
+          type: string
+        dataset_name:
+          type: string
+        dataset_item_count:
+          type: integer
+          minimum: 0
+        status:
+          type: string
+          enum:
+            - queued
+            - running
+            - succeeded
+            - failed
+        created_by:
+          type: string
+        error_reason:
+          type: string
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+        started_at:
+          type: string
+          format: date-time
+        finished_at:
+          type: string
+          format: date-time
+    ListEvalRunsResponse:
+      type: object
+      required:
+        - runs
+        - has_more
+      properties:
+        runs:
+          type: array
+          items:
+            $ref: '#/components/schemas/EvalRun'
         has_more:
           type: boolean
         next_offset:

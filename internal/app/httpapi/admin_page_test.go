@@ -387,6 +387,12 @@ func TestAdminEvalDatasetsPageRendersHTML(t *testing.T) {
 	if !strings.Contains(body, "Publish dataset") {
 		t.Fatal("dataset publish action missing from eval datasets page HTML")
 	}
+	if !strings.Contains(body, "Run dataset") {
+		t.Fatal("dataset run action missing from eval datasets page HTML")
+	}
+	if !strings.Contains(body, "/admin/eval-runs") {
+		t.Fatal("eval run lane handoff missing from eval datasets page HTML")
+	}
 	if !strings.Contains(body, "Published datasets are immutable baselines") {
 		t.Fatal("dataset published read-only note missing from eval datasets page HTML")
 	}
@@ -432,6 +438,58 @@ func TestAdminEvalDatasetsPageRejectsUnknownSubpath(t *testing.T) {
 	}
 	defer resp.Body.Close()
 
+	if resp.StatusCode != http.StatusNotFound {
+		t.Fatalf("StatusCode = %d, want %d", resp.StatusCode, http.StatusNotFound)
+	}
+}
+
+func TestAdminEvalRunsPageRendersHTML(t *testing.T) {
+	server := httptest.NewServer(NewHandler())
+	defer server.Close()
+
+	resp, err := http.Get(server.URL + "/admin/eval-runs")
+	if err != nil {
+		t.Fatalf("Get() error = %v", err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("StatusCode = %d, want %d", resp.StatusCode, http.StatusOK)
+	}
+	if got := resp.Header.Get("Content-Type"); !strings.Contains(got, "text/html") {
+		t.Fatalf("Content-Type = %q, want text/html", got)
+	}
+
+	bodyBytes, err := io.ReadAll(resp.Body)
+	if err != nil {
+		t.Fatalf("ReadAll() error = %v", err)
+	}
+	body := string(bodyBytes)
+	if !strings.Contains(body, "<title>OpsPilot Eval Runs</title>") {
+		t.Fatal("page title missing from eval runs HTML")
+	}
+	if !strings.Contains(body, "/api/v1/eval-runs") {
+		t.Fatal("eval run API path missing from eval runs page HTML")
+	}
+	if !strings.Contains(body, "Run Detail") {
+		t.Fatal("run detail section missing from eval runs page HTML")
+	}
+	if !strings.Contains(body, "Copy run summary") {
+		t.Fatal("run summary handoff missing from eval runs page HTML")
+	}
+	if !strings.Contains(body, "Open dataset lane") {
+		t.Fatal("dataset lane handoff missing from eval runs page HTML")
+	}
+}
+
+func TestAdminEvalRunsPageRejectsUnknownSubpath(t *testing.T) {
+	server := httptest.NewServer(NewHandler())
+	defer server.Close()
+
+	resp, err := http.Get(server.URL + "/admin/eval-runs/unknown")
+	if err != nil {
+		t.Fatalf("Get() error = %v", err)
+	}
+	defer resp.Body.Close()
 	if resp.StatusCode != http.StatusNotFound {
 		t.Fatalf("StatusCode = %d, want %d", resp.StatusCode, http.StatusNotFound)
 	}

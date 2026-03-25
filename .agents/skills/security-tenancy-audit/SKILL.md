@@ -43,6 +43,8 @@ Keep the agent platform safe for enterprise-style use by making identity, author
 11. Eval dataset list and detail reads must remain tenant-scoped; require `tenant_id` on browse/detail endpoints and never use dataset membership joins to leak cross-tenant lineage.
 12. Eval dataset membership append must validate both tenant scope and mutable dataset state before persisting a new row; treat duplicate adds as idempotent rather than as implicit cross-tenant or server errors.
 13. Eval dataset publish must validate both tenant scope and current lifecycle state; published datasets become immutable baselines and repeated publish attempts should fail as explicit invalid-state transitions.
+14. Eval run kickoff must validate tenant scope and require a published dataset baseline; do not allow draft datasets or cross-tenant dataset references to create durable run records.
+15. Eval run browse and detail reads must remain tenant-scoped; require `tenant_id` on list/detail endpoints and do not expose queued or terminal runs across tenants.
 
 ## Output contract
 When you finish, always report:

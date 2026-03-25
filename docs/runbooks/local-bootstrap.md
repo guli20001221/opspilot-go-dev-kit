@@ -67,6 +67,9 @@ Successful build artifacts are emitted under `bin/`.
 - `GET /api/v1/eval-datasets/{dataset_id}`
 - `POST /api/v1/eval-datasets/{dataset_id}/items`
 - `POST /api/v1/eval-datasets/{dataset_id}/publish`
+- `POST /api/v1/eval-runs`
+- `GET /api/v1/eval-runs`
+- `GET /api/v1/eval-runs/{run_id}`
 - `POST /api/v1/chat/stream`
 
 The current chat stream implementation is a Milestone 1 skeleton:
@@ -126,12 +129,17 @@ The current chat stream implementation is a Milestone 1 skeleton:
 - use `GET /api/v1/eval-datasets?tenant_id=<tenant>` when you need the lightweight dataset lane without pulling full membership payloads into the list response
 - use `POST /api/v1/eval-datasets/{dataset_id}/items` when you need to append another durable eval case into an existing draft dataset instead of creating a new draft
 - use `POST /api/v1/eval-datasets/{dataset_id}/publish` when curation is complete and you need an immutable baseline for later eval runs
+- use `POST /api/v1/eval-runs` when you need to create a durable queued eval run from a published dataset baseline
+- use `GET /api/v1/eval-runs?tenant_id=<tenant>` when you need the tenant-scoped eval-run kickoff queue
+- use `GET /api/v1/eval-runs/{run_id}?tenant_id=<tenant>` when you need the canonical run detail for one kickoff record
 - open `http://localhost:18080/admin/cases` when you want the first case-focused operator page, including source task/report handoff links and the minimal `Close case` action
 - open `http://localhost:18080/admin/evals` when you want the first eval-focused operator page, including durable eval detail plus case/task/report/version/trace handoff links
 - use `Create dataset draft` on `/admin/evals` when you want to seed a canonical dataset draft directly from the currently selected durable eval case
 - use `Add to dataset` on `/admin/evals` when you want to append the currently selected durable eval case into an existing dataset draft by ID
 - open `http://localhost:18080/admin/eval-datasets` when you want the first dataset-focused operator page, including dataset membership detail plus eval/case/task/report/version/trace handoff links
 - use `Publish dataset` on `/admin/eval-datasets` when you want to freeze the selected draft and make the page read-only for that baseline
+- use `Run dataset` on `/admin/eval-datasets` when you want to create a durable queued eval run from the selected published baseline and land on the matching `/admin/eval-runs` detail
+- open `http://localhost:18080/admin/eval-runs` when you want the first eval-run operator page, including run detail plus dataset and eval handoff links
 - use the `My open cases` shortcut on `/admin/cases` when you want a queue view for the current operator handle without manually composing `status=open&assigned_to=<actor>`
 - use the `Unassigned` shortcut on `/admin/cases` when you want the shared open backlog without manually composing `status=open&unassigned_only=true`
 - use `Copy case summary` on `/admin/cases` when you need a compact, paste-ready handoff note, `Copy case link` when you want to share the exact filtered case-board URL, and `Open case API detail` when you want the canonical case JSON in a separate tab
@@ -164,6 +172,8 @@ docker compose exec -T postgres psql -U opspilot -d opspilot -f /docker-entrypoi
 docker compose exec -T postgres psql -U opspilot -d opspilot -f /docker-entrypoint-initdb.d/000011_version_refs.sql
 docker compose exec -T postgres psql -U opspilot -d opspilot -f /docker-entrypoint-initdb.d/000012_eval_cases.sql
 docker compose exec -T postgres psql -U opspilot -d opspilot -f /docker-entrypoint-initdb.d/000013_eval_datasets.sql
+docker compose exec -T postgres psql -U opspilot -d opspilot -f /docker-entrypoint-initdb.d/000014_eval_dataset_publish_fields.sql
+docker compose exec -T postgres psql -U opspilot -d opspilot -f /docker-entrypoint-initdb.d/000015_eval_runs.sql
 ```
 
 If you change Compose environment variables such as `OPSPILOT_POSTGRES_DSN`, `OPSPILOT_TEMPORAL_ENABLED`, or `OPSPILOT_WORKER_POLL_INTERVAL`, recreate the app containers instead of only restarting them:

@@ -1,0 +1,165 @@
+package postgres
+
+import (
+	"context"
+	"os"
+	"testing"
+	"time"
+
+	evalsvc "opspilot-go/internal/eval"
+)
+
+func TestEvalRunStoreRoundTrip(t *testing.T) {
+	dsn := os.Getenv("OPSPILOT_TEST_POSTGRES_DSN")
+	if dsn == "" {
+		t.Skip("OPSPILOT_TEST_POSTGRES_DSN not set")
+	}
+
+	ctx := context.Background()
+	pool, err := OpenPool(ctx, dsn)
+	if err != nil {
+		t.Fatalf("OpenPool() error = %v", err)
+	}
+	defer pool.Close()
+
+	applyMigration(t, ctx, pool)
+	if _, err := pool.Exec(ctx, "TRUNCATE eval_runs, eval_dataset_items, eval_datasets, eval_cases, case_notes, cases, reports, workflow_task_events, workflow_tasks RESTART IDENTITY CASCADE"); err != nil {
+		t.Fatalf("TRUNCATE eval run and lineage tables error = %v", err)
+	}
+
+	store := NewEvalRunStore(pool)
+	want := evalsvc.EvalRun{
+		ID:               "eval-run-roundtrip",
+		TenantID:         "tenant-run",
+		DatasetID:        "eval-dataset-roundtrip",
+		DatasetName:      "Published baseline",
+		DatasetItemCount: 3,
+		Status:           evalsvc.RunStatusQueued,
+		CreatedBy:        "operator-run",
+		CreatedAt:        time.Unix(1700020000, 0).UTC(),
+		UpdatedAt:        time.Unix(1700020000, 0).UTC(),
+	}
+
+	if _, err := pool.Exec(ctx, `
+INSERT INTO eval_datasets (
+    id, tenant_id, name, description, status, created_by, created_at, updated_at, published_by, published_at
+) VALUES (
+    $1, $2, $3, '', $4, 'operator-publish', $5, $5, 'operator-publish', $5
+)`,
+		want.DatasetID,
+		want.TenantID,
+		want.DatasetName,
+		evalsvc.DatasetStatusPublished,
+		time.Unix(1700019900, 0).UTC(),
+	); err != nil {
+		t.Fatalf("seed eval_datasets error = %v", err)
+	}
+
+	created, err := store.CreateRun(ctx, want)
+	if err != nil {
+		t.Fatalf("CreateRun() error = %v", err)
+	}
+	if created.ID != want.ID {
+		t.Fatalf("ID = %q, want %q", created.ID, want.ID)
+	}
+
+	got, err := store.GetRun(ctx, want.ID)
+	if err != nil {
+		t.Fatalf("GetRun() error = %v", err)
+	}
+	if got.DatasetName != want.DatasetName {
+		t.Fatalf("DatasetName = %q, want %q", got.DatasetName, want.DatasetName)
+	}
+	if got.DatasetItemCount != want.DatasetItemCount {
+		t.Fatalf("DatasetItemCount = %d, want %d", got.DatasetItemCount, want.DatasetItemCount)
+	}
+}
+
+func TestEvalRunStoreListRunsSupportsFiltersAndPagination(t *testing.T) {
+	dsn := os.Getenv("OPSPILOT_TEST_POSTGRES_DSN")
+	if dsn == "" {
+		t.Skip("OPSPILOT_TEST_POSTGRES_DSN not set")
+	}
+
+	ctx := context.Background()
+	pool, err := OpenPool(ctx, dsn)
+	if err != nil {
+		t.Fatalf("OpenPool() error = %v", err)
+	}
+	defer pool.Close()
+
+	applyMigration(t, ctx, pool)
+	if _, err := pool.Exec(ctx, "TRUNCATE eval_runs, eval_dataset_items, eval_datasets, eval_cases, case_notes, cases, reports, workflow_task_events, workflow_tasks RESTART IDENTITY CASCADE"); err != nil {
+		t.Fatalf("TRUNCATE eval run and lineage tables error = %v", err)
+	}
+
+	if _, err := pool.Exec(ctx, `
+INSERT INTO eval_datasets (
+    id, tenant_id, name, description, status, created_by, created_at, updated_at, published_by, published_at
+) VALUES
+    ('eval-dataset-a', 'tenant-run', 'Dataset A', '', $1, 'operator', $2, $2, 'operator', $2),
+    ('eval-dataset-b', 'tenant-run', 'Dataset B', '', $1, 'operator', $3, $3, 'operator', $3)
+`,
+		evalsvc.DatasetStatusPublished,
+		time.Unix(1700019900, 0).UTC(),
+		time.Unix(1700019910, 0).UTC(),
+	); err != nil {
+		t.Fatalf("seed eval_datasets error = %v", err)
+	}
+
+	store := NewEvalRunStore(pool)
+	for _, item := range []evalsvc.EvalRun{
+		{
+			ID:               "eval-run-a",
+			TenantID:         "tenant-run",
+			DatasetID:        "eval-dataset-a",
+			DatasetName:      "Dataset A",
+			DatasetItemCount: 1,
+			Status:           evalsvc.RunStatusQueued,
+			CreatedBy:        "operator-a",
+			CreatedAt:        time.Unix(1700020000, 0).UTC(),
+			UpdatedAt:        time.Unix(1700020000, 0).UTC(),
+		},
+		{
+			ID:               "eval-run-b",
+			TenantID:         "tenant-run",
+			DatasetID:        "eval-dataset-b",
+			DatasetName:      "Dataset B",
+			DatasetItemCount: 2,
+			Status:           evalsvc.RunStatusQueued,
+			CreatedBy:        "operator-b",
+			CreatedAt:        time.Unix(1700020010, 0).UTC(),
+			UpdatedAt:        time.Unix(1700020010, 0).UTC(),
+		},
+	} {
+		if _, err := store.CreateRun(ctx, item); err != nil {
+			t.Fatalf("CreateRun(%s) error = %v", item.ID, err)
+		}
+	}
+
+	page, err := store.ListRuns(ctx, evalsvc.RunListFilter{
+		TenantID:  "tenant-run",
+		DatasetID: "eval-dataset-b",
+		Limit:     10,
+	})
+	if err != nil {
+		t.Fatalf("ListRuns(filtered) error = %v", err)
+	}
+	if len(page.Runs) != 1 || page.Runs[0].ID != "eval-run-b" {
+		t.Fatalf("Runs = %#v, want only eval-run-b", page.Runs)
+	}
+
+	page, err = store.ListRuns(ctx, evalsvc.RunListFilter{
+		TenantID: "tenant-run",
+		Limit:    1,
+	})
+	if err != nil {
+		t.Fatalf("ListRuns(paginated) error = %v", err)
+	}
+	if len(page.Runs) != 1 || page.Runs[0].ID != "eval-run-b" {
+		t.Fatalf("first page = %#v, want eval-run-b", page.Runs)
+	}
+	if !page.HasMore || page.NextOffset != 1 {
+		t.Fatalf("pagination = %#v, want has_more with next_offset=1", page)
+	}
+}

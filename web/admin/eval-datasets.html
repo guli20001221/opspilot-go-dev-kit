@@ -183,6 +183,7 @@
       <p class="panel-copy">Inspect durable membership, publish draft baselines, and hand off into eval cases and source lineage.</p>
       <div class="detail-actions">
         <button class="primary" type="button" id="publishDatasetButton" hidden>Publish dataset</button>
+        <button class="ghost" type="button" id="runDatasetButton" hidden>Run dataset</button>
         <button class="ghost" type="button" id="copyDatasetSummaryButton" hidden>Copy dataset summary</button>
         <button class="ghost" type="button" id="copyDatasetLinkButton" hidden>Copy dataset link</button>
       </div>
@@ -210,6 +211,7 @@
     const copyDatasetSummaryButton = document.getElementById("copyDatasetSummaryButton");
     const copyDatasetLinkButton = document.getElementById("copyDatasetLinkButton");
     const publishDatasetButton = document.getElementById("publishDatasetButton");
+    const runDatasetButton = document.getElementById("runDatasetButton");
     const datasetDetailStatusNote = document.getElementById("datasetDetailStatusNote");
 
     let currentItems = [];
@@ -339,6 +341,7 @@
       copyDatasetSummaryButton.hidden = false;
       copyDatasetLinkButton.hidden = false;
       publishDatasetButton.hidden = item.status !== "draft";
+      runDatasetButton.hidden = item.status !== "published";
       datasetDetailStatusNote.textContent = item.status === "published"
         ? "Published datasets are immutable baselines. Membership is now read-only."
         : "Current dataset draft is ready for publish or operator handoff.";
@@ -364,6 +367,7 @@
             <div class="detail-actions">
               <a class="button-link ghost" href="${detailEndpointBase}${encodeURIComponent(item.dataset_id)}?tenant_id=${encodeURIComponent(item.tenant_id)}" target="_blank" rel="noreferrer">Open dataset API detail</a>
               <a class="button-link ghost" href="/admin/evals?tenant_id=${encodeURIComponent(item.tenant_id)}">Open Evals</a>
+              <a class="button-link ghost" href="/admin/eval-runs?tenant_id=${encodeURIComponent(item.tenant_id)}&dataset_id=${encodeURIComponent(item.dataset_id)}">Open eval runs</a>
               <a class="button-link ghost" href="/admin/cases?tenant_id=${encodeURIComponent(item.tenant_id)}">Open Cases</a>
               <a class="button-link ghost" href="/admin/reports?tenant_id=${encodeURIComponent(item.tenant_id)}">Open Reports</a>
             </div>
@@ -400,6 +404,7 @@
         currentDatasetID = "";
         currentDatasetDetail = null;
         publishDatasetButton.hidden = true;
+        runDatasetButton.hidden = true;
         copyDatasetSummaryButton.hidden = true;
         copyDatasetLinkButton.hidden = true;
         datasetDetailStatusNote.textContent = "Select a dataset draft to reveal memberships and handoff actions.";
@@ -423,6 +428,7 @@
         currentDatasetID = "";
         currentDatasetDetail = null;
         publishDatasetButton.hidden = true;
+        runDatasetButton.hidden = true;
         copyDatasetSummaryButton.hidden = true;
         copyDatasetLinkButton.hidden = true;
         datasetDetailStatusNote.textContent = "Unable to load the selected dataset detail.";
@@ -546,6 +552,38 @@
       }
     }
 
+    async function runDataset() {
+      if (!currentDatasetDetail || currentDatasetDetail.status !== "published") return;
+      const tenantID = currentDatasetDetail.tenant_id;
+      const original = runDatasetButton.textContent;
+      runDatasetButton.disabled = true;
+      runDatasetButton.textContent = "Starting...";
+      try {
+        const response = await fetch("/api/v1/eval-runs", {
+          method: "POST",
+          headers: {
+            "Accept": "application/json",
+            "Content-Type": "application/json"
+          },
+          body: JSON.stringify({
+            tenant_id: tenantID,
+            dataset_id: currentDatasetDetail.dataset_id,
+            created_by: "operator"
+          })
+        });
+        if (!response.ok) {
+          const payload = await response.json().catch(() => ({}));
+          throw new Error(payload.message || `Run kickoff failed: ${response.statusText}`);
+        }
+        const run = await response.json();
+        window.location.href = `/admin/eval-runs?tenant_id=${encodeURIComponent(tenantID)}&dataset_id=${encodeURIComponent(currentDatasetDetail.dataset_id)}&run_id=${encodeURIComponent(run.run_id)}`;
+      } catch (error) {
+        datasetDetailStatusNote.textContent = `Unable to start eval run: ${error.message || "request failed"}`;
+        runDatasetButton.disabled = false;
+        runDatasetButton.textContent = original;
+      }
+    }
+
     form.addEventListener("submit", (event) => {
       event.preventDefault();
       form.elements.namedItem("offset").value = "0";
@@ -570,6 +608,7 @@
     copyDatasetSummaryButton.addEventListener("click", () => copyDatasetSummary());
     copyDatasetLinkButton.addEventListener("click", () => copyDatasetLink());
     publishDatasetButton.addEventListener("click", () => publishDataset());
+    runDatasetButton.addEventListener("click", () => runDataset());
 
     const initialDatasetID = populateFiltersFromURL();
     loadDatasets(initialDatasetID);

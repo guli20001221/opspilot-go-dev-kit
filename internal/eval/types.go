@@ -23,11 +23,25 @@ var ErrInvalidEvalDataset = errors.New("invalid eval dataset")
 // ErrInvalidEvalDatasetState identifies invalid dataset lifecycle transitions.
 var ErrInvalidEvalDatasetState = errors.New("invalid eval dataset state")
 
+// ErrEvalRunNotFound identifies missing durable eval run records.
+var ErrEvalRunNotFound = errors.New("eval run not found")
+
 const (
 	// DatasetStatusDraft identifies a draft dataset that is not yet active in regression runs.
 	DatasetStatusDraft = "draft"
 	// DatasetStatusPublished identifies an immutable dataset baseline ready for regression use.
 	DatasetStatusPublished = "published"
+)
+
+const (
+	// RunStatusQueued identifies an eval run that has been created but not yet executed.
+	RunStatusQueued = "queued"
+	// RunStatusRunning identifies an eval run currently executing.
+	RunStatusRunning = "running"
+	// RunStatusSucceeded identifies a completed eval run.
+	RunStatusSucceeded = "succeeded"
+	// RunStatusFailed identifies a failed eval run.
+	RunStatusFailed = "failed"
 )
 
 // EvalCase is the durable read model for a promoted evaluation case.
@@ -118,6 +132,38 @@ type DatasetListPage struct {
 	NextOffset int
 }
 
+// EvalRun is the durable read model for one eval-run kickoff.
+type EvalRun struct {
+	ID               string
+	TenantID         string
+	DatasetID        string
+	DatasetName      string
+	DatasetItemCount int
+	Status           string
+	CreatedBy        string
+	ErrorReason      string
+	CreatedAt        time.Time
+	UpdatedAt        time.Time
+	StartedAt        time.Time
+	FinishedAt       time.Time
+}
+
+// RunListFilter constrains eval-run list reads.
+type RunListFilter struct {
+	TenantID  string
+	DatasetID string
+	Status    string
+	Limit     int
+	Offset    int
+}
+
+// RunListPage is one eval-run list page.
+type RunListPage struct {
+	Runs       []EvalRun
+	HasMore    bool
+	NextOffset int
+}
+
 // CreateInput is the typed eval case promotion request.
 type CreateInput struct {
 	TenantID     string
@@ -146,4 +192,11 @@ type AddDatasetItemInput struct {
 type PublishDatasetInput struct {
 	TenantID    string
 	PublishedBy string
+}
+
+// CreateRunInput is the typed eval-run kickoff request.
+type CreateRunInput struct {
+	TenantID  string
+	DatasetID string
+	CreatedBy string
 }

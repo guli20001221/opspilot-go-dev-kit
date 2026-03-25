@@ -87,6 +87,7 @@ Provide a practical operator UI for evaluation and runtime analysis while keepin
 59. Keep `/admin/eval-datasets` list rows lightweight and use the canonical dataset detail plus existing eval/case/task/report/version/trace handoff links for drill-down instead of inventing dataset-specific shadow contracts.
 60. Once dataset drafts become durable and browseable, prefer wiring `Add to dataset` from `/admin/evals` to the canonical `POST /api/v1/eval-datasets/{dataset_id}/items` contract instead of inventing an eval-page-only curation store.
 61. Once dataset curation exists, prefer wiring `Publish dataset` from `/admin/eval-datasets` to the canonical `POST /api/v1/eval-datasets/{dataset_id}/publish` transition and render published datasets as read-only baselines instead of mutable drafts.
+62. Once published datasets exist, prefer a shared `/admin/eval-runs` lane backed directly by canonical `GET /api/v1/eval-runs` and `GET /api/v1/eval-runs/{id}` reads, and let `/admin/eval-datasets` hand off through `POST /api/v1/eval-runs` instead of inventing dataset-page-only run state.
 
 ## Output contract
 When you finish, always report:

@@ -68,6 +68,7 @@ func main() {
 	traceDetails := tracedetail.NewService(workflowService, reportService, caseService)
 	evalCaseService := evalsvc.NewServiceWithStore(storagepostgres.NewEvalCaseStore(pool), caseService, traceDetails)
 	evalDatasetService := evalsvc.NewDatasetServiceWithStore(storagepostgres.NewEvalDatasetStore(pool), evalCaseService)
+	evalRunService := evalsvc.NewRunServiceWithStore(storagepostgres.NewEvalRunStore(pool), evalDatasetService)
 	registry := toolregistry.NewDefaultRegistryWithOptions(toolregistry.Options{
 		TicketAPIBaseURL: cfg.TicketAPIBaseURL,
 		TicketAPIToken:   cfg.TicketAPIToken,
@@ -75,7 +76,7 @@ func main() {
 
 	server := &http.Server{
 		Addr:              cfg.APIListenAddr,
-		Handler:           httpapi.NewHandlerWithDependencies(httpapi.Dependencies{Workflows: workflowService, Reports: reportService, Cases: caseService, EvalCases: evalCaseService, EvalDatasets: evalDatasetService, Versions: versionService, Registry: registry}),
+		Handler:           httpapi.NewHandlerWithDependencies(httpapi.Dependencies{Workflows: workflowService, Reports: reportService, Cases: caseService, EvalCases: evalCaseService, EvalDatasets: evalDatasetService, EvalRuns: evalRunService, Versions: versionService, Registry: registry}),
 		ReadHeaderTimeout: 5 * time.Second,
 	}
 

@@ -13,6 +13,7 @@ type memoryStore struct {
 	byID         map[string]EvalCase
 	bySourceCase map[string]string
 	datasets     map[string]EvalDataset
+	runs         map[string]EvalRun
 }
 
 func newMemoryStore() *memoryStore {
@@ -20,6 +21,7 @@ func newMemoryStore() *memoryStore {
 		byID:         make(map[string]EvalCase),
 		bySourceCase: make(map[string]string),
 		datasets:     make(map[string]EvalDataset),
+		runs:         make(map[string]EvalRun),
 	}
 }
 
@@ -221,4 +223,65 @@ func (s *memoryStore) PublishDataset(_ context.Context, datasetID string, publis
 	s.datasets[datasetID] = dataset
 
 	return dataset, nil
+}
+
+func (s *memoryStore) CreateRun(_ context.Context, item EvalRun) (EvalRun, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	s.runs[item.ID] = item
+	return item, nil
+}
+
+func (s *memoryStore) GetRun(_ context.Context, runID string) (EvalRun, error) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	item, ok := s.runs[runID]
+	if !ok {
+		return EvalRun{}, fmt.Errorf("%w: %s", ErrEvalRunNotFound, runID)
+	}
+	return item, nil
+}
+
+func (s *memoryStore) ListRuns(_ context.Context, filter RunListFilter) (RunListPage, error) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	items := make([]EvalRun, 0, len(s.runs))
+	for _, item := range s.runs {
+		if filter.TenantID != "" && item.TenantID != filter.TenantID {
+			continue
+		}
+		if filter.DatasetID != "" && item.DatasetID != filter.DatasetID {
+			continue
+		}
+		if filter.Status != "" && item.Status != filter.Status {
+			continue
+		}
+		items = append(items, item)
+	}
+
+	sort.Slice(items, func(i, j int) bool {
+		if !items[i].UpdatedAt.Equal(items[j].UpdatedAt) {
+			return items[i].UpdatedAt.After(items[j].UpdatedAt)
+		}
+		return items[i].ID > items[j].ID
+	})
+
+	start := filter.Offset
+	if start > len(items) {
+		start = len(items)
+	}
+	end := start + filter.Limit
+	page := RunListPage{}
+	if end < len(items) {
+		page.HasMore = true
+		page.NextOffset = end
+	} else {
+		end = len(items)
+	}
+	page.Runs = append(page.Runs, items[start:end]...)
+
+	return page, nil
 }
