@@ -82,6 +82,9 @@ Provide a practical operator UI for evaluation and runtime analysis while keepin
 54. Once related contracts expose `version_id`, prefer handing off from report, comparison, or trace pages into the shared version-detail page instead of duplicating runtime-version rendering logic in each page.
 55. Once durable eval-case promotion exists, prefer wiring `Promote to eval` from the canonical case page to `POST /api/v1/eval-cases` and deep-linking to the returned eval-case API detail instead of inventing an admin-only eval store or write endpoint.
 56. Once durable eval-case list and detail contracts exist, prefer a shared `/admin/evals` lane backed directly by those contracts instead of rebuilding eval state from case or report pages.
+57. The first write action on `/admin/evals` should create a canonical dataset draft and then hand off to the dataset API detail instead of inventing admin-only saved views.
+58. Once durable dataset list and detail contracts exist, prefer a shared `/admin/eval-datasets` lane backed directly by those contracts instead of keeping dataset drafts as one-off links hanging off the eval page.
+59. Keep `/admin/eval-datasets` list rows lightweight and use the canonical dataset detail plus existing eval/case/task/report/version/trace handoff links for drill-down instead of inventing dataset-specific shadow contracts.
 
 ## Output contract
 When you finish, always report:

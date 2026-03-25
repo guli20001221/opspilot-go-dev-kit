@@ -104,3 +104,6 @@ When you finish, always report:
 - do not build polished dashboards before core operator workflows work
 - once durable eval-case promotion exists, prefer wiring `Promote to eval` from the canonical case page to `POST /api/v1/eval-cases` and deep-linking to the returned eval-case API detail instead of inventing an admin-only eval store or write endpoint
 - once durable eval-case list and detail contracts exist, prefer a shared `/admin/evals` lane backed directly by those contracts instead of rebuilding eval state from case or report pages
+- the first write action on `/admin/evals` should create a canonical dataset draft and then hand off to the dataset API detail instead of inventing admin-only saved views
+- once durable dataset list and detail contracts exist, prefer a shared `/admin/eval-datasets` lane backed directly by those contracts instead of keeping dataset drafts as one-off links hanging off the eval page
+- keep `/admin/eval-datasets` list rows lightweight and use the canonical dataset detail plus existing eval/case/task/report/version/trace handoff links for drill-down instead of inventing dataset-specific shadow contracts

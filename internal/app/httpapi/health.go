@@ -18,12 +18,13 @@ type statusResponse struct {
 
 // Dependencies supplies optional runtime services for the HTTP layer.
 type Dependencies struct {
-	Workflows *workflow.Service
-	Reports   *report.Service
-	Cases     *casesvc.Service
-	EvalCases *evalsvc.Service
-	Versions  *version.Service
-	Registry  *toolregistry.Registry
+	Workflows    *workflow.Service
+	Reports      *report.Service
+	Cases        *casesvc.Service
+	EvalCases    *evalsvc.Service
+	EvalDatasets *evalsvc.DatasetService
+	Versions     *version.Service
+	Registry     *toolregistry.Registry
 }
 
 // NewHandler constructs the minimum API handler tree for the foundation slice.
@@ -34,7 +35,7 @@ func NewHandler() http.Handler {
 // NewHandlerWithDependencies constructs the HTTP handler tree with injected services.
 func NewHandlerWithDependencies(deps Dependencies) http.Handler {
 	mux := http.NewServeMux()
-	app := newAppHandler(deps.Workflows, deps.Reports, deps.Cases, deps.EvalCases, deps.Versions, deps.Registry)
+	app := newAppHandler(deps.Workflows, deps.Reports, deps.Cases, deps.EvalCases, deps.EvalDatasets, deps.Versions, deps.Registry)
 	mux.HandleFunc("/healthz", writeStatus("ok"))
 	mux.HandleFunc("/readyz", writeStatus("ready"))
 	app.registerRoutes(mux)

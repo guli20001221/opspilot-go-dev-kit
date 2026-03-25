@@ -239,6 +239,120 @@ func TestMemoryStoreListSupportsFiltersAndPagination(t *testing.T) {
 	}
 }
 
+func TestDatasetServiceListSupportsFiltersAndPagination(t *testing.T) {
+	ctx := context.Background()
+	caseService := casesvc.NewService()
+	evalService := NewService(caseService, nil)
+	datasetService := NewDatasetService(evalService)
+
+	firstCase, err := caseService.CreateCase(ctx, casesvc.CreateInput{
+		TenantID: "tenant-dataset",
+		Title:    "First source",
+	})
+	if err != nil {
+		t.Fatalf("CreateCase(first) error = %v", err)
+	}
+	firstEval, _, err := evalService.PromoteCase(ctx, CreateInput{
+		TenantID:     "tenant-dataset",
+		SourceCaseID: firstCase.ID,
+	})
+	if err != nil {
+		t.Fatalf("PromoteCase(first) error = %v", err)
+	}
+
+	secondCase, err := caseService.CreateCase(ctx, casesvc.CreateInput{
+		TenantID: "tenant-dataset",
+		Title:    "Second source",
+	})
+	if err != nil {
+		t.Fatalf("CreateCase(second) error = %v", err)
+	}
+	secondEval, _, err := evalService.PromoteCase(ctx, CreateInput{
+		TenantID:     "tenant-dataset",
+		SourceCaseID: secondCase.ID,
+	})
+	if err != nil {
+		t.Fatalf("PromoteCase(second) error = %v", err)
+	}
+
+	if _, err := datasetService.CreateDataset(ctx, CreateDatasetInput{
+		TenantID:    "tenant-dataset",
+		Name:        "Older dataset",
+		EvalCaseIDs: []string{firstEval.ID},
+		CreatedBy:   "operator-a",
+	}); err != nil {
+		t.Fatalf("CreateDataset(first) error = %v", err)
+	}
+	secondDataset, err := datasetService.CreateDataset(ctx, CreateDatasetInput{
+		TenantID:    "tenant-dataset",
+		Name:        "Newer dataset",
+		EvalCaseIDs: []string{secondEval.ID},
+		CreatedBy:   "operator-b",
+	})
+	if err != nil {
+		t.Fatalf("CreateDataset(second) error = %v", err)
+	}
+
+	page, err := datasetService.ListDatasets(ctx, DatasetListFilter{
+		TenantID:  "tenant-dataset",
+		CreatedBy: "operator-b",
+		Limit:     10,
+	})
+	if err != nil {
+		t.Fatalf("ListDatasets(filtered) error = %v", err)
+	}
+	if len(page.Datasets) != 1 || page.Datasets[0].ID != secondDataset.ID {
+		t.Fatalf("Datasets = %#v, want only %q", page.Datasets, secondDataset.ID)
+	}
+
+	page, err = datasetService.ListDatasets(ctx, DatasetListFilter{
+		TenantID: "tenant-dataset",
+		Limit:    1,
+	})
+	if err != nil {
+		t.Fatalf("ListDatasets(paginated) error = %v", err)
+	}
+	if len(page.Datasets) != 1 {
+		t.Fatalf("len(Datasets) = %d, want 1", len(page.Datasets))
+	}
+	if page.Datasets[0].ID != secondDataset.ID {
+		t.Fatalf("first dataset ID = %q, want %q", page.Datasets[0].ID, secondDataset.ID)
+	}
+	if !page.HasMore || page.NextOffset != 1 {
+		t.Fatalf("pagination = %#v, want has_more with next_offset=1", page)
+	}
+}
+
+func TestDatasetServiceCreateRejectsDuplicateEvalCaseIDs(t *testing.T) {
+	ctx := context.Background()
+	caseService := casesvc.NewService()
+	evalService := NewService(caseService, nil)
+	datasetService := NewDatasetService(evalService)
+
+	sourceCase, err := caseService.CreateCase(ctx, casesvc.CreateInput{
+		TenantID: "tenant-dataset",
+		Title:    "Duplicate source",
+	})
+	if err != nil {
+		t.Fatalf("CreateCase() error = %v", err)
+	}
+	evalCase, _, err := evalService.PromoteCase(ctx, CreateInput{
+		TenantID:     "tenant-dataset",
+		SourceCaseID: sourceCase.ID,
+	})
+	if err != nil {
+		t.Fatalf("PromoteCase() error = %v", err)
+	}
+
+	_, err = datasetService.CreateDataset(ctx, CreateDatasetInput{
+		TenantID:    "tenant-dataset",
+		EvalCaseIDs: []string{evalCase.ID, evalCase.ID},
+	})
+	if !errors.Is(err, ErrInvalidEvalDataset) {
+		t.Fatalf("error = %v, want %v", err, ErrInvalidEvalDataset)
+	}
+}
+
 type caseReaderFunc func(ctx context.Context, caseID string) (casesvc.Case, error)
 
 func (fn caseReaderFunc) GetCase(ctx context.Context, caseID string) (casesvc.Case, error) {

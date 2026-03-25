@@ -1313,6 +1313,163 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
+  /api/v1/eval-datasets:
+    get:
+      summary: List durable eval datasets
+      description: |
+        Returns one tenant-scoped page of durable eval dataset drafts.
+        This lane is intentionally lightweight and does not inline membership payloads.
+      operationId: listEvalDatasets
+      parameters:
+        - name: tenant_id
+          in: query
+          required: true
+          schema:
+            type: string
+        - name: status
+          in: query
+          required: false
+          schema:
+            type: string
+        - name: created_by
+          in: query
+          required: false
+          schema:
+            type: string
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+        - name: offset
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 0
+      responses:
+        '200':
+          description: Eval-dataset page returned.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ListEvalDatasetsResponse'
+        '400':
+          description: Query was invalid.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '405':
+          description: Method not allowed.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Eval dataset list failed.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+    post:
+      summary: Create a durable eval dataset draft
+      description: |
+        Creates one draft eval dataset seeded from one or more durable eval cases.
+        Operators use this contract to turn promoted failures into reusable regression assets.
+      operationId: createEvalDataset
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateEvalDatasetRequest'
+      responses:
+        '201':
+          description: Eval dataset created.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/EvalDataset'
+        '400':
+          description: Request body was invalid.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Eval case not found.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '405':
+          description: Method not allowed.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '409':
+          description: Eval dataset request is invalid for the provided tenant scope or membership set.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Eval dataset creation failed.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+  /api/v1/eval-datasets/{dataset_id}:
+    get:
+      summary: Get a durable eval dataset
+      description: |
+        Returns one draft or active eval dataset by stable ID.
+      operationId: getEvalDataset
+      parameters:
+        - name: dataset_id
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: tenant_id
+          in: query
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Eval dataset returned.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/EvalDataset'
+        '400':
+          description: Missing required tenant scope query.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Eval dataset not found.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '405':
+          description: Method not allowed.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Eval dataset lookup failed.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
   /api/v1/admin/task-board:
     get:
       summary: Get the admin task board view
@@ -1898,6 +2055,24 @@ components:
           type: string
         created_by:
           type: string
+    CreateEvalDatasetRequest:
+      type: object
+      required:
+        - tenant_id
+        - eval_case_ids
+      properties:
+        tenant_id:
+          type: string
+        name:
+          type: string
+        description:
+          type: string
+        eval_case_ids:
+          type: array
+          items:
+            type: string
+        created_by:
+          type: string
     CaseNote:
       type: object
       required:
@@ -2020,6 +2195,100 @@ components:
         created_at:
           type: string
           format: date-time
+    EvalDatasetItem:
+      type: object
+      required:
+        - eval_case_id
+        - title
+        - source_case_id
+      properties:
+        eval_case_id:
+          type: string
+        title:
+          type: string
+        source_case_id:
+          type: string
+        source_task_id:
+          type: string
+        source_report_id:
+          type: string
+        trace_id:
+          type: string
+        version_id:
+          type: string
+    EvalDataset:
+      type: object
+      required:
+        - dataset_id
+        - tenant_id
+        - name
+        - status
+        - created_by
+        - created_at
+        - updated_at
+        - items
+      properties:
+        dataset_id:
+          type: string
+        tenant_id:
+          type: string
+        name:
+          type: string
+        description:
+          type: string
+        status:
+          type: string
+          enum:
+            - draft
+            - active
+            - archived
+        created_by:
+          type: string
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/EvalDatasetItem'
+    EvalDatasetSummary:
+      type: object
+      required:
+        - dataset_id
+        - tenant_id
+        - name
+        - status
+        - created_by
+        - created_at
+        - updated_at
+        - item_count
+      properties:
+        dataset_id:
+          type: string
+        tenant_id:
+          type: string
+        name:
+          type: string
+        status:
+          type: string
+          enum:
+            - draft
+            - active
+            - archived
+        created_by:
+          type: string
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+        item_count:
+          type: integer
+          minimum: 0
     ListEvalCasesResponse:
       type: object
       required:
@@ -2030,6 +2299,21 @@ components:
           type: array
           items:
             $ref: '#/components/schemas/EvalCase'
+        has_more:
+          type: boolean
+        next_offset:
+          type: integer
+          minimum: 0
+    ListEvalDatasetsResponse:
+      type: object
+      required:
+        - datasets
+        - has_more
+      properties:
+        datasets:
+          type: array
+          items:
+            $ref: '#/components/schemas/EvalDatasetSummary'
         has_more:
           type: boolean
         next_offset:

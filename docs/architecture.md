@@ -94,6 +94,9 @@ The current HTTP layer also exposes the same PostgreSQL-backed workflow records 
 - `GET /api/v1/eval-cases` now exposes the first tenant-scoped eval queue contract, so promoted coverage can be browsed as an operator lane instead of remaining write-only
 - the same `/admin/cases` page now also supports `Promote to eval`, keeping the operator action on the canonical case surface instead of introducing an admin-only eval write path
 - `/admin/evals` now exposes the first eval-focused operator lane, reusing durable eval-case list/detail reads and canonical handoff links into case/task/report/version/trace surfaces
+- `POST /api/v1/eval-datasets`, `GET /api/v1/eval-datasets`, and `GET /api/v1/eval-datasets/{dataset_id}` now expose the first durable dataset-draft contract plus its canonical lightweight browse surface
+- the same `/admin/evals` page now also supports `Create dataset draft`, so operators can turn one promoted failure into a reusable regression asset and then hand off into the shared dataset lane
+- `/admin/eval-datasets` now exposes the first dataset-focused operator lane, keeping dataset list rows lightweight while reusing canonical dataset detail and source-lineage handoff paths
 - the same case page now also shows and appends recent notes, so operator handoff context lives on the case instead of being implied by task/report provenance
 - the same case page now defaults into an open-case queue view, adds `My open cases` and `Unassigned` shortcuts, and computes age/staleness from canonical `updated_at`
 - the same case page now also foregrounds operator queue slices by highlighting `My open cases` and `Unassigned`, and it surfaces task-only versus report-backed provenance directly from the canonical case contract

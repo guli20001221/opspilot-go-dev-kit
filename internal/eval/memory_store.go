@@ -11,12 +11,14 @@ type memoryStore struct {
 	mu           sync.RWMutex
 	byID         map[string]EvalCase
 	bySourceCase map[string]string
+	datasets     map[string]EvalDataset
 }
 
 func newMemoryStore() *memoryStore {
 	return &memoryStore{
 		byID:         make(map[string]EvalCase),
 		bySourceCase: make(map[string]string),
+		datasets:     make(map[string]EvalDataset),
 	}
 }
 
@@ -102,6 +104,78 @@ func (s *memoryStore) List(_ context.Context, filter ListFilter) (ListPage, erro
 		end = len(items)
 	}
 	page.EvalCases = append(page.EvalCases, items[start:end]...)
+
+	return page, nil
+}
+
+func (s *memoryStore) CreateDataset(_ context.Context, item EvalDataset) (EvalDataset, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	s.datasets[item.ID] = item
+
+	return item, nil
+}
+
+func (s *memoryStore) GetDataset(_ context.Context, datasetID string) (EvalDataset, error) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	item, ok := s.datasets[datasetID]
+	if !ok {
+		return EvalDataset{}, fmt.Errorf("%w: %s", ErrEvalDatasetNotFound, datasetID)
+	}
+
+	return item, nil
+}
+
+func (s *memoryStore) ListDatasets(_ context.Context, filter DatasetListFilter) (DatasetListPage, error) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	items := make([]EvalDatasetSummary, 0, len(s.datasets))
+	for _, item := range s.datasets {
+		if filter.TenantID != "" && item.TenantID != filter.TenantID {
+			continue
+		}
+		if filter.Status != "" && item.Status != filter.Status {
+			continue
+		}
+		if filter.CreatedBy != "" && item.CreatedBy != filter.CreatedBy {
+			continue
+		}
+		items = append(items, EvalDatasetSummary{
+			ID:        item.ID,
+			TenantID:  item.TenantID,
+			Name:      item.Name,
+			Status:    item.Status,
+			CreatedBy: item.CreatedBy,
+			CreatedAt: item.CreatedAt,
+			UpdatedAt: item.UpdatedAt,
+			ItemCount: len(item.Items),
+		})
+	}
+
+	sort.Slice(items, func(i int, j int) bool {
+		if !items[i].UpdatedAt.Equal(items[j].UpdatedAt) {
+			return items[i].UpdatedAt.After(items[j].UpdatedAt)
+		}
+		return items[i].ID > items[j].ID
+	})
+
+	start := filter.Offset
+	if start > len(items) {
+		start = len(items)
+	}
+	end := start + filter.Limit
+	page := DatasetListPage{}
+	if end < len(items) {
+		page.HasMore = true
+		page.NextOffset = end
+	} else {
+		end = len(items)
+	}
+	page.Datasets = append(page.Datasets, items[start:end]...)
 
 	return page, nil
 }

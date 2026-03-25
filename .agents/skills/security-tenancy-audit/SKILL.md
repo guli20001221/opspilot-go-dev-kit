@@ -39,6 +39,8 @@ Keep the agent platform safe for enterprise-style use by making identity, author
 7. Document operator procedures for approvals and security-sensitive failures.
 8. When a durable follow-up object such as a case is promoted into eval coverage, validate tenant scope from the canonical source object before copying lineage into the eval record.
 9. Operator-facing eval list reads must remain tenant-scoped; do not expose cross-tenant browse surfaces or make `tenant_id` optional on queue endpoints.
+10. Eval dataset draft creation must validate that every referenced eval case belongs to the caller's tenant before persisting membership rows.
+11. Eval dataset list and detail reads must remain tenant-scoped; require `tenant_id` on browse/detail endpoints and never use dataset membership joins to leak cross-tenant lineage.
 
 ## Output contract
 When you finish, always report:

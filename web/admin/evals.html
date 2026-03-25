@@ -125,6 +125,7 @@
       </p>
       <div class="hero-links">
         <a class="link-chip" href="/admin/cases">Open Cases</a>
+        <a class="link-chip" href="/admin/eval-datasets">Open Eval Datasets</a>
         <a class="link-chip" href="/admin/reports">Open Reports</a>
         <a class="link-chip" href="/admin/task-board">Open Task Board</a>
         <a class="link-chip" href="/admin/trace-detail">Open Trace Detail</a>
@@ -184,6 +185,8 @@
         <button class="ghost" type="button" id="nextEvalButton" hidden>Next visible</button>
         <button class="ghost" type="button" id="copyEvalSummaryButton" hidden>Copy eval summary</button>
         <button class="ghost" type="button" id="copyEvalLinkButton" hidden>Copy eval link</button>
+        <input id="datasetNameInput" type="text" value="" aria-label="Dataset draft name" placeholder="Optional dataset draft name" style="min-width: 260px; border: 1px solid var(--line); border-radius: 999px; padding: 10px 14px; background: rgba(255, 255, 255, 0.92); color: var(--ink);" hidden>
+        <button class="ghost" type="button" id="createDatasetButton" hidden>Create dataset draft</button>
       </div>
       <div class="detail-status-note" id="evalDetailStatusNote">Select an eval case to reveal handoff actions.</div>
       <div id="evalDetail" class="empty">No eval case selected yet.</div>
@@ -193,6 +196,7 @@
   <script>
     const listEndpoint = "/api/v1/eval-cases";
     const detailEndpointBase = "/api/v1/eval-cases/";
+    const datasetEndpoint = "/api/v1/eval-datasets";
     const caseEndpointBase = "/api/v1/cases/";
     const taskEndpointBase = "/api/v1/tasks/";
     const reportEndpointBase = "/api/v1/reports/";
@@ -208,11 +212,14 @@
     const nextEvalButton = document.getElementById("nextEvalButton");
     const copyEvalSummaryButton = document.getElementById("copyEvalSummaryButton");
     const copyEvalLinkButton = document.getElementById("copyEvalLinkButton");
+    const datasetNameInput = document.getElementById("datasetNameInput");
+    const createDatasetButton = document.getElementById("createDatasetButton");
     const evalDetailStatusNote = document.getElementById("evalDetailStatusNote");
 
     let currentItems = [];
     let currentEvalID = "";
     let currentEvalDetail = null;
+    let currentDatasetDetail = null;
 
     function escapeHTML(value) {
       return String(value ?? "")
@@ -339,9 +346,12 @@
     function renderDetail(item) {
       currentEvalID = item.eval_case_id;
       currentEvalDetail = item;
+      currentDatasetDetail = null;
       syncURL(item.eval_case_id);
       copyEvalSummaryButton.hidden = false;
       copyEvalLinkButton.hidden = false;
+      datasetNameInput.hidden = false;
+      createDatasetButton.hidden = false;
       evalDetailStatusNote.textContent = "Current eval case is ready for operator handoff.";
       const caseURL = `${caseEndpointBase}${encodeURIComponent(item.source_case_id)}?tenant_id=${encodeURIComponent(item.tenant_id)}`;
       const reportURL = item.source_report_id ? `${reportEndpointBase}${encodeURIComponent(item.source_report_id)}` : "";
@@ -372,6 +382,8 @@
             <div class="detail-actions">
               <a class="button-link ghost" href="/admin/cases?tenant_id=${encodeURIComponent(item.tenant_id)}&case_id=${encodeURIComponent(item.source_case_id)}">Open Cases</a>
               <a class="button-link ghost" href="${detailEndpointBase}${encodeURIComponent(item.eval_case_id)}?tenant_id=${encodeURIComponent(item.tenant_id)}" target="_blank" rel="noreferrer">Open eval API detail</a>
+              ${currentDatasetDetail ? `<a class="button-link ghost" href="${datasetEndpoint}/${encodeURIComponent(currentDatasetDetail.dataset_id)}?tenant_id=${encodeURIComponent(item.tenant_id)}" target="_blank" rel="noreferrer">Open dataset API detail</a>` : ""}
+              ${currentDatasetDetail ? `<a class="button-link ghost" href="/admin/eval-datasets?tenant_id=${encodeURIComponent(item.tenant_id)}&dataset_id=${encodeURIComponent(currentDatasetDetail.dataset_id)}">Open dataset lane</a>` : ""}
               <a class="button-link ghost" href="${caseURL}" target="_blank" rel="noreferrer">Open case API detail</a>
               ${reportURL ? `<a class="button-link ghost" href="${reportURL}" target="_blank" rel="noreferrer">Open report API detail</a>` : ""}
               ${taskURL ? `<a class="button-link ghost" href="${taskURL}" target="_blank" rel="noreferrer">Open task API detail</a>` : ""}
@@ -389,8 +401,11 @@
       if (!evalCaseID) {
         currentEvalID = "";
         currentEvalDetail = null;
+        currentDatasetDetail = null;
         copyEvalSummaryButton.hidden = true;
         copyEvalLinkButton.hidden = true;
+        datasetNameInput.hidden = true;
+        createDatasetButton.hidden = true;
         evalDetailStatusNote.textContent = "Select an eval case to reveal handoff actions.";
         evalDetail.innerHTML = '<div class="empty">No eval case selected yet.</div>';
         syncURL("");
@@ -412,8 +427,11 @@
       } catch (error) {
         currentEvalID = "";
         currentEvalDetail = null;
+        currentDatasetDetail = null;
         copyEvalSummaryButton.hidden = true;
         copyEvalLinkButton.hidden = true;
+        datasetNameInput.hidden = true;
+        createDatasetButton.hidden = true;
         evalDetailStatusNote.textContent = "Unable to load the selected eval detail.";
         evalDetail.innerHTML = `<div class="empty">${escapeHTML(error.message || "Unable to load eval detail.")}</div>`;
         syncSelectedRow();
@@ -462,6 +480,9 @@
         evalListState.hidden = false;
         evalListState.className = "empty";
         evalListState.textContent = error.message || "Unable to load eval lane.";
+        await loadDetail("");
+        evalDetailStatusNote.textContent = "Unable to load eval detail because the eval lane request failed.";
+        evalDetail.innerHTML = '<div class="empty">Unable to load eval detail because the eval lane request failed.</div>';
       }
     }
 
@@ -503,6 +524,41 @@
       }
     }
 
+    async function createDatasetDraft() {
+      if (!currentEvalDetail) return;
+      const original = createDatasetButton.textContent;
+      createDatasetButton.disabled = true;
+      createDatasetButton.textContent = "Creating...";
+      evalDetailStatusNote.textContent = `Creating dataset draft from ${currentEvalDetail.eval_case_id}...`;
+      try {
+        const response = await fetch(datasetEndpoint, {
+          method: "POST",
+          headers: {
+            "Accept": "application/json",
+            "Content-Type": "application/json"
+          },
+          body: JSON.stringify({
+            tenant_id: currentEvalDetail.tenant_id,
+            name: datasetNameInput.value.trim(),
+            eval_case_ids: [currentEvalDetail.eval_case_id],
+            created_by: "evals-operator"
+          })
+        });
+        const created = await response.json().catch(() => ({}));
+        if (!response.ok) {
+          throw new Error(created.message || `Dataset creation failed: ${response.statusText}`);
+        }
+        currentDatasetDetail = created;
+        evalDetailStatusNote.textContent = `Created dataset draft ${created.dataset_id}.`;
+        renderDetail(currentEvalDetail);
+      } catch (error) {
+        evalDetailStatusNote.textContent = error.message || "Unable to create dataset draft.";
+      } finally {
+        createDatasetButton.disabled = false;
+        createDatasetButton.textContent = original;
+      }
+    }
+
     form.addEventListener("submit", (event) => {
       event.preventDefault();
       form.elements.namedItem("offset").value = "0";
@@ -528,6 +584,7 @@
     nextEvalButton.addEventListener("click", () => navigateVisible(1));
     copyEvalSummaryButton.addEventListener("click", () => copyEvalSummary());
     copyEvalLinkButton.addEventListener("click", () => copyEvalLink());
+    createDatasetButton.addEventListener("click", () => createDatasetDraft());
 
     const initialEvalID = populateFiltersFromURL();
     loadEvals(initialEvalID);

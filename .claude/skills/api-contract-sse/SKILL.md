@@ -46,6 +46,8 @@ Keep the HTTP surface explicit, documented, stable, and friendly to streaming ag
 15. Once a durable version registry exists, propagate `version_id` through related task, report, compare, or trace read contracts instead of duplicating full runtime-version payloads on every endpoint.
 16. When operators promote a durable case into eval coverage, prefer a canonical `POST /api/v1/eval-cases` plus `GET /api/v1/eval-cases/{id}` contract that copies lineage from existing case, task, report, trace, and version state instead of storing frontend-only bookmarks.
 17. When operators need to browse promoted eval coverage, expose a tenant-scoped `GET /api/v1/eval-cases` with the same `limit/offset/has_more/next_offset` pagination style used elsewhere instead of inventing an eval-only paging model.
+18. The first eval dataset contract should be a canonical `POST /api/v1/eval-datasets` plus `GET /api/v1/eval-datasets/{id}` backed by durable membership rows, not an admin-only batch action.
+19. Once durable dataset drafts exist, expose a tenant-scoped `GET /api/v1/eval-datasets` with stable `updated_at DESC, id DESC` ordering and lightweight rows instead of returning full memberships from the list contract.
 
 ## Output contract
 When you finish, always report:

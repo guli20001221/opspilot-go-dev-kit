@@ -1,0 +1,524 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>OpsPilot Eval Datasets</title>
+  <style>
+    :root {
+      --bg: #eef3f8;
+      --panel: rgba(251, 253, 255, 0.9);
+      --ink: #14212b;
+      --muted: #5b6a78;
+      --line: rgba(20, 33, 43, 0.12);
+      --accent: #1d4ed8;
+      --accent-2: #155e75;
+      --shadow: 0 18px 48px rgba(39, 63, 88, 0.14);
+      --radius-lg: 24px;
+      --radius-md: 18px;
+      --radius-sm: 12px;
+      --font-sans: "Segoe UI Variable", "Aptos", "IBM Plex Sans", "Helvetica Neue", sans-serif;
+      --font-serif: "Iowan Old Style", "Georgia", serif;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      min-height: 100vh;
+      font-family: var(--font-sans);
+      color: var(--ink);
+      background:
+        radial-gradient(circle at top left, rgba(29, 78, 216, 0.16), transparent 26%),
+        radial-gradient(circle at top right, rgba(21, 94, 117, 0.12), transparent 24%),
+        linear-gradient(180deg, #f4f8fc 0%, var(--bg) 46%, #e6edf5 100%);
+    }
+    .page { width: min(1240px, calc(100% - 32px)); margin: 0 auto; padding: 28px 0 40px; }
+    .hero, .panel {
+      background: var(--panel);
+      border: 1px solid rgba(255, 255, 255, 0.8);
+      box-shadow: var(--shadow);
+      backdrop-filter: blur(18px);
+    }
+    .hero { padding: 28px; border-radius: 32px; margin-bottom: 18px; }
+    .eyebrow { margin: 0 0 12px; font-size: 12px; font-weight: 700; letter-spacing: 0.18em; text-transform: uppercase; color: var(--accent); }
+    h1 { margin: 0 0 10px; font-family: var(--font-serif); font-size: clamp(2.1rem, 4vw, 3.2rem); line-height: 0.95; letter-spacing: -0.04em; }
+    .lead { margin: 0; max-width: 780px; color: var(--muted); line-height: 1.6; }
+    .hero-links, .actions, .detail-actions { display: flex; flex-wrap: wrap; gap: 10px; }
+    .hero-links { margin-top: 18px; }
+    a.link-chip, button, a.button-link {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      padding: 10px 14px;
+      border-radius: 999px;
+      font: inherit;
+      text-decoration: none;
+      cursor: pointer;
+      transition: transform 120ms ease;
+    }
+    a.link-chip, .ghost, a.button-link {
+      color: var(--ink);
+      background: rgba(255, 255, 255, 0.78);
+      border: 1px solid rgba(20, 33, 43, 0.08);
+    }
+    .primary {
+      border: none;
+      color: #fff;
+      background: linear-gradient(135deg, var(--accent), var(--accent-2));
+      box-shadow: 0 12px 24px rgba(29, 78, 216, 0.22);
+    }
+    button:hover, a.link-chip:hover, a.button-link:hover { transform: translateY(-1px); }
+    .layout { display: grid; gap: 18px; grid-template-columns: minmax(280px, 320px) minmax(0, 1fr); align-items: start; }
+    .panel { border-radius: var(--radius-lg); padding: 20px; }
+    .panel-copy { margin: 0 0 18px; color: var(--muted); font-size: 0.92rem; line-height: 1.5; }
+    .filters, .detail { display: grid; gap: 12px; }
+    .field { display: grid; gap: 6px; }
+    .field label { font-size: 0.82rem; font-weight: 700; color: var(--muted); text-transform: uppercase; letter-spacing: 0.08em; }
+    .field input, .field select {
+      width: 100%;
+      border: 1px solid var(--line);
+      border-radius: var(--radius-sm);
+      padding: 11px 12px;
+      background: rgba(255, 255, 255, 0.94);
+      color: var(--ink);
+    }
+    .summary-grid, .detail-grid { display: grid; gap: 12px; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); }
+    .summary-card, .detail-card {
+      border-radius: 16px;
+      border: 1px solid rgba(20, 33, 43, 0.08);
+      background: rgba(255, 255, 255, 0.78);
+      padding: 16px;
+    }
+    .summary-card small, .detail-card dt {
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      font-weight: 700;
+      color: var(--muted);
+      font-size: 0.78rem;
+    }
+    .summary-card strong { display: block; font-size: 2rem; font-family: var(--font-serif); letter-spacing: -0.04em; }
+    .table-wrap { overflow: auto; border-radius: 18px; border: 1px solid rgba(20, 33, 43, 0.08); background: rgba(255, 255, 255, 0.74); }
+    table { width: 100%; border-collapse: collapse; }
+    th, td { text-align: left; padding: 14px 16px; border-bottom: 1px solid rgba(20, 33, 43, 0.08); vertical-align: top; }
+    th { font-size: 0.76rem; letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); }
+    .loading, .empty, .detail-status-note, pre.raw-json {
+      padding: 18px;
+      border-radius: 16px;
+      background: rgba(255, 255, 255, 0.78);
+      border: 1px dashed rgba(20, 33, 43, 0.16);
+      color: var(--muted);
+    }
+    .task-row-selected { background: rgba(29, 78, 216, 0.1); box-shadow: inset 4px 0 0 var(--accent); }
+    .detail-card dd { margin: 6px 0 0; line-height: 1.5; word-break: break-word; }
+    ul.item-list { margin: 0; padding-left: 18px; line-height: 1.6; }
+    pre.raw-json { white-space: pre-wrap; word-break: break-word; overflow: auto; }
+    @media (max-width: 980px) { .layout { grid-template-columns: 1fr; } }
+  </style>
+</head>
+<body>
+  <main class="page">
+    <section class="hero">
+      <p class="eyebrow">OpsPilot Admin</p>
+      <h1>Eval Dataset Lane</h1>
+      <p class="lead">
+        Durable dataset drafts seeded from promoted eval cases. This lane stays contract-first:
+        list rows come from <code>/api/v1/eval-datasets</code>, while detail reuses the canonical
+        dataset read endpoint and hands off into eval, case, task, report, trace, and version surfaces.
+      </p>
+      <div class="hero-links">
+        <a class="link-chip" href="/admin/evals">Open Evals</a>
+        <a class="link-chip" href="/admin/cases">Open Cases</a>
+        <a class="link-chip" href="/admin/reports">Open Reports</a>
+        <a class="link-chip" href="/admin/task-board">Open Task Board</a>
+        <a class="link-chip" href="/admin/trace-detail">Open Trace Detail</a>
+        <a class="link-chip" href="/admin/version-detail">Open Version Detail</a>
+      </div>
+    </section>
+
+    <section class="layout">
+      <aside class="panel">
+        <h2>Filters</h2>
+        <p class="panel-copy">Tenant scope is required. Keep the dataset lane lightweight: browse drafts here, inspect memberships in detail below.</p>
+        <form id="datasetFilters" class="filters">
+          <div class="field"><label for="tenant_id">Tenant</label><input id="tenant_id" name="tenant_id" type="text" placeholder="tenant-admin-example"></div>
+          <div class="field"><label for="status">Status</label><select id="status" name="status"><option value="">All statuses</option><option value="draft">Draft</option></select></div>
+          <div class="field"><label for="created_by">Created By</label><input id="created_by" name="created_by" type="text" placeholder="operator"></div>
+          <div class="field"><label for="limit">Page Size</label><input id="limit" name="limit" type="number" min="1" max="100" value="10"></div>
+          <div class="field"><label for="offset">Offset</label><input id="offset" name="offset" type="number" min="0" value="0"></div>
+          <div class="actions">
+            <button class="primary" type="submit">Load datasets</button>
+            <button class="ghost" type="button" id="resetFilters">Reset</button>
+          </div>
+        </form>
+      </aside>
+
+      <section class="panel">
+        <h2>Dataset Drafts</h2>
+        <p class="panel-copy">List rows are intentionally lightweight. Membership, lineage, and handoff stay in the detail pane.</p>
+        <div class="summary-grid">
+          <article class="summary-card"><small>Visible datasets</small><strong id="visibleCount">0</strong><span>Current durable dataset slice.</span></article>
+          <article class="summary-card"><small>Latest update</small><strong id="latestUpdated">Unknown</strong><span>Most recently changed draft in this slice.</span></article>
+          <article class="summary-card"><small>Visible items</small><strong id="visibleItems">0</strong><span>Membership count across current rows.</span></article>
+        </div>
+        <div id="datasetListState" class="loading">Loading eval dataset lane...</div>
+        <div class="table-wrap" id="tableWrap" hidden>
+          <table>
+            <thead>
+              <tr>
+                <th>Dataset</th>
+                <th>Status</th>
+                <th>Items</th>
+                <th>Updated</th>
+                <th>Inspect</th>
+              </tr>
+            </thead>
+            <tbody id="datasetRows"></tbody>
+          </table>
+        </div>
+      </section>
+    </section>
+
+    <section class="panel" style="margin-top: 18px;">
+      <h2>Dataset Detail</h2>
+      <p class="panel-copy">Inspect durable membership and hand off into eval cases and source lineage.</p>
+      <div class="detail-actions">
+        <button class="ghost" type="button" id="copyDatasetSummaryButton" hidden>Copy dataset summary</button>
+        <button class="ghost" type="button" id="copyDatasetLinkButton" hidden>Copy dataset link</button>
+      </div>
+      <div class="detail-status-note" id="datasetDetailStatusNote">Select a dataset draft to reveal memberships and handoff actions.</div>
+      <div id="datasetDetail" class="empty">No dataset selected yet.</div>
+    </section>
+  </main>
+
+  <script>
+    const listEndpoint = "/api/v1/eval-datasets";
+    const detailEndpointBase = "/api/v1/eval-datasets/";
+    const evalCaseEndpointBase = "/api/v1/eval-cases/";
+    const caseEndpointBase = "/api/v1/cases/";
+    const taskEndpointBase = "/api/v1/tasks/";
+    const reportEndpointBase = "/api/v1/reports/";
+    const form = document.getElementById("datasetFilters");
+    const resetFiltersButton = document.getElementById("resetFilters");
+    const datasetListState = document.getElementById("datasetListState");
+    const tableWrap = document.getElementById("tableWrap");
+    const datasetRows = document.getElementById("datasetRows");
+    const visibleCount = document.getElementById("visibleCount");
+    const latestUpdated = document.getElementById("latestUpdated");
+    const visibleItems = document.getElementById("visibleItems");
+    const datasetDetail = document.getElementById("datasetDetail");
+    const copyDatasetSummaryButton = document.getElementById("copyDatasetSummaryButton");
+    const copyDatasetLinkButton = document.getElementById("copyDatasetLinkButton");
+    const datasetDetailStatusNote = document.getElementById("datasetDetailStatusNote");
+
+    let currentItems = [];
+    let currentDatasetID = "";
+    let currentDatasetDetail = null;
+
+    function escapeHTML(value) {
+      return String(value ?? "")
+        .replaceAll("&", "&amp;")
+        .replaceAll("<", "&lt;")
+        .replaceAll(">", "&gt;")
+        .replaceAll("\"", "&quot;")
+        .replaceAll("'", "&#39;");
+    }
+
+    function fmtDate(value) {
+      if (!value) return "Unknown";
+      const date = new Date(value);
+      if (Number.isNaN(date.valueOf())) return value;
+      return new Intl.DateTimeFormat(undefined, {
+        year: "numeric",
+        month: "short",
+        day: "2-digit",
+        hour: "2-digit",
+        minute: "2-digit",
+        second: "2-digit"
+      }).format(date);
+    }
+
+    function buildParams() {
+      const params = new URLSearchParams();
+      for (const name of ["tenant_id", "status", "created_by", "limit", "offset"]) {
+        const value = form.elements.namedItem(name).value.trim();
+        if (value) params.set(name, value);
+      }
+      return params;
+    }
+
+    function syncURL(datasetID = "") {
+      const params = buildParams();
+      if (datasetID) params.set("dataset_id", datasetID);
+      history.replaceState(null, "", `/admin/eval-datasets?${params.toString()}`);
+    }
+
+    function populateFiltersFromURL() {
+      const params = new URLSearchParams(window.location.search);
+      for (const name of ["tenant_id", "status", "created_by", "limit", "offset"]) {
+        form.elements.namedItem(name).value = params.get(name) || (name === "limit" ? "10" : name === "offset" ? "0" : "");
+      }
+      return params.get("dataset_id") || "";
+    }
+
+    function syncSelectedRow() {
+      const rows = datasetRows.querySelectorAll("[data-dataset-row]");
+      for (const row of rows) {
+        const selected = row.getAttribute("data-dataset-row") === currentDatasetID && currentDatasetID !== "";
+        row.classList.toggle("task-row-selected", selected);
+        if (selected) {
+          row.setAttribute("aria-current", "true");
+          row.scrollIntoView({ block: "nearest", inline: "nearest" });
+        } else {
+          row.removeAttribute("aria-current");
+        }
+      }
+    }
+
+    function renderSummary(items) {
+      visibleCount.textContent = String(items.length);
+      latestUpdated.textContent = items.length ? fmtDate(items[0].updated_at) : "Unknown";
+      visibleItems.textContent = String(items.reduce((total, item) => total + (item.item_count || 0), 0));
+    }
+
+    function renderRows(items) {
+      currentItems = Array.isArray(items) ? items : [];
+      if (!currentItems.length) {
+        tableWrap.hidden = true;
+        datasetListState.hidden = false;
+        datasetListState.className = "empty";
+        datasetListState.textContent = "No durable eval datasets matched the current slice.";
+        return;
+      }
+
+      datasetListState.hidden = true;
+      tableWrap.hidden = false;
+      datasetRows.innerHTML = currentItems.map((item) => `
+        <tr data-dataset-row="${escapeHTML(item.dataset_id)}">
+          <td>
+            <strong>${escapeHTML(item.name)}</strong>
+            <small>${escapeHTML(item.dataset_id)}</small>
+          </td>
+          <td>${escapeHTML(item.status)}</td>
+          <td>${escapeHTML(String(item.item_count || 0))}</td>
+          <td>${escapeHTML(fmtDate(item.updated_at))}</td>
+          <td><button class="ghost" type="button" data-dataset-id="${escapeHTML(item.dataset_id)}">Inspect</button></td>
+        </tr>
+      `).join("");
+      syncSelectedRow();
+    }
+
+    function buildDatasetSummary(item) {
+      const lines = [
+        `Dataset: ${item.dataset_id}`,
+        `Tenant: ${item.tenant_id}`,
+        `Name: ${item.name}`,
+        `Status: ${item.status}`,
+        `Created by: ${item.created_by}`,
+        `Created at: ${item.created_at}`,
+        `Updated at: ${item.updated_at}`,
+        `Items: ${item.items.length}`
+      ];
+      for (const member of item.items) {
+        lines.push(`- ${member.eval_case_id}: ${member.title} | case=${member.source_case_id} | task=${member.source_task_id || "none"} | report=${member.source_report_id || "none"} | version=${member.version_id || "none"} | trace=${member.trace_id || "none"}`);
+      }
+      return lines.join("\n");
+    }
+
+    function renderDetail(item) {
+      currentDatasetID = item.dataset_id;
+      currentDatasetDetail = item;
+      syncURL(item.dataset_id);
+      copyDatasetSummaryButton.hidden = false;
+      copyDatasetLinkButton.hidden = false;
+      datasetDetailStatusNote.textContent = "Current dataset draft is ready for operator handoff.";
+      datasetDetail.innerHTML = `
+        <div class="detail">
+          <div class="detail-grid">
+            <dl class="detail-card"><dt>Dataset ID</dt><dd>${escapeHTML(item.dataset_id)}</dd></dl>
+            <dl class="detail-card"><dt>Tenant</dt><dd>${escapeHTML(item.tenant_id)}</dd></dl>
+            <dl class="detail-card"><dt>Status</dt><dd>${escapeHTML(item.status)}</dd></dl>
+            <dl class="detail-card"><dt>Created by</dt><dd>${escapeHTML(item.created_by)}</dd></dl>
+            <dl class="detail-card"><dt>Created</dt><dd>${escapeHTML(fmtDate(item.created_at))}</dd></dl>
+            <dl class="detail-card"><dt>Updated</dt><dd>${escapeHTML(fmtDate(item.updated_at))}</dd></dl>
+          </div>
+          <div class="detail-grid">
+            <dl class="detail-card"><dt>Name</dt><dd>${escapeHTML(item.name)}</dd></dl>
+            <dl class="detail-card"><dt>Description</dt><dd>${escapeHTML(item.description || "none")}</dd></dl>
+            <dl class="detail-card"><dt>Membership count</dt><dd>${escapeHTML(String(item.items.length))}</dd></dl>
+          </div>
+          <div class="detail-card">
+            <h3 style="margin-top:0;">Handoff</h3>
+            <div class="detail-actions">
+              <a class="button-link ghost" href="${detailEndpointBase}${encodeURIComponent(item.dataset_id)}?tenant_id=${encodeURIComponent(item.tenant_id)}" target="_blank" rel="noreferrer">Open dataset API detail</a>
+              <a class="button-link ghost" href="/admin/evals?tenant_id=${encodeURIComponent(item.tenant_id)}">Open Evals</a>
+              <a class="button-link ghost" href="/admin/cases?tenant_id=${encodeURIComponent(item.tenant_id)}">Open Cases</a>
+              <a class="button-link ghost" href="/admin/reports?tenant_id=${encodeURIComponent(item.tenant_id)}">Open Reports</a>
+            </div>
+          </div>
+          <div class="detail-card">
+            <h3 style="margin-top:0;">Dataset items</h3>
+            <ul class="item-list">
+              ${item.items.map((member) => `
+                <li>
+                  <strong>${escapeHTML(member.title)}</strong>
+                  <div>
+                    <a class="button-link ghost" href="${evalCaseEndpointBase}${encodeURIComponent(member.eval_case_id)}?tenant_id=${encodeURIComponent(item.tenant_id)}" target="_blank" rel="noreferrer">Eval case API detail</a>
+                    <a class="button-link ghost" href="${caseEndpointBase}${encodeURIComponent(member.source_case_id)}?tenant_id=${encodeURIComponent(item.tenant_id)}" target="_blank" rel="noreferrer">Case API detail</a>
+                    ${member.source_task_id ? `<a class="button-link ghost" href="${taskEndpointBase}${encodeURIComponent(member.source_task_id)}" target="_blank" rel="noreferrer">Task API detail</a>` : ""}
+                    ${member.source_report_id ? `<a class="button-link ghost" href="${reportEndpointBase}${encodeURIComponent(member.source_report_id)}" target="_blank" rel="noreferrer">Report API detail</a>` : ""}
+                    ${member.source_case_id ? `<a class="button-link ghost" href="/admin/trace-detail?case_id=${encodeURIComponent(member.source_case_id)}">Trace detail</a>` : ""}
+                    ${member.version_id ? `<a class="button-link ghost" href="/admin/version-detail?version_id=${encodeURIComponent(member.version_id)}">Version detail</a>` : ""}
+                  </div>
+                </li>
+              `).join("")}
+            </ul>
+          </div>
+          <div class="detail-card">
+            <h3 style="margin-top:0;">Raw JSON</h3>
+            <pre class="raw-json">${escapeHTML(JSON.stringify(item, null, 2))}</pre>
+          </div>
+        </div>
+      `;
+      syncSelectedRow();
+    }
+
+    async function loadDetail(datasetID) {
+      if (!datasetID) {
+        currentDatasetID = "";
+        currentDatasetDetail = null;
+        copyDatasetSummaryButton.hidden = true;
+        copyDatasetLinkButton.hidden = true;
+        datasetDetailStatusNote.textContent = "Select a dataset draft to reveal memberships and handoff actions.";
+        datasetDetail.innerHTML = '<div class="empty">No dataset selected yet.</div>';
+        syncURL("");
+        syncSelectedRow();
+        return;
+      }
+
+      const tenantID = form.elements.namedItem("tenant_id").value.trim();
+      datasetDetail.innerHTML = '<div class="loading">Loading dataset detail...</div>';
+      try {
+        const response = await fetch(`${detailEndpointBase}${encodeURIComponent(datasetID)}?tenant_id=${encodeURIComponent(tenantID)}`, {
+          headers: { "Accept": "application/json" }
+        });
+        if (!response.ok) {
+          throw new Error(`Dataset detail request failed: ${response.statusText}`);
+        }
+        renderDetail(await response.json());
+      } catch (error) {
+        currentDatasetID = "";
+        currentDatasetDetail = null;
+        copyDatasetSummaryButton.hidden = true;
+        copyDatasetLinkButton.hidden = true;
+        datasetDetailStatusNote.textContent = "Unable to load the selected dataset detail.";
+        datasetDetail.innerHTML = `<div class="empty">${escapeHTML(error.message || "Unable to load dataset detail.")}</div>`;
+        syncSelectedRow();
+      }
+    }
+
+    async function loadDatasets(selectedDatasetID = "") {
+      const params = buildParams();
+      syncURL(selectedDatasetID);
+      if (!params.get("tenant_id")) {
+        renderSummary([]);
+        currentItems = [];
+        renderRows([]);
+        await loadDetail("");
+        datasetListState.hidden = false;
+        datasetListState.className = "empty";
+        datasetListState.textContent = "Enter a tenant before loading durable eval datasets.";
+        return;
+      }
+
+      datasetListState.hidden = false;
+      datasetListState.className = "loading";
+      datasetListState.textContent = "Loading eval dataset lane...";
+      tableWrap.hidden = true;
+      try {
+        const response = await fetch(`${listEndpoint}?${params.toString()}`, {
+          headers: { "Accept": "application/json" }
+        });
+        if (!response.ok) {
+          throw new Error(`Dataset list request failed: ${response.statusText}`);
+        }
+        const page = await response.json();
+        renderSummary(page.datasets || []);
+        renderRows(page.datasets || []);
+        const visibleIDs = new Set((page.datasets || []).map((item) => item.dataset_id));
+        if (selectedDatasetID && visibleIDs.has(selectedDatasetID)) {
+          await loadDetail(selectedDatasetID);
+        } else if ((page.datasets || []).length > 0) {
+          await loadDetail(page.datasets[0].dataset_id);
+        } else {
+          await loadDetail("");
+        }
+      } catch (error) {
+        tableWrap.hidden = true;
+        datasetListState.hidden = false;
+        datasetListState.className = "empty";
+        datasetListState.textContent = error.message || "Unable to load eval datasets.";
+        await loadDetail("");
+        datasetDetailStatusNote.textContent = "Unable to load dataset detail because the dataset lane request failed.";
+        datasetDetail.innerHTML = '<div class="empty">Unable to load dataset detail because the dataset lane request failed.</div>';
+      }
+    }
+
+    async function copyDatasetSummary() {
+      if (!currentDatasetDetail) return;
+      const original = copyDatasetSummaryButton.textContent;
+      try {
+        await navigator.clipboard.writeText(buildDatasetSummary(currentDatasetDetail));
+        copyDatasetSummaryButton.textContent = "Summary copied";
+        datasetDetailStatusNote.textContent = "Copied a compact dataset handoff summary.";
+      } catch (error) {
+        copyDatasetSummaryButton.textContent = "Copy failed";
+        datasetDetailStatusNote.textContent = `Unable to copy dataset summary: ${error.message || "clipboard write failed"}`;
+      } finally {
+        window.setTimeout(() => { copyDatasetSummaryButton.textContent = original; }, 1200);
+      }
+    }
+
+    async function copyDatasetLink() {
+      if (!currentDatasetDetail) return;
+      const original = copyDatasetLinkButton.textContent;
+      try {
+        await navigator.clipboard.writeText(window.location.href);
+        copyDatasetLinkButton.textContent = "Link copied";
+        datasetDetailStatusNote.textContent = "Copied the current dataset lane URL with the selected dataset in context.";
+      } catch (error) {
+        copyDatasetLinkButton.textContent = "Copy failed";
+        datasetDetailStatusNote.textContent = `Unable to copy dataset link: ${error.message || "clipboard write failed"}`;
+      } finally {
+        window.setTimeout(() => { copyDatasetLinkButton.textContent = original; }, 1200);
+      }
+    }
+
+    form.addEventListener("submit", (event) => {
+      event.preventDefault();
+      form.elements.namedItem("offset").value = "0";
+      loadDatasets(currentDatasetID);
+    });
+
+    resetFiltersButton.addEventListener("click", () => {
+      for (const name of ["tenant_id", "status", "created_by"]) {
+        form.elements.namedItem(name).value = "";
+      }
+      form.elements.namedItem("limit").value = "10";
+      form.elements.namedItem("offset").value = "0";
+      loadDatasets("");
+    });
+
+    datasetRows.addEventListener("click", (event) => {
+      const button = event.target.closest("[data-dataset-id]");
+      if (!button) return;
+      loadDetail(button.dataset.datasetId);
+    });
+
+    copyDatasetSummaryButton.addEventListener("click", () => copyDatasetSummary());
+    copyDatasetLinkButton.addEventListener("click", () => copyDatasetLink());
+
+    const initialDatasetID = populateFiltersFromURL();
+    loadDatasets(initialDatasetID);
+  </script>
+</body>
+</html>

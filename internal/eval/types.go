@@ -14,6 +14,17 @@ var ErrInvalidSource = errors.New("invalid eval source")
 // ErrEvalCaseExists identifies duplicate promotion of the same source case.
 var ErrEvalCaseExists = errors.New("eval case already exists")
 
+// ErrEvalDatasetNotFound identifies missing durable eval dataset records.
+var ErrEvalDatasetNotFound = errors.New("eval dataset not found")
+
+// ErrInvalidEvalDataset identifies invalid eval dataset requests.
+var ErrInvalidEvalDataset = errors.New("invalid eval dataset")
+
+const (
+	// DatasetStatusDraft identifies a draft dataset that is not yet active in regression runs.
+	DatasetStatusDraft = "draft"
+)
+
 // EvalCase is the durable read model for a promoted evaluation case.
 type EvalCase struct {
 	ID             string
@@ -48,10 +59,71 @@ type ListPage struct {
 	NextOffset int
 }
 
+// EvalDatasetItem is one durable dataset membership row backed by a promoted eval case.
+type EvalDatasetItem struct {
+	EvalCaseID     string
+	Title          string
+	SourceCaseID   string
+	SourceTaskID   string
+	SourceReportID string
+	TraceID        string
+	VersionID      string
+}
+
+// EvalDataset is the durable read model for a draft or active evaluation dataset.
+type EvalDataset struct {
+	ID          string
+	TenantID    string
+	Name        string
+	Description string
+	Status      string
+	CreatedBy   string
+	CreatedAt   time.Time
+	UpdatedAt   time.Time
+	Items       []EvalDatasetItem
+}
+
+// EvalDatasetSummary is the lightweight list projection for one durable eval dataset.
+type EvalDatasetSummary struct {
+	ID        string
+	TenantID  string
+	Name      string
+	Status    string
+	CreatedBy string
+	CreatedAt time.Time
+	UpdatedAt time.Time
+	ItemCount int
+}
+
+// DatasetListFilter constrains eval-dataset list reads.
+type DatasetListFilter struct {
+	TenantID  string
+	Status    string
+	CreatedBy string
+	Limit     int
+	Offset    int
+}
+
+// DatasetListPage is one eval-dataset list page.
+type DatasetListPage struct {
+	Datasets   []EvalDatasetSummary
+	HasMore    bool
+	NextOffset int
+}
+
 // CreateInput is the typed eval case promotion request.
 type CreateInput struct {
 	TenantID     string
 	SourceCaseID string
 	OperatorNote string
 	CreatedBy    string
+}
+
+// CreateDatasetInput is the typed dataset-draft creation request.
+type CreateDatasetInput struct {
+	TenantID    string
+	Name        string
+	Description string
+	EvalCaseIDs []string
+	CreatedBy   string
 }

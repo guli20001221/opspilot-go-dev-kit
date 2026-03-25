@@ -40,6 +40,9 @@ Turn prompt, routing, retrieval, and tool changes into measurable, repeatable qu
 8. Update baselines when intentional behavior changes are accepted.
 9. When promoting production failures from durable operator cases, preserve stable lineage such as `source_case_id`, `source_task_id`, `source_report_id`, `trace_id`, `version_id`, and operator note instead of relying on frontend-only bookmarks.
 10. Once durable eval-case promotion exists, prefer a tenant-scoped `GET /api/v1/eval-cases` queue before introducing dataset or regression-run mutation surfaces.
+11. The first dataset mutation surface should create a durable draft dataset directly from durable eval cases, preserving explicit membership instead of inferring datasets from tags or bookmarks.
+12. Once durable draft datasets exist, add a tenant-scoped `GET /api/v1/eval-datasets` plus a shared `/admin/eval-datasets` lane so operators can revisit drafts without reconstructing them from eval-case bookmarks.
+13. Keep dataset list rows lightweight, such as `dataset_id`, `name`, `status`, `created_by`, `updated_at`, and `item_count`; reserve full membership lineage for `GET /api/v1/eval-datasets/{id}`.
 
 ## Output contract
 When you finish, always report:

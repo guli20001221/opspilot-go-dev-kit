@@ -294,6 +294,21 @@ func TestAdminEvalsPageRendersHTML(t *testing.T) {
 	if !strings.Contains(body, "Copy eval link") {
 		t.Fatal("eval link handoff missing from eval page HTML")
 	}
+	if !strings.Contains(body, "Create dataset draft") {
+		t.Fatal("dataset draft action missing from eval page HTML")
+	}
+	if !strings.Contains(body, "/api/v1/eval-datasets") {
+		t.Fatal("eval dataset API path missing from eval page HTML")
+	}
+	if !strings.Contains(body, "/admin/eval-datasets") {
+		t.Fatal("eval dataset lane link missing from eval page HTML")
+	}
+	if !strings.Contains(body, "Open dataset API detail") {
+		t.Fatal("dataset api handoff missing from eval page HTML")
+	}
+	if !strings.Contains(body, "Open dataset lane") {
+		t.Fatal("dataset lane handoff missing from eval page HTML")
+	}
 	if !strings.Contains(body, "Open case API detail") {
 		t.Fatal("case handoff missing from eval page HTML")
 	}
@@ -322,6 +337,84 @@ func TestAdminEvalsPageRejectsUnknownSubpath(t *testing.T) {
 	defer server.Close()
 
 	resp, err := http.Get(server.URL + "/admin/evals/unknown")
+	if err != nil {
+		t.Fatalf("Get() error = %v", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusNotFound {
+		t.Fatalf("StatusCode = %d, want %d", resp.StatusCode, http.StatusNotFound)
+	}
+}
+
+func TestAdminEvalDatasetsPageRendersHTML(t *testing.T) {
+	server := httptest.NewServer(NewHandler())
+	defer server.Close()
+
+	resp, err := http.Get(server.URL + "/admin/eval-datasets")
+	if err != nil {
+		t.Fatalf("Get() error = %v", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("StatusCode = %d, want %d", resp.StatusCode, http.StatusOK)
+	}
+	if got := resp.Header.Get("Content-Type"); !strings.Contains(got, "text/html") {
+		t.Fatalf("Content-Type = %q, want text/html", got)
+	}
+
+	bodyBytes, err := io.ReadAll(resp.Body)
+	if err != nil {
+		t.Fatalf("ReadAll() error = %v", err)
+	}
+	body := string(bodyBytes)
+	if !strings.Contains(body, "<title>OpsPilot Eval Datasets</title>") {
+		t.Fatal("page title missing from eval datasets HTML")
+	}
+	if !strings.Contains(body, "/api/v1/eval-datasets") {
+		t.Fatal("eval dataset API path missing from eval datasets page HTML")
+	}
+	if !strings.Contains(body, "Eval Dataset Lane") {
+		t.Fatal("eval dataset lane heading missing from page HTML")
+	}
+	if !strings.Contains(body, "Copy dataset summary") {
+		t.Fatal("dataset summary handoff missing from eval datasets page HTML")
+	}
+	if !strings.Contains(body, "Copy dataset link") {
+		t.Fatal("dataset link handoff missing from eval datasets page HTML")
+	}
+	if !strings.Contains(body, "Open dataset API detail") {
+		t.Fatal("dataset api detail handoff missing from eval datasets page HTML")
+	}
+	if !strings.Contains(body, "Eval case API detail") {
+		t.Fatal("eval case api handoff missing from eval datasets page HTML")
+	}
+	if !strings.Contains(body, "Case API detail") {
+		t.Fatal("case api handoff missing from eval datasets page HTML")
+	}
+	if !strings.Contains(body, "Task API detail") {
+		t.Fatal("task api handoff missing from eval datasets page HTML")
+	}
+	if !strings.Contains(body, "Report API detail") {
+		t.Fatal("report api handoff missing from eval datasets page HTML")
+	}
+	if !strings.Contains(body, "Trace detail") {
+		t.Fatal("trace detail handoff missing from eval datasets page HTML")
+	}
+	if !strings.Contains(body, "Version detail") {
+		t.Fatal("version detail handoff missing from eval datasets page HTML")
+	}
+	if !strings.Contains(body, "task-row-selected") {
+		t.Fatal("selected dataset row styling missing from eval datasets page HTML")
+	}
+}
+
+func TestAdminEvalDatasetsPageRejectsUnknownSubpath(t *testing.T) {
+	server := httptest.NewServer(NewHandler())
+	defer server.Close()
+
+	resp, err := http.Get(server.URL + "/admin/eval-datasets/unknown")
 	if err != nil {
 		t.Fatalf("Get() error = %v", err)
 	}
