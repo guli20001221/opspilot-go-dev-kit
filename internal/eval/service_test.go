@@ -420,12 +420,11 @@ func TestDatasetServiceAddDatasetItemAppendsAndIsIdempotent(t *testing.T) {
 	}
 }
 
-func TestDatasetServiceAddDatasetItemRejectsNonDraftDataset(t *testing.T) {
+func TestDatasetServiceAddDatasetItemRejectsPublishedDataset(t *testing.T) {
 	ctx := context.Background()
 	caseService := casesvc.NewService()
 	evalService := NewService(caseService, nil)
-	store := newMemoryStore()
-	datasetService := NewDatasetServiceWithStore(store, evalService)
+	datasetService := NewDatasetService(evalService)
 
 	sourceCase, err := caseService.CreateCase(ctx, casesvc.CreateInput{
 		TenantID: "tenant-dataset",
@@ -442,21 +441,110 @@ func TestDatasetServiceAddDatasetItemRejectsNonDraftDataset(t *testing.T) {
 		t.Fatalf("PromoteCase() error = %v", err)
 	}
 
-	if _, err := store.CreateDataset(ctx, EvalDataset{
-		ID:        "eval-dataset-active",
-		TenantID:  "tenant-dataset",
-		Name:      "Active dataset",
-		Status:    "active",
-		CreatedBy: "operator",
-		CreatedAt: time.Now().UTC(),
-		UpdatedAt: time.Now().UTC(),
+	created, err := datasetService.CreateDataset(ctx, CreateDatasetInput{
+		TenantID:    "tenant-dataset",
+		EvalCaseIDs: []string{evalCase.ID},
+	})
+	if err != nil {
+		t.Fatalf("CreateDataset() error = %v", err)
+	}
+	if _, err := datasetService.PublishDataset(ctx, created.ID, PublishDatasetInput{
+		TenantID: "tenant-dataset",
 	}); err != nil {
-		t.Fatalf("CreateDataset(store) error = %v", err)
+		t.Fatalf("PublishDataset() error = %v", err)
 	}
 
-	_, err = datasetService.AddDatasetItem(ctx, "eval-dataset-active", AddDatasetItemInput{
+	_, err = datasetService.AddDatasetItem(ctx, created.ID, AddDatasetItemInput{
 		TenantID:   "tenant-dataset",
 		EvalCaseID: evalCase.ID,
+	})
+	if !errors.Is(err, ErrInvalidEvalDatasetState) {
+		t.Fatalf("error = %v, want %v", err, ErrInvalidEvalDatasetState)
+	}
+}
+
+func TestDatasetServicePublishDatasetTransitionsDraftToPublished(t *testing.T) {
+	ctx := context.Background()
+	caseService := casesvc.NewService()
+	evalService := NewService(caseService, nil)
+	datasetService := NewDatasetService(evalService)
+
+	sourceCase, err := caseService.CreateCase(ctx, casesvc.CreateInput{
+		TenantID: "tenant-dataset",
+		Title:    "Source",
+	})
+	if err != nil {
+		t.Fatalf("CreateCase() error = %v", err)
+	}
+	evalCase, _, err := evalService.PromoteCase(ctx, CreateInput{
+		TenantID:     "tenant-dataset",
+		SourceCaseID: sourceCase.ID,
+	})
+	if err != nil {
+		t.Fatalf("PromoteCase() error = %v", err)
+	}
+
+	created, err := datasetService.CreateDataset(ctx, CreateDatasetInput{
+		TenantID:    "tenant-dataset",
+		EvalCaseIDs: []string{evalCase.ID},
+	})
+	if err != nil {
+		t.Fatalf("CreateDataset() error = %v", err)
+	}
+
+	published, err := datasetService.PublishDataset(ctx, created.ID, PublishDatasetInput{
+		TenantID:    "tenant-dataset",
+		PublishedBy: "operator-publish",
+	})
+	if err != nil {
+		t.Fatalf("PublishDataset() error = %v", err)
+	}
+	if published.Status != DatasetStatusPublished {
+		t.Fatalf("Status = %q, want %q", published.Status, DatasetStatusPublished)
+	}
+	if published.PublishedBy != "operator-publish" {
+		t.Fatalf("PublishedBy = %q, want %q", published.PublishedBy, "operator-publish")
+	}
+	if published.PublishedAt.IsZero() {
+		t.Fatal("PublishedAt is zero")
+	}
+}
+
+func TestDatasetServicePublishDatasetRejectsRepublish(t *testing.T) {
+	ctx := context.Background()
+	caseService := casesvc.NewService()
+	evalService := NewService(caseService, nil)
+	datasetService := NewDatasetService(evalService)
+
+	sourceCase, err := caseService.CreateCase(ctx, casesvc.CreateInput{
+		TenantID: "tenant-dataset",
+		Title:    "Source",
+	})
+	if err != nil {
+		t.Fatalf("CreateCase() error = %v", err)
+	}
+	evalCase, _, err := evalService.PromoteCase(ctx, CreateInput{
+		TenantID:     "tenant-dataset",
+		SourceCaseID: sourceCase.ID,
+	})
+	if err != nil {
+		t.Fatalf("PromoteCase() error = %v", err)
+	}
+
+	created, err := datasetService.CreateDataset(ctx, CreateDatasetInput{
+		TenantID:    "tenant-dataset",
+		EvalCaseIDs: []string{evalCase.ID},
+	})
+	if err != nil {
+		t.Fatalf("CreateDataset() error = %v", err)
+	}
+	if _, err := datasetService.PublishDataset(ctx, created.ID, PublishDatasetInput{
+		TenantID: "tenant-dataset",
+	}); err != nil {
+		t.Fatalf("PublishDataset(first) error = %v", err)
+	}
+	_, err = datasetService.PublishDataset(ctx, created.ID, PublishDatasetInput{
+		TenantID: "tenant-dataset",
 	})
 	if !errors.Is(err, ErrInvalidEvalDatasetState) {
 		t.Fatalf("error = %v, want %v", err, ErrInvalidEvalDatasetState)

@@ -25,6 +25,11 @@ type addEvalDatasetItemRequest struct {
 	AddedBy    string `json:"added_by,omitempty"`
 }
 
+type publishEvalDatasetRequest struct {
+	TenantID    string `json:"tenant_id"`
+	PublishedBy string `json:"published_by,omitempty"`
+}
+
 type evalDatasetItemResponse struct {
 	EvalCaseID     string `json:"eval_case_id"`
 	Title          string `json:"title"`
@@ -44,6 +49,8 @@ type evalDatasetResponse struct {
 	CreatedBy   string                    `json:"created_by"`
 	CreatedAt   string                    `json:"created_at"`
 	UpdatedAt   string                    `json:"updated_at"`
+	PublishedBy string                    `json:"published_by,omitempty"`
+	PublishedAt string                    `json:"published_at,omitempty"`
 	Items       []evalDatasetItemResponse `json:"items"`
 }
 
@@ -151,15 +158,22 @@ func (a *appHandler) handleEvalDatasetByID(w http.ResponseWriter, r *http.Reques
 		return
 	}
 
-	if action != "items" {
+	switch action {
+	case "items":
+		if r.Method != http.MethodPost {
+			writeError(w, http.StatusMethodNotAllowed, "method_not_allowed", "method not allowed")
+			return
+		}
+		a.handleAddEvalDatasetItem(w, r, datasetID)
+	case "publish":
+		if r.Method != http.MethodPost {
+			writeError(w, http.StatusMethodNotAllowed, "method_not_allowed", "method not allowed")
+			return
+		}
+		a.handlePublishEvalDataset(w, r, datasetID)
+	default:
 		writeError(w, http.StatusNotFound, "not_found", "not found")
-		return
 	}
-	if r.Method != http.MethodPost {
-		writeError(w, http.StatusMethodNotAllowed, "method_not_allowed", "method not allowed")
-		return
-	}
-	a.handleAddEvalDatasetItem(w, r, datasetID)
 }
 
 func (a *appHandler) handleGetEvalDataset(w http.ResponseWriter, r *http.Request, datasetID string) {
@@ -221,6 +235,38 @@ func (a *appHandler) handleAddEvalDatasetItem(w http.ResponseWriter, r *http.Req
 	writeJSON(w, http.StatusOK, newEvalDatasetResponse(item))
 }
 
+func (a *appHandler) handlePublishEvalDataset(w http.ResponseWriter, r *http.Request, datasetID string) {
+	var req publishEvalDatasetRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid_json", "invalid json body")
+		return
+	}
+	if strings.TrimSpace(req.TenantID) == "" {
+		writeError(w, http.StatusBadRequest, "invalid_eval_dataset", "tenant_id is required")
+		return
+	}
+
+	item, err := a.evalDatasets.PublishDataset(r.Context(), datasetID, evalsvc.PublishDatasetInput{
+		TenantID:    strings.TrimSpace(req.TenantID),
+		PublishedBy: strings.TrimSpace(req.PublishedBy),
+	})
+	if err != nil {
+		switch {
+		case errors.Is(err, evalsvc.ErrEvalDatasetNotFound):
+			writeError(w, http.StatusNotFound, "eval_dataset_not_found", "eval dataset not found")
+		case errors.Is(err, evalsvc.ErrInvalidEvalDatasetState):
+			writeError(w, http.StatusConflict, "invalid_eval_dataset_state", "eval dataset is not in a valid state for publish")
+		case errors.Is(err, evalsvc.ErrInvalidEvalDataset):
+			writeError(w, http.StatusConflict, "invalid_eval_dataset", "eval dataset request is invalid for the current tenant scope")
+		default:
+			writeError(w, http.StatusInternalServerError, "eval_dataset_publish_failed", err.Error())
+		}
+		return
+	}
+
+	writeJSON(w, http.StatusOK, newEvalDatasetResponse(item))
+}
+
 func newEvalDatasetResponse(item evalsvc.EvalDataset) evalDatasetResponse {
 	resp := evalDatasetResponse{
 		DatasetID:   item.ID,
@@ -232,6 +278,12 @@ func newEvalDatasetResponse(item evalsvc.EvalDataset) evalDatasetResponse {
 		CreatedAt:   item.CreatedAt.Format(time.RFC3339Nano),
 		UpdatedAt:   item.UpdatedAt.Format(time.RFC3339Nano),
 		Items:       make([]evalDatasetItemResponse, 0, len(item.Items)),
+	}
+	if item.PublishedBy != "" {
+		resp.PublishedBy = item.PublishedBy
+	}
+	if !item.PublishedAt.IsZero() {
+		resp.PublishedAt = item.PublishedAt.Format(time.RFC3339Nano)
 	}
 	for _, member := range item.Items {
 		resp.Items = append(resp.Items, evalDatasetItemResponse{

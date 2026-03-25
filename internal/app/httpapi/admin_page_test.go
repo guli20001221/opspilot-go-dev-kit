@@ -384,6 +384,15 @@ func TestAdminEvalDatasetsPageRendersHTML(t *testing.T) {
 	if !strings.Contains(body, "Copy dataset summary") {
 		t.Fatal("dataset summary handoff missing from eval datasets page HTML")
 	}
+	if !strings.Contains(body, "Publish dataset") {
+		t.Fatal("dataset publish action missing from eval datasets page HTML")
+	}
+	if !strings.Contains(body, "Published datasets are immutable baselines") {
+		t.Fatal("dataset published read-only note missing from eval datasets page HTML")
+	}
+	if !strings.Contains(body, "<option value=\"published\">Published</option>") {
+		t.Fatal("published dataset filter missing from eval datasets page HTML")
+	}
 	if !strings.Contains(body, "Copy dataset link") {
 		t.Fatal("dataset link handoff missing from eval datasets page HTML")
 	}

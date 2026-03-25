@@ -44,6 +44,7 @@ Turn prompt, routing, retrieval, and tool changes into measurable, repeatable qu
 12. Once durable draft datasets exist, add a tenant-scoped `GET /api/v1/eval-datasets` plus a shared `/admin/eval-datasets` lane so operators can revisit drafts without reconstructing them from eval-case bookmarks.
 13. Keep dataset list rows lightweight, such as `dataset_id`, `name`, `status`, `created_by`, `updated_at`, and `item_count`; reserve full membership lineage for `GET /api/v1/eval-datasets/{id}`.
 14. The first incremental curation surface should be `POST /api/v1/eval-datasets/{dataset_id}/items`, append-only and idempotent for the same eval case, instead of introducing remove/reorder flows too early.
+15. Once draft creation and append exist, add an explicit `POST /api/v1/eval-datasets/{dataset_id}/publish` transition that freezes the draft into an immutable baseline before introducing eval-run execution.
 
 ## Output contract
 When you finish, always report:

@@ -121,7 +121,7 @@
       <p class="eyebrow">OpsPilot Admin</p>
       <h1>Eval Dataset Lane</h1>
       <p class="lead">
-        Durable dataset drafts seeded from promoted eval cases. This lane stays contract-first:
+        Durable eval datasets seeded from promoted eval cases. This lane stays contract-first:
         list rows come from <code>/api/v1/eval-datasets</code>, while detail reuses the canonical
         dataset read endpoint and hands off into eval, case, task, report, trace, and version surfaces.
       </p>
@@ -138,10 +138,10 @@
     <section class="layout">
       <aside class="panel">
         <h2>Filters</h2>
-        <p class="panel-copy">Tenant scope is required. Keep the dataset lane lightweight: browse drafts here, inspect memberships in detail below.</p>
+        <p class="panel-copy">Tenant scope is required. Keep the dataset lane lightweight: browse drafts and published baselines here, inspect memberships in detail below.</p>
         <form id="datasetFilters" class="filters">
           <div class="field"><label for="tenant_id">Tenant</label><input id="tenant_id" name="tenant_id" type="text" placeholder="tenant-admin-example"></div>
-          <div class="field"><label for="status">Status</label><select id="status" name="status"><option value="">All statuses</option><option value="draft">Draft</option></select></div>
+          <div class="field"><label for="status">Status</label><select id="status" name="status"><option value="">All statuses</option><option value="draft">Draft</option><option value="published">Published</option></select></div>
           <div class="field"><label for="created_by">Created By</label><input id="created_by" name="created_by" type="text" placeholder="operator"></div>
           <div class="field"><label for="limit">Page Size</label><input id="limit" name="limit" type="number" min="1" max="100" value="10"></div>
           <div class="field"><label for="offset">Offset</label><input id="offset" name="offset" type="number" min="0" value="0"></div>
@@ -153,11 +153,11 @@
       </aside>
 
       <section class="panel">
-        <h2>Dataset Drafts</h2>
-        <p class="panel-copy">List rows are intentionally lightweight. Membership, lineage, and handoff stay in the detail pane.</p>
+        <h2>Datasets</h2>
+        <p class="panel-copy">List rows are intentionally lightweight. Draft curation and published baseline drill-down both stay in the detail pane.</p>
         <div class="summary-grid">
           <article class="summary-card"><small>Visible datasets</small><strong id="visibleCount">0</strong><span>Current durable dataset slice.</span></article>
-          <article class="summary-card"><small>Latest update</small><strong id="latestUpdated">Unknown</strong><span>Most recently changed draft in this slice.</span></article>
+          <article class="summary-card"><small>Latest update</small><strong id="latestUpdated">Unknown</strong><span>Most recently changed dataset in this slice.</span></article>
           <article class="summary-card"><small>Visible items</small><strong id="visibleItems">0</strong><span>Membership count across current rows.</span></article>
         </div>
         <div id="datasetListState" class="loading">Loading eval dataset lane...</div>
@@ -180,8 +180,9 @@
 
     <section class="panel" style="margin-top: 18px;">
       <h2>Dataset Detail</h2>
-      <p class="panel-copy">Inspect durable membership and hand off into eval cases and source lineage.</p>
+      <p class="panel-copy">Inspect durable membership, publish draft baselines, and hand off into eval cases and source lineage.</p>
       <div class="detail-actions">
+        <button class="primary" type="button" id="publishDatasetButton" hidden>Publish dataset</button>
         <button class="ghost" type="button" id="copyDatasetSummaryButton" hidden>Copy dataset summary</button>
         <button class="ghost" type="button" id="copyDatasetLinkButton" hidden>Copy dataset link</button>
       </div>
@@ -208,6 +209,7 @@
     const datasetDetail = document.getElementById("datasetDetail");
     const copyDatasetSummaryButton = document.getElementById("copyDatasetSummaryButton");
     const copyDatasetLinkButton = document.getElementById("copyDatasetLinkButton");
+    const publishDatasetButton = document.getElementById("publishDatasetButton");
     const datasetDetailStatusNote = document.getElementById("datasetDetailStatusNote");
 
     let currentItems = [];
@@ -318,6 +320,12 @@
         `Updated at: ${item.updated_at}`,
         `Items: ${item.items.length}`
       ];
+      if (item.published_by) {
+        lines.push(`Published by: ${item.published_by}`);
+      }
+      if (item.published_at) {
+        lines.push(`Published at: ${item.published_at}`);
+      }
       for (const member of item.items) {
         lines.push(`- ${member.eval_case_id}: ${member.title} | case=${member.source_case_id} | task=${member.source_task_id || "none"} | report=${member.source_report_id || "none"} | version=${member.version_id || "none"} | trace=${member.trace_id || "none"}`);
       }
@@ -330,7 +338,10 @@
       syncURL(item.dataset_id);
       copyDatasetSummaryButton.hidden = false;
       copyDatasetLinkButton.hidden = false;
-      datasetDetailStatusNote.textContent = "Current dataset draft is ready for operator handoff.";
+      publishDatasetButton.hidden = item.status !== "draft";
+      datasetDetailStatusNote.textContent = item.status === "published"
+        ? "Published datasets are immutable baselines. Membership is now read-only."
+        : "Current dataset draft is ready for publish or operator handoff.";
       datasetDetail.innerHTML = `
         <div class="detail">
           <div class="detail-grid">
@@ -340,6 +351,8 @@
             <dl class="detail-card"><dt>Created by</dt><dd>${escapeHTML(item.created_by)}</dd></dl>
             <dl class="detail-card"><dt>Created</dt><dd>${escapeHTML(fmtDate(item.created_at))}</dd></dl>
             <dl class="detail-card"><dt>Updated</dt><dd>${escapeHTML(fmtDate(item.updated_at))}</dd></dl>
+            <dl class="detail-card"><dt>Published by</dt><dd>${escapeHTML(item.published_by || "not published")}</dd></dl>
+            <dl class="detail-card"><dt>Published at</dt><dd>${escapeHTML(item.published_at ? fmtDate(item.published_at) : "not published")}</dd></dl>
           </div>
           <div class="detail-grid">
             <dl class="detail-card"><dt>Name</dt><dd>${escapeHTML(item.name)}</dd></dl>
@@ -386,6 +399,7 @@
       if (!datasetID) {
         currentDatasetID = "";
         currentDatasetDetail = null;
+        publishDatasetButton.hidden = true;
         copyDatasetSummaryButton.hidden = true;
         copyDatasetLinkButton.hidden = true;
         datasetDetailStatusNote.textContent = "Select a dataset draft to reveal memberships and handoff actions.";
@@ -408,6 +422,7 @@
       } catch (error) {
         currentDatasetID = "";
         currentDatasetDetail = null;
+        publishDatasetButton.hidden = true;
         copyDatasetSummaryButton.hidden = true;
         copyDatasetLinkButton.hidden = true;
         datasetDetailStatusNote.textContent = "Unable to load the selected dataset detail.";
@@ -493,6 +508,44 @@
       }
     }
 
+    async function publishDataset() {
+      if (!currentDatasetDetail || currentDatasetDetail.status !== "draft") return;
+      const tenantID = form.elements.namedItem("tenant_id").value.trim();
+      const original = publishDatasetButton.textContent;
+      publishDatasetButton.disabled = true;
+      publishDatasetButton.textContent = "Publishing...";
+      try {
+        const response = await fetch(`${detailEndpointBase}${encodeURIComponent(currentDatasetDetail.dataset_id)}/publish`, {
+          method: "POST",
+          headers: {
+            "Accept": "application/json",
+            "Content-Type": "application/json"
+          },
+          body: JSON.stringify({
+            tenant_id: tenantID,
+            published_by: "operator"
+          })
+        });
+        if (!response.ok) {
+          const payload = await response.json().catch(() => ({}));
+          throw new Error(payload.message || `Publish request failed: ${response.statusText}`);
+        }
+        const updated = await response.json();
+        renderDetail(updated);
+        if (form.elements.namedItem("status").value === "draft") {
+          form.elements.namedItem("status").value = "published";
+        }
+        form.elements.namedItem("offset").value = "0";
+        await loadDatasets(updated.dataset_id);
+        datasetDetailStatusNote.textContent = "Dataset published as an immutable baseline.";
+      } catch (error) {
+        datasetDetailStatusNote.textContent = `Unable to publish dataset: ${error.message || "request failed"}`;
+      } finally {
+        publishDatasetButton.disabled = false;
+        publishDatasetButton.textContent = original;
+      }
+    }
+
     form.addEventListener("submit", (event) => {
       event.preventDefault();
       form.elements.namedItem("offset").value = "0";
@@ -516,6 +569,7 @@
 
     copyDatasetSummaryButton.addEventListener("click", () => copyDatasetSummary());
     copyDatasetLinkButton.addEventListener("click", () => copyDatasetLink());
+    publishDatasetButton.addEventListener("click", () => publishDataset());
 
     const initialDatasetID = populateFiltersFromURL();
     loadDatasets(initialDatasetID);

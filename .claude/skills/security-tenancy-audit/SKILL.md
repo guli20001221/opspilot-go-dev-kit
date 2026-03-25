@@ -59,6 +59,7 @@ When you finish, always report:
 10. Eval dataset draft creation must validate that every referenced eval case belongs to the caller's tenant before persisting membership rows.
 11. Eval dataset list and detail reads must remain tenant-scoped; require `tenant_id` on browse/detail endpoints and never use dataset membership joins to leak cross-tenant lineage.
 12. Eval dataset membership append must validate both tenant scope and mutable dataset state before persisting a new row; treat duplicate adds as idempotent rather than as implicit cross-tenant or server errors.
+13. Eval dataset publish must validate both tenant scope and current lifecycle state; published datasets become immutable baselines and repeated publish attempts should fail as explicit invalid-state transitions.
 
 ## Guardrails
 - no cross-tenant read or write path

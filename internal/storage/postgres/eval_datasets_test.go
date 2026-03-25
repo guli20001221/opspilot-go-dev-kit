@@ -2,6 +2,7 @@ package postgres
 
 import (
 	"context"
+	"errors"
 	"os"
 	"testing"
 	"time"
@@ -398,5 +399,80 @@ func TestEvalDatasetStoreAddDatasetItemAppendsAndIsIdempotent(t *testing.T) {
 	}
 	if len(unchanged.Items) != 2 {
 		t.Fatalf("len(Items) = %d, want 2", len(unchanged.Items))
+	}
+}
+
+func TestEvalDatasetStorePublishDatasetPersistsPublishMetadata(t *testing.T) {
+	dsn := os.Getenv("OPSPILOT_TEST_POSTGRES_DSN")
+	if dsn == "" {
+		t.Skip("OPSPILOT_TEST_POSTGRES_DSN not set")
+	}
+
+	ctx := context.Background()
+	pool, err := OpenPool(ctx, dsn)
+	if err != nil {
+		t.Fatalf("OpenPool() error = %v", err)
+	}
+	defer pool.Close()
+
+	applyMigration(t, ctx, pool)
+	if _, err := pool.Exec(ctx, "TRUNCATE eval_dataset_items, eval_datasets, eval_cases, case_notes, cases, reports, workflow_task_events, workflow_tasks RESTART IDENTITY CASCADE"); err != nil {
+		t.Fatalf("TRUNCATE eval dataset and lineage tables error = %v", err)
+	}
+
+	seedEvalLineageCase(t, ctx, pool, "tenant-eval", "task-eval-a", "report-task-eval-a", "case-eval-a", "version-a", "trace-a", time.Unix(1700012900, 0).UTC())
+	evalStore := NewEvalCaseStore(pool)
+	if _, err := evalStore.Save(ctx, evalsvc.EvalCase{
+		ID:             "eval-case-a",
+		TenantID:       "tenant-eval",
+		SourceCaseID:   "case-eval-a",
+		SourceTaskID:   "task-eval-a",
+		SourceReportID: "report-task-eval-a",
+		TraceID:        "trace-a",
+		VersionID:      "version-a",
+		Title:          "Eval A",
+		Summary:        "First",
+		CreatedBy:      "operator-a",
+		CreatedAt:      time.Unix(1700013000, 0).UTC(),
+	}); err != nil {
+		t.Fatalf("Save(eval-case-a) error = %v", err)
+	}
+
+	store := NewEvalDatasetStore(pool)
+	created, err := store.CreateDataset(ctx, evalsvc.EvalDataset{
+		ID:        "eval-dataset-publish",
+		TenantID:  "tenant-eval",
+		Name:      "Publish me",
+		Status:    evalsvc.DatasetStatusDraft,
+		CreatedBy: "operator-a",
+		CreatedAt: time.Unix(1700013100, 0).UTC(),
+		UpdatedAt: time.Unix(1700013100, 0).UTC(),
+		Items:     []evalsvc.EvalDatasetItem{{EvalCaseID: "eval-case-a"}},
+	})
+	if err != nil {
+		t.Fatalf("CreateDataset() error = %v", err)
+	}
+
+	publishedAt := time.Unix(1700013200, 0).UTC()
+	published, err := store.PublishDataset(ctx, created.ID, "operator-publish", publishedAt)
+	if err != nil {
+		t.Fatalf("PublishDataset() error = %v", err)
+	}
+	if published.Status != evalsvc.DatasetStatusPublished {
+		t.Fatalf("Status = %q, want %q", published.Status, evalsvc.DatasetStatusPublished)
+	}
+	if published.PublishedBy != "operator-publish" {
+		t.Fatalf("PublishedBy = %q, want %q", published.PublishedBy, "operator-publish")
+	}
+	if !published.PublishedAt.Equal(publishedAt) {
+		t.Fatalf("PublishedAt = %v, want %v", published.PublishedAt, publishedAt)
+	}
+	if !published.UpdatedAt.Equal(publishedAt) {
+		t.Fatalf("UpdatedAt = %v, want %v", published.UpdatedAt, publishedAt)
+	}
+
+	_, err = store.PublishDataset(ctx, created.ID, "operator-publish", publishedAt.Add(time.Second))
+	if !errors.Is(err, evalsvc.ErrInvalidEvalDatasetState) {
+		t.Fatalf("republish error = %v, want %v", err, evalsvc.ErrInvalidEvalDatasetState)
 	}
 }

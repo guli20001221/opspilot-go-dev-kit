@@ -15,6 +15,7 @@ type datasetStore interface {
 	GetDataset(ctx context.Context, datasetID string) (EvalDataset, error)
 	ListDatasets(ctx context.Context, filter DatasetListFilter) (DatasetListPage, error)
 	AddDatasetItem(ctx context.Context, datasetID string, item EvalDatasetItem, updatedAt time.Time) (EvalDataset, error)
+	PublishDataset(ctx context.Context, datasetID string, publishedBy string, publishedAt time.Time) (EvalDataset, error)
 }
 
 type evalCaseReader interface {
@@ -152,6 +153,31 @@ func (s *DatasetService) AddDatasetItem(ctx context.Context, datasetID string, i
 		TraceID:        evalCase.TraceID,
 		VersionID:      evalCase.VersionID,
 	}, time.Now().UTC())
+}
+
+// PublishDataset freezes a durable dataset draft into an immutable published baseline.
+func (s *DatasetService) PublishDataset(ctx context.Context, datasetID string, input PublishDatasetInput) (EvalDataset, error) {
+	if strings.TrimSpace(input.TenantID) == "" {
+		return EvalDataset{}, ErrInvalidEvalDataset
+	}
+
+	dataset, err := s.store.GetDataset(ctx, datasetID)
+	if err != nil {
+		return EvalDataset{}, err
+	}
+	if dataset.TenantID != strings.TrimSpace(input.TenantID) {
+		return EvalDataset{}, ErrEvalDatasetNotFound
+	}
+	if dataset.Status != DatasetStatusDraft {
+		return EvalDataset{}, ErrInvalidEvalDatasetState
+	}
+
+	return s.store.PublishDataset(
+		ctx,
+		dataset.ID,
+		fallbackString(strings.TrimSpace(input.PublishedBy), "operator"),
+		time.Now().UTC(),
+	)
 }
 
 func newEvalDatasetID(now time.Time) string {

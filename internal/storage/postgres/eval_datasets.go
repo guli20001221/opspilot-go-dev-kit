@@ -2,6 +2,7 @@ package postgres
 
 import (
 	"context"
+	"database/sql"
 	"errors"
 	"fmt"
 	"time"
@@ -42,9 +43,11 @@ INSERT INTO eval_datasets (
     status,
     created_by,
     created_at,
-    updated_at
+    updated_at,
+    published_by,
+    published_at
 ) VALUES (
-    $1, $2, $3, $4, $5, $6, $7, $8
+    $1, $2, $3, $4, $5, $6, $7, $8, NULL, NULL
 )`
 	if _, err := tx.Exec(
 		ctx,
@@ -147,6 +150,50 @@ ON CONFLICT (dataset_id, eval_case_id) DO NOTHING`
 	return s.GetDataset(ctx, datasetID)
 }
 
+// PublishDataset freezes one durable eval dataset draft into an immutable published baseline.
+func (s *EvalDatasetStore) PublishDataset(ctx context.Context, datasetID string, publishedBy string, publishedAt time.Time) (evalsvc.EvalDataset, error) {
+	tx, err := s.pool.Begin(ctx)
+	if err != nil {
+		return evalsvc.EvalDataset{}, fmt.Errorf("begin eval dataset publish tx: %w", err)
+	}
+	defer func() {
+		_ = tx.Rollback(ctx)
+	}()
+
+	const lockQuery = `
+SELECT status
+FROM eval_datasets
+WHERE id = $1
+FOR UPDATE`
+	var status string
+	if err := tx.QueryRow(ctx, lockQuery, datasetID).Scan(&status); err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return evalsvc.EvalDataset{}, evalsvc.ErrEvalDatasetNotFound
+		}
+		return evalsvc.EvalDataset{}, fmt.Errorf("lock eval dataset for publish: %w", err)
+	}
+	if status != evalsvc.DatasetStatusDraft {
+		return evalsvc.EvalDataset{}, evalsvc.ErrInvalidEvalDatasetState
+	}
+
+	const publishQuery = `
+UPDATE eval_datasets
+SET status = $2,
+    published_by = $3,
+    published_at = $4,
+    updated_at = $4
+WHERE id = $1`
+	if _, err := tx.Exec(ctx, publishQuery, datasetID, evalsvc.DatasetStatusPublished, publishedBy, publishedAt); err != nil {
+		return evalsvc.EvalDataset{}, fmt.Errorf("publish eval dataset: %w", err)
+	}
+
+	if err := tx.Commit(ctx); err != nil {
+		return evalsvc.EvalDataset{}, fmt.Errorf("commit eval dataset publish tx: %w", err)
+	}
+
+	return s.GetDataset(ctx, datasetID)
+}
+
 // GetDataset loads one durable eval dataset plus its items.
 func (s *EvalDatasetStore) GetDataset(ctx context.Context, datasetID string) (evalsvc.EvalDataset, error) {
 	const datasetQuery = `
@@ -158,11 +205,14 @@ SELECT
     status,
     created_by,
     created_at,
-    updated_at
+    updated_at,
+    COALESCE(published_by, ''),
+    published_at
 FROM eval_datasets
 WHERE id = $1`
 
 	var item evalsvc.EvalDataset
+	var publishedAt sql.NullTime
 	if err := s.pool.QueryRow(ctx, datasetQuery, datasetID).Scan(
 		&item.ID,
 		&item.TenantID,
@@ -172,11 +222,16 @@ WHERE id = $1`
 		&item.CreatedBy,
 		&item.CreatedAt,
 		&item.UpdatedAt,
+		&item.PublishedBy,
+		&publishedAt,
 	); err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			return evalsvc.EvalDataset{}, evalsvc.ErrEvalDatasetNotFound
 		}
 		return evalsvc.EvalDataset{}, fmt.Errorf("scan eval dataset: %w", err)
+	}
+	if publishedAt.Valid {
+		item.PublishedAt = publishedAt.Time
 	}
 
 	const itemsQuery = `

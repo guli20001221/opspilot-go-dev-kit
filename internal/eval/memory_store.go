@@ -201,3 +201,24 @@ func (s *memoryStore) AddDatasetItem(_ context.Context, datasetID string, item E
 
 	return dataset, nil
 }
+
+func (s *memoryStore) PublishDataset(_ context.Context, datasetID string, publishedBy string, publishedAt time.Time) (EvalDataset, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	dataset, ok := s.datasets[datasetID]
+	if !ok {
+		return EvalDataset{}, fmt.Errorf("%w: %s", ErrEvalDatasetNotFound, datasetID)
+	}
+	if dataset.Status != DatasetStatusDraft {
+		return EvalDataset{}, ErrInvalidEvalDatasetState
+	}
+
+	dataset.Status = DatasetStatusPublished
+	dataset.PublishedBy = publishedBy
+	dataset.PublishedAt = publishedAt
+	dataset.UpdatedAt = publishedAt
+	s.datasets[datasetID] = dataset
+
+	return dataset, nil
+}

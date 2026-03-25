@@ -463,10 +463,11 @@ func TestAddEvalDatasetItemEndpointHidesCrossTenantDataset(t *testing.T) {
 	}
 }
 
-func TestAddEvalDatasetItemEndpointRejectsNonDraftDataset(t *testing.T) {
+func TestAddEvalDatasetItemEndpointRejectsPublishedDataset(t *testing.T) {
 	ctx := context.Background()
 	caseService := casesvc.NewService()
 	evalCaseService := evalsvc.NewService(caseService, nil)
+	datasetService := evalsvc.NewDatasetService(evalCaseService)
 
 	sourceCase, err := caseService.CreateCase(ctx, casesvc.CreateInput{
 		TenantID: "tenant-dataset",
@@ -483,20 +484,18 @@ func TestAddEvalDatasetItemEndpointRejectsNonDraftDataset(t *testing.T) {
 		t.Fatalf("PromoteCase() error = %v", err)
 	}
 
-	store := &stubEvalDatasetStore{
-		byID: map[string]evalsvc.EvalDataset{
-			"eval-dataset-active": {
-				ID:        "eval-dataset-active",
-				TenantID:  "tenant-dataset",
-				Name:      "Active dataset",
-				Status:    "active",
-				CreatedBy: "operator",
-				CreatedAt: time.Now().UTC(),
-				UpdatedAt: time.Now().UTC(),
-			},
-		},
+	created, err := datasetService.CreateDataset(ctx, evalsvc.CreateDatasetInput{
+		TenantID:    "tenant-dataset",
+		EvalCaseIDs: []string{evalCase.ID},
+	})
+	if err != nil {
+		t.Fatalf("CreateDataset() error = %v", err)
 	}
-	datasetService := evalsvc.NewDatasetServiceWithStore(store, evalCaseService)
+	if _, err := datasetService.PublishDataset(ctx, created.ID, evalsvc.PublishDatasetInput{
+		TenantID: "tenant-dataset",
+	}); err != nil {
+		t.Fatalf("PublishDataset() error = %v", err)
+	}
 
 	server := httptest.NewServer(NewHandlerWithDependencies(Dependencies{
 		Cases:        caseService,
@@ -505,9 +504,118 @@ func TestAddEvalDatasetItemEndpointRejectsNonDraftDataset(t *testing.T) {
 	}))
 	defer server.Close()
 
-	resp, err := http.Post(server.URL+"/api/v1/eval-datasets/eval-dataset-active/items", "application/json", bytes.NewBufferString(`{"tenant_id":"tenant-dataset","eval_case_id":"`+evalCase.ID+`"}`))
+	resp, err := http.Post(server.URL+"/api/v1/eval-datasets/"+created.ID+"/items", "application/json", bytes.NewBufferString(`{"tenant_id":"tenant-dataset","eval_case_id":"`+evalCase.ID+`"}`))
 	if err != nil {
 		t.Fatalf("Post() error = %v", err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusConflict {
+		t.Fatalf("StatusCode = %d, want %d", resp.StatusCode, http.StatusConflict)
+	}
+}
+
+func TestPublishEvalDatasetEndpointPublishesDraft(t *testing.T) {
+	ctx := context.Background()
+	caseService := casesvc.NewService()
+	evalCaseService := evalsvc.NewService(caseService, nil)
+	datasetService := evalsvc.NewDatasetService(evalCaseService)
+
+	sourceCase, err := caseService.CreateCase(ctx, casesvc.CreateInput{
+		TenantID: "tenant-dataset",
+		Title:    "Dataset source",
+	})
+	if err != nil {
+		t.Fatalf("CreateCase() error = %v", err)
+	}
+	evalCase, _, err := evalCaseService.PromoteCase(ctx, evalsvc.CreateInput{
+		TenantID:     "tenant-dataset",
+		SourceCaseID: sourceCase.ID,
+	})
+	if err != nil {
+		t.Fatalf("PromoteCase() error = %v", err)
+	}
+	created, err := datasetService.CreateDataset(ctx, evalsvc.CreateDatasetInput{
+		TenantID:    "tenant-dataset",
+		EvalCaseIDs: []string{evalCase.ID},
+	})
+	if err != nil {
+		t.Fatalf("CreateDataset() error = %v", err)
+	}
+
+	server := httptest.NewServer(NewHandlerWithDependencies(Dependencies{
+		Cases:        caseService,
+		EvalCases:    evalCaseService,
+		EvalDatasets: datasetService,
+	}))
+	defer server.Close()
+
+	resp, err := http.Post(server.URL+"/api/v1/eval-datasets/"+created.ID+"/publish", "application/json", bytes.NewBufferString(`{"tenant_id":"tenant-dataset","published_by":"operator-publish"}`))
+	if err != nil {
+		t.Fatalf("Post(publish) error = %v", err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("StatusCode = %d, want %d", resp.StatusCode, http.StatusOK)
+	}
+
+	var published evalDatasetResponse
+	if err := json.NewDecoder(resp.Body).Decode(&published); err != nil {
+		t.Fatalf("Decode() error = %v", err)
+	}
+	if published.Status != evalsvc.DatasetStatusPublished {
+		t.Fatalf("Status = %q, want %q", published.Status, evalsvc.DatasetStatusPublished)
+	}
+	if published.PublishedBy != "operator-publish" {
+		t.Fatalf("PublishedBy = %q, want %q", published.PublishedBy, "operator-publish")
+	}
+	if published.PublishedAt == "" {
+		t.Fatal("published_at is empty")
+	}
+}
+
+func TestPublishEvalDatasetEndpointRejectsRepublish(t *testing.T) {
+	ctx := context.Background()
+	caseService := casesvc.NewService()
+	evalCaseService := evalsvc.NewService(caseService, nil)
+	datasetService := evalsvc.NewDatasetService(evalCaseService)
+
+	sourceCase, err := caseService.CreateCase(ctx, casesvc.CreateInput{
+		TenantID: "tenant-dataset",
+		Title:    "Dataset source",
+	})
+	if err != nil {
+		t.Fatalf("CreateCase() error = %v", err)
+	}
+	evalCase, _, err := evalCaseService.PromoteCase(ctx, evalsvc.CreateInput{
+		TenantID:     "tenant-dataset",
+		SourceCaseID: sourceCase.ID,
+	})
+	if err != nil {
+		t.Fatalf("PromoteCase() error = %v", err)
+	}
+	created, err := datasetService.CreateDataset(ctx, evalsvc.CreateDatasetInput{
+		TenantID:    "tenant-dataset",
+		EvalCaseIDs: []string{evalCase.ID},
+	})
+	if err != nil {
+		t.Fatalf("CreateDataset() error = %v", err)
+	}
+	if _, err := datasetService.PublishDataset(ctx, created.ID, evalsvc.PublishDatasetInput{
+		TenantID: "tenant-dataset",
+	}); err != nil {
+		t.Fatalf("PublishDataset(first) error = %v", err)
+	}
+
+	server := httptest.NewServer(NewHandlerWithDependencies(Dependencies{
+		Cases:        caseService,
+		EvalCases:    evalCaseService,
+		EvalDatasets: datasetService,
+	}))
+	defer server.Close()
+
+	resp, err := http.Post(server.URL+"/api/v1/eval-datasets/"+created.ID+"/publish", "application/json", bytes.NewBufferString(`{"tenant_id":"tenant-dataset"}`))
+	if err != nil {
+		t.Fatalf("Post(republish) error = %v", err)
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode != http.StatusConflict {
@@ -558,9 +666,26 @@ func (s *stubEvalDatasetStore) AddDatasetItem(_ context.Context, datasetID strin
 	return dataset, nil
 }
 
+func (s *stubEvalDatasetStore) PublishDataset(_ context.Context, datasetID string, publishedBy string, publishedAt time.Time) (evalsvc.EvalDataset, error) {
+	dataset, ok := s.byID[datasetID]
+	if !ok {
+		return evalsvc.EvalDataset{}, evalsvc.ErrEvalDatasetNotFound
+	}
+	if dataset.Status != evalsvc.DatasetStatusDraft {
+		return evalsvc.EvalDataset{}, evalsvc.ErrInvalidEvalDatasetState
+	}
+	dataset.Status = evalsvc.DatasetStatusPublished
+	dataset.PublishedBy = publishedBy
+	dataset.PublishedAt = publishedAt
+	dataset.UpdatedAt = publishedAt
+	s.byID[datasetID] = dataset
+	return dataset, nil
+}
+
 var _ interface {
 	CreateDataset(context.Context, evalsvc.EvalDataset) (evalsvc.EvalDataset, error)
 	GetDataset(context.Context, string) (evalsvc.EvalDataset, error)
 	ListDatasets(context.Context, evalsvc.DatasetListFilter) (evalsvc.DatasetListPage, error)
 	AddDatasetItem(context.Context, string, evalsvc.EvalDatasetItem, time.Time) (evalsvc.EvalDataset, error)
+	PublishDataset(context.Context, string, string, time.Time) (evalsvc.EvalDataset, error)
 } = (*stubEvalDatasetStore)(nil)

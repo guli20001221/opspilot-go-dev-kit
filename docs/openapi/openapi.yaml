@@ -1426,7 +1426,7 @@ paths:
     get:
       summary: Get a durable eval dataset
       description: |
-        Returns one draft or active eval dataset by stable ID.
+        Returns one draft or published eval dataset by stable ID.
       operationId: getEvalDataset
       parameters:
         - name: dataset_id
@@ -1466,6 +1466,62 @@ paths:
                 $ref: '#/components/schemas/ErrorResponse'
         '500':
           description: Eval dataset lookup failed.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+  /api/v1/eval-datasets/{dataset_id}/publish:
+    post:
+      summary: Publish a durable eval dataset
+      description: |
+        Freezes a draft dataset into an immutable published baseline.
+        Repeated publish attempts return an explicit invalid-state contract error.
+      operationId: publishEvalDataset
+      parameters:
+        - name: dataset_id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PublishEvalDatasetRequest'
+      responses:
+        '200':
+          description: Dataset published and returned as the updated detail.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/EvalDataset'
+        '400':
+          description: Request body was invalid.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Dataset not found.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '409':
+          description: Dataset is not in a valid state for publish.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '405':
+          description: Method not allowed.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Dataset publish failed.
           content:
             application/json:
               schema:
@@ -2141,6 +2197,15 @@ components:
           type: string
         added_by:
           type: string
+    PublishEvalDatasetRequest:
+      type: object
+      required:
+        - tenant_id
+      properties:
+        tenant_id:
+          type: string
+        published_by:
+          type: string
     CaseNote:
       type: object
       required:
@@ -2308,14 +2373,18 @@ components:
           type: string
           enum:
             - draft
-            - active
-            - archived
+            - published
         created_by:
           type: string
         created_at:
           type: string
           format: date-time
         updated_at:
+          type: string
+          format: date-time
+        published_by:
+          type: string
+        published_at:
           type: string
           format: date-time
         items:
@@ -2344,8 +2413,7 @@ components:
           type: string
           enum:
             - draft
-            - active
-            - archived
+            - published
         created_by:
           type: string
         created_at:

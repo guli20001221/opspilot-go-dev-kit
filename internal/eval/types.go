@@ -26,6 +26,8 @@ var ErrInvalidEvalDatasetState = errors.New("invalid eval dataset state")
 const (
 	// DatasetStatusDraft identifies a draft dataset that is not yet active in regression runs.
 	DatasetStatusDraft = "draft"
+	// DatasetStatusPublished identifies an immutable dataset baseline ready for regression use.
+	DatasetStatusPublished = "published"
 )
 
 // EvalCase is the durable read model for a promoted evaluation case.
@@ -83,6 +85,8 @@ type EvalDataset struct {
 	CreatedBy   string
 	CreatedAt   time.Time
 	UpdatedAt   time.Time
+	PublishedBy string
+	PublishedAt time.Time
 	Items       []EvalDatasetItem
 }
 
@@ -136,4 +140,10 @@ type AddDatasetItemInput struct {
 	TenantID   string
 	EvalCaseID string
 	AddedBy    string
+}
+
+// PublishDatasetInput is the typed dataset publish request.
+type PublishDatasetInput struct {
+	TenantID    string
+	PublishedBy string
 }
