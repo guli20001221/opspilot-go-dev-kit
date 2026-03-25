@@ -44,6 +44,7 @@ Keep the HTTP surface explicit, documented, stable, and friendly to streaming ag
 13. When multiple operator pages need the same provenance context, prefer one read-only trace-drilldown endpoint with explicit lookup keys instead of duplicating trace-resolution logic across several page-specific contracts.
 14. When reproducibility depends on runtime bundle metadata, expose a stable version-registry read contract, such as `GET /api/v1/versions` and `GET /api/v1/versions/{version_id}`, instead of forcing clients to reconstruct planner, retrieval, tool, or workflow versions from task payloads.
 15. Once a durable version registry exists, propagate `version_id` through related task, report, compare, or trace read contracts instead of duplicating full runtime-version payloads on every endpoint.
+16. When operators promote a durable case into eval coverage, prefer a canonical `POST /api/v1/eval-cases` plus `GET /api/v1/eval-cases/{id}` contract that copies lineage from existing case, task, report, trace, and version state instead of storing frontend-only bookmarks.
 
 ## Output contract
 When you finish, always report:

@@ -516,6 +516,15 @@ func TestAdminCasesPageRendersHTML(t *testing.T) {
 	if !strings.Contains(body, "Copy case summary") {
 		t.Fatal("case summary handoff missing from cases page HTML")
 	}
+	if !strings.Contains(body, "Promote to eval") {
+		t.Fatal("eval promotion action missing from cases page HTML")
+	}
+	if !strings.Contains(body, "/api/v1/eval-cases") {
+		t.Fatal("eval case API path missing from cases page HTML")
+	}
+	if !strings.Contains(body, "Open eval API detail") {
+		t.Fatal("eval api handoff missing from cases page HTML")
+	}
 	if !strings.Contains(body, "Copy case link") {
 		t.Fatal("case link handoff missing from cases page HTML")
 	}

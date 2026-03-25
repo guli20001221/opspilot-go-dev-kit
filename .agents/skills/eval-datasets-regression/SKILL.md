@@ -38,6 +38,7 @@ Turn prompt, routing, retrieval, and tool changes into measurable, repeatable qu
 6. Preserve raw judge output and normalized scores.
 7. Summarize both top-line metrics and drill-down bad cases.
 8. Update baselines when intentional behavior changes are accepted.
+9. When promoting production failures from durable operator cases, preserve stable lineage such as `source_case_id`, `source_task_id`, `source_report_id`, `trace_id`, `version_id`, and operator note instead of relying on frontend-only bookmarks.
 
 ## Output contract
 When you finish, always report:

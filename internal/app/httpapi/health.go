@@ -5,6 +5,7 @@ import (
 	"net/http"
 
 	casesvc "opspilot-go/internal/case"
+	evalsvc "opspilot-go/internal/eval"
 	"opspilot-go/internal/report"
 	toolregistry "opspilot-go/internal/tools/registry"
 	"opspilot-go/internal/version"
@@ -20,6 +21,7 @@ type Dependencies struct {
 	Workflows *workflow.Service
 	Reports   *report.Service
 	Cases     *casesvc.Service
+	EvalCases *evalsvc.Service
 	Versions  *version.Service
 	Registry  *toolregistry.Registry
 }
@@ -32,7 +34,7 @@ func NewHandler() http.Handler {
 // NewHandlerWithDependencies constructs the HTTP handler tree with injected services.
 func NewHandlerWithDependencies(deps Dependencies) http.Handler {
 	mux := http.NewServeMux()
-	app := newAppHandler(deps.Workflows, deps.Reports, deps.Cases, deps.Versions, deps.Registry)
+	app := newAppHandler(deps.Workflows, deps.Reports, deps.Cases, deps.EvalCases, deps.Versions, deps.Registry)
 	mux.HandleFunc("/healthz", writeStatus("ok"))
 	mux.HandleFunc("/readyz", writeStatus("ready"))
 	app.registerRoutes(mux)

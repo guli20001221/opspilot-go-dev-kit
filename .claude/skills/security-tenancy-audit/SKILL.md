@@ -54,6 +54,8 @@ When you finish, always report:
 - tests cover denial and approval paths
 - runbooks describe operator controls
 
+8. When a durable follow-up object such as a case is promoted into eval coverage, validate tenant scope from the canonical source object before copying lineage into the eval record.
+
 ## Guardrails
 - no cross-tenant read or write path
 - no secret material in source control or tests

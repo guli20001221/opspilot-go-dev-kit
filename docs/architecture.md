@@ -89,6 +89,9 @@ The current HTTP layer also exposes the same PostgreSQL-backed workflow records 
 - `GET /admin/cases` is the first case-focused operator page, backed directly by the durable case contract and existing task/report detail endpoints, and now supports the minimal close action for open cases
 - the same case page now also supports copyable case summaries, shareable case links, and a direct jump into the canonical case-detail JSON without any admin-only debug contract
 - the same case page now also surfaces and updates assignment, so ownership stays in the canonical case contract instead of drifting into frontend-only state
+- `internal/eval` now holds the first durable eval-case read model, so failure-case promotion is rooted in canonical case lineage instead of frontend-only bookmarks
+- `POST /api/v1/eval-cases` and `GET /api/v1/eval-cases/{eval_case_id}` now expose durable eval-case promotion derived from canonical case, task, report, trace, and version state
+- the same `/admin/cases` page now also supports `Promote to eval`, keeping the operator action on the canonical case surface instead of introducing an admin-only eval write path
 - the same case page now also shows and appends recent notes, so operator handoff context lives on the case instead of being implied by task/report provenance
 - the same case page now defaults into an open-case queue view, adds `My open cases` and `Unassigned` shortcuts, and computes age/staleness from canonical `updated_at`
 - the same case page now also foregrounds operator queue slices by highlighting `My open cases` and `Unassigned`, and it surfaces task-only versus report-backed provenance directly from the canonical case contract

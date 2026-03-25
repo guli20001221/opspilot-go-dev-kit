@@ -102,3 +102,4 @@ When you finish, always report:
 - do not move domain logic into the UI for speed
 - do not hide failure reasons behind generic toasts only
 - do not build polished dashboards before core operator workflows work
+- once durable eval-case promotion exists, prefer wiring `Promote to eval` from the canonical case page to `POST /api/v1/eval-cases` and deep-linking to the returned eval-case API detail instead of inventing an admin-only eval store or write endpoint

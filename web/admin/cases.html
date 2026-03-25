@@ -409,11 +409,14 @@
         <button class="primary" id="assignCaseButton" type="button">Assign case</button>
         <textarea id="caseNoteBody" aria-label="Case note body" rows="2" placeholder="Add an append-only case note" style="min-width: min(420px, 100%); border: 1px solid var(--line); border-radius: 18px; padding: 12px 14px; background: rgba(255, 255, 255, 0.92); color: var(--ink); resize: vertical;"></textarea>
         <button class="primary" id="addCaseNoteButton" type="button">Add note</button>
+        <input id="evalOperatorNote" type="text" value="" aria-label="Eval promotion note" placeholder="Optional note for eval promotion" style="min-width: 260px; border: 1px solid var(--line); border-radius: 999px; padding: 10px 14px; background: rgba(255, 255, 255, 0.92); color: var(--ink);">
+        <button class="primary" id="promoteEvalCaseButton" type="button">Promote to eval</button>
         <button class="primary" id="closeCaseButton" type="button" hidden>Close case</button>
         <button class="primary" id="reopenCaseButton" type="button" hidden>Reopen case</button>
         <button class="ghost" id="copyCaseSummaryButton" type="button">Copy case summary</button>
         <button class="ghost" id="copyCaseLinkButton" type="button">Copy case link</button>
         <a class="button-link ghost" id="openCaseAPILink" href="#" hidden>Open case API detail</a>
+        <a class="button-link ghost" id="openEvalCaseAPILink" href="#" hidden>Open eval API detail</a>
         <a class="button-link ghost" id="openTraceDetailLink" href="#" hidden>Open Trace Detail</a>
         <a class="button-link ghost" id="openTaskLink" href="#" hidden>Open source task</a>
         <a class="button-link ghost" id="openTaskBoardLink" href="#" hidden>Open source task in Task Board</a>
@@ -428,6 +431,7 @@
   <script>
     const listEndpoint = "/api/v1/cases";
     const detailEndpointBase = "/api/v1/cases/";
+    const evalCaseEndpoint = "/api/v1/eval-cases";
     const closeActionSuffix = "/close";
     const reopenActionSuffix = "/reopen";
     const assignActionSuffix = "/assign";
@@ -449,8 +453,10 @@
     const caseActorInput = document.getElementById("caseActor");
     const caseAssigneeInput = document.getElementById("caseAssignee");
     const caseNoteBodyInput = document.getElementById("caseNoteBody");
+    const evalOperatorNoteInput = document.getElementById("evalOperatorNote");
     const assignCaseButton = document.getElementById("assignCaseButton");
     const addCaseNoteButton = document.getElementById("addCaseNoteButton");
+    const promoteEvalCaseButton = document.getElementById("promoteEvalCaseButton");
     const closeCaseButton = document.getElementById("closeCaseButton");
     const reopenCaseButton = document.getElementById("reopenCaseButton");
     const copyCaseSummaryButton = document.getElementById("copyCaseSummaryButton");
@@ -459,6 +465,7 @@
     const myOpenCasesQuickView = document.getElementById("myOpenCasesQuickView");
     const unassignedCasesQuickView = document.getElementById("unassignedCasesQuickView");
     const openCaseAPILink = document.getElementById("openCaseAPILink");
+    const openEvalCaseAPILink = document.getElementById("openEvalCaseAPILink");
     const openTraceDetailLink = document.getElementById("openTraceDetailLink");
     const detailStatusNote = document.getElementById("detailStatusNote");
     const openTaskLink = document.getElementById("openTaskLink");
@@ -469,6 +476,7 @@
     let currentCases = [];
     let currentCaseID = "";
     let currentCaseDetail = null;
+    let currentEvalCaseDetail = null;
 
     function escapeHTML(value) {
       return String(value ?? "")
@@ -583,6 +591,15 @@
       return lines.join("\n");
     }
 
+    function buildEvalCasePayload(item) {
+      return {
+        tenant_id: item.tenant_id,
+        source_case_id: item.case_id,
+        operator_note: evalOperatorNoteInput.value.trim(),
+        created_by: currentActor()
+      };
+    }
+
     async function copyText(value) {
       await navigator.clipboard.writeText(value);
     }
@@ -685,11 +702,14 @@
     function renderDetail(item) {
       currentCaseID = item.case_id;
       currentCaseDetail = item;
+       currentEvalCaseDetail = null;
       syncURL(item.case_id);
       assignCaseButton.hidden = item.status !== "open";
       assignCaseButton.disabled = false;
       addCaseNoteButton.hidden = false;
       addCaseNoteButton.disabled = false;
+      promoteEvalCaseButton.hidden = false;
+      promoteEvalCaseButton.disabled = false;
       closeCaseButton.hidden = item.status !== "open";
       closeCaseButton.disabled = false;
       reopenCaseButton.hidden = item.status !== "closed";
@@ -697,6 +717,7 @@
       copyCaseSummaryButton.disabled = false;
       copyCaseLinkButton.disabled = false;
       openCaseAPILink.hidden = false;
+      openEvalCaseAPILink.hidden = true;
       openTraceDetailLink.hidden = false;
       openCaseAPILink.href = `${detailEndpointBase}${encodeURIComponent(item.case_id)}?tenant_id=${encodeURIComponent(item.tenant_id)}`;
       openTraceDetailLink.href = `/admin/trace-detail?case_id=${encodeURIComponent(item.case_id)}`;
@@ -800,11 +821,14 @@
       if (!caseID) {
         currentCaseID = "";
         currentCaseDetail = null;
+        currentEvalCaseDetail = null;
         assignCaseButton.hidden = true;
         addCaseNoteButton.hidden = true;
+        promoteEvalCaseButton.hidden = true;
         closeCaseButton.hidden = true;
         reopenCaseButton.hidden = true;
         openCaseAPILink.hidden = true;
+        openEvalCaseAPILink.hidden = true;
         openTraceDetailLink.hidden = true;
         caseDetail.innerHTML = '<div class="empty">No case selected yet.</div>';
         syncSelectedRow();
@@ -817,11 +841,14 @@
       if (!tenantID) {
         currentCaseID = "";
         currentCaseDetail = null;
+        currentEvalCaseDetail = null;
         assignCaseButton.hidden = true;
         addCaseNoteButton.hidden = true;
+        promoteEvalCaseButton.hidden = true;
         closeCaseButton.hidden = true;
         reopenCaseButton.hidden = true;
         openCaseAPILink.hidden = true;
+        openEvalCaseAPILink.hidden = true;
         openTraceDetailLink.hidden = true;
         caseDetail.innerHTML = '<div class="empty">Enter a tenant before opening case detail.</div>';
         syncSelectedRow();
@@ -848,11 +875,14 @@
         renderDetail(await response.json());
       } catch (error) {
         currentCaseDetail = null;
+        currentEvalCaseDetail = null;
         assignCaseButton.hidden = true;
         addCaseNoteButton.hidden = true;
+        promoteEvalCaseButton.hidden = true;
         closeCaseButton.hidden = true;
         reopenCaseButton.hidden = true;
         openCaseAPILink.hidden = true;
+        openEvalCaseAPILink.hidden = true;
         openTraceDetailLink.hidden = true;
         setDetailStatus(error.message || "Unable to load case detail.", true);
         caseDetail.innerHTML = `<div class="empty">${escapeHTML(error.message || "Unable to load case detail.")}</div>`;
@@ -1105,6 +1135,47 @@
       } catch (error) {
         addCaseNoteButton.disabled = false;
         setDetailStatus(error.message || "Unable to add case note.", true);
+      }
+    });
+
+    promoteEvalCaseButton.addEventListener("click", async () => {
+      if (!currentCaseDetail) {
+        setDetailStatus("Select a case before promoting it to eval.", true);
+        return;
+      }
+
+      const payload = buildEvalCasePayload(currentCaseDetail);
+      const originalText = promoteEvalCaseButton.textContent;
+      promoteEvalCaseButton.disabled = true;
+      promoteEvalCaseButton.textContent = "Promoting...";
+      setDetailStatus(`Promoting ${currentCaseDetail.case_id} to durable eval coverage...`);
+      try {
+        const response = await fetch(evalCaseEndpoint, {
+          method: "POST",
+          headers: {
+            "Accept": "application/json",
+            "Content-Type": "application/json"
+          },
+          body: JSON.stringify(payload)
+        });
+        const created = await response.json().catch(() => ({}));
+        if (!response.ok) {
+          throw new Error(created.message || `Eval promotion failed: ${response.statusText}`);
+        }
+
+        currentEvalCaseDetail = created;
+        openEvalCaseAPILink.hidden = false;
+        openEvalCaseAPILink.href = `${evalCaseEndpoint}/${encodeURIComponent(created.eval_case_id)}?tenant_id=${encodeURIComponent(created.tenant_id)}`;
+        if (response.status === 201) {
+          setDetailStatus(`Promoted ${currentCaseDetail.case_id} to ${created.eval_case_id}.`);
+        } else {
+          setDetailStatus(`Eval promotion already exists as ${created.eval_case_id}.`);
+        }
+      } catch (error) {
+        setDetailStatus(error.message || "Unable to promote case to eval.", true);
+      } finally {
+        promoteEvalCaseButton.disabled = false;
+        promoteEvalCaseButton.textContent = originalText;
       }
     });
 

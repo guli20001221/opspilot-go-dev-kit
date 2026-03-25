@@ -1138,6 +1138,112 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
+  /api/v1/eval-cases:
+    post:
+      summary: Promote a durable case into eval coverage
+      description: |
+        Creates or reuses a durable eval case derived from an existing operator case.
+        The backend copies stable lineage such as source task, source report, trace, and version metadata
+        from canonical case and trace-drilldown sources instead of relying on frontend-only bookmarks.
+      operationId: createEvalCase
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateEvalCaseRequest'
+      responses:
+        '200':
+          description: Eval case already existed for the same source case and was returned idempotently.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/EvalCase'
+        '201':
+          description: Eval case created.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/EvalCase'
+        '400':
+          description: Request body was invalid.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Source case not found.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '405':
+          description: Method not allowed.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '409':
+          description: Source case does not belong to the provided tenant scope.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Eval case promotion failed.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+  /api/v1/eval-cases/{eval_case_id}:
+    get:
+      summary: Get a durable eval case
+      description: |
+        Returns one durable eval case by stable ID.
+        Operators use this contract to inspect promoted regression coverage without reconstructing lineage from cases or tasks.
+      operationId: getEvalCase
+      parameters:
+        - name: eval_case_id
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: tenant_id
+          in: query
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Eval case returned.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/EvalCase'
+        '400':
+          description: Missing required tenant scope query.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Eval case not found.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '405':
+          description: Method not allowed.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Eval case lookup failed.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
   /api/v1/admin/task-board:
     get:
       summary: Get the admin task board view
@@ -1709,6 +1815,20 @@ components:
           type: string
         created_by:
           type: string
+    CreateEvalCaseRequest:
+      type: object
+      required:
+        - tenant_id
+        - source_case_id
+      properties:
+        tenant_id:
+          type: string
+        source_case_id:
+          type: string
+        operator_note:
+          type: string
+        created_by:
+          type: string
     CaseNote:
       type: object
       required:
@@ -1795,6 +1915,42 @@ components:
         next_offset:
           type: integer
           minimum: 0
+    EvalCase:
+      type: object
+      required:
+        - eval_case_id
+        - tenant_id
+        - source_case_id
+        - title
+        - summary
+        - created_by
+        - created_at
+      properties:
+        eval_case_id:
+          type: string
+        tenant_id:
+          type: string
+        source_case_id:
+          type: string
+        source_task_id:
+          type: string
+        source_report_id:
+          type: string
+        trace_id:
+          type: string
+        version_id:
+          type: string
+        title:
+          type: string
+        summary:
+          type: string
+        operator_note:
+          type: string
+        created_by:
+          type: string
+        created_at:
+          type: string
+          format: date-time
     TaskAuditEvent:
       type: object
       required:

@@ -102,6 +102,7 @@ Current Milestone 1 slice:
 - `POST /api/v1/cases/{case_id}/reopen` now returns a closed case back to the open queue and appends a durable operator note for the reopen action
 - `POST /api/v1/cases/{case_id}/assign` now lets operators claim or reassign an open durable case while recording `assigned_to` and `assigned_at`
 - `POST /api/v1/cases/{case_id}/notes` now appends durable operator notes, and `GET /api/v1/cases/{case_id}` returns recent notes for case handoff
+- `POST /api/v1/eval-cases` and `GET /api/v1/eval-cases/{eval_case_id}` now expose durable eval-case promotion from canonical cases, preserving source case/task/report plus trace and version lineage
 - `GET /admin/cases` now exposes the first case-focused operator page, backed by the durable case contract and existing task/report handoff endpoints
 - that first `/admin/cases` page now supports the minimal close action while still handing operators back into the canonical task/report surfaces instead of inventing case-only detail contracts
 - the same `/admin/cases` page now also supports copyable case summaries, shareable case links, and a direct handoff into the canonical case API detail
@@ -109,6 +110,7 @@ Current Milestone 1 slice:
 - the same `/admin/cases` page now also exposes append-only case notes so assignment and handoff have durable operator context
 - the same `/admin/cases` page now behaves more like an operator queue by emphasizing `My open cases` / `Unassigned` slices and surfacing task-only versus report-backed provenance directly in the list and detail views
 - the same `/admin/cases` page now also lets operators reopen a closed case and immediately return it to the open queue without inventing a second lifecycle surface
+- the same `/admin/cases` page now also supports `Promote to eval`, which reuses the durable eval-case contract and deep-links into the canonical eval-case API detail
 - `/admin/task-board` and `/admin/reports` now both expose a `Create case` handoff that reuses `POST /api/v1/cases` and deep-links straight into `/admin/cases`
 - the task-board `Create case` handoff now preserves `source_report_id` for successful `report_generation` tasks when the durable report row exists, but degrades to a task-only case if that durable report lookup is missing or temporarily unavailable; the reports page disables case creation when the row is missing
 - successful report tasks now finalize their `succeeded` task state and durable report row together, so report `ready_at` and `metadata.audit_ref` stay aligned with the final task success event

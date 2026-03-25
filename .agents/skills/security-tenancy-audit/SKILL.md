@@ -37,6 +37,7 @@ Keep the agent platform safe for enterprise-style use by making identity, author
 5. Persist audit events for approvals, tool calls, and admin actions.
 6. Add tests for cross-tenant denial and role-based access.
 7. Document operator procedures for approvals and security-sensitive failures.
+8. When a durable follow-up object such as a case is promoted into eval coverage, validate tenant scope from the canonical source object before copying lineage into the eval record.
 
 ## Output contract
 When you finish, always report:
