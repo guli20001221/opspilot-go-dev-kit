@@ -19,6 +19,7 @@ type Store interface {
 	Save(ctx context.Context, item EvalCase) (EvalCase, error)
 	Get(ctx context.Context, evalCaseID string) (EvalCase, error)
 	GetBySourceCase(ctx context.Context, sourceCaseID string) (EvalCase, error)
+	List(ctx context.Context, filter ListFilter) (ListPage, error)
 }
 
 type caseReader interface {
@@ -116,6 +117,15 @@ func (s *Service) PromoteCase(ctx context.Context, input CreateInput) (EvalCase,
 // GetEvalCase returns a durable eval case by ID.
 func (s *Service) GetEvalCase(ctx context.Context, evalCaseID string) (EvalCase, error) {
 	return s.store.Get(ctx, evalCaseID)
+}
+
+// ListEvalCases returns one durable eval-case page.
+func (s *Service) ListEvalCases(ctx context.Context, filter ListFilter) (ListPage, error) {
+	if filter.Limit <= 0 {
+		filter.Limit = 20
+	}
+
+	return s.store.List(ctx, filter)
 }
 
 func newEvalCaseID(now time.Time) string {

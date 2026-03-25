@@ -30,6 +30,24 @@ type EvalCase struct {
 	CreatedAt      time.Time
 }
 
+// ListFilter constrains eval-case list reads.
+type ListFilter struct {
+	TenantID       string
+	SourceCaseID   string
+	SourceTaskID   string
+	SourceReportID string
+	VersionID      string
+	Limit          int
+	Offset         int
+}
+
+// ListPage is a single eval-case list page.
+type ListPage struct {
+	EvalCases  []EvalCase
+	HasMore    bool
+	NextOffset int
+}
+
 // CreateInput is the typed eval case promotion request.
 type CreateInput struct {
 	TenantID     string

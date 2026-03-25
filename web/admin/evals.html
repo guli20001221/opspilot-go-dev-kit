@@ -1,0 +1,536 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>OpsPilot Eval Cases</title>
+  <style>
+    :root {
+      --bg: #eef3f8;
+      --panel: rgba(251, 253, 255, 0.9);
+      --ink: #14212b;
+      --muted: #5b6a78;
+      --line: rgba(20, 33, 43, 0.12);
+      --accent: #1d4ed8;
+      --accent-2: #155e75;
+      --shadow: 0 18px 48px rgba(39, 63, 88, 0.14);
+      --radius-lg: 24px;
+      --radius-md: 18px;
+      --radius-sm: 12px;
+      --font-sans: "Segoe UI Variable", "Aptos", "IBM Plex Sans", "Helvetica Neue", sans-serif;
+      --font-serif: "Iowan Old Style", "Georgia", serif;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      min-height: 100vh;
+      font-family: var(--font-sans);
+      color: var(--ink);
+      background:
+        radial-gradient(circle at top left, rgba(29, 78, 216, 0.16), transparent 26%),
+        radial-gradient(circle at top right, rgba(21, 94, 117, 0.12), transparent 24%),
+        linear-gradient(180deg, #f4f8fc 0%, var(--bg) 46%, #e6edf5 100%);
+    }
+    .page { width: min(1200px, calc(100% - 32px)); margin: 0 auto; padding: 28px 0 40px; }
+    .hero, .panel {
+      background: var(--panel);
+      border: 1px solid rgba(255, 255, 255, 0.8);
+      box-shadow: var(--shadow);
+      backdrop-filter: blur(18px);
+    }
+    .hero { padding: 28px; border-radius: 32px; margin-bottom: 18px; }
+    .eyebrow { margin: 0 0 12px; font-size: 12px; font-weight: 700; letter-spacing: 0.18em; text-transform: uppercase; color: var(--accent); }
+    h1 { margin: 0 0 10px; font-family: var(--font-serif); font-size: clamp(2.1rem, 4vw, 3.2rem); line-height: 0.95; letter-spacing: -0.04em; }
+    .lead { margin: 0; max-width: 760px; color: var(--muted); line-height: 1.6; }
+    .hero-links, .actions, .detail-actions { display: flex; flex-wrap: wrap; gap: 10px; }
+    .hero-links { margin-top: 18px; }
+    a.link-chip, button, a.button-link {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      padding: 10px 14px;
+      border-radius: 999px;
+      font: inherit;
+      text-decoration: none;
+      cursor: pointer;
+      transition: transform 120ms ease;
+    }
+    a.link-chip, .ghost, a.button-link {
+      color: var(--ink);
+      background: rgba(255, 255, 255, 0.78);
+      border: 1px solid rgba(20, 33, 43, 0.08);
+    }
+    .primary {
+      border: none;
+      color: #fff;
+      background: linear-gradient(135deg, var(--accent), var(--accent-2));
+      box-shadow: 0 12px 24px rgba(29, 78, 216, 0.22);
+    }
+    button:hover, a.link-chip:hover, a.button-link:hover { transform: translateY(-1px); }
+    .layout { display: grid; gap: 18px; grid-template-columns: minmax(280px, 320px) minmax(0, 1fr); align-items: start; }
+    .panel { border-radius: var(--radius-lg); padding: 20px; }
+    .panel-copy { margin: 0 0 18px; color: var(--muted); font-size: 0.92rem; line-height: 1.5; }
+    .filters, .detail { display: grid; gap: 12px; }
+    .field { display: grid; gap: 6px; }
+    .field label { font-size: 0.82rem; font-weight: 700; color: var(--muted); text-transform: uppercase; letter-spacing: 0.08em; }
+    .field input {
+      width: 100%;
+      border: 1px solid var(--line);
+      border-radius: var(--radius-sm);
+      padding: 11px 12px;
+      background: rgba(255, 255, 255, 0.94);
+      color: var(--ink);
+    }
+    .summary-grid, .detail-grid { display: grid; gap: 12px; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); }
+    .summary-card, .detail-card {
+      border-radius: 16px;
+      border: 1px solid rgba(20, 33, 43, 0.08);
+      background: rgba(255, 255, 255, 0.78);
+      padding: 16px;
+    }
+    .summary-card small, .detail-card dt {
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      font-weight: 700;
+      color: var(--muted);
+      font-size: 0.78rem;
+    }
+    .summary-card strong { display: block; font-size: 2rem; font-family: var(--font-serif); letter-spacing: -0.04em; }
+    .table-wrap { overflow: auto; border-radius: 18px; border: 1px solid rgba(20, 33, 43, 0.08); background: rgba(255, 255, 255, 0.74); }
+    table { width: 100%; border-collapse: collapse; }
+    th, td { text-align: left; padding: 14px 16px; border-bottom: 1px solid rgba(20, 33, 43, 0.08); vertical-align: top; }
+    th { font-size: 0.76rem; letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); }
+    .loading, .empty, .detail-status-note {
+      padding: 18px;
+      border-radius: 16px;
+      background: rgba(255, 255, 255, 0.78);
+      border: 1px dashed rgba(20, 33, 43, 0.16);
+      color: var(--muted);
+    }
+    .task-row-selected { background: rgba(29, 78, 216, 0.1); box-shadow: inset 4px 0 0 var(--accent); }
+    .detail-card dd { margin: 6px 0 0; line-height: 1.5; word-break: break-word; }
+    @media (max-width: 980px) { .layout { grid-template-columns: 1fr; } }
+  </style>
+</head>
+<body>
+  <main class="page">
+    <section class="hero">
+      <p class="eyebrow">OpsPilot Admin</p>
+      <h1>Eval Lane</h1>
+      <p class="lead">
+        Operator-facing queue over durable eval-case promotions. This page stays contract-first:
+        list and detail both come from <code>/api/v1/eval-cases</code>, while handoff links reuse
+        the canonical case, task, report, trace, and version surfaces.
+      </p>
+      <div class="hero-links">
+        <a class="link-chip" href="/admin/cases">Open Cases</a>
+        <a class="link-chip" href="/admin/reports">Open Reports</a>
+        <a class="link-chip" href="/admin/task-board">Open Task Board</a>
+        <a class="link-chip" href="/admin/trace-detail">Open Trace Detail</a>
+        <a class="link-chip" href="/admin/version-detail">Open Version Detail</a>
+      </div>
+    </section>
+
+    <section class="layout">
+      <aside class="panel">
+        <h2>Filters</h2>
+        <p class="panel-copy">Tenant scope is required. Everything else narrows the durable eval lane.</p>
+        <form id="evalFilters" class="filters">
+          <div class="field"><label for="tenant_id">Tenant</label><input id="tenant_id" name="tenant_id" type="text" placeholder="tenant-admin-example"></div>
+          <div class="field"><label for="source_case_id">Source Case</label><input id="source_case_id" name="source_case_id" type="text" placeholder="case-..."></div>
+          <div class="field"><label for="source_task_id">Source Task</label><input id="source_task_id" name="source_task_id" type="text" placeholder="task-..."></div>
+          <div class="field"><label for="source_report_id">Source Report</label><input id="source_report_id" name="source_report_id" type="text" placeholder="report-..."></div>
+          <div class="field"><label for="version_id">Version</label><input id="version_id" name="version_id" type="text" placeholder="version-..."></div>
+          <div class="field"><label for="limit">Page Size</label><input id="limit" name="limit" type="number" min="1" max="100" value="10"></div>
+          <div class="field"><label for="offset">Offset</label><input id="offset" name="offset" type="number" min="0" value="0"></div>
+          <div class="actions">
+            <button class="primary" type="submit">Load evals</button>
+            <button class="ghost" type="button" id="resetFilters">Reset</button>
+          </div>
+        </form>
+      </aside>
+
+      <section class="panel">
+        <h2>Eval Cases</h2>
+        <p class="panel-copy">Each row is one durable promoted case ready for later dataset or regression work.</p>
+        <div class="summary-grid">
+          <article class="summary-card"><small>Visible eval cases</small><strong id="visibleCount">0</strong><span>Current durable eval slice.</span></article>
+          <article class="summary-card"><small>Latest created</small><strong id="latestCreated">Unknown</strong><span>Most recent eval promotion in this slice.</span></article>
+        </div>
+        <div id="evalListState" class="loading">Loading eval lane...</div>
+        <div class="table-wrap" id="tableWrap" hidden>
+          <table>
+            <thead>
+              <tr>
+                <th>Eval case</th>
+                <th>Source case</th>
+                <th>Version</th>
+                <th>Created</th>
+                <th>Inspect</th>
+              </tr>
+            </thead>
+            <tbody id="evalRows"></tbody>
+          </table>
+        </div>
+      </section>
+    </section>
+
+    <section class="panel" style="margin-top: 18px;">
+      <h2>Eval Detail</h2>
+      <p class="panel-copy">Inspect durable eval lineage and hand off into the canonical source systems.</p>
+      <div class="detail-actions">
+        <button class="ghost" type="button" id="prevEvalButton" hidden>Previous visible</button>
+        <button class="ghost" type="button" id="nextEvalButton" hidden>Next visible</button>
+        <button class="ghost" type="button" id="copyEvalSummaryButton" hidden>Copy eval summary</button>
+        <button class="ghost" type="button" id="copyEvalLinkButton" hidden>Copy eval link</button>
+      </div>
+      <div class="detail-status-note" id="evalDetailStatusNote">Select an eval case to reveal handoff actions.</div>
+      <div id="evalDetail" class="empty">No eval case selected yet.</div>
+    </section>
+  </main>
+
+  <script>
+    const listEndpoint = "/api/v1/eval-cases";
+    const detailEndpointBase = "/api/v1/eval-cases/";
+    const caseEndpointBase = "/api/v1/cases/";
+    const taskEndpointBase = "/api/v1/tasks/";
+    const reportEndpointBase = "/api/v1/reports/";
+    const form = document.getElementById("evalFilters");
+    const resetFiltersButton = document.getElementById("resetFilters");
+    const evalListState = document.getElementById("evalListState");
+    const tableWrap = document.getElementById("tableWrap");
+    const evalRows = document.getElementById("evalRows");
+    const visibleCount = document.getElementById("visibleCount");
+    const latestCreated = document.getElementById("latestCreated");
+    const evalDetail = document.getElementById("evalDetail");
+    const prevEvalButton = document.getElementById("prevEvalButton");
+    const nextEvalButton = document.getElementById("nextEvalButton");
+    const copyEvalSummaryButton = document.getElementById("copyEvalSummaryButton");
+    const copyEvalLinkButton = document.getElementById("copyEvalLinkButton");
+    const evalDetailStatusNote = document.getElementById("evalDetailStatusNote");
+
+    let currentItems = [];
+    let currentEvalID = "";
+    let currentEvalDetail = null;
+
+    function escapeHTML(value) {
+      return String(value ?? "")
+        .replaceAll("&", "&amp;")
+        .replaceAll("<", "&lt;")
+        .replaceAll(">", "&gt;")
+        .replaceAll("\"", "&quot;")
+        .replaceAll("'", "&#39;");
+    }
+
+    function fmtDate(value) {
+      if (!value) return "Unknown";
+      const date = new Date(value);
+      if (Number.isNaN(date.valueOf())) return value;
+      return new Intl.DateTimeFormat(undefined, {
+        year: "numeric",
+        month: "short",
+        day: "2-digit",
+        hour: "2-digit",
+        minute: "2-digit",
+        second: "2-digit"
+      }).format(date);
+    }
+
+    function buildParams() {
+      const params = new URLSearchParams();
+      for (const name of ["tenant_id", "source_case_id", "source_task_id", "source_report_id", "version_id", "limit", "offset"]) {
+        const value = form.elements.namedItem(name).value.trim();
+        if (value) params.set(name, value);
+      }
+      return params;
+    }
+
+    function syncURL(evalCaseID = "") {
+      const params = buildParams();
+      if (evalCaseID) params.set("eval_case_id", evalCaseID);
+      history.replaceState(null, "", `/admin/evals?${params.toString()}`);
+    }
+
+    function populateFiltersFromURL() {
+      const params = new URLSearchParams(window.location.search);
+      for (const name of ["tenant_id", "source_case_id", "source_task_id", "source_report_id", "version_id", "limit", "offset"]) {
+        form.elements.namedItem(name).value = params.get(name) || (name === "limit" ? "10" : name === "offset" ? "0" : "");
+      }
+      return params.get("eval_case_id") || "";
+    }
+
+    function renderSummary(items) {
+      visibleCount.textContent = String(items.length);
+      latestCreated.textContent = items.length ? fmtDate(items[0].created_at) : "Unknown";
+    }
+
+    function syncSelectedRow() {
+      const rows = evalRows.querySelectorAll("[data-eval-row]");
+      for (const row of rows) {
+        const selected = row.getAttribute("data-eval-row") === currentEvalID && currentEvalID !== "";
+        row.classList.toggle("task-row-selected", selected);
+        if (selected) {
+          row.setAttribute("aria-current", "true");
+          row.scrollIntoView({ block: "nearest", inline: "nearest" });
+        } else {
+          row.removeAttribute("aria-current");
+        }
+      }
+    }
+
+    function findSelectedIndex(evalCaseID) {
+      return currentItems.findIndex((item) => item.eval_case_id === evalCaseID);
+    }
+
+    function syncDetailNavigation() {
+      const index = findSelectedIndex(currentEvalID);
+      const visible = index !== -1 && currentItems.length > 0;
+      prevEvalButton.hidden = !visible;
+      nextEvalButton.hidden = !visible;
+      prevEvalButton.disabled = !visible || index <= 0;
+      nextEvalButton.disabled = !visible || index >= currentItems.length - 1;
+    }
+
+    function renderRows(items) {
+      currentItems = Array.isArray(items) ? items : [];
+      if (!currentItems.length) {
+        tableWrap.hidden = true;
+        evalListState.hidden = false;
+        evalListState.className = "empty";
+        evalListState.textContent = "No durable eval cases matched the current slice.";
+        return;
+      }
+
+      evalListState.hidden = true;
+      tableWrap.hidden = false;
+      evalRows.innerHTML = currentItems.map((item) => `
+        <tr data-eval-row="${escapeHTML(item.eval_case_id)}">
+          <td>
+            <strong>${escapeHTML(item.title)}</strong>
+            <small>${escapeHTML(item.eval_case_id)}</small>
+          </td>
+          <td>${escapeHTML(item.source_case_id)}</td>
+          <td>${escapeHTML(item.version_id || "none")}</td>
+          <td>${escapeHTML(fmtDate(item.created_at))}</td>
+          <td><button class="ghost" type="button" data-eval-id="${escapeHTML(item.eval_case_id)}">Inspect</button></td>
+        </tr>
+      `).join("");
+      syncSelectedRow();
+    }
+
+    function buildEvalSummary(item) {
+      return [
+        `Eval case: ${item.eval_case_id}`,
+        `Tenant: ${item.tenant_id}`,
+        `Source case: ${item.source_case_id}`,
+        `Source task: ${item.source_task_id || "none"}`,
+        `Source report: ${item.source_report_id || "none"}`,
+        `Trace: ${item.trace_id || "none"}`,
+        `Version: ${item.version_id || "none"}`,
+        `Title: ${item.title || "unknown"}`,
+        `Summary: ${item.summary || "none"}`,
+        `Operator note: ${item.operator_note || "none"}`,
+        `Created by: ${item.created_by || "operator"}`,
+        `Created at: ${item.created_at}`
+      ].join("\n");
+    }
+
+    function renderDetail(item) {
+      currentEvalID = item.eval_case_id;
+      currentEvalDetail = item;
+      syncURL(item.eval_case_id);
+      copyEvalSummaryButton.hidden = false;
+      copyEvalLinkButton.hidden = false;
+      evalDetailStatusNote.textContent = "Current eval case is ready for operator handoff.";
+      const caseURL = `${caseEndpointBase}${encodeURIComponent(item.source_case_id)}?tenant_id=${encodeURIComponent(item.tenant_id)}`;
+      const reportURL = item.source_report_id ? `${reportEndpointBase}${encodeURIComponent(item.source_report_id)}` : "";
+      const taskURL = item.source_task_id ? `${taskEndpointBase}${encodeURIComponent(item.source_task_id)}` : "";
+      const traceURL = item.source_case_id ? `/admin/trace-detail?case_id=${encodeURIComponent(item.source_case_id)}` : "/admin/trace-detail";
+      const versionURL = item.version_id ? `/admin/version-detail?version_id=${encodeURIComponent(item.version_id)}` : "/admin/version-detail";
+
+      evalDetail.innerHTML = `
+        <div class="detail">
+          <div class="detail-grid">
+            <dl class="detail-card"><dt>Eval case ID</dt><dd>${escapeHTML(item.eval_case_id)}</dd></dl>
+            <dl class="detail-card"><dt>Tenant</dt><dd>${escapeHTML(item.tenant_id)}</dd></dl>
+            <dl class="detail-card"><dt>Version</dt><dd>${escapeHTML(item.version_id || "Unavailable")}</dd></dl>
+            <dl class="detail-card"><dt>Created</dt><dd>${escapeHTML(fmtDate(item.created_at))}</dd></dl>
+            <dl class="detail-card"><dt>Source case</dt><dd>${escapeHTML(item.source_case_id)}</dd></dl>
+            <dl class="detail-card"><dt>Source task</dt><dd>${escapeHTML(item.source_task_id || "none")}</dd></dl>
+            <dl class="detail-card"><dt>Source report</dt><dd>${escapeHTML(item.source_report_id || "none")}</dd></dl>
+            <dl class="detail-card"><dt>Trace</dt><dd>${escapeHTML(item.trace_id || "none")}</dd></dl>
+          </div>
+          <div class="detail-grid">
+            <dl class="detail-card"><dt>Title</dt><dd>${escapeHTML(item.title)}</dd></dl>
+            <dl class="detail-card"><dt>Summary</dt><dd>${escapeHTML(item.summary)}</dd></dl>
+            <dl class="detail-card"><dt>Operator note</dt><dd>${escapeHTML(item.operator_note || "none")}</dd></dl>
+            <dl class="detail-card"><dt>Created by</dt><dd>${escapeHTML(item.created_by || "operator")}</dd></dl>
+          </div>
+          <div class="detail-card">
+            <h3 style="margin-top:0;">Handoff</h3>
+            <div class="detail-actions">
+              <a class="button-link ghost" href="/admin/cases?tenant_id=${encodeURIComponent(item.tenant_id)}&case_id=${encodeURIComponent(item.source_case_id)}">Open Cases</a>
+              <a class="button-link ghost" href="${detailEndpointBase}${encodeURIComponent(item.eval_case_id)}?tenant_id=${encodeURIComponent(item.tenant_id)}" target="_blank" rel="noreferrer">Open eval API detail</a>
+              <a class="button-link ghost" href="${caseURL}" target="_blank" rel="noreferrer">Open case API detail</a>
+              ${reportURL ? `<a class="button-link ghost" href="${reportURL}" target="_blank" rel="noreferrer">Open report API detail</a>` : ""}
+              ${taskURL ? `<a class="button-link ghost" href="${taskURL}" target="_blank" rel="noreferrer">Open task API detail</a>` : ""}
+              <a class="button-link ghost" href="${traceURL}">Open Trace Detail</a>
+              <a class="button-link ghost" href="${versionURL}">Open version detail</a>
+            </div>
+          </div>
+        </div>
+      `;
+      syncSelectedRow();
+      syncDetailNavigation();
+    }
+
+    async function loadDetail(evalCaseID) {
+      if (!evalCaseID) {
+        currentEvalID = "";
+        currentEvalDetail = null;
+        copyEvalSummaryButton.hidden = true;
+        copyEvalLinkButton.hidden = true;
+        evalDetailStatusNote.textContent = "Select an eval case to reveal handoff actions.";
+        evalDetail.innerHTML = '<div class="empty">No eval case selected yet.</div>';
+        syncURL("");
+        syncSelectedRow();
+        syncDetailNavigation();
+        return;
+      }
+
+      const tenantID = form.elements.namedItem("tenant_id").value.trim();
+      evalDetail.innerHTML = '<div class="loading">Loading eval detail...</div>';
+      try {
+        const response = await fetch(`${detailEndpointBase}${encodeURIComponent(evalCaseID)}?tenant_id=${encodeURIComponent(tenantID)}`, {
+          headers: { "Accept": "application/json" }
+        });
+        if (!response.ok) {
+          throw new Error(`Eval detail request failed: ${response.statusText}`);
+        }
+        renderDetail(await response.json());
+      } catch (error) {
+        currentEvalID = "";
+        currentEvalDetail = null;
+        copyEvalSummaryButton.hidden = true;
+        copyEvalLinkButton.hidden = true;
+        evalDetailStatusNote.textContent = "Unable to load the selected eval detail.";
+        evalDetail.innerHTML = `<div class="empty">${escapeHTML(error.message || "Unable to load eval detail.")}</div>`;
+        syncSelectedRow();
+        syncDetailNavigation();
+      }
+    }
+
+    async function loadEvals(selectedEvalID = "") {
+      const params = buildParams();
+      syncURL(selectedEvalID);
+      if (!params.get("tenant_id")) {
+        renderSummary([]);
+        currentItems = [];
+        renderRows([]);
+        await loadDetail("");
+        evalListState.hidden = false;
+        evalListState.className = "empty";
+        evalListState.textContent = "Enter a tenant before loading durable eval cases.";
+        return;
+      }
+
+      evalListState.hidden = false;
+      evalListState.className = "loading";
+      evalListState.textContent = "Loading eval lane...";
+      tableWrap.hidden = true;
+      try {
+        const response = await fetch(`${listEndpoint}?${params.toString()}`, {
+          headers: { "Accept": "application/json" }
+        });
+        if (!response.ok) {
+          throw new Error(`Eval list request failed: ${response.statusText}`);
+        }
+        const page = await response.json();
+        renderSummary(page.eval_cases || []);
+        renderRows(page.eval_cases || []);
+        const visibleIDs = new Set((page.eval_cases || []).map((item) => item.eval_case_id));
+        if (selectedEvalID && visibleIDs.has(selectedEvalID)) {
+          await loadDetail(selectedEvalID);
+        } else if ((page.eval_cases || []).length > 0) {
+          await loadDetail(page.eval_cases[0].eval_case_id);
+        } else {
+          await loadDetail("");
+        }
+      } catch (error) {
+        tableWrap.hidden = true;
+        evalListState.hidden = false;
+        evalListState.className = "empty";
+        evalListState.textContent = error.message || "Unable to load eval lane.";
+      }
+    }
+
+    function navigateVisible(delta) {
+      const index = findSelectedIndex(currentEvalID);
+      if (index === -1) return;
+      const nextIndex = index + delta;
+      if (nextIndex < 0 || nextIndex >= currentItems.length) return;
+      loadDetail(currentItems[nextIndex].eval_case_id);
+    }
+
+    async function copyEvalSummary() {
+      if (!currentEvalDetail) return;
+      const original = copyEvalSummaryButton.textContent;
+      try {
+        await navigator.clipboard.writeText(buildEvalSummary(currentEvalDetail));
+        copyEvalSummaryButton.textContent = "Summary copied";
+        evalDetailStatusNote.textContent = "Copied a compact eval handoff summary.";
+      } catch (error) {
+        copyEvalSummaryButton.textContent = "Copy failed";
+        evalDetailStatusNote.textContent = `Unable to copy eval summary: ${error.message || "clipboard write failed"}`;
+      } finally {
+        window.setTimeout(() => { copyEvalSummaryButton.textContent = original; }, 1200);
+      }
+    }
+
+    async function copyEvalLink() {
+      if (!currentEvalDetail) return;
+      const original = copyEvalLinkButton.textContent;
+      try {
+        await navigator.clipboard.writeText(window.location.href);
+        copyEvalLinkButton.textContent = "Link copied";
+        evalDetailStatusNote.textContent = "Copied the current eval lane URL with the selected eval case in context.";
+      } catch (error) {
+        copyEvalLinkButton.textContent = "Copy failed";
+        evalDetailStatusNote.textContent = `Unable to copy eval link: ${error.message || "clipboard write failed"}`;
+      } finally {
+        window.setTimeout(() => { copyEvalLinkButton.textContent = original; }, 1200);
+      }
+    }
+
+    form.addEventListener("submit", (event) => {
+      event.preventDefault();
+      form.elements.namedItem("offset").value = "0";
+      loadEvals(currentEvalID);
+    });
+
+    resetFiltersButton.addEventListener("click", () => {
+      for (const name of ["tenant_id", "source_case_id", "source_task_id", "source_report_id", "version_id"]) {
+        form.elements.namedItem(name).value = "";
+      }
+      form.elements.namedItem("limit").value = "10";
+      form.elements.namedItem("offset").value = "0";
+      loadEvals("");
+    });
+
+    evalRows.addEventListener("click", (event) => {
+      const button = event.target.closest("[data-eval-id]");
+      if (!button) return;
+      loadDetail(button.dataset.evalId);
+    });
+
+    prevEvalButton.addEventListener("click", () => navigateVisible(-1));
+    nextEvalButton.addEventListener("click", () => navigateVisible(1));
+    copyEvalSummaryButton.addEventListener("click", () => copyEvalSummary());
+    copyEvalLinkButton.addEventListener("click", () => copyEvalLink());
+
+    const initialEvalID = populateFiltersFromURL();
+    loadEvals(initialEvalID);
+  </script>
+</body>
+</html>

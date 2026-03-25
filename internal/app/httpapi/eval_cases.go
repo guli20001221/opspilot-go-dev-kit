@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 	"net/http"
+	"strconv"
 	"strings"
 	"time"
 
@@ -33,13 +34,48 @@ type evalCaseResponse struct {
 	CreatedAt      string `json:"created_at"`
 }
 
+type listEvalCasesResponse struct {
+	EvalCases  []evalCaseResponse `json:"eval_cases"`
+	HasMore    bool               `json:"has_more"`
+	NextOffset *int               `json:"next_offset,omitempty"`
+}
+
 func (a *appHandler) handleEvalCases(w http.ResponseWriter, r *http.Request) {
 	switch r.Method {
+	case http.MethodGet:
+		a.handleListEvalCases(w, r)
 	case http.MethodPost:
 		a.handleCreateEvalCase(w, r)
 	default:
 		writeError(w, http.StatusMethodNotAllowed, "method_not_allowed", "method not allowed")
 	}
+}
+
+func (a *appHandler) handleListEvalCases(w http.ResponseWriter, r *http.Request) {
+	filter, err := parseEvalCaseListFilter(r)
+	if err != nil {
+		writeError(w, http.StatusBadRequest, "invalid_query", err.Error())
+		return
+	}
+
+	page, err := a.evalCases.ListEvalCases(r.Context(), filter)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "eval_case_list_failed", err.Error())
+		return
+	}
+
+	resp := listEvalCasesResponse{
+		EvalCases: make([]evalCaseResponse, 0, len(page.EvalCases)),
+		HasMore:   page.HasMore,
+	}
+	if page.HasMore {
+		resp.NextOffset = &page.NextOffset
+	}
+	for _, item := range page.EvalCases {
+		resp.EvalCases = append(resp.EvalCases, newEvalCaseResponse(item))
+	}
+
+	writeJSON(w, http.StatusOK, resp)
 }
 
 func (a *appHandler) handleCreateEvalCase(w http.ResponseWriter, r *http.Request) {
@@ -127,4 +163,34 @@ func newEvalCaseResponse(item evalsvc.EvalCase) evalCaseResponse {
 		CreatedBy:      item.CreatedBy,
 		CreatedAt:      item.CreatedAt.Format(time.RFC3339Nano),
 	}
+}
+
+func parseEvalCaseListFilter(r *http.Request) (evalsvc.ListFilter, error) {
+	filter := evalsvc.ListFilter{
+		TenantID:       strings.TrimSpace(r.URL.Query().Get("tenant_id")),
+		SourceCaseID:   strings.TrimSpace(r.URL.Query().Get("source_case_id")),
+		SourceTaskID:   strings.TrimSpace(r.URL.Query().Get("source_task_id")),
+		SourceReportID: strings.TrimSpace(r.URL.Query().Get("source_report_id")),
+		VersionID:      strings.TrimSpace(r.URL.Query().Get("version_id")),
+		Limit:          20,
+	}
+	if filter.TenantID == "" {
+		return evalsvc.ListFilter{}, errors.New("tenant_id is required")
+	}
+	if rawLimit := strings.TrimSpace(r.URL.Query().Get("limit")); rawLimit != "" {
+		limit, err := strconv.Atoi(rawLimit)
+		if err != nil || limit <= 0 {
+			return evalsvc.ListFilter{}, errors.New("limit must be a positive integer")
+		}
+		filter.Limit = limit
+	}
+	if rawOffset := strings.TrimSpace(r.URL.Query().Get("offset")); rawOffset != "" {
+		offset, err := strconv.Atoi(rawOffset)
+		if err != nil || offset < 0 {
+			return evalsvc.ListFilter{}, errors.New("offset must be a non-negative integer")
+		}
+		filter.Offset = offset
+	}
+
+	return filter, nil
 }

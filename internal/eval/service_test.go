@@ -163,6 +163,82 @@ func TestServicePromoteCaseRejectsCrossTenantExistingRecord(t *testing.T) {
 	}
 }
 
+func TestMemoryStoreListSupportsFiltersAndPagination(t *testing.T) {
+	store := newMemoryStore()
+	fixtures := []EvalCase{
+		{
+			ID:             "eval-1",
+			TenantID:       "tenant-a",
+			SourceCaseID:   "case-1",
+			SourceTaskID:   "task-1",
+			SourceReportID: "report-1",
+			VersionID:      "version-a",
+			Title:          "Eval 1",
+			Summary:        "First",
+			CreatedBy:      "operator-1",
+			CreatedAt:      time.Unix(1700000001, 0).UTC(),
+		},
+		{
+			ID:             "eval-2",
+			TenantID:       "tenant-a",
+			SourceCaseID:   "case-2",
+			SourceTaskID:   "task-2",
+			SourceReportID: "report-2",
+			VersionID:      "version-b",
+			Title:          "Eval 2",
+			Summary:        "Second",
+			CreatedBy:      "operator-2",
+			CreatedAt:      time.Unix(1700000002, 0).UTC(),
+		},
+		{
+			ID:             "eval-3",
+			TenantID:       "tenant-b",
+			SourceCaseID:   "case-3",
+			SourceTaskID:   "task-3",
+			SourceReportID: "report-3",
+			VersionID:      "version-b",
+			Title:          "Eval 3",
+			Summary:        "Third",
+			CreatedBy:      "operator-3",
+			CreatedAt:      time.Unix(1700000003, 0).UTC(),
+		},
+	}
+	for _, item := range fixtures {
+		if _, err := store.Save(context.Background(), item); err != nil {
+			t.Fatalf("Save(%s) error = %v", item.ID, err)
+		}
+	}
+
+	page, err := store.List(context.Background(), ListFilter{
+		TenantID:  "tenant-a",
+		VersionID: "version-b",
+		Limit:     10,
+	})
+	if err != nil {
+		t.Fatalf("List() error = %v", err)
+	}
+	if len(page.EvalCases) != 1 || page.EvalCases[0].ID != "eval-2" {
+		t.Fatalf("EvalCases = %#v, want eval-2", page.EvalCases)
+	}
+
+	page, err = store.List(context.Background(), ListFilter{
+		TenantID: "tenant-a",
+		Limit:    1,
+	})
+	if err != nil {
+		t.Fatalf("List(paginated) error = %v", err)
+	}
+	if len(page.EvalCases) != 1 {
+		t.Fatalf("len(EvalCases) = %d, want 1", len(page.EvalCases))
+	}
+	if page.EvalCases[0].ID != "eval-2" {
+		t.Fatalf("first EvalCase ID = %q, want %q", page.EvalCases[0].ID, "eval-2")
+	}
+	if !page.HasMore || page.NextOffset != 1 {
+		t.Fatalf("pagination = %#v, want has_more with next_offset=1", page)
+	}
+}
+
 type caseReaderFunc func(ctx context.Context, caseID string) (casesvc.Case, error)
 
 func (fn caseReaderFunc) GetCase(ctx context.Context, caseID string) (casesvc.Case, error) {

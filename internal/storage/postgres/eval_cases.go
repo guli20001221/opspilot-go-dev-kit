@@ -129,6 +129,69 @@ WHERE source_case_id = $1`
 	return scanEvalCase(s.pool.QueryRow(ctx, query, sourceCaseID))
 }
 
+// List returns one durable eval-case page.
+func (s *EvalCaseStore) List(ctx context.Context, filter evalsvc.ListFilter) (evalsvc.ListPage, error) {
+	const query = `
+SELECT
+    id,
+    tenant_id,
+    source_case_id,
+    COALESCE(source_task_id, ''),
+    COALESCE(source_report_id, ''),
+    trace_id,
+    COALESCE(version_id, ''),
+    title,
+    summary,
+    operator_note,
+    created_by,
+    created_at
+FROM eval_cases
+WHERE tenant_id = $1
+  AND ($2 = '' OR source_case_id = $2)
+  AND ($3 = '' OR source_task_id = $3)
+  AND ($4 = '' OR source_report_id = $4)
+  AND ($5 = '' OR version_id = $5)
+ORDER BY created_at DESC, id DESC
+LIMIT $6 OFFSET $7`
+
+	rows, err := s.pool.Query(
+		ctx,
+		query,
+		filter.TenantID,
+		filter.SourceCaseID,
+		filter.SourceTaskID,
+		filter.SourceReportID,
+		filter.VersionID,
+		filter.Limit+1,
+		filter.Offset,
+	)
+	if err != nil {
+		return evalsvc.ListPage{}, fmt.Errorf("list eval cases: %w", err)
+	}
+	defer rows.Close()
+
+	items := make([]evalsvc.EvalCase, 0, filter.Limit+1)
+	for rows.Next() {
+		item, err := scanEvalCase(rows)
+		if err != nil {
+			return evalsvc.ListPage{}, err
+		}
+		items = append(items, item)
+	}
+	if err := rows.Err(); err != nil {
+		return evalsvc.ListPage{}, fmt.Errorf("iterate eval cases: %w", err)
+	}
+
+	page := evalsvc.ListPage{EvalCases: items}
+	if len(items) > filter.Limit {
+		page.HasMore = true
+		page.NextOffset = filter.Offset + filter.Limit
+		page.EvalCases = append([]evalsvc.EvalCase(nil), items[:filter.Limit]...)
+	}
+
+	return page, nil
+}
+
 func scanEvalCase(row pgx.Row) (evalsvc.EvalCase, error) {
 	var item evalsvc.EvalCase
 	var versionID pgtype.Text

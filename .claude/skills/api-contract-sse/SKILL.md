@@ -45,6 +45,7 @@ Keep the HTTP surface explicit, documented, stable, and friendly to streaming ag
 14. When reproducibility depends on runtime bundle metadata, expose a stable version-registry read contract, such as `GET /api/v1/versions` and `GET /api/v1/versions/{version_id}`, instead of forcing clients to reconstruct planner, retrieval, tool, or workflow versions from task payloads.
 15. Once a durable version registry exists, propagate `version_id` through related task, report, compare, or trace read contracts instead of duplicating full runtime-version payloads on every endpoint.
 16. When operators promote a durable case into eval coverage, prefer a canonical `POST /api/v1/eval-cases` plus `GET /api/v1/eval-cases/{id}` contract that copies lineage from existing case, task, report, trace, and version state instead of storing frontend-only bookmarks.
+17. When operators need to browse promoted eval coverage, expose a tenant-scoped `GET /api/v1/eval-cases` with the same `limit/offset/has_more/next_offset` pagination style used elsewhere instead of inventing an eval-only paging model.
 
 ## Output contract
 When you finish, always report:

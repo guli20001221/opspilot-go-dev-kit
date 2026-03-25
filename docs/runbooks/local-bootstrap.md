@@ -60,6 +60,7 @@ Successful build artifacts are emitted under `bin/`.
 - `POST /api/v1/cases/{case_id}/assign`
 - `POST /api/v1/cases/{case_id}/notes`
 - `POST /api/v1/eval-cases`
+- `GET /api/v1/eval-cases`
 - `GET /api/v1/eval-cases/{eval_case_id}`
 - `POST /api/v1/chat/stream`
 
@@ -115,7 +116,9 @@ The current chat stream implementation is a Milestone 1 skeleton:
 - use `POST /api/v1/cases/{case_id}/assign?tenant_id=<tenant>` when you need to claim or reassign an open follow-up object and capture who owns it
 - use `POST /api/v1/cases/{case_id}/notes?tenant_id=<tenant>` when you need to append a durable operator note to the case timeline
 - use `POST /api/v1/eval-cases` when you need to promote a canonical case into durable eval coverage while preserving source case, task, report, trace, and version lineage
+- use `GET /api/v1/eval-cases?tenant_id=<tenant>` when you need the first tenant-scoped queue of promoted eval coverage before creating datasets or regression runs
 - open `http://localhost:18080/admin/cases` when you want the first case-focused operator page, including source task/report handoff links and the minimal `Close case` action
+- open `http://localhost:18080/admin/evals` when you want the first eval-focused operator page, including durable eval detail plus case/task/report/version/trace handoff links
 - use the `My open cases` shortcut on `/admin/cases` when you want a queue view for the current operator handle without manually composing `status=open&assigned_to=<actor>`
 - use the `Unassigned` shortcut on `/admin/cases` when you want the shared open backlog without manually composing `status=open&unassigned_only=true`
 - use `Copy case summary` on `/admin/cases` when you need a compact, paste-ready handoff note, `Copy case link` when you want to share the exact filtered case-board URL, and `Open case API detail` when you want the canonical case JSON in a separate tab

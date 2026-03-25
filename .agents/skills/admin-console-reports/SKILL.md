@@ -81,6 +81,7 @@ Provide a practical operator UI for evaluation and runtime analysis while keepin
 53. Once runtime reproducibility metadata is durable, prefer a shared `/admin/version-detail` page backed by `GET /api/v1/versions` and `GET /api/v1/versions/{version_id}` instead of restating version bundles inside every operator page.
 54. Once related contracts expose `version_id`, prefer handing off from report, comparison, or trace pages into the shared version-detail page instead of duplicating runtime-version rendering logic in each page.
 55. Once durable eval-case promotion exists, prefer wiring `Promote to eval` from the canonical case page to `POST /api/v1/eval-cases` and deep-linking to the returned eval-case API detail instead of inventing an admin-only eval store or write endpoint.
+56. Once durable eval-case list and detail contracts exist, prefer a shared `/admin/evals` lane backed directly by those contracts instead of rebuilding eval state from case or report pages.
 
 ## Output contract
 When you finish, always report:

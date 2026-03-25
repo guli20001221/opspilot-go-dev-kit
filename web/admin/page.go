@@ -7,6 +7,8 @@ var (
 	taskBoardHTML []byte
 	//go:embed cases.html
 	casesHTML []byte
+	//go:embed evals.html
+	evalsHTML []byte
 	//go:embed reports.html
 	reportsHTML []byte
 	//go:embed report-compare.html
@@ -25,6 +27,11 @@ func TaskBoardHTML() []byte {
 // CasesHTML returns the embedded admin cases page.
 func CasesHTML() []byte {
 	return append([]byte(nil), casesHTML...)
+}
+
+// EvalsHTML returns the embedded admin evals page.
+func EvalsHTML() []byte {
+	return append([]byte(nil), evalsHTML...)
 }
 
 // ReportsHTML returns the embedded admin reports page.

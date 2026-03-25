@@ -7,8 +7,10 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
+	"time"
 
 	casesvc "opspilot-go/internal/case"
+	evalsvc "opspilot-go/internal/eval"
 	"opspilot-go/internal/report"
 	"opspilot-go/internal/version"
 	"opspilot-go/internal/workflow"
@@ -231,5 +233,132 @@ func TestGetEvalCaseEndpointFailsClosedForWrongTenant(t *testing.T) {
 
 	if getResp.StatusCode != http.StatusNotFound {
 		t.Fatalf("StatusCode = %d, want %d", getResp.StatusCode, http.StatusNotFound)
+	}
+}
+
+func TestListEvalCasesEndpointSupportsFiltersAndPagination(t *testing.T) {
+	ctx := context.Background()
+	caseService := casesvc.NewService()
+	evalService := evalsvc.NewService(caseService, nil)
+
+	caseA, err := caseService.CreateCase(ctx, casesvc.CreateInput{
+		TenantID:       "tenant-list",
+		Title:          "Eval A",
+		Summary:        "A",
+		SourceTaskID:   "task-a",
+		SourceReportID: "report-a",
+	})
+	if err != nil {
+		t.Fatalf("CreateCase(caseA) error = %v", err)
+	}
+	first, _, err := evalService.PromoteCase(ctx, evalsvc.CreateInput{
+		TenantID:     "tenant-list",
+		SourceCaseID: caseA.ID,
+	})
+	if err != nil {
+		t.Fatalf("PromoteCase(first) error = %v", err)
+	}
+	time.Sleep(2 * time.Millisecond)
+
+	caseB, err := caseService.CreateCase(ctx, casesvc.CreateInput{
+		TenantID:       "tenant-list",
+		Title:          "Eval B",
+		Summary:        "B",
+		SourceTaskID:   "task-b",
+		SourceReportID: "report-b",
+	})
+	if err != nil {
+		t.Fatalf("CreateCase(caseB) error = %v", err)
+	}
+	second, _, err := evalService.PromoteCase(ctx, evalsvc.CreateInput{
+		TenantID:     "tenant-list",
+		SourceCaseID: caseB.ID,
+	})
+	if err != nil {
+		t.Fatalf("PromoteCase(second) error = %v", err)
+	}
+	if second.ID == first.ID {
+		t.Fatal("second eval case reused first ID")
+	}
+
+	caseOther, err := caseService.CreateCase(ctx, casesvc.CreateInput{
+		TenantID:       "tenant-other",
+		Title:          "Other tenant",
+		Summary:        "C",
+		SourceTaskID:   "task-c",
+		SourceReportID: "report-c",
+	})
+	if err != nil {
+		t.Fatalf("CreateCase(caseOther) error = %v", err)
+	}
+	if _, _, err := evalService.PromoteCase(ctx, evalsvc.CreateInput{
+		TenantID:     "tenant-other",
+		SourceCaseID: caseOther.ID,
+	}); err != nil {
+		t.Fatalf("PromoteCase(other) error = %v", err)
+	}
+
+	server := httptest.NewServer(NewHandlerWithDependencies(Dependencies{
+		Cases:     caseService,
+		EvalCases: evalService,
+	}))
+	defer server.Close()
+
+	resp, err := http.Get(server.URL + "/api/v1/eval-cases?tenant_id=tenant-list&limit=1")
+	if err != nil {
+		t.Fatalf("Get(first page) error = %v", err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("StatusCode = %d, want %d", resp.StatusCode, http.StatusOK)
+	}
+
+	var firstPage listEvalCasesResponse
+	if err := json.NewDecoder(resp.Body).Decode(&firstPage); err != nil {
+		t.Fatalf("Decode(first page) error = %v", err)
+	}
+	if len(firstPage.EvalCases) != 1 {
+		t.Fatalf("len(EvalCases) = %d, want 1", len(firstPage.EvalCases))
+	}
+	if firstPage.EvalCases[0].EvalCaseID != second.ID {
+		t.Fatalf("first page EvalCaseID = %q, want %q", firstPage.EvalCases[0].EvalCaseID, second.ID)
+	}
+	if !firstPage.HasMore || firstPage.NextOffset == nil || *firstPage.NextOffset != 1 {
+		t.Fatalf("pagination = %#v, want has_more with next_offset=1", firstPage)
+	}
+
+	filteredResp, err := http.Get(server.URL + "/api/v1/eval-cases?tenant_id=tenant-list&source_task_id=task-a&source_report_id=report-a")
+	if err != nil {
+		t.Fatalf("Get(filtered) error = %v", err)
+	}
+	defer filteredResp.Body.Close()
+	if filteredResp.StatusCode != http.StatusOK {
+		t.Fatalf("filtered StatusCode = %d, want %d", filteredResp.StatusCode, http.StatusOK)
+	}
+
+	var filtered listEvalCasesResponse
+	if err := json.NewDecoder(filteredResp.Body).Decode(&filtered); err != nil {
+		t.Fatalf("Decode(filtered) error = %v", err)
+	}
+	if len(filtered.EvalCases) != 1 || filtered.EvalCases[0].EvalCaseID != first.ID {
+		t.Fatalf("filtered EvalCases = %#v, want only %q", filtered.EvalCases, first.ID)
+	}
+}
+
+func TestListEvalCasesEndpointRequiresTenantScope(t *testing.T) {
+	server := httptest.NewServer(NewHandlerWithDependencies(Dependencies{
+		Cases:     casesvc.NewService(),
+		EvalCases: evalsvc.NewService(casesvc.NewService(), nil),
+	}))
+	defer server.Close()
+
+	resp, err := http.Get(server.URL + "/api/v1/eval-cases")
+	if err != nil {
+		t.Fatalf("Get() error = %v", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusBadRequest {
+		t.Fatalf("StatusCode = %d, want %d", resp.StatusCode, http.StatusBadRequest)
 	}
 }

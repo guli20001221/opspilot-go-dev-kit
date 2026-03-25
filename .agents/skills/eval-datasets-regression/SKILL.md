@@ -39,6 +39,7 @@ Turn prompt, routing, retrieval, and tool changes into measurable, repeatable qu
 7. Summarize both top-line metrics and drill-down bad cases.
 8. Update baselines when intentional behavior changes are accepted.
 9. When promoting production failures from durable operator cases, preserve stable lineage such as `source_case_id`, `source_task_id`, `source_report_id`, `trace_id`, `version_id`, and operator note instead of relying on frontend-only bookmarks.
+10. Once durable eval-case promotion exists, prefer a tenant-scoped `GET /api/v1/eval-cases` queue before introducing dataset or regression-run mutation surfaces.
 
 ## Output contract
 When you finish, always report:

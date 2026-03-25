@@ -55,6 +55,7 @@ When you finish, always report:
 - runbooks describe operator controls
 
 8. When a durable follow-up object such as a case is promoted into eval coverage, validate tenant scope from the canonical source object before copying lineage into the eval record.
+9. Operator-facing eval list reads must remain tenant-scoped; do not expose cross-tenant browse surfaces or make `tenant_id` optional on queue endpoints.
 
 ## Guardrails
 - no cross-tenant read or write path

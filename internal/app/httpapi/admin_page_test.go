@@ -257,6 +257,81 @@ func TestAdminReportsPageRendersHTML(t *testing.T) {
 	}
 }
 
+func TestAdminEvalsPageRendersHTML(t *testing.T) {
+	server := httptest.NewServer(NewHandler())
+	defer server.Close()
+
+	resp, err := http.Get(server.URL + "/admin/evals")
+	if err != nil {
+		t.Fatalf("Get() error = %v", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("StatusCode = %d, want %d", resp.StatusCode, http.StatusOK)
+	}
+	if got := resp.Header.Get("Content-Type"); !strings.Contains(got, "text/html") {
+		t.Fatalf("Content-Type = %q, want text/html", got)
+	}
+
+	bodyBytes, err := io.ReadAll(resp.Body)
+	if err != nil {
+		t.Fatalf("ReadAll() error = %v", err)
+	}
+	body := string(bodyBytes)
+	if !strings.Contains(body, "<title>OpsPilot Eval Cases</title>") {
+		t.Fatal("page title missing from eval page HTML")
+	}
+	if !strings.Contains(body, "/api/v1/eval-cases") {
+		t.Fatal("eval case API path missing from eval page HTML")
+	}
+	if !strings.Contains(body, "Eval Lane") {
+		t.Fatal("eval lane heading missing from eval page HTML")
+	}
+	if !strings.Contains(body, "Copy eval summary") {
+		t.Fatal("eval summary handoff missing from eval page HTML")
+	}
+	if !strings.Contains(body, "Copy eval link") {
+		t.Fatal("eval link handoff missing from eval page HTML")
+	}
+	if !strings.Contains(body, "Open case API detail") {
+		t.Fatal("case handoff missing from eval page HTML")
+	}
+	if !strings.Contains(body, "Open report API detail") {
+		t.Fatal("report handoff missing from eval page HTML")
+	}
+	if !strings.Contains(body, "Open task API detail") {
+		t.Fatal("task handoff missing from eval page HTML")
+	}
+	if !strings.Contains(body, "Open version detail") {
+		t.Fatal("version handoff missing from eval page HTML")
+	}
+	if !strings.Contains(body, "Open Trace Detail") {
+		t.Fatal("trace detail handoff missing from eval page HTML")
+	}
+	if !strings.Contains(body, "Previous visible") {
+		t.Fatal("eval detail navigation missing from eval page HTML")
+	}
+	if !strings.Contains(body, "task-row-selected") {
+		t.Fatal("selected eval row styling missing from eval page HTML")
+	}
+}
+
+func TestAdminEvalsPageRejectsUnknownSubpath(t *testing.T) {
+	server := httptest.NewServer(NewHandler())
+	defer server.Close()
+
+	resp, err := http.Get(server.URL + "/admin/evals/unknown")
+	if err != nil {
+		t.Fatalf("Get() error = %v", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusNotFound {
+		t.Fatalf("StatusCode = %d, want %d", resp.StatusCode, http.StatusNotFound)
+	}
+}
+
 func TestAdminReportsPageRejectsUnknownSubpath(t *testing.T) {
 	server := httptest.NewServer(NewHandler())
 	defer server.Close()
