@@ -187,6 +187,8 @@
         <button class="ghost" type="button" id="copyEvalLinkButton" hidden>Copy eval link</button>
         <input id="datasetNameInput" type="text" value="" aria-label="Dataset draft name" placeholder="Optional dataset draft name" style="min-width: 260px; border: 1px solid var(--line); border-radius: 999px; padding: 10px 14px; background: rgba(255, 255, 255, 0.92); color: var(--ink);" hidden>
         <button class="ghost" type="button" id="createDatasetButton" hidden>Create dataset draft</button>
+        <input id="datasetTargetIDInput" type="text" value="" aria-label="Target dataset ID" placeholder="Existing dataset ID for append" style="min-width: 260px; border: 1px solid var(--line); border-radius: 999px; padding: 10px 14px; background: rgba(255, 255, 255, 0.92); color: var(--ink);" hidden>
+        <button class="ghost" type="button" id="addToDatasetButton" hidden>Add to dataset</button>
       </div>
       <div class="detail-status-note" id="evalDetailStatusNote">Select an eval case to reveal handoff actions.</div>
       <div id="evalDetail" class="empty">No eval case selected yet.</div>
@@ -214,6 +216,8 @@
     const copyEvalLinkButton = document.getElementById("copyEvalLinkButton");
     const datasetNameInput = document.getElementById("datasetNameInput");
     const createDatasetButton = document.getElementById("createDatasetButton");
+    const datasetTargetIDInput = document.getElementById("datasetTargetIDInput");
+    const addToDatasetButton = document.getElementById("addToDatasetButton");
     const evalDetailStatusNote = document.getElementById("evalDetailStatusNote");
 
     let currentItems = [];
@@ -346,12 +350,16 @@
     function renderDetail(item) {
       currentEvalID = item.eval_case_id;
       currentEvalDetail = item;
-      currentDatasetDetail = null;
       syncURL(item.eval_case_id);
       copyEvalSummaryButton.hidden = false;
       copyEvalLinkButton.hidden = false;
       datasetNameInput.hidden = false;
       createDatasetButton.hidden = false;
+      datasetTargetIDInput.hidden = false;
+      addToDatasetButton.hidden = false;
+      if (currentDatasetDetail && currentDatasetDetail.dataset_id) {
+        datasetTargetIDInput.value = currentDatasetDetail.dataset_id;
+      }
       evalDetailStatusNote.textContent = "Current eval case is ready for operator handoff.";
       const caseURL = `${caseEndpointBase}${encodeURIComponent(item.source_case_id)}?tenant_id=${encodeURIComponent(item.tenant_id)}`;
       const reportURL = item.source_report_id ? `${reportEndpointBase}${encodeURIComponent(item.source_report_id)}` : "";
@@ -406,6 +414,8 @@
         copyEvalLinkButton.hidden = true;
         datasetNameInput.hidden = true;
         createDatasetButton.hidden = true;
+        datasetTargetIDInput.hidden = true;
+        addToDatasetButton.hidden = true;
         evalDetailStatusNote.textContent = "Select an eval case to reveal handoff actions.";
         evalDetail.innerHTML = '<div class="empty">No eval case selected yet.</div>';
         syncURL("");
@@ -432,6 +442,8 @@
         copyEvalLinkButton.hidden = true;
         datasetNameInput.hidden = true;
         createDatasetButton.hidden = true;
+        datasetTargetIDInput.hidden = true;
+        addToDatasetButton.hidden = true;
         evalDetailStatusNote.textContent = "Unable to load the selected eval detail.";
         evalDetail.innerHTML = `<div class="empty">${escapeHTML(error.message || "Unable to load eval detail.")}</div>`;
         syncSelectedRow();
@@ -549,13 +561,55 @@
           throw new Error(created.message || `Dataset creation failed: ${response.statusText}`);
         }
         currentDatasetDetail = created;
-        evalDetailStatusNote.textContent = `Created dataset draft ${created.dataset_id}.`;
+        datasetTargetIDInput.value = created.dataset_id || "";
         renderDetail(currentEvalDetail);
+        evalDetailStatusNote.textContent = `Created dataset draft ${created.dataset_id}.`;
       } catch (error) {
         evalDetailStatusNote.textContent = error.message || "Unable to create dataset draft.";
       } finally {
         createDatasetButton.disabled = false;
         createDatasetButton.textContent = original;
+      }
+    }
+
+    async function addToDatasetDraft() {
+      if (!currentEvalDetail) return;
+      const targetDatasetID = datasetTargetIDInput.value.trim();
+      if (!targetDatasetID) {
+        evalDetailStatusNote.textContent = "Enter a target dataset ID before appending the current eval case.";
+        return;
+      }
+
+      const original = addToDatasetButton.textContent;
+      addToDatasetButton.disabled = true;
+      addToDatasetButton.textContent = "Adding...";
+      evalDetailStatusNote.textContent = `Adding ${currentEvalDetail.eval_case_id} to ${targetDatasetID}...`;
+      try {
+        const response = await fetch(`${datasetEndpoint}/${encodeURIComponent(targetDatasetID)}/items`, {
+          method: "POST",
+          headers: {
+            "Accept": "application/json",
+            "Content-Type": "application/json"
+          },
+          body: JSON.stringify({
+            tenant_id: currentEvalDetail.tenant_id,
+            eval_case_id: currentEvalDetail.eval_case_id,
+            added_by: "evals-operator"
+          })
+        });
+        const updated = await response.json().catch(() => ({}));
+        if (!response.ok) {
+          throw new Error(updated.message || `Dataset append failed: ${response.statusText}`);
+        }
+        currentDatasetDetail = updated;
+        datasetTargetIDInput.value = updated.dataset_id || targetDatasetID;
+        renderDetail(currentEvalDetail);
+        evalDetailStatusNote.textContent = `Dataset ${updated.dataset_id} now contains ${updated.items.length} eval case(s).`;
+      } catch (error) {
+        evalDetailStatusNote.textContent = error.message || "Unable to append the current eval case to the dataset.";
+      } finally {
+        addToDatasetButton.disabled = false;
+        addToDatasetButton.textContent = original;
       }
     }
 
@@ -585,6 +639,7 @@
     copyEvalSummaryButton.addEventListener("click", () => copyEvalSummary());
     copyEvalLinkButton.addEventListener("click", () => copyEvalLink());
     createDatasetButton.addEventListener("click", () => createDatasetDraft());
+    addToDatasetButton.addEventListener("click", () => addToDatasetDraft());
 
     const initialEvalID = populateFiltersFromURL();
     loadEvals(initialEvalID);

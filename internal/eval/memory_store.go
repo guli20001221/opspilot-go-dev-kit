@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"sort"
 	"sync"
+	"time"
 )
 
 type memoryStore struct {
@@ -178,4 +179,25 @@ func (s *memoryStore) ListDatasets(_ context.Context, filter DatasetListFilter) 
 	page.Datasets = append(page.Datasets, items[start:end]...)
 
 	return page, nil
+}
+
+func (s *memoryStore) AddDatasetItem(_ context.Context, datasetID string, item EvalDatasetItem, updatedAt time.Time) (EvalDataset, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	dataset, ok := s.datasets[datasetID]
+	if !ok {
+		return EvalDataset{}, fmt.Errorf("%w: %s", ErrEvalDatasetNotFound, datasetID)
+	}
+	for _, existing := range dataset.Items {
+		if existing.EvalCaseID == item.EvalCaseID {
+			return dataset, nil
+		}
+	}
+
+	dataset.Items = append(dataset.Items, item)
+	dataset.UpdatedAt = updatedAt
+	s.datasets[datasetID] = dataset
+
+	return dataset, nil
 }

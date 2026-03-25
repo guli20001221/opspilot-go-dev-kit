@@ -19,6 +19,12 @@ type createEvalDatasetRequest struct {
 	CreatedBy   string   `json:"created_by,omitempty"`
 }
 
+type addEvalDatasetItemRequest struct {
+	TenantID   string `json:"tenant_id"`
+	EvalCaseID string `json:"eval_case_id"`
+	AddedBy    string `json:"added_by,omitempty"`
+}
+
 type evalDatasetItemResponse struct {
 	EvalCaseID     string `json:"eval_case_id"`
 	Title          string `json:"title"`
@@ -130,16 +136,33 @@ func (a *appHandler) handleCreateEvalDataset(w http.ResponseWriter, r *http.Requ
 }
 
 func (a *appHandler) handleEvalDatasetByID(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodGet {
-		writeError(w, http.StatusMethodNotAllowed, "method_not_allowed", "method not allowed")
-		return
-	}
-
-	datasetID := strings.TrimPrefix(r.URL.Path, "/api/v1/eval-datasets/")
-	if datasetID == "" || strings.Contains(datasetID, "/") {
+	datasetID, action, ok := parseEvalDatasetPath(r.URL.Path)
+	if !ok {
 		writeError(w, http.StatusNotFound, "not_found", "not found")
 		return
 	}
+
+	if action == "" {
+		if r.Method != http.MethodGet {
+			writeError(w, http.StatusMethodNotAllowed, "method_not_allowed", "method not allowed")
+			return
+		}
+		a.handleGetEvalDataset(w, r, datasetID)
+		return
+	}
+
+	if action != "items" {
+		writeError(w, http.StatusNotFound, "not_found", "not found")
+		return
+	}
+	if r.Method != http.MethodPost {
+		writeError(w, http.StatusMethodNotAllowed, "method_not_allowed", "method not allowed")
+		return
+	}
+	a.handleAddEvalDatasetItem(w, r, datasetID)
+}
+
+func (a *appHandler) handleGetEvalDataset(w http.ResponseWriter, r *http.Request, datasetID string) {
 	tenantID := strings.TrimSpace(r.URL.Query().Get("tenant_id"))
 	if tenantID == "" {
 		writeError(w, http.StatusBadRequest, "invalid_query", "tenant_id is required")
@@ -157,6 +180,41 @@ func (a *appHandler) handleEvalDatasetByID(w http.ResponseWriter, r *http.Reques
 	}
 	if item.TenantID != tenantID {
 		writeError(w, http.StatusNotFound, "eval_dataset_not_found", "eval dataset not found")
+		return
+	}
+
+	writeJSON(w, http.StatusOK, newEvalDatasetResponse(item))
+}
+
+func (a *appHandler) handleAddEvalDatasetItem(w http.ResponseWriter, r *http.Request, datasetID string) {
+	var req addEvalDatasetItemRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid_json", "invalid json body")
+		return
+	}
+	if strings.TrimSpace(req.TenantID) == "" || strings.TrimSpace(req.EvalCaseID) == "" {
+		writeError(w, http.StatusBadRequest, "invalid_eval_dataset", "tenant_id and eval_case_id are required")
+		return
+	}
+
+	item, err := a.evalDatasets.AddDatasetItem(r.Context(), datasetID, evalsvc.AddDatasetItemInput{
+		TenantID:   strings.TrimSpace(req.TenantID),
+		EvalCaseID: strings.TrimSpace(req.EvalCaseID),
+		AddedBy:    strings.TrimSpace(req.AddedBy),
+	})
+	if err != nil {
+		switch {
+		case errors.Is(err, evalsvc.ErrEvalDatasetNotFound):
+			writeError(w, http.StatusNotFound, "eval_dataset_not_found", "eval dataset not found")
+		case errors.Is(err, evalsvc.ErrEvalCaseNotFound):
+			writeError(w, http.StatusNotFound, "eval_case_not_found", "eval case not found")
+		case errors.Is(err, evalsvc.ErrInvalidEvalDatasetState):
+			writeError(w, http.StatusConflict, "invalid_eval_dataset_state", "eval dataset is not in a valid state for append")
+		case errors.Is(err, evalsvc.ErrInvalidEvalDataset):
+			writeError(w, http.StatusConflict, "invalid_eval_dataset", "eval dataset request is invalid for the current tenant scope")
+		default:
+			writeError(w, http.StatusInternalServerError, "eval_dataset_update_failed", err.Error())
+		}
 		return
 	}
 
@@ -229,4 +287,27 @@ func parseEvalDatasetListFilter(r *http.Request) (evalsvc.DatasetListFilter, err
 	}
 
 	return filter, nil
+}
+
+func parseEvalDatasetPath(path string) (datasetID string, action string, ok bool) {
+	trimmed := strings.TrimPrefix(path, "/api/v1/eval-datasets/")
+	if trimmed == "" {
+		return "", "", false
+	}
+
+	parts := strings.Split(trimmed, "/")
+	switch len(parts) {
+	case 1:
+		if parts[0] == "" {
+			return "", "", false
+		}
+		return parts[0], "", true
+	case 2:
+		if parts[0] == "" || parts[1] == "" {
+			return "", "", false
+		}
+		return parts[0], parts[1], true
+	default:
+		return "", "", false
+	}
 }

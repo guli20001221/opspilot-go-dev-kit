@@ -14,6 +14,7 @@ type datasetStore interface {
 	CreateDataset(ctx context.Context, item EvalDataset) (EvalDataset, error)
 	GetDataset(ctx context.Context, datasetID string) (EvalDataset, error)
 	ListDatasets(ctx context.Context, filter DatasetListFilter) (DatasetListPage, error)
+	AddDatasetItem(ctx context.Context, datasetID string, item EvalDatasetItem, updatedAt time.Time) (EvalDataset, error)
 }
 
 type evalCaseReader interface {
@@ -110,6 +111,47 @@ func (s *DatasetService) ListDatasets(ctx context.Context, filter DatasetListFil
 	}
 
 	return s.store.ListDatasets(ctx, filter)
+}
+
+// AddDatasetItem appends one durable eval case into an existing draft dataset.
+func (s *DatasetService) AddDatasetItem(ctx context.Context, datasetID string, input AddDatasetItemInput) (EvalDataset, error) {
+	if strings.TrimSpace(input.TenantID) == "" || strings.TrimSpace(input.EvalCaseID) == "" {
+		return EvalDataset{}, ErrInvalidEvalDataset
+	}
+
+	dataset, err := s.store.GetDataset(ctx, datasetID)
+	if err != nil {
+		return EvalDataset{}, err
+	}
+	if dataset.TenantID != strings.TrimSpace(input.TenantID) {
+		return EvalDataset{}, ErrEvalDatasetNotFound
+	}
+	if dataset.Status != DatasetStatusDraft {
+		return EvalDataset{}, ErrInvalidEvalDatasetState
+	}
+
+	evalCase, err := s.evalCases.GetEvalCase(ctx, strings.TrimSpace(input.EvalCaseID))
+	if err != nil {
+		return EvalDataset{}, err
+	}
+	if evalCase.TenantID != dataset.TenantID {
+		return EvalDataset{}, ErrEvalCaseNotFound
+	}
+	for _, member := range dataset.Items {
+		if member.EvalCaseID == evalCase.ID {
+			return dataset, nil
+		}
+	}
+
+	return s.store.AddDatasetItem(ctx, dataset.ID, EvalDatasetItem{
+		EvalCaseID:     evalCase.ID,
+		Title:          evalCase.Title,
+		SourceCaseID:   evalCase.SourceCaseID,
+		SourceTaskID:   evalCase.SourceTaskID,
+		SourceReportID: evalCase.SourceReportID,
+		TraceID:        evalCase.TraceID,
+		VersionID:      evalCase.VersionID,
+	}, time.Now().UTC())
 }
 
 func newEvalDatasetID(now time.Time) string {

@@ -1470,6 +1470,62 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
+  /api/v1/eval-datasets/{dataset_id}/items:
+    post:
+      summary: Append one eval case into a durable dataset draft
+      description: |
+        Adds one durable eval case membership into an existing draft dataset.
+        The append is idempotent for the same `dataset_id` and `eval_case_id`.
+      operationId: addEvalDatasetItem
+      parameters:
+        - name: dataset_id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AddEvalDatasetItemRequest'
+      responses:
+        '200':
+          description: Eval dataset updated.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/EvalDataset'
+        '400':
+          description: Request body was invalid.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Eval dataset or eval case not found.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '405':
+          description: Method not allowed.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '409':
+          description: Eval dataset request is invalid for the provided tenant scope or dataset state.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Eval dataset update failed.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
   /api/v1/admin/task-board:
     get:
       summary: Get the admin task board view
@@ -2072,6 +2128,18 @@ components:
           items:
             type: string
         created_by:
+          type: string
+    AddEvalDatasetItemRequest:
+      type: object
+      required:
+        - tenant_id
+        - eval_case_id
+      properties:
+        tenant_id:
+          type: string
+        eval_case_id:
+          type: string
+        added_by:
           type: string
     CaseNote:
       type: object

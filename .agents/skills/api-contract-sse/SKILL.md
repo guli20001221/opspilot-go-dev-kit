@@ -50,6 +50,7 @@ Keep the HTTP surface explicit, documented, stable, and friendly to streaming ag
 19. When operators need to browse promoted eval coverage, expose a tenant-scoped `GET /api/v1/eval-cases` with the same `limit/offset/has_more/next_offset` pagination style used elsewhere instead of inventing an eval-only paging model.
 20. The first eval dataset contract should be a canonical `POST /api/v1/eval-datasets` plus `GET /api/v1/eval-datasets/{id}` backed by durable membership rows, not an admin-only batch action.
 21. Once durable dataset drafts exist, expose a tenant-scoped `GET /api/v1/eval-datasets` with stable `updated_at DESC, id DESC` ordering and lightweight rows instead of returning full memberships from the list contract.
+22. The first dataset-curation mutation should be an explicit `POST /api/v1/eval-datasets/{dataset_id}/items` append contract that is idempotent for the same eval case and returns the updated dataset detail.
 
 ## Output contract
 When you finish, always report:

@@ -96,6 +96,8 @@ The current HTTP layer also exposes the same PostgreSQL-backed workflow records 
 - `/admin/evals` now exposes the first eval-focused operator lane, reusing durable eval-case list/detail reads and canonical handoff links into case/task/report/version/trace surfaces
 - `POST /api/v1/eval-datasets`, `GET /api/v1/eval-datasets`, and `GET /api/v1/eval-datasets/{dataset_id}` now expose the first durable dataset-draft contract plus its canonical lightweight browse surface
 - the same `/admin/evals` page now also supports `Create dataset draft`, so operators can turn one promoted failure into a reusable regression asset and then hand off into the shared dataset lane
+- `POST /api/v1/eval-datasets/{dataset_id}/items` now exposes the first incremental dataset-curation contract, so operators can grow a draft dataset over time instead of recreating it per eval case
+- the same `/admin/evals` page now also supports `Add to dataset`, reusing the canonical append-membership contract instead of inventing an eval-page-only saved-view mutation
 - `/admin/eval-datasets` now exposes the first dataset-focused operator lane, keeping dataset list rows lightweight while reusing canonical dataset detail and source-lineage handoff paths
 - the same case page now also shows and appends recent notes, so operator handoff context lives on the case instead of being implied by task/report provenance
 - the same case page now defaults into an open-case queue view, adds `My open cases` and `Unassigned` shortcuts, and computes age/staleness from canonical `updated_at`

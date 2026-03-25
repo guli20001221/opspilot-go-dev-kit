@@ -107,3 +107,4 @@ When you finish, always report:
 - the first write action on `/admin/evals` should create a canonical dataset draft and then hand off to the dataset API detail instead of inventing admin-only saved views
 - once durable dataset list and detail contracts exist, prefer a shared `/admin/eval-datasets` lane backed directly by those contracts instead of keeping dataset drafts as one-off links hanging off the eval page
 - keep `/admin/eval-datasets` list rows lightweight and use the canonical dataset detail plus existing eval/case/task/report/version/trace handoff links for drill-down instead of inventing dataset-specific shadow contracts
+- once dataset drafts become durable and browseable, prefer wiring `Add to dataset` from `/admin/evals` to the canonical `POST /api/v1/eval-datasets/{dataset_id}/items` contract instead of inventing an eval-page-only curation store

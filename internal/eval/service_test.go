@@ -353,6 +353,116 @@ func TestDatasetServiceCreateRejectsDuplicateEvalCaseIDs(t *testing.T) {
 	}
 }
 
+func TestDatasetServiceAddDatasetItemAppendsAndIsIdempotent(t *testing.T) {
+	ctx := context.Background()
+	caseService := casesvc.NewService()
+	evalService := NewService(caseService, nil)
+	datasetService := NewDatasetService(evalService)
+
+	firstCase, err := caseService.CreateCase(ctx, casesvc.CreateInput{
+		TenantID: "tenant-dataset",
+		Title:    "First source",
+	})
+	if err != nil {
+		t.Fatalf("CreateCase(first) error = %v", err)
+	}
+	firstEval, _, err := evalService.PromoteCase(ctx, CreateInput{
+		TenantID:     "tenant-dataset",
+		SourceCaseID: firstCase.ID,
+	})
+	if err != nil {
+		t.Fatalf("PromoteCase(first) error = %v", err)
+	}
+
+	secondCase, err := caseService.CreateCase(ctx, casesvc.CreateInput{
+		TenantID: "tenant-dataset",
+		Title:    "Second source",
+	})
+	if err != nil {
+		t.Fatalf("CreateCase(second) error = %v", err)
+	}
+	secondEval, _, err := evalService.PromoteCase(ctx, CreateInput{
+		TenantID:     "tenant-dataset",
+		SourceCaseID: secondCase.ID,
+	})
+	if err != nil {
+		t.Fatalf("PromoteCase(second) error = %v", err)
+	}
+
+	created, err := datasetService.CreateDataset(ctx, CreateDatasetInput{
+		TenantID:    "tenant-dataset",
+		EvalCaseIDs: []string{firstEval.ID},
+	})
+	if err != nil {
+		t.Fatalf("CreateDataset() error = %v", err)
+	}
+
+	updated, err := datasetService.AddDatasetItem(ctx, created.ID, AddDatasetItemInput{
+		TenantID:   "tenant-dataset",
+		EvalCaseID: secondEval.ID,
+	})
+	if err != nil {
+		t.Fatalf("AddDatasetItem() error = %v", err)
+	}
+	if len(updated.Items) != 2 || updated.Items[1].EvalCaseID != secondEval.ID {
+		t.Fatalf("Items = %#v, want appended second eval case", updated.Items)
+	}
+
+	unchanged, err := datasetService.AddDatasetItem(ctx, created.ID, AddDatasetItemInput{
+		TenantID:   "tenant-dataset",
+		EvalCaseID: secondEval.ID,
+	})
+	if err != nil {
+		t.Fatalf("AddDatasetItem(idempotent) error = %v", err)
+	}
+	if len(unchanged.Items) != 2 {
+		t.Fatalf("len(Items) = %d, want 2", len(unchanged.Items))
+	}
+}
+
+func TestDatasetServiceAddDatasetItemRejectsNonDraftDataset(t *testing.T) {
+	ctx := context.Background()
+	caseService := casesvc.NewService()
+	evalService := NewService(caseService, nil)
+	store := newMemoryStore()
+	datasetService := NewDatasetServiceWithStore(store, evalService)
+
+	sourceCase, err := caseService.CreateCase(ctx, casesvc.CreateInput{
+		TenantID: "tenant-dataset",
+		Title:    "Source",
+	})
+	if err != nil {
+		t.Fatalf("CreateCase() error = %v", err)
+	}
+	evalCase, _, err := evalService.PromoteCase(ctx, CreateInput{
+		TenantID:     "tenant-dataset",
+		SourceCaseID: sourceCase.ID,
+	})
+	if err != nil {
+		t.Fatalf("PromoteCase() error = %v", err)
+	}
+
+	if _, err := store.CreateDataset(ctx, EvalDataset{
+		ID:        "eval-dataset-active",
+		TenantID:  "tenant-dataset",
+		Name:      "Active dataset",
+		Status:    "active",
+		CreatedBy: "operator",
+		CreatedAt: time.Now().UTC(),
+		UpdatedAt: time.Now().UTC(),
+	}); err != nil {
+		t.Fatalf("CreateDataset(store) error = %v", err)
+	}
+
+	_, err = datasetService.AddDatasetItem(ctx, "eval-dataset-active", AddDatasetItemInput{
+		TenantID:   "tenant-dataset",
+		EvalCaseID: evalCase.ID,
+	})
+	if !errors.Is(err, ErrInvalidEvalDatasetState) {
+		t.Fatalf("error = %v, want %v", err, ErrInvalidEvalDatasetState)
+	}
+}
+
 type caseReaderFunc func(ctx context.Context, caseID string) (casesvc.Case, error)
 
 func (fn caseReaderFunc) GetCase(ctx context.Context, caseID string) (casesvc.Case, error) {

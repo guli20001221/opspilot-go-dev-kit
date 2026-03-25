@@ -297,6 +297,9 @@ func TestAdminEvalsPageRendersHTML(t *testing.T) {
 	if !strings.Contains(body, "Create dataset draft") {
 		t.Fatal("dataset draft action missing from eval page HTML")
 	}
+	if !strings.Contains(body, "Add to dataset") {
+		t.Fatal("dataset append action missing from eval page HTML")
+	}
 	if !strings.Contains(body, "/api/v1/eval-datasets") {
 		t.Fatal("eval dataset API path missing from eval page HTML")
 	}

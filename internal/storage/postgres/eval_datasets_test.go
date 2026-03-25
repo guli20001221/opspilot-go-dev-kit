@@ -311,3 +311,92 @@ ON CONFLICT DO NOTHING
 		t.Fatalf("Datasets = %#v, want one tenant-safe item count", page.Datasets)
 	}
 }
+
+func TestEvalDatasetStoreAddDatasetItemAppendsAndIsIdempotent(t *testing.T) {
+	dsn := os.Getenv("OPSPILOT_TEST_POSTGRES_DSN")
+	if dsn == "" {
+		t.Skip("OPSPILOT_TEST_POSTGRES_DSN not set")
+	}
+
+	ctx := context.Background()
+	pool, err := OpenPool(ctx, dsn)
+	if err != nil {
+		t.Fatalf("OpenPool() error = %v", err)
+	}
+	defer pool.Close()
+
+	applyMigration(t, ctx, pool)
+	if _, err := pool.Exec(ctx, "TRUNCATE eval_dataset_items, eval_datasets, eval_cases, case_notes, cases, reports, workflow_task_events, workflow_tasks RESTART IDENTITY CASCADE"); err != nil {
+		t.Fatalf("TRUNCATE eval dataset and lineage tables error = %v", err)
+	}
+
+	seedEvalLineageCase(t, ctx, pool, "tenant-eval", "task-eval-a", "report-task-eval-a", "case-eval-a", "version-a", "trace-a", time.Unix(1700012900, 0).UTC())
+	seedEvalLineageCase(t, ctx, pool, "tenant-eval", "task-eval-b", "report-task-eval-b", "case-eval-b", "version-b", "trace-b", time.Unix(1700012910, 0).UTC())
+	evalStore := NewEvalCaseStore(pool)
+	for _, item := range []evalsvc.EvalCase{
+		{
+			ID:             "eval-case-a",
+			TenantID:       "tenant-eval",
+			SourceCaseID:   "case-eval-a",
+			SourceTaskID:   "task-eval-a",
+			SourceReportID: "report-task-eval-a",
+			TraceID:        "trace-a",
+			VersionID:      "version-a",
+			Title:          "Eval A",
+			Summary:        "First",
+			CreatedBy:      "operator-a",
+			CreatedAt:      time.Unix(1700013000, 0).UTC(),
+		},
+		{
+			ID:             "eval-case-b",
+			TenantID:       "tenant-eval",
+			SourceCaseID:   "case-eval-b",
+			SourceTaskID:   "task-eval-b",
+			SourceReportID: "report-task-eval-b",
+			TraceID:        "trace-b",
+			VersionID:      "version-b",
+			Title:          "Eval B",
+			Summary:        "Second",
+			CreatedBy:      "operator-b",
+			CreatedAt:      time.Unix(1700013010, 0).UTC(),
+		},
+	} {
+		if _, err := evalStore.Save(ctx, item); err != nil {
+			t.Fatalf("Save(%s) error = %v", item.ID, err)
+		}
+	}
+
+	store := NewEvalDatasetStore(pool)
+	created, err := store.CreateDataset(ctx, evalsvc.EvalDataset{
+		ID:        "eval-dataset-a",
+		TenantID:  "tenant-eval",
+		Name:      "Dataset A",
+		Status:    evalsvc.DatasetStatusDraft,
+		CreatedBy: "operator-a",
+		CreatedAt: time.Unix(1700013100, 0).UTC(),
+		UpdatedAt: time.Unix(1700013100, 0).UTC(),
+		Items:     []evalsvc.EvalDatasetItem{{EvalCaseID: "eval-case-a"}},
+	})
+	if err != nil {
+		t.Fatalf("CreateDataset() error = %v", err)
+	}
+
+	updated, err := store.AddDatasetItem(ctx, created.ID, evalsvc.EvalDatasetItem{EvalCaseID: "eval-case-b"}, time.Unix(1700013200, 0).UTC())
+	if err != nil {
+		t.Fatalf("AddDatasetItem() error = %v", err)
+	}
+	if len(updated.Items) != 2 || updated.Items[1].EvalCaseID != "eval-case-b" {
+		t.Fatalf("Items = %#v, want appended second membership", updated.Items)
+	}
+	if !updated.UpdatedAt.After(created.UpdatedAt) {
+		t.Fatalf("UpdatedAt = %v, want after %v", updated.UpdatedAt, created.UpdatedAt)
+	}
+
+	unchanged, err := store.AddDatasetItem(ctx, created.ID, evalsvc.EvalDatasetItem{EvalCaseID: "eval-case-b"}, time.Unix(1700013300, 0).UTC())
+	if err != nil {
+		t.Fatalf("AddDatasetItem(idempotent) error = %v", err)
+	}
+	if len(unchanged.Items) != 2 {
+		t.Fatalf("len(Items) = %d, want 2", len(unchanged.Items))
+	}
+}

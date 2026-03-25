@@ -4,8 +4,10 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"time"
 
 	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	evalsvc "opspilot-go/internal/eval"
@@ -79,6 +81,70 @@ INSERT INTO eval_dataset_items (
 	}
 
 	return s.GetDataset(ctx, item.ID)
+}
+
+// AddDatasetItem appends one durable eval-case membership into an existing draft dataset.
+func (s *EvalDatasetStore) AddDatasetItem(ctx context.Context, datasetID string, item evalsvc.EvalDatasetItem, updatedAt time.Time) (evalsvc.EvalDataset, error) {
+	tx, err := s.pool.Begin(ctx)
+	if err != nil {
+		return evalsvc.EvalDataset{}, fmt.Errorf("begin eval dataset item tx: %w", err)
+	}
+	defer func() {
+		_ = tx.Rollback(ctx)
+	}()
+
+	const lockQuery = `
+SELECT status
+FROM eval_datasets
+WHERE id = $1
+FOR UPDATE`
+	var status string
+	if err := tx.QueryRow(ctx, lockQuery, datasetID).Scan(&status); err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return evalsvc.EvalDataset{}, evalsvc.ErrEvalDatasetNotFound
+		}
+		return evalsvc.EvalDataset{}, fmt.Errorf("lock eval dataset: %w", err)
+	}
+	if status != evalsvc.DatasetStatusDraft {
+		return evalsvc.EvalDataset{}, evalsvc.ErrInvalidEvalDatasetState
+	}
+
+	const insertQuery = `
+INSERT INTO eval_dataset_items (
+    dataset_id,
+    eval_case_id,
+    position,
+    created_at
+) VALUES (
+    $1,
+    $2,
+    (
+        SELECT COALESCE(MAX(position), -1) + 1
+        FROM eval_dataset_items
+        WHERE dataset_id = $1
+    ),
+    $3
+)
+ON CONFLICT (dataset_id, eval_case_id) DO NOTHING`
+	commandTag, err := tx.Exec(ctx, insertQuery, datasetID, item.EvalCaseID, updatedAt)
+	if err != nil {
+		var pgErr *pgconn.PgError
+		if errors.As(err, &pgErr) && pgErr.Code == "23503" {
+			return evalsvc.EvalDataset{}, evalsvc.ErrEvalCaseNotFound
+		}
+		return evalsvc.EvalDataset{}, fmt.Errorf("insert eval dataset item: %w", err)
+	}
+	if commandTag.RowsAffected() > 0 {
+		if _, err := tx.Exec(ctx, `UPDATE eval_datasets SET updated_at = $2 WHERE id = $1`, datasetID, updatedAt); err != nil {
+			return evalsvc.EvalDataset{}, fmt.Errorf("update eval dataset timestamp: %w", err)
+		}
+	}
+
+	if err := tx.Commit(ctx); err != nil {
+		return evalsvc.EvalDataset{}, fmt.Errorf("commit eval dataset item tx: %w", err)
+	}
+
+	return s.GetDataset(ctx, datasetID)
 }
 
 // GetDataset loads one durable eval dataset plus its items.

@@ -20,6 +20,9 @@ var ErrEvalDatasetNotFound = errors.New("eval dataset not found")
 // ErrInvalidEvalDataset identifies invalid eval dataset requests.
 var ErrInvalidEvalDataset = errors.New("invalid eval dataset")
 
+// ErrInvalidEvalDatasetState identifies invalid dataset lifecycle transitions.
+var ErrInvalidEvalDatasetState = errors.New("invalid eval dataset state")
+
 const (
 	// DatasetStatusDraft identifies a draft dataset that is not yet active in regression runs.
 	DatasetStatusDraft = "draft"
@@ -126,4 +129,11 @@ type CreateDatasetInput struct {
 	Description string
 	EvalCaseIDs []string
 	CreatedBy   string
+}
+
+// AddDatasetItemInput is the typed dataset-membership append request.
+type AddDatasetItemInput struct {
+	TenantID   string
+	EvalCaseID string
+	AddedBy    string
 }
