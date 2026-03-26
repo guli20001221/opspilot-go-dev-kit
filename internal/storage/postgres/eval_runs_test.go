@@ -55,8 +55,50 @@ INSERT INTO eval_datasets (
 	); err != nil {
 		t.Fatalf("seed eval_datasets error = %v", err)
 	}
+	if _, err := pool.Exec(ctx, `
+INSERT INTO cases (
+    id, tenant_id, title, status, reason, source_task_id, source_report_id, created_by, created_at, updated_at
+) VALUES (
+    $1, $2, $3, 'open', 'workflow_required', '', '', 'operator', $4, $4
+)`,
+		"case-run-roundtrip",
+		want.TenantID,
+		"Roundtrip case",
+		time.Unix(1700019800, 0).UTC(),
+	); err != nil {
+		t.Fatalf("seed cases error = %v", err)
+	}
+	if _, err := pool.Exec(ctx, `
+INSERT INTO eval_cases (
+    id, tenant_id, source_case_id, source_task_id, source_report_id, trace_id, version_id, title, summary, operator_note, created_by, created_at
+) VALUES (
+    $1, $2, $3, '', '', 'trace-roundtrip', 'version-roundtrip', $4, '', '', 'operator', $5
+)`,
+		"eval-case-roundtrip",
+		want.TenantID,
+		"case-run-roundtrip",
+		"Roundtrip eval case",
+		time.Unix(1700019850, 0).UTC(),
+	); err != nil {
+		t.Fatalf("seed eval_cases error = %v", err)
+	}
+	if _, err := pool.Exec(ctx, `
+INSERT INTO eval_dataset_items (dataset_id, eval_case_id, position, created_at)
+VALUES ($1, $2, 0, $3)`,
+		want.DatasetID,
+		"eval-case-roundtrip",
+		time.Unix(1700019900, 0).UTC(),
+	); err != nil {
+		t.Fatalf("seed eval_dataset_items error = %v", err)
+	}
 
-	created, err := store.CreateRun(ctx, want)
+	created, err := store.CreateRun(ctx, want, evalsvc.EvalRunItem{
+		EvalCaseID:   "eval-case-roundtrip",
+		Title:        "Roundtrip eval case",
+		SourceCaseID: "case-run-roundtrip",
+		TraceID:      "trace-roundtrip",
+		VersionID:    "version-roundtrip",
+	})
 	if err != nil {
 		t.Fatalf("CreateRun() error = %v", err)
 	}
@@ -73,6 +115,20 @@ INSERT INTO eval_datasets (
 	}
 	if got.DatasetItemCount != want.DatasetItemCount {
 		t.Fatalf("DatasetItemCount = %d, want %d", got.DatasetItemCount, want.DatasetItemCount)
+	}
+
+	detail, err := store.GetRunDetail(ctx, want.ID)
+	if err != nil {
+		t.Fatalf("GetRunDetail() error = %v", err)
+	}
+	if len(detail.Items) != 1 {
+		t.Fatalf("len(detail.Items) = %d, want 1", len(detail.Items))
+	}
+	if detail.Items[0].EvalCaseID != "eval-case-roundtrip" {
+		t.Fatalf("detail.Items[0].EvalCaseID = %q, want %q", detail.Items[0].EvalCaseID, "eval-case-roundtrip")
+	}
+	if detail.Items[0].TraceID != "trace-roundtrip" || detail.Items[0].VersionID != "version-roundtrip" {
+		t.Fatalf("detail.Items[0] = %#v, want trace/version lineage", detail.Items[0])
 	}
 }
 

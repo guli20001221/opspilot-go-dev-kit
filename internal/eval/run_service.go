@@ -11,9 +11,9 @@ import (
 var evalRunIDSequence atomic.Uint64
 
 type runStore interface {
-	CreateRun(ctx context.Context, item EvalRun) (EvalRun, error)
+	CreateRun(ctx context.Context, item EvalRun, items ...EvalRunItem) (EvalRun, error)
 	GetRun(ctx context.Context, runID string) (EvalRun, error)
-	GetRunWithEvents(ctx context.Context, runID string) (EvalRun, []EvalRunEvent, error)
+	GetRunDetail(ctx context.Context, runID string) (EvalRunDetail, error)
 	ListRuns(ctx context.Context, filter RunListFilter) (RunListPage, error)
 	ListRunEvents(ctx context.Context, runID string) ([]EvalRunEvent, error)
 	ClaimQueuedRuns(ctx context.Context, limit int, startedAt time.Time) ([]EvalRun, error)
@@ -71,6 +71,19 @@ func (s *RunService) CreateRun(ctx context.Context, input CreateRunInput) (EvalR
 	}
 
 	now := time.Now().UTC()
+	items := make([]EvalRunItem, 0, len(dataset.Items))
+	for _, item := range dataset.Items {
+		items = append(items, EvalRunItem{
+			EvalCaseID:     item.EvalCaseID,
+			Title:          item.Title,
+			SourceCaseID:   item.SourceCaseID,
+			SourceTaskID:   item.SourceTaskID,
+			SourceReportID: item.SourceReportID,
+			TraceID:        item.TraceID,
+			VersionID:      item.VersionID,
+		})
+	}
+
 	return s.store.CreateRun(ctx, EvalRun{
 		ID:               newEvalRunID(now),
 		TenantID:         dataset.TenantID,
@@ -81,7 +94,7 @@ func (s *RunService) CreateRun(ctx context.Context, input CreateRunInput) (EvalR
 		CreatedBy:        fallbackString(strings.TrimSpace(input.CreatedBy), "operator"),
 		CreatedAt:        now,
 		UpdatedAt:        now,
-	})
+	}, items...)
 }
 
 // GetRun returns one durable eval run by ID.
@@ -89,9 +102,9 @@ func (s *RunService) GetRun(ctx context.Context, runID string) (EvalRun, error) 
 	return s.store.GetRun(ctx, runID)
 }
 
-// GetRunWithEvents returns one durable eval run and a consistent snapshot of its event timeline.
-func (s *RunService) GetRunWithEvents(ctx context.Context, runID string) (EvalRun, []EvalRunEvent, error) {
-	return s.store.GetRunWithEvents(ctx, runID)
+// GetRunDetail returns one durable eval run with a consistent snapshot of its timeline and membership.
+func (s *RunService) GetRunDetail(ctx context.Context, runID string) (EvalRunDetail, error) {
+	return s.store.GetRunDetail(ctx, runID)
 }
 
 // ListRuns returns one durable eval-run page.

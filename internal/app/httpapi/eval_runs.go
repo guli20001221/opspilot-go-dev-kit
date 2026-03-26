@@ -31,6 +31,7 @@ type evalRunResponse struct {
 	StartedAt        string                 `json:"started_at,omitempty"`
 	FinishedAt       string                 `json:"finished_at,omitempty"`
 	Events           []evalRunEventResponse `json:"events,omitempty"`
+	Items            []evalRunItemResponse  `json:"items,omitempty"`
 }
 
 type listEvalRunsResponse struct {
@@ -45,6 +46,16 @@ type evalRunEventResponse struct {
 	Actor     string `json:"actor,omitempty"`
 	Detail    string `json:"detail,omitempty"`
 	CreatedAt string `json:"created_at"`
+}
+
+type evalRunItemResponse struct {
+	EvalCaseID     string `json:"eval_case_id"`
+	Title          string `json:"title"`
+	SourceCaseID   string `json:"source_case_id"`
+	SourceTaskID   string `json:"source_task_id,omitempty"`
+	SourceReportID string `json:"source_report_id,omitempty"`
+	TraceID        string `json:"trace_id"`
+	VersionID      string `json:"version_id,omitempty"`
 }
 
 func (a *appHandler) handleEvalRuns(w http.ResponseWriter, r *http.Request) {
@@ -131,7 +142,7 @@ func (a *appHandler) handleRetryEvalRun(w http.ResponseWriter, r *http.Request, 
 		return
 	}
 
-	writeJSON(w, http.StatusOK, newEvalRunResponse(retried, nil))
+	writeJSON(w, http.StatusOK, newEvalRunResponse(retried, nil, nil))
 }
 
 func (a *appHandler) handleCreateEvalRun(w http.ResponseWriter, r *http.Request) {
@@ -164,7 +175,7 @@ func (a *appHandler) handleCreateEvalRun(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	writeJSON(w, http.StatusCreated, newEvalRunResponse(item, nil))
+	writeJSON(w, http.StatusCreated, newEvalRunResponse(item, nil, nil))
 }
 
 func (a *appHandler) handleListEvalRuns(w http.ResponseWriter, r *http.Request) {
@@ -188,7 +199,7 @@ func (a *appHandler) handleListEvalRuns(w http.ResponseWriter, r *http.Request) 
 		resp.NextOffset = &page.NextOffset
 	}
 	for _, item := range page.Runs {
-		resp.Runs = append(resp.Runs, newEvalRunResponse(item, nil))
+		resp.Runs = append(resp.Runs, newEvalRunResponse(item, nil, nil))
 	}
 
 	writeJSON(w, http.StatusOK, resp)
@@ -224,7 +235,7 @@ func parseEvalRunListFilter(r *http.Request) (evalsvc.RunListFilter, error) {
 	return filter, nil
 }
 
-func newEvalRunResponse(item evalsvc.EvalRun, events []evalsvc.EvalRunEvent) evalRunResponse {
+func newEvalRunResponse(item evalsvc.EvalRun, events []evalsvc.EvalRunEvent, items []evalsvc.EvalRunItem) evalRunResponse {
 	resp := evalRunResponse{
 		RunID:            item.ID,
 		TenantID:         item.TenantID,
@@ -255,11 +266,25 @@ func newEvalRunResponse(item evalsvc.EvalRun, events []evalsvc.EvalRunEvent) eva
 			})
 		}
 	}
+	if len(items) > 0 {
+		resp.Items = make([]evalRunItemResponse, 0, len(items))
+		for _, item := range items {
+			resp.Items = append(resp.Items, evalRunItemResponse{
+				EvalCaseID:     item.EvalCaseID,
+				Title:          item.Title,
+				SourceCaseID:   item.SourceCaseID,
+				SourceTaskID:   item.SourceTaskID,
+				SourceReportID: item.SourceReportID,
+				TraceID:        item.TraceID,
+				VersionID:      item.VersionID,
+			})
+		}
+	}
 	return resp
 }
 
 func (a *appHandler) writeEvalRunDetailResponse(w http.ResponseWriter, r *http.Request, runID string, tenantID string, statusCode int) {
-	item, events, err := a.evalRuns.GetRunWithEvents(r.Context(), runID)
+	detail, err := a.evalRuns.GetRunDetail(r.Context(), runID)
 	if err != nil {
 		if errors.Is(err, evalsvc.ErrEvalRunNotFound) {
 			writeError(w, http.StatusNotFound, "eval_run_not_found", "eval run not found")
@@ -268,12 +293,13 @@ func (a *appHandler) writeEvalRunDetailResponse(w http.ResponseWriter, r *http.R
 		writeError(w, http.StatusInternalServerError, "eval_run_lookup_failed", err.Error())
 		return
 	}
+	item := detail.Run
 	if item.TenantID != tenantID {
 		writeError(w, http.StatusNotFound, "eval_run_not_found", "eval run not found")
 		return
 	}
 
-	writeJSON(w, statusCode, newEvalRunResponse(item, events))
+	writeJSON(w, statusCode, newEvalRunResponse(item, detail.Events, detail.Items))
 }
 
 func parseEvalRunPath(path string) (runID string, action string, ok bool) {

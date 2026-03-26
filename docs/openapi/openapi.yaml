@@ -2735,6 +2735,10 @@ components:
           type: array
           items:
             $ref: '#/components/schemas/EvalRunEvent'
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/EvalRunItem'
     EvalRunSnapshot:
       type: object
       required:
@@ -2806,6 +2810,28 @@ components:
         created_at:
           type: string
           format: date-time
+    EvalRunItem:
+      type: object
+      required:
+        - eval_case_id
+        - title
+        - source_case_id
+        - trace_id
+      properties:
+        eval_case_id:
+          type: string
+        title:
+          type: string
+        source_case_id:
+          type: string
+        source_task_id:
+          type: string
+        source_report_id:
+          type: string
+        trace_id:
+          type: string
+        version_id:
+          type: string
     ListEvalRunsResponse:
       type: object
       required:

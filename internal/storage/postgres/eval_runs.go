@@ -30,8 +30,8 @@ func NewEvalRunStore(pool *pgxpool.Pool) *EvalRunStore {
 	return &EvalRunStore{pool: pool}
 }
 
-// CreateRun inserts one durable eval run row.
-func (s *EvalRunStore) CreateRun(ctx context.Context, item evalsvc.EvalRun) (evalsvc.EvalRun, error) {
+// CreateRun inserts one durable eval run row plus its immutable membership snapshot.
+func (s *EvalRunStore) CreateRun(ctx context.Context, item evalsvc.EvalRun, items ...evalsvc.EvalRunItem) (evalsvc.EvalRun, error) {
 	const query = `
 INSERT INTO eval_runs (
     id,
@@ -48,6 +48,21 @@ INSERT INTO eval_runs (
     finished_at
 ) VALUES (
     $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, NULL, NULL
+)`
+	const itemQuery = `
+INSERT INTO eval_run_items (
+    run_id,
+    eval_case_id,
+    position,
+    title,
+    source_case_id,
+    source_task_id,
+    source_report_id,
+    trace_id,
+    version_id,
+    created_at
+) VALUES (
+    $1, $2, $3, $4, $5, NULLIF($6, ''), NULLIF($7, ''), $8, NULLIF($9, ''), $10
 )`
 	if err := s.withTx(ctx, func(tx pgx.Tx) error {
 		if _, err := tx.Exec(
@@ -74,6 +89,24 @@ INSERT INTO eval_runs (
 			CreatedAt: item.CreatedAt,
 		}); err != nil {
 			return err
+		}
+		for i, runItem := range items {
+			if _, err := tx.Exec(
+				ctx,
+				itemQuery,
+				item.ID,
+				runItem.EvalCaseID,
+				i,
+				runItem.Title,
+				runItem.SourceCaseID,
+				runItem.SourceTaskID,
+				runItem.SourceReportID,
+				runItem.TraceID,
+				runItem.VersionID,
+				item.CreatedAt,
+			); err != nil {
+				return fmt.Errorf("insert eval run item: %w", err)
+			}
 		}
 
 		return nil
@@ -132,10 +165,11 @@ WHERE id = $1`
 	return item, nil
 }
 
-// GetRunWithEvents returns one durable eval run and a consistent snapshot of its event timeline.
-func (s *EvalRunStore) GetRunWithEvents(ctx context.Context, runID string) (evalsvc.EvalRun, []evalsvc.EvalRunEvent, error) {
+// GetRunDetail returns one durable eval run and a consistent snapshot of its timeline and membership.
+func (s *EvalRunStore) GetRunDetail(ctx context.Context, runID string) (evalsvc.EvalRunDetail, error) {
 	var item evalsvc.EvalRun
 	var events []evalsvc.EvalRunEvent
+	var items []evalsvc.EvalRunItem
 
 	if err := s.withReadTx(ctx, func(tx pgx.Tx) error {
 		var err error
@@ -144,12 +178,20 @@ func (s *EvalRunStore) GetRunWithEvents(ctx context.Context, runID string) (eval
 			return err
 		}
 		events, err = s.listRunEvents(ctx, tx, runID)
+		if err != nil {
+			return err
+		}
+		items, err = s.listRunItems(ctx, tx, runID)
 		return err
 	}); err != nil {
-		return evalsvc.EvalRun{}, nil, err
+		return evalsvc.EvalRunDetail{}, err
 	}
 
-	return item, events, nil
+	return evalsvc.EvalRunDetail{
+		Run:    item,
+		Events: events,
+		Items:  items,
+	}, nil
 }
 
 // ListRuns returns one durable eval-run page with lightweight rows.
@@ -264,6 +306,49 @@ ORDER BY created_at, id`
 	}
 
 	return events, nil
+}
+
+func (s *EvalRunStore) listRunItems(ctx context.Context, q evalRunQuerier, runID string) ([]evalsvc.EvalRunItem, error) {
+	const query = `
+SELECT
+    eval_case_id,
+    title,
+    source_case_id,
+    COALESCE(source_task_id, ''),
+    COALESCE(source_report_id, ''),
+    trace_id,
+    COALESCE(version_id, '')
+FROM eval_run_items
+WHERE run_id = $1
+ORDER BY position ASC`
+
+	rows, err := q.Query(ctx, query, runID)
+	if err != nil {
+		return nil, fmt.Errorf("select eval run items: %w", err)
+	}
+	defer rows.Close()
+
+	var items []evalsvc.EvalRunItem
+	for rows.Next() {
+		var item evalsvc.EvalRunItem
+		if err := rows.Scan(
+			&item.EvalCaseID,
+			&item.Title,
+			&item.SourceCaseID,
+			&item.SourceTaskID,
+			&item.SourceReportID,
+			&item.TraceID,
+			&item.VersionID,
+		); err != nil {
+			return nil, fmt.Errorf("scan eval run item: %w", err)
+		}
+		items = append(items, item)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("iterate eval run items: %w", err)
+	}
+
+	return items, nil
 }
 
 // ClaimQueuedRuns marks queued eval runs as running and returns the claimed rows.

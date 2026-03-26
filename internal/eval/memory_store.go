@@ -15,6 +15,7 @@ type memoryStore struct {
 	datasets     map[string]EvalDataset
 	runs         map[string]EvalRun
 	runEvents    map[string][]EvalRunEvent
+	runItems     map[string][]EvalRunItem
 	nextRunEvent int64
 }
 
@@ -25,6 +26,7 @@ func newMemoryStore() *memoryStore {
 		datasets:     make(map[string]EvalDataset),
 		runs:         make(map[string]EvalRun),
 		runEvents:    make(map[string][]EvalRunEvent),
+		runItems:     make(map[string][]EvalRunItem),
 	}
 }
 
@@ -228,11 +230,12 @@ func (s *memoryStore) PublishDataset(_ context.Context, datasetID string, publis
 	return dataset, nil
 }
 
-func (s *memoryStore) CreateRun(_ context.Context, item EvalRun) (EvalRun, error) {
+func (s *memoryStore) CreateRun(_ context.Context, item EvalRun, items ...EvalRunItem) (EvalRun, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
 	s.runs[item.ID] = item
+	s.runItems[item.ID] = append([]EvalRunItem(nil), items...)
 	s.appendRunEventLocked(EvalRunEvent{
 		RunID:     item.ID,
 		Action:    RunEventCreated,
@@ -254,17 +257,22 @@ func (s *memoryStore) GetRun(_ context.Context, runID string) (EvalRun, error) {
 	return item, nil
 }
 
-func (s *memoryStore) GetRunWithEvents(_ context.Context, runID string) (EvalRun, []EvalRunEvent, error) {
+func (s *memoryStore) GetRunDetail(_ context.Context, runID string) (EvalRunDetail, error) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 
 	item, ok := s.runs[runID]
 	if !ok {
-		return EvalRun{}, nil, fmt.Errorf("%w: %s", ErrEvalRunNotFound, runID)
+		return EvalRunDetail{}, fmt.Errorf("%w: %s", ErrEvalRunNotFound, runID)
 	}
 
 	events := append([]EvalRunEvent(nil), s.runEvents[runID]...)
-	return item, events, nil
+	items := append([]EvalRunItem(nil), s.runItems[runID]...)
+	return EvalRunDetail{
+		Run:    item,
+		Events: events,
+		Items:  items,
+	}, nil
 }
 
 func (s *memoryStore) ListRuns(_ context.Context, filter RunListFilter) (RunListPage, error) {

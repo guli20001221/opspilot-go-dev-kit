@@ -54,6 +54,7 @@ Keep the HTTP surface explicit, documented, stable, and friendly to streaming ag
 23. The first eval-run execution slice should keep `started_at`, `finished_at`, `status`, and `error_reason` on that same canonical run detail contract instead of inventing a second execution-status surface.
 24. Recovery on eval runs should reuse that same canonical record; prefer `POST /api/v1/eval-runs/{run_id}/retry` with a typed 409 invalid-state error over creating a separate rerun resource or admin-only mutation path.
 25. When retry on a durable eval run clears top-level failure fields, extend only the single-run detail contract with append-only lifecycle events; keep the list contract lightweight.
+26. When per-run judging has not landed yet, prefer adding immutable `items` only on the single-run detail contract, copied from published dataset membership at kickoff time, and keep create/list/retry responses lightweight snapshots.
 
 ## Output contract
 When you finish, always report:

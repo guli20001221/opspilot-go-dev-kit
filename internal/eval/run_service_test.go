@@ -117,6 +117,80 @@ func TestRunServiceCreateRunFromPublishedDataset(t *testing.T) {
 	if run.CreatedBy != "operator-run" {
 		t.Fatalf("CreatedBy = %q, want %q", run.CreatedBy, "operator-run")
 	}
+
+	detail, err := runService.GetRunDetail(ctx, run.ID)
+	if err != nil {
+		t.Fatalf("GetRunDetail() error = %v", err)
+	}
+	if len(detail.Items) != 2 {
+		t.Fatalf("len(detail.Items) = %d, want 2", len(detail.Items))
+	}
+	if detail.Items[0].EvalCaseID != firstEval.ID || detail.Items[1].EvalCaseID != secondEval.ID {
+		t.Fatalf("detail.Items = %#v, want published dataset membership order", detail.Items)
+	}
+	if detail.Items[0].Title != "First source" || detail.Items[1].Title != "Second source" {
+		t.Fatalf("detail.Items titles = %#v, want source case titles", detail.Items)
+	}
+	if detail.Items[0].SourceCaseID != firstCase.ID || detail.Items[1].SourceCaseID != secondCase.ID {
+		t.Fatalf("detail.Items source_case_id = %#v, want source case lineage", detail.Items)
+	}
+}
+
+func TestRunServiceDetailKeepsSnappedItemsAfterDatasetDrift(t *testing.T) {
+	ctx := context.Background()
+	store := newMemoryStore()
+	reader := &stubRunDatasetReader{
+		dataset: EvalDataset{
+			ID:          "eval-dataset-snap",
+			TenantID:    "tenant-run",
+			Name:        "Published baseline",
+			Status:      DatasetStatusPublished,
+			CreatedBy:   "operator",
+			CreatedAt:   time.Unix(1700031000, 0).UTC(),
+			UpdatedAt:   time.Unix(1700031000, 0).UTC(),
+			PublishedBy: "operator",
+			PublishedAt: time.Unix(1700031000, 0).UTC(),
+			Items: []EvalDatasetItem{
+				{
+					EvalCaseID:   "eval-case-a",
+					Title:        "Original title",
+					SourceCaseID: "case-a",
+					TraceID:      "trace-a",
+					VersionID:    "version-a",
+				},
+			},
+		},
+	}
+	service := NewRunServiceWithStore(store, reader)
+
+	run, err := service.CreateRun(ctx, CreateRunInput{
+		TenantID:  "tenant-run",
+		DatasetID: "eval-dataset-snap",
+		CreatedBy: "operator-run",
+	})
+	if err != nil {
+		t.Fatalf("CreateRun() error = %v", err)
+	}
+
+	reader.dataset.Items[0].Title = "Mutated title"
+	reader.dataset.Items = append(reader.dataset.Items, EvalDatasetItem{
+		EvalCaseID:   "eval-case-b",
+		Title:        "Late item",
+		SourceCaseID: "case-b",
+		TraceID:      "trace-b",
+		VersionID:    "version-b",
+	})
+
+	detail, err := service.GetRunDetail(ctx, run.ID)
+	if err != nil {
+		t.Fatalf("GetRunDetail() error = %v", err)
+	}
+	if len(detail.Items) != 1 {
+		t.Fatalf("len(detail.Items) = %d, want 1", len(detail.Items))
+	}
+	if detail.Items[0].Title != "Original title" {
+		t.Fatalf("detail.Items[0].Title = %q, want %q", detail.Items[0].Title, "Original title")
+	}
 }
 
 func TestRunServiceListRunsSupportsFilters(t *testing.T) {
@@ -155,6 +229,17 @@ func TestRunServiceListRunsSupportsFilters(t *testing.T) {
 	if len(page.Runs) != 1 || page.Runs[0].ID != secondRun.ID {
 		t.Fatalf("Runs = %#v, want only %q", page.Runs, secondRun.ID)
 	}
+}
+
+type stubRunDatasetReader struct {
+	dataset EvalDataset
+}
+
+func (s *stubRunDatasetReader) GetDataset(_ context.Context, datasetID string) (EvalDataset, error) {
+	if s.dataset.ID != datasetID {
+		return EvalDataset{}, ErrEvalDatasetNotFound
+	}
+	return s.dataset, nil
 }
 
 func TestRunServiceClaimAndFinalize(t *testing.T) {

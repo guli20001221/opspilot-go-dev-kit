@@ -174,6 +174,24 @@ type EvalRunEvent struct {
 	CreatedAt time.Time
 }
 
+// EvalRunItem is one immutable membership row snapped onto a durable eval run.
+type EvalRunItem struct {
+	EvalCaseID     string
+	Title          string
+	SourceCaseID   string
+	SourceTaskID   string
+	SourceReportID string
+	TraceID        string
+	VersionID      string
+}
+
+// EvalRunDetail is the canonical detail read for one durable eval run.
+type EvalRunDetail struct {
+	Run    EvalRun
+	Events []EvalRunEvent
+	Items  []EvalRunItem
+}
+
 // RunListFilter constrains eval-run list reads.
 type RunListFilter struct {
 	TenantID  string

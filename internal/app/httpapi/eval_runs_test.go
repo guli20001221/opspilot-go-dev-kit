@@ -86,8 +86,14 @@ func TestCreateAndGetEvalRunEndpoint(t *testing.T) {
 	if len(created.Events) != 0 {
 		t.Fatalf("len(Events) = %d, want 0 on create response", len(created.Events))
 	}
+	if len(created.Items) != 0 {
+		t.Fatalf("len(Items) = %d, want 0 on create response", len(created.Items))
+	}
 	if _, ok := createdRaw["events"]; ok {
 		t.Fatalf("create response unexpectedly included events field: %#v", createdRaw)
+	}
+	if _, ok := createdRaw["items"]; ok {
+		t.Fatalf("create response unexpectedly included items field: %#v", createdRaw)
 	}
 
 	getResp, err := http.Get(server.URL + "/api/v1/eval-runs/" + created.RunID + "?tenant_id=tenant-run")
@@ -97,6 +103,26 @@ func TestCreateAndGetEvalRunEndpoint(t *testing.T) {
 	defer getResp.Body.Close()
 	if getResp.StatusCode != http.StatusOK {
 		t.Fatalf("StatusCode = %d, want %d", getResp.StatusCode, http.StatusOK)
+	}
+	getBodyBytes, err := io.ReadAll(getResp.Body)
+	if err != nil {
+		t.Fatalf("ReadAll(get detail) error = %v", err)
+	}
+	var got evalRunResponse
+	if err := json.Unmarshal(getBodyBytes, &got); err != nil {
+		t.Fatalf("Unmarshal(get detail) error = %v", err)
+	}
+	if len(got.Items) != 1 {
+		t.Fatalf("len(Items) = %d, want 1 on detail response", len(got.Items))
+	}
+	if got.Items[0].EvalCaseID != evalCase.ID {
+		t.Fatalf("Items[0].EvalCaseID = %q, want %q", got.Items[0].EvalCaseID, evalCase.ID)
+	}
+	if got.Items[0].Title != "Run source" {
+		t.Fatalf("Items[0].Title = %q, want %q", got.Items[0].Title, "Run source")
+	}
+	if got.Items[0].SourceCaseID != sourceCase.ID {
+		t.Fatalf("Items[0].SourceCaseID = %q, want %q", got.Items[0].SourceCaseID, sourceCase.ID)
 	}
 }
 
@@ -252,6 +278,9 @@ func TestListEvalRunsEndpointSupportsFiltersAndPagination(t *testing.T) {
 	if len(page.Runs[0].Events) != 0 {
 		t.Fatalf("len(Events) = %d, want 0 on list response", len(page.Runs[0].Events))
 	}
+	if len(page.Runs[0].Items) != 0 {
+		t.Fatalf("len(Items) = %d, want 0 on list response", len(page.Runs[0].Items))
+	}
 	rawRuns, ok := pageRaw["runs"].([]any)
 	if !ok || len(rawRuns) != 1 {
 		t.Fatalf("raw runs = %#v, want one item", pageRaw["runs"])
@@ -262,6 +291,9 @@ func TestListEvalRunsEndpointSupportsFiltersAndPagination(t *testing.T) {
 	}
 	if _, ok := rawItem["events"]; ok {
 		t.Fatalf("list response unexpectedly included events field: %#v", rawItem)
+	}
+	if _, ok := rawItem["items"]; ok {
+		t.Fatalf("list response unexpectedly included items field: %#v", rawItem)
 	}
 }
 
@@ -440,6 +472,12 @@ func TestGetEvalRunEndpointReturnsUpdatedStatusFields(t *testing.T) {
 	if got.Events[0].Action != evalsvc.RunEventCreated || got.Events[1].Action != evalsvc.RunEventClaimed || got.Events[2].Action != evalsvc.RunEventFailed {
 		t.Fatalf("events = %#v, want created/claimed/failed", got.Events)
 	}
+	if len(got.Items) != 1 {
+		t.Fatalf("len(Items) = %d, want 1 on detail response", len(got.Items))
+	}
+	if got.Items[0].EvalCaseID != evalCase.ID {
+		t.Fatalf("Items[0].EvalCaseID = %q, want %q", got.Items[0].EvalCaseID, evalCase.ID)
+	}
 }
 
 func TestRetryEvalRunEndpointRequeuesFailedRun(t *testing.T) {
@@ -540,8 +578,14 @@ func TestRetryEvalRunEndpointRequeuesFailedRun(t *testing.T) {
 	if len(got.Events) != 0 {
 		t.Fatalf("len(Events) = %d, want 0 on retry response", len(got.Events))
 	}
+	if len(got.Items) != 0 {
+		t.Fatalf("len(Items) = %d, want 0 on retry response", len(got.Items))
+	}
 	if _, ok := retryRaw["events"]; ok {
 		t.Fatalf("retry response unexpectedly included events field: %#v", retryRaw)
+	}
+	if _, ok := retryRaw["items"]; ok {
+		t.Fatalf("retry response unexpectedly included items field: %#v", retryRaw)
 	}
 }
 
