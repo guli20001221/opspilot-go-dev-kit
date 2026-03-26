@@ -17,6 +17,7 @@ const (
 	defaultTemporalNamespace         = "default"
 	defaultTemporalTaskQueue         = "opspilot-report-tasks"
 	defaultApprovedToolFailOnApprove = false
+	defaultEvalRunFailAll            = false
 	defaultWorkerPollInterval        = 1 * time.Second
 	defaultWorkerShutdownTimeout     = 10 * time.Second
 )
@@ -34,6 +35,7 @@ type Config struct {
 	TicketAPIBaseURL          string
 	TicketAPIToken            string
 	ApprovedToolFailOnApprove bool
+	EvalRunFailAll            bool
 	WorkerPollInterval        time.Duration
 	WorkerShutdownTimeout     time.Duration
 }
@@ -52,6 +54,7 @@ func Load() (Config, error) {
 		TicketAPIBaseURL:          getEnv("OPSPILOT_TICKET_API_BASE_URL", ""),
 		TicketAPIToken:            getEnv("OPSPILOT_TICKET_API_TOKEN", ""),
 		ApprovedToolFailOnApprove: defaultApprovedToolFailOnApprove,
+		EvalRunFailAll:            defaultEvalRunFailAll,
 		WorkerPollInterval:        defaultWorkerPollInterval,
 		WorkerShutdownTimeout:     defaultWorkerShutdownTimeout,
 	}
@@ -69,6 +72,13 @@ func Load() (Config, error) {
 			return Config{}, fmt.Errorf("parse OPSPILOT_APPROVED_TOOL_FAIL_ON_APPROVE: %w", err)
 		}
 		cfg.ApprovedToolFailOnApprove = enabled
+	}
+	if raw := os.Getenv("OPSPILOT_EVAL_RUN_FAIL_ALL"); raw != "" {
+		enabled, err := strconv.ParseBool(raw)
+		if err != nil {
+			return Config{}, fmt.Errorf("parse OPSPILOT_EVAL_RUN_FAIL_ALL: %w", err)
+		}
+		cfg.EvalRunFailAll = enabled
 	}
 
 	if raw := os.Getenv("OPSPILOT_WORKER_POLL_INTERVAL"); raw != "" {

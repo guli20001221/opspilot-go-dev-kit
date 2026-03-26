@@ -306,3 +306,91 @@ func TestListEvalRunsEndpointRejectsInvalidStatus(t *testing.T) {
 		t.Fatalf("StatusCode = %d, want %d", resp.StatusCode, http.StatusBadRequest)
 	}
 }
+
+func TestGetEvalRunEndpointReturnsUpdatedStatusFields(t *testing.T) {
+	ctx := context.Background()
+	caseService := casesvc.NewService()
+	evalCaseService := evalsvc.NewService(caseService, nil)
+	datasetService := evalsvc.NewDatasetService(evalCaseService)
+	runService := evalsvc.NewRunService(datasetService)
+
+	sourceCase, err := caseService.CreateCase(ctx, casesvc.CreateInput{
+		TenantID: "tenant-run",
+		Title:    "Run source",
+	})
+	if err != nil {
+		t.Fatalf("CreateCase() error = %v", err)
+	}
+	evalCase, _, err := evalCaseService.PromoteCase(ctx, evalsvc.CreateInput{
+		TenantID:     "tenant-run",
+		SourceCaseID: sourceCase.ID,
+	})
+	if err != nil {
+		t.Fatalf("PromoteCase() error = %v", err)
+	}
+	dataset, err := datasetService.CreateDataset(ctx, evalsvc.CreateDatasetInput{
+		TenantID:    "tenant-run",
+		Name:        "Published baseline",
+		EvalCaseIDs: []string{evalCase.ID},
+	})
+	if err != nil {
+		t.Fatalf("CreateDataset() error = %v", err)
+	}
+	if _, err := datasetService.PublishDataset(ctx, dataset.ID, evalsvc.PublishDatasetInput{
+		TenantID: "tenant-run",
+	}); err != nil {
+		t.Fatalf("PublishDataset() error = %v", err)
+	}
+
+	run, err := runService.CreateRun(ctx, evalsvc.CreateRunInput{
+		TenantID:  "tenant-run",
+		DatasetID: dataset.ID,
+	})
+	if err != nil {
+		t.Fatalf("CreateRun() error = %v", err)
+	}
+	claimed, err := runService.ClaimQueuedRuns(ctx, 10)
+	if err != nil {
+		t.Fatalf("ClaimQueuedRuns() error = %v", err)
+	}
+	if len(claimed) != 1 {
+		t.Fatalf("len(claimed) = %d, want 1", len(claimed))
+	}
+	if _, err := runService.MarkRunFailed(ctx, run.ID, "fault injection: eval run failed"); err != nil {
+		t.Fatalf("MarkRunFailed() error = %v", err)
+	}
+
+	server := httptest.NewServer(NewHandlerWithDependencies(Dependencies{
+		Cases:        caseService,
+		EvalCases:    evalCaseService,
+		EvalDatasets: datasetService,
+		EvalRuns:     runService,
+	}))
+	defer server.Close()
+
+	resp, err := http.Get(server.URL + "/api/v1/eval-runs/" + run.ID + "?tenant_id=tenant-run")
+	if err != nil {
+		t.Fatalf("Get() error = %v", err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("StatusCode = %d, want %d", resp.StatusCode, http.StatusOK)
+	}
+
+	var got evalRunResponse
+	if err := json.NewDecoder(resp.Body).Decode(&got); err != nil {
+		t.Fatalf("Decode() error = %v", err)
+	}
+	if got.Status != evalsvc.RunStatusFailed {
+		t.Fatalf("Status = %q, want %q", got.Status, evalsvc.RunStatusFailed)
+	}
+	if got.ErrorReason == "" {
+		t.Fatal("ErrorReason is empty")
+	}
+	if got.StartedAt == "" {
+		t.Fatal("StartedAt is empty")
+	}
+	if got.FinishedAt == "" {
+		t.Fatal("FinishedAt is empty")
+	}
+}

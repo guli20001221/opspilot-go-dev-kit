@@ -132,6 +132,7 @@ The current chat stream implementation is a Milestone 1 skeleton:
 - use `POST /api/v1/eval-runs` when you need to create a durable queued eval run from a published dataset baseline
 - use `GET /api/v1/eval-runs?tenant_id=<tenant>` when you need the tenant-scoped eval-run kickoff queue
 - use `GET /api/v1/eval-runs/{run_id}?tenant_id=<tenant>` when you need the canonical run detail for one kickoff record
+- the worker now advances queued eval runs through `running` to `succeeded` or `failed`, so `started_at`, `finished_at`, and `error_reason` on the canonical run record are now meaningful operator fields
 - open `http://localhost:18080/admin/cases` when you want the first case-focused operator page, including source task/report handoff links and the minimal `Close case` action
 - open `http://localhost:18080/admin/evals` when you want the first eval-focused operator page, including durable eval detail plus case/task/report/version/trace handoff links
 - use `Create dataset draft` on `/admin/evals` when you want to seed a canonical dataset draft directly from the currently selected durable eval case
@@ -140,6 +141,7 @@ The current chat stream implementation is a Milestone 1 skeleton:
 - use `Publish dataset` on `/admin/eval-datasets` when you want to freeze the selected draft and make the page read-only for that baseline
 - use `Run dataset` on `/admin/eval-datasets` when you want to create a durable queued eval run from the selected published baseline and land on the matching `/admin/eval-runs` detail
 - open `http://localhost:18080/admin/eval-runs` when you want the first eval-run operator page, including run detail plus dataset and eval handoff links
+- set `OPSPILOT_EVAL_RUN_FAIL_ALL=true` on the worker when you want every claimed eval run to fail for local recovery and operator-surface testing
 - use the `My open cases` shortcut on `/admin/cases` when you want a queue view for the current operator handle without manually composing `status=open&assigned_to=<actor>`
 - use the `Unassigned` shortcut on `/admin/cases` when you want the shared open backlog without manually composing `status=open&unassigned_only=true`
 - use `Copy case summary` on `/admin/cases` when you need a compact, paste-ready handoff note, `Copy case link` when you want to share the exact filtered case-board URL, and `Open case API detail` when you want the canonical case JSON in a separate tab
@@ -207,6 +209,13 @@ To force this path locally without changing code, recreate only the worker with:
 
 ```powershell
 $env:OPSPILOT_APPROVED_TOOL_FAIL_ON_APPROVE = "true"
+docker compose up -d --build --force-recreate worker
+```
+
+To force eval-run failures locally without changing code, recreate only the worker with:
+
+```powershell
+$env:OPSPILOT_EVAL_RUN_FAIL_ALL = "true"
 docker compose up -d --build --force-recreate worker
 ```
 

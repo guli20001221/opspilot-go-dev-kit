@@ -14,6 +14,8 @@ type runStore interface {
 	CreateRun(ctx context.Context, item EvalRun) (EvalRun, error)
 	GetRun(ctx context.Context, runID string) (EvalRun, error)
 	ListRuns(ctx context.Context, filter RunListFilter) (RunListPage, error)
+	ClaimQueuedRuns(ctx context.Context, limit int, startedAt time.Time) ([]EvalRun, error)
+	UpdateRun(ctx context.Context, item EvalRun) (EvalRun, error)
 }
 
 type datasetReader interface {
@@ -88,6 +90,52 @@ func (s *RunService) ListRuns(ctx context.Context, filter RunListFilter) (RunLis
 		filter.Limit = 20
 	}
 	return s.store.ListRuns(ctx, filter)
+}
+
+// ClaimQueuedRuns marks queued eval runs as running and returns them for worker execution.
+func (s *RunService) ClaimQueuedRuns(ctx context.Context, limit int) ([]EvalRun, error) {
+	if limit <= 0 {
+		limit = 10
+	}
+	return s.store.ClaimQueuedRuns(ctx, limit, time.Now().UTC())
+}
+
+// MarkRunSucceeded finalizes a running eval run as succeeded.
+func (s *RunService) MarkRunSucceeded(ctx context.Context, runID string) (EvalRun, error) {
+	item, err := s.store.GetRun(ctx, runID)
+	if err != nil {
+		return EvalRun{}, err
+	}
+	if item.Status != RunStatusRunning {
+		return EvalRun{}, ErrInvalidEvalRunState
+	}
+
+	now := time.Now().UTC()
+	item.Status = RunStatusSucceeded
+	item.ErrorReason = ""
+	item.UpdatedAt = now
+	item.FinishedAt = now
+
+	return s.store.UpdateRun(ctx, item)
+}
+
+// MarkRunFailed finalizes a running eval run as failed with a summarized error.
+func (s *RunService) MarkRunFailed(ctx context.Context, runID string, reason string) (EvalRun, error) {
+	item, err := s.store.GetRun(ctx, runID)
+	if err != nil {
+		return EvalRun{}, err
+	}
+	if item.Status != RunStatusRunning {
+		return EvalRun{}, ErrInvalidEvalRunState
+	}
+
+	now := time.Now().UTC()
+	item.Status = RunStatusFailed
+	item.ErrorReason = strings.TrimSpace(reason)
+	item.UpdatedAt = now
+	item.FinishedAt = now
+
+	return s.store.UpdateRun(ctx, item)
 }
 
 func newEvalRunID(now time.Time) string {

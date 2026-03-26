@@ -285,3 +285,51 @@ func (s *memoryStore) ListRuns(_ context.Context, filter RunListFilter) (RunList
 
 	return page, nil
 }
+
+func (s *memoryStore) ClaimQueuedRuns(_ context.Context, limit int, startedAt time.Time) ([]EvalRun, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	items := make([]EvalRun, 0, len(s.runs))
+	for _, item := range s.runs {
+		if item.Status != RunStatusQueued {
+			continue
+		}
+		items = append(items, item)
+	}
+
+	sort.Slice(items, func(i, j int) bool {
+		if !items[i].CreatedAt.Equal(items[j].CreatedAt) {
+			return items[i].CreatedAt.Before(items[j].CreatedAt)
+		}
+		return items[i].ID < items[j].ID
+	})
+
+	if limit > len(items) {
+		limit = len(items)
+	}
+	claimed := make([]EvalRun, 0, limit)
+	for _, item := range items[:limit] {
+		item.Status = RunStatusRunning
+		item.ErrorReason = ""
+		item.UpdatedAt = startedAt
+		if item.StartedAt.IsZero() {
+			item.StartedAt = startedAt
+		}
+		s.runs[item.ID] = item
+		claimed = append(claimed, item)
+	}
+
+	return claimed, nil
+}
+
+func (s *memoryStore) UpdateRun(_ context.Context, item EvalRun) (EvalRun, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	if _, ok := s.runs[item.ID]; !ok {
+		return EvalRun{}, fmt.Errorf("%w: %s", ErrEvalRunNotFound, item.ID)
+	}
+	s.runs[item.ID] = item
+	return item, nil
+}

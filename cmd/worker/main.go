@@ -11,6 +11,7 @@ import (
 	agenttool "opspilot-go/internal/agent/tool"
 	"opspilot-go/internal/app/config"
 	"opspilot-go/internal/app/logging"
+	"opspilot-go/internal/eval"
 	"opspilot-go/internal/report"
 	storagepostgres "opspilot-go/internal/storage/postgres"
 	toolregistry "opspilot-go/internal/tools/registry"
@@ -43,7 +44,9 @@ func main() {
 	versionService := version.NewServiceWithStore(storagepostgres.NewVersionStore(pool))
 	service := workflow.NewServiceWithDependencies(storagepostgres.NewWorkflowTaskStore(pool), nil, versionService)
 	reportService := report.NewServiceWithDependencies(storagepostgres.NewReportStore(pool), versionService)
+	evalRunService := eval.NewRunServiceWithStore(storagepostgres.NewEvalRunStore(pool), nil)
 	executor := workflow.Executor(workflow.NewPlaceholderExecutor())
+	evalRunExecutor := eval.RunExecutor(eval.NewPlaceholderRunExecutor())
 	registry := toolregistry.NewDefaultRegistryWithOptions(toolregistry.Options{
 		TicketAPIBaseURL: cfg.TicketAPIBaseURL,
 		TicketAPIToken:   cfg.TicketAPIToken,
@@ -82,8 +85,12 @@ func main() {
 			slog.Bool("approved_tool_fail_on_approve", cfg.ApprovedToolFailOnApprove),
 		)
 	}
+	if placeholder, ok := evalRunExecutor.(*eval.PlaceholderRunExecutor); ok {
+		placeholder.FailAll = cfg.EvalRunFailAll
+	}
 
 	runner := workflow.NewRunnerWithReports(service, executor, reportService)
+	evalRunner := eval.NewRunner(evalRunService, evalRunExecutor)
 
 	logger.Info("worker booted",
 		slog.String("env", cfg.Env),
@@ -102,21 +109,39 @@ func main() {
 		if processed > 0 {
 			logger.Info("workflow batch processed", slog.Int("count", processed))
 		}
+		evalProcessed, err := evalRunner.ProcessNextBatch(ctx, 10)
+		if err != nil {
+			logger.Error("eval run batch failed", slog.Any("error", err))
+			return
+		}
+		if evalProcessed > 0 {
+			logger.Info("eval run batch processed", slog.Int("count", evalProcessed))
+		}
 	}
 
 	process()
 
+	done := startPollLoop(ctx, ticker.C, process)
+
+	<-ctx.Done()
+	<-done
+	logger.Info("worker shutdown complete")
+}
+
+func startPollLoop(ctx context.Context, ticks <-chan time.Time, process func()) <-chan struct{} {
+	done := make(chan struct{})
+
 	go func() {
+		defer close(done)
 		for {
 			select {
 			case <-ctx.Done():
 				return
-			case <-ticker.C:
+			case <-ticks:
 				process()
 			}
 		}
 	}()
 
-	<-ctx.Done()
-	logger.Info("worker shutdown complete")
+	return done
 }

@@ -46,6 +46,7 @@ Turn prompt, routing, retrieval, and tool changes into measurable, repeatable qu
 14. The first incremental curation surface should be `POST /api/v1/eval-datasets/{dataset_id}/items`, append-only and idempotent for the same eval case, instead of introducing remove/reorder flows too early.
 15. Once draft creation and append exist, add an explicit `POST /api/v1/eval-datasets/{dataset_id}/publish` transition that freezes the draft into an immutable baseline before introducing eval-run execution.
 16. Once published datasets exist, add a canonical `POST /api/v1/eval-runs` plus tenant-scoped `GET /api/v1/eval-runs` and `GET /api/v1/eval-runs/{id}` so run kickoff becomes durable before judge execution is wired.
+17. The first eval-run execution slice should reuse that durable run record and advance it through `queued -> running -> succeeded|failed` with placeholder worker execution before introducing judge prompts, score aggregation, or eval reports.
 
 ## Output contract
 When you finish, always report:

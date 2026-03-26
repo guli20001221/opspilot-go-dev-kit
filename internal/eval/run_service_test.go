@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"testing"
+	"time"
 
 	casesvc "opspilot-go/internal/case"
 )
@@ -153,5 +154,170 @@ func TestRunServiceListRunsSupportsFilters(t *testing.T) {
 	}
 	if len(page.Runs) != 1 || page.Runs[0].ID != secondRun.ID {
 		t.Fatalf("Runs = %#v, want only %q", page.Runs, secondRun.ID)
+	}
+}
+
+func TestRunServiceClaimAndFinalize(t *testing.T) {
+	ctx := context.Background()
+	store := newMemoryStore()
+	service := NewRunServiceWithStore(store, nil)
+
+	if _, err := store.CreateRun(ctx, EvalRun{
+		ID:               "eval-run-claim",
+		TenantID:         "tenant-run",
+		DatasetID:        "eval-dataset-claim",
+		DatasetName:      "Published baseline",
+		DatasetItemCount: 1,
+		Status:           RunStatusQueued,
+		CreatedBy:        "operator",
+		CreatedAt:        time.Unix(1700030000, 0).UTC(),
+		UpdatedAt:        time.Unix(1700030000, 0).UTC(),
+	}); err != nil {
+		t.Fatalf("CreateRun() error = %v", err)
+	}
+
+	claimed, err := service.ClaimQueuedRuns(ctx, 10)
+	if err != nil {
+		t.Fatalf("ClaimQueuedRuns() error = %v", err)
+	}
+	if len(claimed) != 1 {
+		t.Fatalf("len(claimed) = %d, want 1", len(claimed))
+	}
+	if claimed[0].Status != RunStatusRunning {
+		t.Fatalf("Status = %q, want %q", claimed[0].Status, RunStatusRunning)
+	}
+	if claimed[0].StartedAt.IsZero() {
+		t.Fatal("StartedAt is zero")
+	}
+
+	succeeded, err := service.MarkRunSucceeded(ctx, claimed[0].ID)
+	if err != nil {
+		t.Fatalf("MarkRunSucceeded() error = %v", err)
+	}
+	if succeeded.Status != RunStatusSucceeded {
+		t.Fatalf("Status = %q, want %q", succeeded.Status, RunStatusSucceeded)
+	}
+	if succeeded.FinishedAt.IsZero() {
+		t.Fatal("FinishedAt is zero")
+	}
+}
+
+func TestRunServiceMarkRunFailedRequiresRunningState(t *testing.T) {
+	ctx := context.Background()
+	store := newMemoryStore()
+	service := NewRunServiceWithStore(store, nil)
+
+	if _, err := store.CreateRun(ctx, EvalRun{
+		ID:               "eval-run-state",
+		TenantID:         "tenant-run",
+		DatasetID:        "eval-dataset-state",
+		DatasetName:      "Published baseline",
+		DatasetItemCount: 1,
+		Status:           RunStatusQueued,
+		CreatedBy:        "operator",
+		CreatedAt:        time.Unix(1700030000, 0).UTC(),
+		UpdatedAt:        time.Unix(1700030000, 0).UTC(),
+	}); err != nil {
+		t.Fatalf("CreateRun() error = %v", err)
+	}
+
+	_, err := service.MarkRunFailed(ctx, "eval-run-state", "boom")
+	if !errors.Is(err, ErrInvalidEvalRunState) {
+		t.Fatalf("error = %v, want %v", err, ErrInvalidEvalRunState)
+	}
+}
+
+func TestRunServiceClaimQueuedRunsUsesFIFOOrder(t *testing.T) {
+	ctx := context.Background()
+	store := newMemoryStore()
+	service := NewRunServiceWithStore(store, nil)
+
+	for _, item := range []EvalRun{
+		{
+			ID:               "eval-run-oldest",
+			TenantID:         "tenant-run",
+			DatasetID:        "eval-dataset-a",
+			DatasetName:      "Dataset A",
+			DatasetItemCount: 1,
+			Status:           RunStatusQueued,
+			CreatedBy:        "operator",
+			CreatedAt:        time.Unix(1700030000, 0).UTC(),
+			UpdatedAt:        time.Unix(1700030000, 0).UTC(),
+		},
+		{
+			ID:               "eval-run-newest",
+			TenantID:         "tenant-run",
+			DatasetID:        "eval-dataset-b",
+			DatasetName:      "Dataset B",
+			DatasetItemCount: 1,
+			Status:           RunStatusQueued,
+			CreatedBy:        "operator",
+			CreatedAt:        time.Unix(1700030100, 0).UTC(),
+			UpdatedAt:        time.Unix(1700030100, 0).UTC(),
+		},
+	} {
+		if _, err := store.CreateRun(ctx, item); err != nil {
+			t.Fatalf("CreateRun(%s) error = %v", item.ID, err)
+		}
+	}
+
+	claimed, err := service.ClaimQueuedRuns(ctx, 2)
+	if err != nil {
+		t.Fatalf("ClaimQueuedRuns() error = %v", err)
+	}
+	if len(claimed) != 2 {
+		t.Fatalf("len(claimed) = %d, want 2", len(claimed))
+	}
+	if claimed[0].ID != "eval-run-oldest" || claimed[1].ID != "eval-run-newest" {
+		t.Fatalf("claim order = %#v, want oldest-first", claimed)
+	}
+}
+
+func TestRunServiceListRunsUsesLatestUpdatedFirstOrder(t *testing.T) {
+	ctx := context.Background()
+	store := newMemoryStore()
+	service := NewRunServiceWithStore(store, nil)
+
+	for _, item := range []EvalRun{
+		{
+			ID:               "eval-run-older",
+			TenantID:         "tenant-run",
+			DatasetID:        "eval-dataset-a",
+			DatasetName:      "Dataset A",
+			DatasetItemCount: 1,
+			Status:           RunStatusQueued,
+			CreatedBy:        "operator-a",
+			CreatedAt:        time.Unix(1700030000, 0).UTC(),
+			UpdatedAt:        time.Unix(1700030005, 0).UTC(),
+		},
+		{
+			ID:               "eval-run-newer",
+			TenantID:         "tenant-run",
+			DatasetID:        "eval-dataset-b",
+			DatasetName:      "Dataset B",
+			DatasetItemCount: 1,
+			Status:           RunStatusRunning,
+			CreatedBy:        "operator-b",
+			CreatedAt:        time.Unix(1700030010, 0).UTC(),
+			UpdatedAt:        time.Unix(1700030020, 0).UTC(),
+		},
+	} {
+		if _, err := store.CreateRun(ctx, item); err != nil {
+			t.Fatalf("CreateRun(%s) error = %v", item.ID, err)
+		}
+	}
+
+	page, err := service.ListRuns(ctx, RunListFilter{
+		TenantID: "tenant-run",
+		Limit:    10,
+	})
+	if err != nil {
+		t.Fatalf("ListRuns() error = %v", err)
+	}
+	if len(page.Runs) != 2 {
+		t.Fatalf("len(page.Runs) = %d, want 2", len(page.Runs))
+	}
+	if page.Runs[0].ID != "eval-run-newer" || page.Runs[1].ID != "eval-run-older" {
+		t.Fatalf("run order = %#v, want latest-updated-first", page.Runs)
 	}
 }

@@ -45,6 +45,9 @@ func TestLoadUsesDefaults(t *testing.T) {
 	if cfg.ApprovedToolFailOnApprove {
 		t.Fatal("ApprovedToolFailOnApprove = true, want false")
 	}
+	if cfg.EvalRunFailAll {
+		t.Fatal("EvalRunFailAll = true, want false")
+	}
 	if cfg.WorkerPollInterval != 1*time.Second {
 		t.Fatalf("WorkerPollInterval = %s, want %s", cfg.WorkerPollInterval, 1*time.Second)
 	}
@@ -65,6 +68,7 @@ func TestLoadUsesEnvOverrides(t *testing.T) {
 	t.Setenv("OPSPILOT_TICKET_API_BASE_URL", "http://tickets.internal")
 	t.Setenv("OPSPILOT_TICKET_API_TOKEN", "secret-token")
 	t.Setenv("OPSPILOT_APPROVED_TOOL_FAIL_ON_APPROVE", "true")
+	t.Setenv("OPSPILOT_EVAL_RUN_FAIL_ALL", "true")
 	t.Setenv("OPSPILOT_WORKER_POLL_INTERVAL", "3s")
 	t.Setenv("OPSPILOT_WORKER_SHUTDOWN_TIMEOUT", "25s")
 
@@ -106,6 +110,9 @@ func TestLoadUsesEnvOverrides(t *testing.T) {
 	if !cfg.ApprovedToolFailOnApprove {
 		t.Fatal("ApprovedToolFailOnApprove = false, want true")
 	}
+	if !cfg.EvalRunFailAll {
+		t.Fatal("EvalRunFailAll = false, want true")
+	}
 	if cfg.WorkerPollInterval != 3*time.Second {
 		t.Fatalf("WorkerPollInterval = %s, want %s", cfg.WorkerPollInterval, 3*time.Second)
 	}
@@ -140,6 +147,14 @@ func TestLoadRejectsInvalidTemporalEnabled(t *testing.T) {
 
 func TestLoadRejectsInvalidApprovedToolFailOnApprove(t *testing.T) {
 	t.Setenv("OPSPILOT_APPROVED_TOOL_FAIL_ON_APPROVE", "not-a-bool")
+
+	if _, err := Load(); err == nil {
+		t.Fatal("Load() error = nil, want non-nil")
+	}
+}
+
+func TestLoadRejectsInvalidEvalRunFailAll(t *testing.T) {
+	t.Setenv("OPSPILOT_EVAL_RUN_FAIL_ALL", "not-a-bool")
 
 	if _, err := Load(); err == nil {
 		t.Fatal("Load() error = nil, want non-nil")

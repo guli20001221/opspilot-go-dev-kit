@@ -26,6 +26,9 @@ var ErrInvalidEvalDatasetState = errors.New("invalid eval dataset state")
 // ErrEvalRunNotFound identifies missing durable eval run records.
 var ErrEvalRunNotFound = errors.New("eval run not found")
 
+// ErrInvalidEvalRunState identifies invalid eval-run lifecycle transitions.
+var ErrInvalidEvalRunState = errors.New("invalid eval run state")
+
 const (
 	// DatasetStatusDraft identifies a draft dataset that is not yet active in regression runs.
 	DatasetStatusDraft = "draft"

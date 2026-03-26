@@ -1586,8 +1586,8 @@ paths:
     get:
       summary: List durable eval runs
       description: |
-        Returns one tenant-scoped page of durable eval-run kickoff records.
-        This lane is intentionally lightweight and does not inline execution payloads.
+        Returns one tenant-scoped page of durable eval-run records.
+        This lane is intentionally lightweight and does not inline execution payloads or judge output.
       operationId: listEvalRuns
       parameters:
         - name: tenant_id
@@ -1653,7 +1653,8 @@ paths:
       summary: Create a durable eval run kickoff
       description: |
         Creates one durable queued eval run from a published dataset baseline.
-        The initial slice persists kickoff state before judge execution is wired.
+        The current worker slice then advances that run through `queued -> running -> succeeded|failed`
+        with placeholder execution before judge wiring is connected.
       operationId: createEvalRun
       requestBody:
         required: true
@@ -1703,7 +1704,7 @@ paths:
       summary: Get a durable eval run
       description: |
         Returns one durable eval run by stable ID.
-        Operators use this contract to inspect queued or terminal kickoff state.
+        Operators use this contract to inspect lifecycle timestamps and failure reason as the worker advances the run.
       operationId: getEvalRun
       parameters:
         - name: run_id

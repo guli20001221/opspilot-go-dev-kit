@@ -103,6 +103,7 @@ The current HTTP layer also exposes the same PostgreSQL-backed workflow records 
 - `internal/eval` now also holds the first durable eval-run kickoff model, which snapshots published dataset metadata into a queued run row before judge execution is connected
 - `POST /api/v1/eval-runs`, `GET /api/v1/eval-runs`, and `GET /api/v1/eval-runs/{run_id}` now expose that tenant-scoped run-kickoff contract
 - `/admin/eval-runs` is the first eval-run operator lane, and `/admin/eval-datasets` now hands published baselines into it through `Run dataset`
+- the worker now also claims queued eval runs and advances them through `queued -> running -> succeeded|failed` with placeholder execution, persisting `started_at`, `finished_at`, and `error_reason` on the canonical run record
 - the same case page now also shows and appends recent notes, so operator handoff context lives on the case instead of being implied by task/report provenance
 - the same case page now defaults into an open-case queue view, adds `My open cases` and `Unassigned` shortcuts, and computes age/staleness from canonical `updated_at`
 - the same case page now also foregrounds operator queue slices by highlighting `My open cases` and `Unassigned`, and it surfaces task-only versus report-backed provenance directly from the canonical case contract

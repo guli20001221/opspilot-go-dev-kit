@@ -51,6 +51,7 @@ Keep the HTTP surface explicit, documented, stable, and friendly to streaming ag
 20. The first dataset-curation mutation should be an explicit `POST /api/v1/eval-datasets/{dataset_id}/items` append contract that is idempotent for the same eval case and returns the updated dataset detail.
 21. Once dataset drafts can be curated incrementally, add an explicit `POST /api/v1/eval-datasets/{dataset_id}/publish` contract that returns the updated dataset detail and surfaces repeated publish attempts as a typed 409-style invalid-state error.
 22. Once datasets can be published, add a canonical `POST /api/v1/eval-runs`, tenant-scoped `GET /api/v1/eval-runs`, and `GET /api/v1/eval-runs/{run_id}` contract that snapshots published dataset metadata into a durable queued run before execution is wired.
+23. The first eval-run execution slice should keep `started_at`, `finished_at`, `status`, and `error_reason` on that same canonical run detail contract instead of inventing a second execution-status surface.
 
 ## Output contract
 When you finish, always report:
