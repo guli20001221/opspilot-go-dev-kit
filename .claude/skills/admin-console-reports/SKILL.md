@@ -112,3 +112,4 @@ When you finish, always report:
 - once published datasets exist, prefer a shared `/admin/eval-runs` lane backed directly by canonical `GET /api/v1/eval-runs` and `GET /api/v1/eval-runs/{id}` reads, and let `/admin/eval-datasets` hand off through `POST /api/v1/eval-runs` instead of inventing dataset-page-only run state
 - once eval runs can execute, keep the `/admin/eval-runs` lane tied to the canonical run detail fields such as `status`, `started_at`, `finished_at`, and `error_reason` instead of inventing a separate frontend progress model
 - when failed eval runs become retryable, wire `/admin/eval-runs` straight to `POST /api/v1/eval-runs/{run_id}/retry` from the existing detail pane instead of creating an admin-only rerun flow
+- once retry clears top-level eval-run failure fields, render the canonical append-only run-event timeline in `/admin/eval-runs` detail instead of inventing a shadow frontend history model

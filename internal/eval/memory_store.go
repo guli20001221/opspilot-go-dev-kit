@@ -14,6 +14,8 @@ type memoryStore struct {
 	bySourceCase map[string]string
 	datasets     map[string]EvalDataset
 	runs         map[string]EvalRun
+	runEvents    map[string][]EvalRunEvent
+	nextRunEvent int64
 }
 
 func newMemoryStore() *memoryStore {
@@ -22,6 +24,7 @@ func newMemoryStore() *memoryStore {
 		bySourceCase: make(map[string]string),
 		datasets:     make(map[string]EvalDataset),
 		runs:         make(map[string]EvalRun),
+		runEvents:    make(map[string][]EvalRunEvent),
 	}
 }
 
@@ -230,6 +233,13 @@ func (s *memoryStore) CreateRun(_ context.Context, item EvalRun) (EvalRun, error
 	defer s.mu.Unlock()
 
 	s.runs[item.ID] = item
+	s.appendRunEventLocked(EvalRunEvent{
+		RunID:     item.ID,
+		Action:    RunEventCreated,
+		Actor:     item.CreatedBy,
+		Detail:    item.Status,
+		CreatedAt: item.CreatedAt,
+	})
 	return item, nil
 }
 
@@ -242,6 +252,19 @@ func (s *memoryStore) GetRun(_ context.Context, runID string) (EvalRun, error) {
 		return EvalRun{}, fmt.Errorf("%w: %s", ErrEvalRunNotFound, runID)
 	}
 	return item, nil
+}
+
+func (s *memoryStore) GetRunWithEvents(_ context.Context, runID string) (EvalRun, []EvalRunEvent, error) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	item, ok := s.runs[runID]
+	if !ok {
+		return EvalRun{}, nil, fmt.Errorf("%w: %s", ErrEvalRunNotFound, runID)
+	}
+
+	events := append([]EvalRunEvent(nil), s.runEvents[runID]...)
+	return item, events, nil
 }
 
 func (s *memoryStore) ListRuns(_ context.Context, filter RunListFilter) (RunListPage, error) {
@@ -286,6 +309,17 @@ func (s *memoryStore) ListRuns(_ context.Context, filter RunListFilter) (RunList
 	return page, nil
 }
 
+func (s *memoryStore) ListRunEvents(_ context.Context, runID string) ([]EvalRunEvent, error) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	if _, ok := s.runs[runID]; !ok {
+		return nil, fmt.Errorf("%w: %s", ErrEvalRunNotFound, runID)
+	}
+	events := append([]EvalRunEvent(nil), s.runEvents[runID]...)
+	return events, nil
+}
+
 func (s *memoryStore) ClaimQueuedRuns(_ context.Context, limit int, startedAt time.Time) ([]EvalRun, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -317,6 +351,13 @@ func (s *memoryStore) ClaimQueuedRuns(_ context.Context, limit int, startedAt ti
 			item.StartedAt = startedAt
 		}
 		s.runs[item.ID] = item
+		s.appendRunEventLocked(EvalRunEvent{
+			RunID:     item.ID,
+			Action:    RunEventClaimed,
+			Actor:     "worker",
+			Detail:    item.Status,
+			CreatedAt: startedAt,
+		})
 		claimed = append(claimed, item)
 	}
 
@@ -352,6 +393,76 @@ func (s *memoryStore) RetryRun(_ context.Context, runID string, updatedAt time.T
 	item.StartedAt = time.Time{}
 	item.FinishedAt = time.Time{}
 	s.runs[runID] = item
+	s.appendRunEventLocked(EvalRunEvent{
+		RunID:     item.ID,
+		Action:    RunEventRetried,
+		Actor:     "operator",
+		Detail:    item.Status,
+		CreatedAt: updatedAt,
+	})
 
 	return item, nil
+}
+
+func (s *memoryStore) MarkRunSucceeded(_ context.Context, runID string, finishedAt time.Time) (EvalRun, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	item, ok := s.runs[runID]
+	if !ok {
+		return EvalRun{}, fmt.Errorf("%w: %s", ErrEvalRunNotFound, runID)
+	}
+	if item.Status != RunStatusRunning {
+		return EvalRun{}, ErrInvalidEvalRunState
+	}
+
+	item.Status = RunStatusSucceeded
+	item.ErrorReason = ""
+	item.UpdatedAt = finishedAt
+	item.FinishedAt = finishedAt
+	s.runs[runID] = item
+	s.appendRunEventLocked(EvalRunEvent{
+		RunID:     item.ID,
+		Action:    RunEventSucceeded,
+		Actor:     "worker",
+		Detail:    item.Status,
+		CreatedAt: finishedAt,
+	})
+
+	return item, nil
+}
+
+func (s *memoryStore) MarkRunFailed(_ context.Context, runID string, reason string, finishedAt time.Time) (EvalRun, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	item, ok := s.runs[runID]
+	if !ok {
+		return EvalRun{}, fmt.Errorf("%w: %s", ErrEvalRunNotFound, runID)
+	}
+	if item.Status != RunStatusRunning {
+		return EvalRun{}, ErrInvalidEvalRunState
+	}
+
+	item.Status = RunStatusFailed
+	item.ErrorReason = reason
+	item.UpdatedAt = finishedAt
+	item.FinishedAt = finishedAt
+	s.runs[runID] = item
+	s.appendRunEventLocked(EvalRunEvent{
+		RunID:     item.ID,
+		Action:    RunEventFailed,
+		Actor:     "worker",
+		Detail:    reason,
+		CreatedAt: finishedAt,
+	})
+
+	return item, nil
+}
+
+func (s *memoryStore) appendRunEventLocked(event EvalRunEvent) EvalRunEvent {
+	s.nextRunEvent++
+	event.ID = s.nextRunEvent
+	s.runEvents[event.RunID] = append(s.runEvents[event.RunID], event)
+	return event
 }

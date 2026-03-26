@@ -1668,7 +1668,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/EvalRun'
+                $ref: '#/components/schemas/EvalRunSnapshot'
         '400':
           description: Request body was invalid.
           content:
@@ -1704,7 +1704,8 @@ paths:
       summary: Get a durable eval run
       description: |
         Returns one durable eval run by stable ID.
-        Operators use this contract to inspect lifecycle timestamps and failure reason as the worker advances the run.
+        Operators use this contract to inspect lifecycle timestamps, failure reason,
+        and the append-only event timeline as the worker advances and retries the run.
       operationId: getEvalRun
       parameters:
         - name: run_id
@@ -1754,7 +1755,7 @@ paths:
       description: |
         Re-queues the same durable eval run record after a failed execution.
         Retry clears `error_reason`, `started_at`, and `finished_at`, keeps dataset linkage intact,
-        and returns the canonical run detail in the re-queued state.
+        and returns a lightweight run snapshot in the re-queued state.
       operationId: retryEvalRun
       parameters:
         - name: run_id
@@ -1773,7 +1774,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/EvalRun'
+                $ref: '#/components/schemas/EvalRunSnapshot'
         '400':
           description: Missing required tenant scope query.
           content:
@@ -2730,6 +2731,81 @@ components:
         finished_at:
           type: string
           format: date-time
+        events:
+          type: array
+          items:
+            $ref: '#/components/schemas/EvalRunEvent'
+    EvalRunSnapshot:
+      type: object
+      required:
+        - run_id
+        - tenant_id
+        - dataset_id
+        - dataset_name
+        - dataset_item_count
+        - status
+        - created_by
+        - created_at
+        - updated_at
+      properties:
+        run_id:
+          type: string
+        tenant_id:
+          type: string
+        dataset_id:
+          type: string
+        dataset_name:
+          type: string
+        dataset_item_count:
+          type: integer
+          minimum: 0
+        status:
+          type: string
+          enum:
+            - queued
+            - running
+            - succeeded
+            - failed
+        created_by:
+          type: string
+        error_reason:
+          type: string
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+        started_at:
+          type: string
+          format: date-time
+        finished_at:
+          type: string
+          format: date-time
+    EvalRunEvent:
+      type: object
+      required:
+        - id
+        - action
+        - created_at
+      properties:
+        id:
+          type: integer
+        action:
+          type: string
+          enum:
+            - created
+            - claimed
+            - succeeded
+            - failed
+            - retried
+        actor:
+          type: string
+        detail:
+          type: string
+        created_at:
+          type: string
+          format: date-time
     ListEvalRunsResponse:
       type: object
       required:
@@ -2739,7 +2815,7 @@ components:
         runs:
           type: array
           items:
-            $ref: '#/components/schemas/EvalRun'
+            $ref: '#/components/schemas/EvalRunSnapshot'
         has_more:
           type: boolean
         next_offset:

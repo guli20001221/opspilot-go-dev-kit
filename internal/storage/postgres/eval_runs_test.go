@@ -480,3 +480,102 @@ INSERT INTO eval_datasets (
 		t.Fatalf("error = %v, want %v", err, evalsvc.ErrInvalidEvalRunState)
 	}
 }
+
+func TestEvalRunStoreListRunEventsPreservesRetryHistory(t *testing.T) {
+	dsn := os.Getenv("OPSPILOT_TEST_POSTGRES_DSN")
+	if dsn == "" {
+		t.Skip("OPSPILOT_TEST_POSTGRES_DSN not set")
+	}
+
+	ctx := context.Background()
+	pool, err := OpenPool(ctx, dsn)
+	if err != nil {
+		t.Fatalf("OpenPool() error = %v", err)
+	}
+	defer pool.Close()
+
+	applyMigration(t, ctx, pool)
+	if _, err := pool.Exec(ctx, "TRUNCATE eval_run_events, eval_runs, eval_dataset_items, eval_datasets, eval_cases, case_notes, cases, reports, workflow_task_events, workflow_tasks RESTART IDENTITY CASCADE"); err != nil {
+		t.Fatalf("TRUNCATE eval run and lineage tables error = %v", err)
+	}
+
+	if _, err := pool.Exec(ctx, `
+INSERT INTO eval_datasets (
+    id, tenant_id, name, description, status, created_by, created_at, updated_at, published_by, published_at
+) VALUES (
+    $1, $2, $3, '', $4, 'operator', $5, $5, 'operator', $5
+)`,
+		"eval-dataset-events",
+		"tenant-run",
+		"Dataset Events",
+		evalsvc.DatasetStatusPublished,
+		time.Unix(1700019900, 0).UTC(),
+	); err != nil {
+		t.Fatalf("seed eval_datasets error = %v", err)
+	}
+
+	store := NewEvalRunStore(pool)
+	run, err := store.CreateRun(ctx, evalsvc.EvalRun{
+		ID:               "eval-run-events",
+		TenantID:         "tenant-run",
+		DatasetID:        "eval-dataset-events",
+		DatasetName:      "Dataset Events",
+		DatasetItemCount: 1,
+		Status:           evalsvc.RunStatusQueued,
+		CreatedBy:        "operator",
+		CreatedAt:        time.Unix(1700020000, 0).UTC(),
+		UpdatedAt:        time.Unix(1700020000, 0).UTC(),
+	})
+	if err != nil {
+		t.Fatalf("CreateRun() error = %v", err)
+	}
+
+	claimed, err := store.ClaimQueuedRuns(ctx, 1, time.Unix(1700020100, 0).UTC())
+	if err != nil {
+		t.Fatalf("ClaimQueuedRuns(first) error = %v", err)
+	}
+	if len(claimed) != 1 {
+		t.Fatalf("len(claimed) = %d, want 1", len(claimed))
+	}
+	if _, err := store.MarkRunFailed(ctx, run.ID, "fault injection", time.Unix(1700020200, 0).UTC()); err != nil {
+		t.Fatalf("MarkRunFailed() error = %v", err)
+	}
+	if _, err := store.RetryRun(ctx, run.ID, time.Unix(1700020300, 0).UTC()); err != nil {
+		t.Fatalf("RetryRun() error = %v", err)
+	}
+	if _, err := store.ClaimQueuedRuns(ctx, 1, time.Unix(1700020400, 0).UTC()); err != nil {
+		t.Fatalf("ClaimQueuedRuns(second) error = %v", err)
+	}
+	if _, err := store.MarkRunSucceeded(ctx, run.ID, time.Unix(1700020500, 0).UTC()); err != nil {
+		t.Fatalf("MarkRunSucceeded() error = %v", err)
+	}
+
+	events, err := store.ListRunEvents(ctx, run.ID)
+	if err != nil {
+		t.Fatalf("ListRunEvents() error = %v", err)
+	}
+	if len(events) != 6 {
+		t.Fatalf("len(events) = %d, want 6", len(events))
+	}
+
+	actions := make([]string, 0, len(events))
+	for _, event := range events {
+		actions = append(actions, event.Action)
+	}
+	want := []string{
+		evalsvc.RunEventCreated,
+		evalsvc.RunEventClaimed,
+		evalsvc.RunEventFailed,
+		evalsvc.RunEventRetried,
+		evalsvc.RunEventClaimed,
+		evalsvc.RunEventSucceeded,
+	}
+	for i := range want {
+		if actions[i] != want[i] {
+			t.Fatalf("actions[%d] = %q, want %q (all=%#v)", i, actions[i], want[i], actions)
+		}
+	}
+	if events[2].Detail != "fault injection" {
+		t.Fatalf("failed detail = %q, want %q", events[2].Detail, "fault injection")
+	}
+}

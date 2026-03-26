@@ -47,6 +47,19 @@ const (
 	RunStatusFailed = "failed"
 )
 
+const (
+	// RunEventCreated identifies eval-run creation.
+	RunEventCreated = "created"
+	// RunEventClaimed identifies worker claim of a queued eval run.
+	RunEventClaimed = "claimed"
+	// RunEventSucceeded identifies successful eval-run completion.
+	RunEventSucceeded = "succeeded"
+	// RunEventFailed identifies failed eval-run completion.
+	RunEventFailed = "failed"
+	// RunEventRetried identifies operator re-queue of a failed eval run.
+	RunEventRetried = "retried"
+)
+
 // EvalCase is the durable read model for a promoted evaluation case.
 type EvalCase struct {
 	ID             string
@@ -149,6 +162,16 @@ type EvalRun struct {
 	UpdatedAt        time.Time
 	StartedAt        time.Time
 	FinishedAt       time.Time
+}
+
+// EvalRunEvent is one append-only lifecycle event for a durable eval run.
+type EvalRunEvent struct {
+	ID        int64
+	RunID     string
+	Action    string
+	Actor     string
+	Detail    string
+	CreatedAt time.Time
 }
 
 // RunListFilter constrains eval-run list reads.

@@ -427,3 +427,69 @@ func TestRunServiceRetryRunRejectsRunClaimedAfterRetry(t *testing.T) {
 		t.Fatalf("error = %v, want %v", err, ErrInvalidEvalRunState)
 	}
 }
+
+func TestRunServiceListRunEventsPreservesRetryHistory(t *testing.T) {
+	ctx := context.Background()
+	store := newMemoryStore()
+	service := NewRunServiceWithStore(store, nil)
+
+	run, err := store.CreateRun(ctx, EvalRun{
+		ID:               "eval-run-events",
+		TenantID:         "tenant-run",
+		DatasetID:        "eval-dataset-events",
+		DatasetName:      "Dataset Events",
+		DatasetItemCount: 1,
+		Status:           RunStatusQueued,
+		CreatedBy:        "operator",
+		CreatedAt:        time.Unix(1700030000, 0).UTC(),
+		UpdatedAt:        time.Unix(1700030000, 0).UTC(),
+	})
+	if err != nil {
+		t.Fatalf("CreateRun() error = %v", err)
+	}
+
+	if _, err := service.ClaimQueuedRuns(ctx, 10); err != nil {
+		t.Fatalf("ClaimQueuedRuns(first) error = %v", err)
+	}
+	if _, err := service.MarkRunFailed(ctx, run.ID, "fault injection"); err != nil {
+		t.Fatalf("MarkRunFailed() error = %v", err)
+	}
+	if _, err := service.RetryRun(ctx, run.ID); err != nil {
+		t.Fatalf("RetryRun() error = %v", err)
+	}
+	if _, err := service.ClaimQueuedRuns(ctx, 10); err != nil {
+		t.Fatalf("ClaimQueuedRuns(second) error = %v", err)
+	}
+	if _, err := service.MarkRunSucceeded(ctx, run.ID); err != nil {
+		t.Fatalf("MarkRunSucceeded() error = %v", err)
+	}
+
+	events, err := service.ListRunEvents(ctx, run.ID)
+	if err != nil {
+		t.Fatalf("ListRunEvents() error = %v", err)
+	}
+	if len(events) != 6 {
+		t.Fatalf("len(events) = %d, want 6", len(events))
+	}
+
+	actions := make([]string, 0, len(events))
+	for _, event := range events {
+		actions = append(actions, event.Action)
+	}
+	want := []string{
+		RunEventCreated,
+		RunEventClaimed,
+		RunEventFailed,
+		RunEventRetried,
+		RunEventClaimed,
+		RunEventSucceeded,
+	}
+	for i := range want {
+		if actions[i] != want[i] {
+			t.Fatalf("actions[%d] = %q, want %q (all=%#v)", i, actions[i], want[i], actions)
+		}
+	}
+	if events[2].Detail != "fault injection" {
+		t.Fatalf("failed detail = %q, want %q", events[2].Detail, "fault injection")
+	}
+}

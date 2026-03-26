@@ -13,8 +13,12 @@ var evalRunIDSequence atomic.Uint64
 type runStore interface {
 	CreateRun(ctx context.Context, item EvalRun) (EvalRun, error)
 	GetRun(ctx context.Context, runID string) (EvalRun, error)
+	GetRunWithEvents(ctx context.Context, runID string) (EvalRun, []EvalRunEvent, error)
 	ListRuns(ctx context.Context, filter RunListFilter) (RunListPage, error)
+	ListRunEvents(ctx context.Context, runID string) ([]EvalRunEvent, error)
 	ClaimQueuedRuns(ctx context.Context, limit int, startedAt time.Time) ([]EvalRun, error)
+	MarkRunSucceeded(ctx context.Context, runID string, finishedAt time.Time) (EvalRun, error)
+	MarkRunFailed(ctx context.Context, runID string, reason string, finishedAt time.Time) (EvalRun, error)
 	RetryRun(ctx context.Context, runID string, updatedAt time.Time) (EvalRun, error)
 	UpdateRun(ctx context.Context, item EvalRun) (EvalRun, error)
 }
@@ -85,12 +89,22 @@ func (s *RunService) GetRun(ctx context.Context, runID string) (EvalRun, error) 
 	return s.store.GetRun(ctx, runID)
 }
 
+// GetRunWithEvents returns one durable eval run and a consistent snapshot of its event timeline.
+func (s *RunService) GetRunWithEvents(ctx context.Context, runID string) (EvalRun, []EvalRunEvent, error) {
+	return s.store.GetRunWithEvents(ctx, runID)
+}
+
 // ListRuns returns one durable eval-run page.
 func (s *RunService) ListRuns(ctx context.Context, filter RunListFilter) (RunListPage, error) {
 	if filter.Limit <= 0 {
 		filter.Limit = 20
 	}
 	return s.store.ListRuns(ctx, filter)
+}
+
+// ListRunEvents returns the append-only lifecycle history for one eval run.
+func (s *RunService) ListRunEvents(ctx context.Context, runID string) ([]EvalRunEvent, error) {
+	return s.store.ListRunEvents(ctx, runID)
 }
 
 // ClaimQueuedRuns marks queued eval runs as running and returns them for worker execution.
@@ -103,40 +117,12 @@ func (s *RunService) ClaimQueuedRuns(ctx context.Context, limit int) ([]EvalRun,
 
 // MarkRunSucceeded finalizes a running eval run as succeeded.
 func (s *RunService) MarkRunSucceeded(ctx context.Context, runID string) (EvalRun, error) {
-	item, err := s.store.GetRun(ctx, runID)
-	if err != nil {
-		return EvalRun{}, err
-	}
-	if item.Status != RunStatusRunning {
-		return EvalRun{}, ErrInvalidEvalRunState
-	}
-
-	now := time.Now().UTC()
-	item.Status = RunStatusSucceeded
-	item.ErrorReason = ""
-	item.UpdatedAt = now
-	item.FinishedAt = now
-
-	return s.store.UpdateRun(ctx, item)
+	return s.store.MarkRunSucceeded(ctx, runID, time.Now().UTC())
 }
 
 // MarkRunFailed finalizes a running eval run as failed with a summarized error.
 func (s *RunService) MarkRunFailed(ctx context.Context, runID string, reason string) (EvalRun, error) {
-	item, err := s.store.GetRun(ctx, runID)
-	if err != nil {
-		return EvalRun{}, err
-	}
-	if item.Status != RunStatusRunning {
-		return EvalRun{}, ErrInvalidEvalRunState
-	}
-
-	now := time.Now().UTC()
-	item.Status = RunStatusFailed
-	item.ErrorReason = strings.TrimSpace(reason)
-	item.UpdatedAt = now
-	item.FinishedAt = now
-
-	return s.store.UpdateRun(ctx, item)
+	return s.store.MarkRunFailed(ctx, runID, strings.TrimSpace(reason), time.Now().UTC())
 }
 
 // RetryRun re-queues a failed eval run for another worker attempt.

@@ -135,6 +135,7 @@ The current chat stream implementation is a Milestone 1 skeleton:
 - use `GET /api/v1/eval-runs/{run_id}?tenant_id=<tenant>` when you need the canonical run detail for one kickoff record
 - the worker now advances queued eval runs through `running` to `succeeded` or `failed`, so `started_at`, `finished_at`, and `error_reason` on the canonical run record are now meaningful operator fields
 - use `POST /api/v1/eval-runs/{run_id}/retry?tenant_id=<tenant>` when you need to re-queue a failed run without creating a second durable run row
+- the same run detail now returns append-only `events`, so prior `failed` and `retried` history remains visible after retry clears the top-level failure fields
 - open `http://localhost:18080/admin/cases` when you want the first case-focused operator page, including source task/report handoff links and the minimal `Close case` action
 - open `http://localhost:18080/admin/evals` when you want the first eval-focused operator page, including durable eval detail plus case/task/report/version/trace handoff links
 - use `Create dataset draft` on `/admin/evals` when you want to seed a canonical dataset draft directly from the currently selected durable eval case
@@ -145,6 +146,7 @@ The current chat stream implementation is a Milestone 1 skeleton:
 - open `http://localhost:18080/admin/eval-runs` when you want the first eval-run operator page, including run detail plus dataset and eval handoff links
 - set `OPSPILOT_EVAL_RUN_FAIL_ALL=true` on the worker when you want every claimed eval run to fail for local recovery and operator-surface testing
 - use `Retry run` on `/admin/eval-runs` when you want to re-queue the selected failed run back into the worker lane from the same detail panel
+- use the `Run timeline` card on `/admin/eval-runs` when you need the durable claim/fail/retry/succeed history for the selected run ID
 - use the `My open cases` shortcut on `/admin/cases` when you want a queue view for the current operator handle without manually composing `status=open&assigned_to=<actor>`
 - use the `Unassigned` shortcut on `/admin/cases` when you want the shared open backlog without manually composing `status=open&unassigned_only=true`
 - use `Copy case summary` on `/admin/cases` when you need a compact, paste-ready handoff note, `Copy case link` when you want to share the exact filtered case-board URL, and `Open case API detail` when you want the canonical case JSON in a separate tab

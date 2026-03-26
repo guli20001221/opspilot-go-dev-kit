@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -64,15 +65,29 @@ func TestCreateAndGetEvalRunEndpoint(t *testing.T) {
 		t.Fatalf("StatusCode = %d, want %d", resp.StatusCode, http.StatusCreated)
 	}
 
+	bodyBytes, err := io.ReadAll(resp.Body)
+	if err != nil {
+		t.Fatalf("ReadAll() error = %v", err)
+	}
 	var created evalRunResponse
-	if err := json.NewDecoder(resp.Body).Decode(&created); err != nil {
-		t.Fatalf("Decode() error = %v", err)
+	if err := json.Unmarshal(bodyBytes, &created); err != nil {
+		t.Fatalf("Unmarshal(created) error = %v", err)
+	}
+	var createdRaw map[string]any
+	if err := json.Unmarshal(bodyBytes, &createdRaw); err != nil {
+		t.Fatalf("Unmarshal(createdRaw) error = %v", err)
 	}
 	if created.RunID == "" {
 		t.Fatal("run_id is empty")
 	}
 	if created.Status != evalsvc.RunStatusQueued {
 		t.Fatalf("Status = %q, want %q", created.Status, evalsvc.RunStatusQueued)
+	}
+	if len(created.Events) != 0 {
+		t.Fatalf("len(Events) = %d, want 0 on create response", len(created.Events))
+	}
+	if _, ok := createdRaw["events"]; ok {
+		t.Fatalf("create response unexpectedly included events field: %#v", createdRaw)
 	}
 
 	getResp, err := http.Get(server.URL + "/api/v1/eval-runs/" + created.RunID + "?tenant_id=tenant-run")
@@ -219,12 +234,34 @@ func TestListEvalRunsEndpointSupportsFiltersAndPagination(t *testing.T) {
 		t.Fatalf("StatusCode = %d, want %d", resp.StatusCode, http.StatusOK)
 	}
 
+	bodyBytes, err := io.ReadAll(resp.Body)
+	if err != nil {
+		t.Fatalf("ReadAll() error = %v", err)
+	}
 	var page listEvalRunsResponse
-	if err := json.NewDecoder(resp.Body).Decode(&page); err != nil {
-		t.Fatalf("Decode() error = %v", err)
+	if err := json.Unmarshal(bodyBytes, &page); err != nil {
+		t.Fatalf("Unmarshal(page) error = %v", err)
+	}
+	var pageRaw map[string]any
+	if err := json.Unmarshal(bodyBytes, &pageRaw); err != nil {
+		t.Fatalf("Unmarshal(pageRaw) error = %v", err)
 	}
 	if len(page.Runs) != 1 || page.Runs[0].RunID != secondRun.ID {
 		t.Fatalf("Runs = %#v, want only %q", page.Runs, secondRun.ID)
+	}
+	if len(page.Runs[0].Events) != 0 {
+		t.Fatalf("len(Events) = %d, want 0 on list response", len(page.Runs[0].Events))
+	}
+	rawRuns, ok := pageRaw["runs"].([]any)
+	if !ok || len(rawRuns) != 1 {
+		t.Fatalf("raw runs = %#v, want one item", pageRaw["runs"])
+	}
+	rawItem, ok := rawRuns[0].(map[string]any)
+	if !ok {
+		t.Fatalf("raw item = %#v, want object", rawRuns[0])
+	}
+	if _, ok := rawItem["events"]; ok {
+		t.Fatalf("list response unexpectedly included events field: %#v", rawItem)
 	}
 }
 
@@ -377,9 +414,13 @@ func TestGetEvalRunEndpointReturnsUpdatedStatusFields(t *testing.T) {
 		t.Fatalf("StatusCode = %d, want %d", resp.StatusCode, http.StatusOK)
 	}
 
+	bodyBytes, err := io.ReadAll(resp.Body)
+	if err != nil {
+		t.Fatalf("ReadAll() error = %v", err)
+	}
 	var got evalRunResponse
-	if err := json.NewDecoder(resp.Body).Decode(&got); err != nil {
-		t.Fatalf("Decode() error = %v", err)
+	if err := json.Unmarshal(bodyBytes, &got); err != nil {
+		t.Fatalf("Unmarshal(got) error = %v", err)
 	}
 	if got.Status != evalsvc.RunStatusFailed {
 		t.Fatalf("Status = %q, want %q", got.Status, evalsvc.RunStatusFailed)
@@ -392,6 +433,12 @@ func TestGetEvalRunEndpointReturnsUpdatedStatusFields(t *testing.T) {
 	}
 	if got.FinishedAt == "" {
 		t.Fatal("FinishedAt is empty")
+	}
+	if len(got.Events) != 3 {
+		t.Fatalf("len(Events) = %d, want 3", len(got.Events))
+	}
+	if got.Events[0].Action != evalsvc.RunEventCreated || got.Events[1].Action != evalsvc.RunEventClaimed || got.Events[2].Action != evalsvc.RunEventFailed {
+		t.Fatalf("events = %#v, want created/claimed/failed", got.Events)
 	}
 }
 
@@ -466,9 +513,17 @@ func TestRetryEvalRunEndpointRequeuesFailedRun(t *testing.T) {
 		t.Fatalf("StatusCode = %d, want %d", resp.StatusCode, http.StatusOK)
 	}
 
+	bodyBytes, err := io.ReadAll(resp.Body)
+	if err != nil {
+		t.Fatalf("ReadAll() error = %v", err)
+	}
 	var got evalRunResponse
-	if err := json.NewDecoder(resp.Body).Decode(&got); err != nil {
-		t.Fatalf("Decode() error = %v", err)
+	if err := json.Unmarshal(bodyBytes, &got); err != nil {
+		t.Fatalf("Unmarshal(got) error = %v", err)
+	}
+	var retryRaw map[string]any
+	if err := json.Unmarshal(bodyBytes, &retryRaw); err != nil {
+		t.Fatalf("Unmarshal(retryRaw) error = %v", err)
 	}
 	if got.Status != evalsvc.RunStatusQueued {
 		t.Fatalf("Status = %q, want %q", got.Status, evalsvc.RunStatusQueued)
@@ -481,6 +536,12 @@ func TestRetryEvalRunEndpointRequeuesFailedRun(t *testing.T) {
 	}
 	if got.FinishedAt != "" {
 		t.Fatalf("FinishedAt = %q, want empty", got.FinishedAt)
+	}
+	if len(got.Events) != 0 {
+		t.Fatalf("len(Events) = %d, want 0 on retry response", len(got.Events))
+	}
+	if _, ok := retryRaw["events"]; ok {
+		t.Fatalf("retry response unexpectedly included events field: %#v", retryRaw)
 	}
 }
 

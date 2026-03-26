@@ -479,6 +479,9 @@ func TestAdminEvalRunsPageRendersHTML(t *testing.T) {
 	if !strings.Contains(body, "Retry run") {
 		t.Fatal("retry run action missing from eval runs page HTML")
 	}
+	if !strings.Contains(body, "Run timeline") {
+		t.Fatal("run timeline section missing from eval runs page HTML")
+	}
 	if !strings.Contains(body, "Open dataset lane") {
 		t.Fatal("dataset lane handoff missing from eval runs page HTML")
 	}

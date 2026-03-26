@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	evalsvc "opspilot-go/internal/eval"
@@ -16,6 +17,12 @@ import (
 // EvalRunStore persists durable eval runs in PostgreSQL.
 type EvalRunStore struct {
 	pool *pgxpool.Pool
+}
+
+type evalRunQuerier interface {
+	Exec(ctx context.Context, sql string, arguments ...any) (pgconn.CommandTag, error)
+	Query(ctx context.Context, sql string, args ...any) (pgx.Rows, error)
+	QueryRow(ctx context.Context, sql string, args ...any) pgx.Row
 }
 
 // NewEvalRunStore constructs the eval run repository.
@@ -42,21 +49,36 @@ INSERT INTO eval_runs (
 ) VALUES (
     $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, NULL, NULL
 )`
-	if _, err := s.pool.Exec(
-		ctx,
-		query,
-		item.ID,
-		item.TenantID,
-		item.DatasetID,
-		item.DatasetName,
-		item.DatasetItemCount,
-		item.Status,
-		item.CreatedBy,
-		item.ErrorReason,
-		item.CreatedAt,
-		item.UpdatedAt,
-	); err != nil {
-		return evalsvc.EvalRun{}, fmt.Errorf("insert eval run: %w", err)
+	if err := s.withTx(ctx, func(tx pgx.Tx) error {
+		if _, err := tx.Exec(
+			ctx,
+			query,
+			item.ID,
+			item.TenantID,
+			item.DatasetID,
+			item.DatasetName,
+			item.DatasetItemCount,
+			item.Status,
+			item.CreatedBy,
+			item.ErrorReason,
+			item.CreatedAt,
+			item.UpdatedAt,
+		); err != nil {
+			return fmt.Errorf("insert eval run: %w", err)
+		}
+		if _, err := s.appendRunEvent(ctx, tx, evalsvc.EvalRunEvent{
+			RunID:     item.ID,
+			Action:    evalsvc.RunEventCreated,
+			Actor:     item.CreatedBy,
+			Detail:    item.Status,
+			CreatedAt: item.CreatedAt,
+		}); err != nil {
+			return err
+		}
+
+		return nil
+	}); err != nil {
+		return evalsvc.EvalRun{}, err
 	}
 	return s.GetRun(ctx, item.ID)
 }
@@ -108,6 +130,26 @@ WHERE id = $1`
 		item.FinishedAt = finishedAt.Time
 	}
 	return item, nil
+}
+
+// GetRunWithEvents returns one durable eval run and a consistent snapshot of its event timeline.
+func (s *EvalRunStore) GetRunWithEvents(ctx context.Context, runID string) (evalsvc.EvalRun, []evalsvc.EvalRunEvent, error) {
+	var item evalsvc.EvalRun
+	var events []evalsvc.EvalRunEvent
+
+	if err := s.withReadTx(ctx, func(tx pgx.Tx) error {
+		var err error
+		item, err = s.getRun(ctx, tx, runID)
+		if err != nil {
+			return err
+		}
+		events, err = s.listRunEvents(ctx, tx, runID)
+		return err
+	}); err != nil {
+		return evalsvc.EvalRun{}, nil, err
+	}
+
+	return item, events, nil
 }
 
 // ListRuns returns one durable eval-run page with lightweight rows.
@@ -180,6 +222,50 @@ LIMIT $4 OFFSET $5`
 	return page, nil
 }
 
+// ListRunEvents returns the append-only lifecycle timeline for one eval run.
+func (s *EvalRunStore) ListRunEvents(ctx context.Context, runID string) ([]evalsvc.EvalRunEvent, error) {
+	if _, err := s.GetRun(ctx, runID); err != nil {
+		return nil, err
+	}
+
+	return s.listRunEvents(ctx, s.pool, runID)
+}
+
+func (s *EvalRunStore) listRunEvents(ctx context.Context, q evalRunQuerier, runID string) ([]evalsvc.EvalRunEvent, error) {
+
+	const query = `
+SELECT
+    id,
+    run_id,
+    action,
+    actor,
+    detail,
+    created_at
+FROM eval_run_events
+WHERE run_id = $1
+ORDER BY created_at, id`
+
+	rows, err := q.Query(ctx, query, runID)
+	if err != nil {
+		return nil, fmt.Errorf("select eval run events: %w", err)
+	}
+	defer rows.Close()
+
+	var events []evalsvc.EvalRunEvent
+	for rows.Next() {
+		var event evalsvc.EvalRunEvent
+		if err := rows.Scan(&event.ID, &event.RunID, &event.Action, &event.Actor, &event.Detail, &event.CreatedAt); err != nil {
+			return nil, fmt.Errorf("scan eval run event: %w", err)
+		}
+		events = append(events, event)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("iterate eval run events: %w", err)
+	}
+
+	return events, nil
+}
+
 // ClaimQueuedRuns marks queued eval runs as running and returns the claimed rows.
 func (s *EvalRunStore) ClaimQueuedRuns(ctx context.Context, limit int, startedAt time.Time) ([]evalsvc.EvalRun, error) {
 	const query = `
@@ -212,6 +298,11 @@ updated AS (
         r.updated_at,
         r.started_at,
         r.finished_at
+),
+inserted_events AS (
+    INSERT INTO eval_run_events (run_id, action, actor, detail, created_at)
+    SELECT id, $5, $6, status, $4
+    FROM updated
 )
 SELECT
     id,
@@ -229,7 +320,7 @@ SELECT
 FROM updated
 ORDER BY created_at ASC, id ASC`
 
-	rows, err := s.pool.Query(ctx, query, evalsvc.RunStatusQueued, limit, evalsvc.RunStatusRunning, startedAt)
+	rows, err := s.pool.Query(ctx, query, evalsvc.RunStatusQueued, limit, evalsvc.RunStatusRunning, startedAt, evalsvc.RunEventClaimed, "worker")
 	if err != nil {
 		return nil, fmt.Errorf("claim eval runs: %w", err)
 	}
@@ -248,6 +339,16 @@ ORDER BY created_at ASC, id ASC`
 	}
 
 	return items, nil
+}
+
+// MarkRunSucceeded atomically finalizes a running eval run as succeeded and appends a success event.
+func (s *EvalRunStore) MarkRunSucceeded(ctx context.Context, runID string, finishedAt time.Time) (evalsvc.EvalRun, error) {
+	return s.transitionRun(ctx, runID, evalsvc.RunStatusRunning, evalsvc.RunStatusSucceeded, "", finishedAt, evalsvc.RunEventSucceeded, "worker", evalsvc.RunStatusSucceeded)
+}
+
+// MarkRunFailed atomically finalizes a running eval run as failed and appends a failure event.
+func (s *EvalRunStore) MarkRunFailed(ctx context.Context, runID string, reason string, finishedAt time.Time) (evalsvc.EvalRun, error) {
+	return s.transitionRun(ctx, runID, evalsvc.RunStatusRunning, evalsvc.RunStatusFailed, reason, finishedAt, evalsvc.RunEventFailed, "worker", reason)
 }
 
 // UpdateRun updates one durable eval run row.
@@ -295,32 +396,170 @@ WHERE id = $1`
 
 // RetryRun atomically re-queues one failed durable eval run.
 func (s *EvalRunStore) RetryRun(ctx context.Context, runID string, updatedAt time.Time) (evalsvc.EvalRun, error) {
-	const query = `
+	return s.transitionRun(ctx, runID, evalsvc.RunStatusFailed, evalsvc.RunStatusQueued, "", updatedAt, evalsvc.RunEventRetried, "operator", evalsvc.RunStatusQueued)
+}
+
+func (s *EvalRunStore) transitionRun(ctx context.Context, runID string, fromStatus string, toStatus string, errorReason string, updatedAt time.Time, action string, actor string, detail string) (evalsvc.EvalRun, error) {
+	var updated evalsvc.EvalRun
+
+	if err := s.withTx(ctx, func(tx pgx.Tx) error {
+		const query = `
 UPDATE eval_runs
 SET status = $2,
-    error_reason = '',
-    updated_at = $3,
-    started_at = NULL,
-    finished_at = NULL
+    error_reason = $3,
+    updated_at = $4,
+    started_at = CASE WHEN $2 = $5 THEN NULL ELSE started_at END,
+    finished_at = CASE WHEN $2 = $5 THEN NULL ELSE $4 END
 WHERE id = $1
-  AND status = $4`
+  AND status = $6
+RETURNING
+    id,
+    tenant_id,
+    dataset_id,
+    dataset_name,
+    dataset_item_count,
+    status,
+    created_by,
+    error_reason,
+    created_at,
+    updated_at,
+    started_at,
+    finished_at`
 
-	commandTag, err := s.pool.Exec(ctx, query, runID, evalsvc.RunStatusQueued, updatedAt, evalsvc.RunStatusFailed)
-	if err != nil {
-		return evalsvc.EvalRun{}, fmt.Errorf("retry eval run: %w", err)
-	}
-	if commandTag.RowsAffected() == 1 {
-		return s.GetRun(ctx, runID)
-	}
-
-	if _, err := s.GetRun(ctx, runID); err != nil {
-		if errors.Is(err, evalsvc.ErrEvalRunNotFound) {
-			return evalsvc.EvalRun{}, err
+		row := tx.QueryRow(ctx, query, runID, toStatus, errorReason, updatedAt, evalsvc.RunStatusQueued, fromStatus)
+		var err error
+		updated, err = scanEvalRun(row)
+		if err != nil {
+			if errors.Is(err, pgx.ErrNoRows) {
+				return s.resolveRunTransitionMiss(ctx, tx, runID)
+			}
+			return err
 		}
-		return evalsvc.EvalRun{}, fmt.Errorf("lookup eval run after retry miss: %w", err)
+		_, err = s.appendRunEvent(ctx, tx, evalsvc.EvalRunEvent{
+			RunID:     runID,
+			Action:    action,
+			Actor:     actor,
+			Detail:    detail,
+			CreatedAt: updatedAt,
+		})
+		return err
+	}); err != nil {
+		return evalsvc.EvalRun{}, err
 	}
 
-	return evalsvc.EvalRun{}, evalsvc.ErrInvalidEvalRunState
+	return updated, nil
+}
+
+func (s *EvalRunStore) getRun(ctx context.Context, q evalRunQuerier, runID string) (evalsvc.EvalRun, error) {
+	const query = `
+SELECT
+    id,
+    tenant_id,
+    dataset_id,
+    dataset_name,
+    dataset_item_count,
+    status,
+    created_by,
+    error_reason,
+    created_at,
+    updated_at,
+    started_at,
+    finished_at
+FROM eval_runs
+WHERE id = $1`
+
+	item, err := scanEvalRun(q.QueryRow(ctx, query, runID))
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return evalsvc.EvalRun{}, evalsvc.ErrEvalRunNotFound
+		}
+		return evalsvc.EvalRun{}, fmt.Errorf("scan eval run: %w", err)
+	}
+
+	return item, nil
+}
+
+func (s *EvalRunStore) resolveRunTransitionMiss(ctx context.Context, q evalRunQuerier, runID string) error {
+	const query = `SELECT 1 FROM eval_runs WHERE id = $1`
+
+	var exists int
+	if err := q.QueryRow(ctx, query, runID).Scan(&exists); err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return evalsvc.ErrEvalRunNotFound
+		}
+		return fmt.Errorf("lookup eval run after transition miss: %w", err)
+	}
+
+	return evalsvc.ErrInvalidEvalRunState
+}
+
+func (s *EvalRunStore) appendRunEvent(ctx context.Context, q evalRunQuerier, event evalsvc.EvalRunEvent) (evalsvc.EvalRunEvent, error) {
+	const query = `
+INSERT INTO eval_run_events (
+    run_id,
+    action,
+    actor,
+    detail,
+    created_at
+) VALUES ($1, $2, $3, $4, $5)
+RETURNING
+    id,
+    run_id,
+    action,
+    actor,
+    detail,
+    created_at`
+
+	var created evalsvc.EvalRunEvent
+	if err := q.QueryRow(ctx, query, event.RunID, event.Action, event.Actor, event.Detail, event.CreatedAt).Scan(
+		&created.ID,
+		&created.RunID,
+		&created.Action,
+		&created.Actor,
+		&created.Detail,
+		&created.CreatedAt,
+	); err != nil {
+		return evalsvc.EvalRunEvent{}, fmt.Errorf("insert eval run event: %w", err)
+	}
+
+	return created, nil
+}
+
+func (s *EvalRunStore) withTx(ctx context.Context, fn func(tx pgx.Tx) error) error {
+	tx, err := s.pool.BeginTx(ctx, pgx.TxOptions{})
+	if err != nil {
+		return fmt.Errorf("begin eval run tx: %w", err)
+	}
+	defer tx.Rollback(ctx)
+
+	if err := fn(tx); err != nil {
+		return err
+	}
+	if err := tx.Commit(ctx); err != nil {
+		return fmt.Errorf("commit eval run tx: %w", err)
+	}
+
+	return nil
+}
+
+func (s *EvalRunStore) withReadTx(ctx context.Context, fn func(tx pgx.Tx) error) error {
+	tx, err := s.pool.BeginTx(ctx, pgx.TxOptions{
+		IsoLevel:   pgx.RepeatableRead,
+		AccessMode: pgx.ReadOnly,
+	})
+	if err != nil {
+		return fmt.Errorf("begin eval run read tx: %w", err)
+	}
+	defer tx.Rollback(ctx)
+
+	if err := fn(tx); err != nil {
+		return err
+	}
+	if err := tx.Commit(ctx); err != nil {
+		return fmt.Errorf("commit eval run read tx: %w", err)
+	}
+
+	return nil
 }
 
 func scanEvalRun(scanner interface {

@@ -48,6 +48,7 @@ Turn prompt, routing, retrieval, and tool changes into measurable, repeatable qu
 16. Once published datasets exist, add a canonical `POST /api/v1/eval-runs` plus tenant-scoped `GET /api/v1/eval-runs` and `GET /api/v1/eval-runs/{id}` so run kickoff becomes durable before judge execution is wired.
 17. The first eval-run execution slice should reuse that durable run record and advance it through `queued -> running -> succeeded|failed` with placeholder worker execution before introducing judge prompts, score aggregation, or eval reports.
 18. After that first execution slice lands, add `POST /api/v1/eval-runs/{run_id}/retry` as the minimal operator recovery surface so failed runs can be re-queued on the same durable record before per-item scoring or judge prompts exist.
+19. Once retry exists on the same durable run record, preserve prior failure context with append-only eval-run events on detail reads instead of introducing a second run-attempt model too early.
 
 ## Output contract
 When you finish, always report:
