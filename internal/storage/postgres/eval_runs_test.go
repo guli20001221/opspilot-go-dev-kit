@@ -2,6 +2,7 @@ package postgres
 
 import (
 	"context"
+	"errors"
 	"os"
 	"testing"
 	"time"
@@ -394,5 +395,88 @@ INSERT INTO eval_datasets (
 	}
 	if page.Runs[0].ID != "eval-run-newer" || page.Runs[1].ID != "eval-run-older" {
 		t.Fatalf("run order = %#v, want latest-updated-first", page.Runs)
+	}
+}
+
+func TestEvalRunStoreUpdateAllowsRetryRequeue(t *testing.T) {
+	dsn := os.Getenv("OPSPILOT_TEST_POSTGRES_DSN")
+	if dsn == "" {
+		t.Skip("OPSPILOT_TEST_POSTGRES_DSN not set")
+	}
+
+	ctx := context.Background()
+	pool, err := OpenPool(ctx, dsn)
+	if err != nil {
+		t.Fatalf("OpenPool() error = %v", err)
+	}
+	defer pool.Close()
+
+	applyMigration(t, ctx, pool)
+	if _, err := pool.Exec(ctx, "TRUNCATE eval_runs, eval_dataset_items, eval_datasets, eval_cases, case_notes, cases, reports, workflow_task_events, workflow_tasks RESTART IDENTITY CASCADE"); err != nil {
+		t.Fatalf("TRUNCATE eval run and lineage tables error = %v", err)
+	}
+
+	if _, err := pool.Exec(ctx, `
+INSERT INTO eval_datasets (
+    id, tenant_id, name, description, status, created_by, created_at, updated_at, published_by, published_at
+) VALUES (
+    $1, $2, $3, '', $4, 'operator', $5, $5, 'operator', $5
+)`,
+		"eval-dataset-retry",
+		"tenant-run",
+		"Dataset Retry",
+		evalsvc.DatasetStatusPublished,
+		time.Unix(1700019900, 0).UTC(),
+	); err != nil {
+		t.Fatalf("seed eval_datasets error = %v", err)
+	}
+
+	store := NewEvalRunStore(pool)
+	_, err = store.CreateRun(ctx, evalsvc.EvalRun{
+		ID:               "eval-run-retry",
+		TenantID:         "tenant-run",
+		DatasetID:        "eval-dataset-retry",
+		DatasetName:      "Dataset Retry",
+		DatasetItemCount: 1,
+		Status:           evalsvc.RunStatusFailed,
+		CreatedBy:        "operator",
+		ErrorReason:      "fault injection",
+		CreatedAt:        time.Unix(1700020000, 0).UTC(),
+		UpdatedAt:        time.Unix(1700020100, 0).UTC(),
+		StartedAt:        time.Unix(1700020050, 0).UTC(),
+		FinishedAt:       time.Unix(1700020100, 0).UTC(),
+	})
+	if err != nil {
+		t.Fatalf("CreateRun() error = %v", err)
+	}
+
+	retried, err := store.RetryRun(ctx, "eval-run-retry", time.Unix(1700020200, 0).UTC())
+	if err != nil {
+		t.Fatalf("RetryRun() error = %v", err)
+	}
+	if retried.Status != evalsvc.RunStatusQueued {
+		t.Fatalf("Status = %q, want %q", retried.Status, evalsvc.RunStatusQueued)
+	}
+	if retried.ErrorReason != "" {
+		t.Fatalf("ErrorReason = %q, want empty", retried.ErrorReason)
+	}
+	if !retried.StartedAt.IsZero() {
+		t.Fatalf("StartedAt = %v, want zero", retried.StartedAt)
+	}
+	if !retried.FinishedAt.IsZero() {
+		t.Fatalf("FinishedAt = %v, want zero", retried.FinishedAt)
+	}
+
+	claimed, err := store.ClaimQueuedRuns(ctx, 1, time.Unix(1700020300, 0).UTC())
+	if err != nil {
+		t.Fatalf("ClaimQueuedRuns() error = %v", err)
+	}
+	if len(claimed) != 1 || claimed[0].ID != "eval-run-retry" {
+		t.Fatalf("claimed = %#v, want retried run to be claimable again", claimed)
+	}
+
+	_, err = store.RetryRun(ctx, "eval-run-retry", time.Unix(1700020400, 0).UTC())
+	if !errors.Is(err, evalsvc.ErrInvalidEvalRunState) {
+		t.Fatalf("error = %v, want %v", err, evalsvc.ErrInvalidEvalRunState)
 	}
 }

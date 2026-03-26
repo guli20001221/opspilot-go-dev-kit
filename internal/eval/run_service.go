@@ -15,6 +15,7 @@ type runStore interface {
 	GetRun(ctx context.Context, runID string) (EvalRun, error)
 	ListRuns(ctx context.Context, filter RunListFilter) (RunListPage, error)
 	ClaimQueuedRuns(ctx context.Context, limit int, startedAt time.Time) ([]EvalRun, error)
+	RetryRun(ctx context.Context, runID string, updatedAt time.Time) (EvalRun, error)
 	UpdateRun(ctx context.Context, item EvalRun) (EvalRun, error)
 }
 
@@ -136,6 +137,11 @@ func (s *RunService) MarkRunFailed(ctx context.Context, runID string, reason str
 	item.FinishedAt = now
 
 	return s.store.UpdateRun(ctx, item)
+}
+
+// RetryRun re-queues a failed eval run for another worker attempt.
+func (s *RunService) RetryRun(ctx context.Context, runID string) (EvalRun, error) {
+	return s.store.RetryRun(ctx, runID, time.Now().UTC())
 }
 
 func newEvalRunID(now time.Time) string {

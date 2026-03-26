@@ -159,3 +159,58 @@ func TestRunnerFinalizesRunAfterExecutionContextCancellation(t *testing.T) {
 		t.Fatal("ErrorReason is empty")
 	}
 }
+
+func TestRunnerProcessesRetriedRunToSucceeded(t *testing.T) {
+	ctx := context.Background()
+	store := newMemoryStore()
+	service := NewRunServiceWithStore(store, nil)
+
+	failedAt := time.Unix(1700030200, 0).UTC()
+	run, err := store.CreateRun(ctx, EvalRun{
+		ID:               "eval-run-retried-success",
+		TenantID:         "tenant-run",
+		DatasetID:        "eval-dataset-success",
+		DatasetName:      "Published baseline",
+		DatasetItemCount: 2,
+		Status:           RunStatusFailed,
+		CreatedBy:        "operator",
+		ErrorReason:      "fault injection",
+		CreatedAt:        time.Unix(1700030100, 0).UTC(),
+		UpdatedAt:        failedAt,
+		StartedAt:        time.Unix(1700030150, 0).UTC(),
+		FinishedAt:       failedAt,
+	})
+	if err != nil {
+		t.Fatalf("CreateRun() error = %v", err)
+	}
+
+	if _, err := service.RetryRun(ctx, run.ID); err != nil {
+		t.Fatalf("RetryRun() error = %v", err)
+	}
+
+	runner := NewRunner(service, NewPlaceholderRunExecutor())
+	processed, err := runner.ProcessNextBatch(ctx, 10)
+	if err != nil {
+		t.Fatalf("ProcessNextBatch() error = %v", err)
+	}
+	if processed != 1 {
+		t.Fatalf("processed = %d, want 1", processed)
+	}
+
+	got, err := service.GetRun(ctx, run.ID)
+	if err != nil {
+		t.Fatalf("GetRun() error = %v", err)
+	}
+	if got.Status != RunStatusSucceeded {
+		t.Fatalf("Status = %q, want %q", got.Status, RunStatusSucceeded)
+	}
+	if got.ErrorReason != "" {
+		t.Fatalf("ErrorReason = %q, want empty", got.ErrorReason)
+	}
+	if got.StartedAt.IsZero() {
+		t.Fatal("StartedAt is zero")
+	}
+	if got.FinishedAt.IsZero() {
+		t.Fatal("FinishedAt is zero")
+	}
+}

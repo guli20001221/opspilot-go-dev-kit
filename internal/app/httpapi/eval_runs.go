@@ -50,17 +50,35 @@ func (a *appHandler) handleEvalRuns(w http.ResponseWriter, r *http.Request) {
 }
 
 func (a *appHandler) handleEvalRunByID(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodGet {
-		writeError(w, http.StatusMethodNotAllowed, "method_not_allowed", "method not allowed")
-		return
-	}
-
-	runID := strings.TrimPrefix(r.URL.Path, "/api/v1/eval-runs/")
-	if runID == "" || strings.Contains(runID, "/") {
+	runID, action, ok := parseEvalRunPath(r.URL.Path)
+	if !ok {
 		writeError(w, http.StatusNotFound, "not_found", "not found")
 		return
 	}
 
+	if action == "" {
+		if r.Method != http.MethodGet {
+			writeError(w, http.StatusMethodNotAllowed, "method_not_allowed", "method not allowed")
+			return
+		}
+		a.handleGetEvalRun(w, r, runID)
+		return
+	}
+
+	if r.Method != http.MethodPost {
+		writeError(w, http.StatusMethodNotAllowed, "method_not_allowed", "method not allowed")
+		return
+	}
+
+	switch action {
+	case "retry":
+		a.handleRetryEvalRun(w, r, runID)
+	default:
+		writeError(w, http.StatusNotFound, "not_found", "not found")
+	}
+}
+
+func (a *appHandler) handleGetEvalRun(w http.ResponseWriter, r *http.Request, runID string) {
 	tenantID := strings.TrimSpace(r.URL.Query().Get("tenant_id"))
 	if tenantID == "" {
 		writeError(w, http.StatusBadRequest, "invalid_query", "tenant_id is required")
@@ -82,6 +100,43 @@ func (a *appHandler) handleEvalRunByID(w http.ResponseWriter, r *http.Request) {
 	}
 
 	writeJSON(w, http.StatusOK, newEvalRunResponse(item))
+}
+
+func (a *appHandler) handleRetryEvalRun(w http.ResponseWriter, r *http.Request, runID string) {
+	tenantID := strings.TrimSpace(r.URL.Query().Get("tenant_id"))
+	if tenantID == "" {
+		writeError(w, http.StatusBadRequest, "invalid_query", "tenant_id is required")
+		return
+	}
+
+	item, err := a.evalRuns.GetRun(r.Context(), runID)
+	if err != nil {
+		if errors.Is(err, evalsvc.ErrEvalRunNotFound) {
+			writeError(w, http.StatusNotFound, "eval_run_not_found", "eval run not found")
+			return
+		}
+		writeError(w, http.StatusInternalServerError, "eval_run_lookup_failed", err.Error())
+		return
+	}
+	if item.TenantID != tenantID {
+		writeError(w, http.StatusNotFound, "eval_run_not_found", "eval run not found")
+		return
+	}
+
+	retried, err := a.evalRuns.RetryRun(r.Context(), runID)
+	if err != nil {
+		switch {
+		case errors.Is(err, evalsvc.ErrEvalRunNotFound):
+			writeError(w, http.StatusNotFound, "eval_run_not_found", "eval run not found")
+		case errors.Is(err, evalsvc.ErrInvalidEvalRunState):
+			writeError(w, http.StatusConflict, "invalid_eval_run_state", err.Error())
+		default:
+			writeError(w, http.StatusInternalServerError, "eval_run_retry_failed", err.Error())
+		}
+		return
+	}
+
+	writeJSON(w, http.StatusOK, newEvalRunResponse(retried))
 }
 
 func (a *appHandler) handleCreateEvalRun(w http.ResponseWriter, r *http.Request) {
@@ -194,4 +249,27 @@ func newEvalRunResponse(item evalsvc.EvalRun) evalRunResponse {
 		resp.FinishedAt = item.FinishedAt.Format(time.RFC3339Nano)
 	}
 	return resp
+}
+
+func parseEvalRunPath(path string) (runID string, action string, ok bool) {
+	trimmed := strings.TrimPrefix(path, "/api/v1/eval-runs/")
+	if trimmed == "" {
+		return "", "", false
+	}
+
+	parts := strings.Split(trimmed, "/")
+	switch len(parts) {
+	case 1:
+		if parts[0] == "" {
+			return "", "", false
+		}
+		return parts[0], "", true
+	case 2:
+		if parts[0] == "" || parts[1] == "" {
+			return "", "", false
+		}
+		return parts[0], parts[1], true
+	default:
+		return "", "", false
+	}
 }

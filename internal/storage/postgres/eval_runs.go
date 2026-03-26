@@ -293,6 +293,36 @@ WHERE id = $1`
 	return s.GetRun(ctx, item.ID)
 }
 
+// RetryRun atomically re-queues one failed durable eval run.
+func (s *EvalRunStore) RetryRun(ctx context.Context, runID string, updatedAt time.Time) (evalsvc.EvalRun, error) {
+	const query = `
+UPDATE eval_runs
+SET status = $2,
+    error_reason = '',
+    updated_at = $3,
+    started_at = NULL,
+    finished_at = NULL
+WHERE id = $1
+  AND status = $4`
+
+	commandTag, err := s.pool.Exec(ctx, query, runID, evalsvc.RunStatusQueued, updatedAt, evalsvc.RunStatusFailed)
+	if err != nil {
+		return evalsvc.EvalRun{}, fmt.Errorf("retry eval run: %w", err)
+	}
+	if commandTag.RowsAffected() == 1 {
+		return s.GetRun(ctx, runID)
+	}
+
+	if _, err := s.GetRun(ctx, runID); err != nil {
+		if errors.Is(err, evalsvc.ErrEvalRunNotFound) {
+			return evalsvc.EvalRun{}, err
+		}
+		return evalsvc.EvalRun{}, fmt.Errorf("lookup eval run after retry miss: %w", err)
+	}
+
+	return evalsvc.EvalRun{}, evalsvc.ErrInvalidEvalRunState
+}
+
 func scanEvalRun(scanner interface {
 	Scan(dest ...any) error
 }) (evalsvc.EvalRun, error) {

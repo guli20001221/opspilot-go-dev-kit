@@ -333,3 +333,25 @@ func (s *memoryStore) UpdateRun(_ context.Context, item EvalRun) (EvalRun, error
 	s.runs[item.ID] = item
 	return item, nil
 }
+
+func (s *memoryStore) RetryRun(_ context.Context, runID string, updatedAt time.Time) (EvalRun, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	item, ok := s.runs[runID]
+	if !ok {
+		return EvalRun{}, fmt.Errorf("%w: %s", ErrEvalRunNotFound, runID)
+	}
+	if item.Status != RunStatusFailed {
+		return EvalRun{}, ErrInvalidEvalRunState
+	}
+
+	item.Status = RunStatusQueued
+	item.ErrorReason = ""
+	item.UpdatedAt = updatedAt
+	item.StartedAt = time.Time{}
+	item.FinishedAt = time.Time{}
+	s.runs[runID] = item
+
+	return item, nil
+}

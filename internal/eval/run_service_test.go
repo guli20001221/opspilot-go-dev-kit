@@ -321,3 +321,109 @@ func TestRunServiceListRunsUsesLatestUpdatedFirstOrder(t *testing.T) {
 		t.Fatalf("run order = %#v, want latest-updated-first", page.Runs)
 	}
 }
+
+func TestRunServiceRetryRunRequeuesFailedRun(t *testing.T) {
+	ctx := context.Background()
+	store := newMemoryStore()
+	service := NewRunServiceWithStore(store, nil)
+
+	failedAt := time.Unix(1700030200, 0).UTC()
+	if _, err := store.CreateRun(ctx, EvalRun{
+		ID:               "eval-run-retry",
+		TenantID:         "tenant-run",
+		DatasetID:        "eval-dataset-retry",
+		DatasetName:      "Dataset Retry",
+		DatasetItemCount: 2,
+		Status:           RunStatusFailed,
+		CreatedBy:        "operator",
+		ErrorReason:      "fault injection",
+		CreatedAt:        time.Unix(1700030000, 0).UTC(),
+		UpdatedAt:        failedAt,
+		StartedAt:        time.Unix(1700030100, 0).UTC(),
+		FinishedAt:       failedAt,
+	}); err != nil {
+		t.Fatalf("CreateRun() error = %v", err)
+	}
+
+	retried, err := service.RetryRun(ctx, "eval-run-retry")
+	if err != nil {
+		t.Fatalf("RetryRun() error = %v", err)
+	}
+	if retried.Status != RunStatusQueued {
+		t.Fatalf("Status = %q, want %q", retried.Status, RunStatusQueued)
+	}
+	if retried.ErrorReason != "" {
+		t.Fatalf("ErrorReason = %q, want empty", retried.ErrorReason)
+	}
+	if !retried.StartedAt.IsZero() {
+		t.Fatalf("StartedAt = %v, want zero", retried.StartedAt)
+	}
+	if !retried.FinishedAt.IsZero() {
+		t.Fatalf("FinishedAt = %v, want zero", retried.FinishedAt)
+	}
+	if !retried.UpdatedAt.After(failedAt) {
+		t.Fatalf("UpdatedAt = %v, want after %v", retried.UpdatedAt, failedAt)
+	}
+}
+
+func TestRunServiceRetryRunRequiresFailedState(t *testing.T) {
+	ctx := context.Background()
+	store := newMemoryStore()
+	service := NewRunServiceWithStore(store, nil)
+
+	if _, err := store.CreateRun(ctx, EvalRun{
+		ID:               "eval-run-not-failed",
+		TenantID:         "tenant-run",
+		DatasetID:        "eval-dataset-retry",
+		DatasetName:      "Dataset Retry",
+		DatasetItemCount: 1,
+		Status:           RunStatusSucceeded,
+		CreatedBy:        "operator",
+		CreatedAt:        time.Unix(1700030000, 0).UTC(),
+		UpdatedAt:        time.Unix(1700030100, 0).UTC(),
+		StartedAt:        time.Unix(1700030050, 0).UTC(),
+		FinishedAt:       time.Unix(1700030100, 0).UTC(),
+	}); err != nil {
+		t.Fatalf("CreateRun() error = %v", err)
+	}
+
+	_, err := service.RetryRun(ctx, "eval-run-not-failed")
+	if !errors.Is(err, ErrInvalidEvalRunState) {
+		t.Fatalf("error = %v, want %v", err, ErrInvalidEvalRunState)
+	}
+}
+
+func TestRunServiceRetryRunRejectsRunClaimedAfterRetry(t *testing.T) {
+	ctx := context.Background()
+	store := newMemoryStore()
+	service := NewRunServiceWithStore(store, nil)
+
+	if _, err := store.CreateRun(ctx, EvalRun{
+		ID:               "eval-run-race",
+		TenantID:         "tenant-run",
+		DatasetID:        "eval-dataset-race",
+		DatasetName:      "Dataset Race",
+		DatasetItemCount: 1,
+		Status:           RunStatusFailed,
+		CreatedBy:        "operator",
+		ErrorReason:      "fault injection",
+		CreatedAt:        time.Unix(1700030000, 0).UTC(),
+		UpdatedAt:        time.Unix(1700030100, 0).UTC(),
+		StartedAt:        time.Unix(1700030050, 0).UTC(),
+		FinishedAt:       time.Unix(1700030100, 0).UTC(),
+	}); err != nil {
+		t.Fatalf("CreateRun() error = %v", err)
+	}
+
+	if _, err := service.RetryRun(ctx, "eval-run-race"); err != nil {
+		t.Fatalf("RetryRun() error = %v", err)
+	}
+	if _, err := service.ClaimQueuedRuns(ctx, 10); err != nil {
+		t.Fatalf("ClaimQueuedRuns() error = %v", err)
+	}
+
+	_, err := service.RetryRun(ctx, "eval-run-race")
+	if !errors.Is(err, ErrInvalidEvalRunState) {
+		t.Fatalf("error = %v, want %v", err, ErrInvalidEvalRunState)
+	}
+}
