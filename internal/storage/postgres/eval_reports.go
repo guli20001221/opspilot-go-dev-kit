@@ -159,6 +159,67 @@ WHERE id = $1`
 	return scanEvalReport(s.pool.QueryRow(ctx, query, reportID))
 }
 
+// ListEvalReports loads one filtered eval-report page.
+func (s *EvalReportStore) ListEvalReports(ctx context.Context, filter evalsvc.EvalReportListFilter) (evalsvc.EvalReportListPage, error) {
+	const query = `
+SELECT
+    id,
+    tenant_id,
+    run_id,
+    dataset_id,
+    dataset_name,
+    run_status,
+    status,
+    summary,
+    total_items,
+    recorded_results,
+    passed_items,
+    failed_items,
+    missing_results,
+    average_score,
+    judge_version,
+    metadata_json,
+    bad_cases_json,
+    created_at,
+    updated_at,
+    ready_at
+FROM eval_reports
+WHERE tenant_id = $1
+  AND ($2 = '' OR dataset_id = $2)
+  AND ($3 = '' OR run_status = $3)
+  AND ($4 = '' OR status = $4)
+ORDER BY updated_at DESC, id DESC
+LIMIT $5 OFFSET $6`
+
+	rows, err := s.pool.Query(ctx, query, filter.TenantID, filter.DatasetID, filter.RunStatus, filter.Status, filter.Limit+1, filter.Offset)
+	if err != nil {
+		return evalsvc.EvalReportListPage{}, fmt.Errorf("query eval reports: %w", err)
+	}
+	defer rows.Close()
+
+	page := evalsvc.EvalReportListPage{
+		Reports: make([]evalsvc.EvalReport, 0, filter.Limit),
+	}
+	for rows.Next() {
+		item, err := scanEvalReport(rows)
+		if err != nil {
+			return evalsvc.EvalReportListPage{}, err
+		}
+		page.Reports = append(page.Reports, item)
+	}
+	if err := rows.Err(); err != nil {
+		return evalsvc.EvalReportListPage{}, fmt.Errorf("iterate eval reports: %w", err)
+	}
+
+	if len(page.Reports) > filter.Limit {
+		page.HasMore = true
+		page.NextOffset = filter.Offset + filter.Limit
+		page.Reports = page.Reports[:filter.Limit]
+	}
+
+	return page, nil
+}
+
 func scanEvalReport(row pgx.Row) (evalsvc.EvalReport, error) {
 	var item evalsvc.EvalReport
 	var badCasesJSON json.RawMessage

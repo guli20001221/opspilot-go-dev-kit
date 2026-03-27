@@ -24,6 +24,7 @@ type Dependencies struct {
 	EvalCases    *evalsvc.Service
 	EvalDatasets *evalsvc.DatasetService
 	EvalRuns     *evalsvc.RunService
+	EvalReports  *evalsvc.EvalReportService
 	Versions     *version.Service
 	Registry     *toolregistry.Registry
 }
@@ -36,7 +37,7 @@ func NewHandler() http.Handler {
 // NewHandlerWithDependencies constructs the HTTP handler tree with injected services.
 func NewHandlerWithDependencies(deps Dependencies) http.Handler {
 	mux := http.NewServeMux()
-	app := newAppHandler(deps.Workflows, deps.Reports, deps.Cases, deps.EvalCases, deps.EvalDatasets, deps.EvalRuns, deps.Versions, deps.Registry)
+	app := newAppHandler(deps.Workflows, deps.Reports, deps.Cases, deps.EvalCases, deps.EvalDatasets, deps.EvalRuns, deps.EvalReports, deps.Versions, deps.Registry)
 	mux.HandleFunc("/healthz", writeStatus("ok"))
 	mux.HandleFunc("/readyz", writeStatus("ready"))
 	app.registerRoutes(mux)

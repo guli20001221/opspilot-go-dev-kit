@@ -11,6 +11,7 @@ import (
 type evalReportStore interface {
 	SaveEvalReport(ctx context.Context, item EvalReport) (EvalReport, error)
 	GetEvalReport(ctx context.Context, reportID string) (EvalReport, error)
+	ListEvalReports(ctx context.Context, filter EvalReportListFilter) (EvalReportListPage, error)
 }
 
 type evalRunDetailReader interface {
@@ -47,6 +48,15 @@ func NewEvalReportServiceWithDependencies(store evalReportStore, runs evalRunDet
 // GetEvalReport returns one durable eval report.
 func (s *EvalReportService) GetEvalReport(ctx context.Context, reportID string) (EvalReport, error) {
 	return s.store.GetEvalReport(ctx, reportID)
+}
+
+// ListEvalReports returns a durable eval-report page.
+func (s *EvalReportService) ListEvalReports(ctx context.Context, filter EvalReportListFilter) (EvalReportListPage, error) {
+	if filter.Limit <= 0 {
+		filter.Limit = 20
+	}
+
+	return s.store.ListEvalReports(ctx, filter)
 }
 
 // MaterializeRunReport builds and saves the canonical eval report for one completed run.

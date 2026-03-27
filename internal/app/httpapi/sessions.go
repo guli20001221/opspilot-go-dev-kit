@@ -24,6 +24,7 @@ type appHandler struct {
 	evalCases      *evalsvc.Service
 	evalDatasets   *evalsvc.DatasetService
 	evalRuns       *evalsvc.RunService
+	evalReports    *evalsvc.EvalReportService
 	reports        *report.Service
 	traceDetails   *tracedetail.Service
 	sessions       *session.Service
@@ -66,7 +67,7 @@ type errorResponse struct {
 	Message string `json:"message"`
 }
 
-func newAppHandler(workflowService *workflow.Service, reportService *report.Service, caseService *casesvc.Service, evalCaseService *evalsvc.Service, evalDatasetService *evalsvc.DatasetService, evalRunService *evalsvc.RunService, versionService *version.Service, registry *toolregistry.Registry) *appHandler {
+func newAppHandler(workflowService *workflow.Service, reportService *report.Service, caseService *casesvc.Service, evalCaseService *evalsvc.Service, evalDatasetService *evalsvc.DatasetService, evalRunService *evalsvc.RunService, evalReportService *evalsvc.EvalReportService, versionService *version.Service, registry *toolregistry.Registry) *appHandler {
 	sessionService := session.NewService()
 	if workflowService == nil {
 		workflowService = workflow.NewService()
@@ -90,6 +91,9 @@ func newAppHandler(workflowService *workflow.Service, reportService *report.Serv
 	if evalRunService == nil {
 		evalRunService = evalsvc.NewRunService(evalDatasetService)
 	}
+	if evalReportService == nil {
+		evalReportService = evalsvc.NewEvalReportServiceWithDependencies(nil, evalRunService)
+	}
 
 	return &appHandler{
 		adminTaskBoard: admintaskboard.NewService(workflowService),
@@ -97,6 +101,7 @@ func newAppHandler(workflowService *workflow.Service, reportService *report.Serv
 		evalCases:      evalCaseService,
 		evalDatasets:   evalDatasetService,
 		evalRuns:       evalRunService,
+		evalReports:    evalReportService,
 		reports:        reportService,
 		traceDetails:   traceDetailService,
 		sessions:       sessionService,
@@ -127,6 +132,8 @@ func (a *appHandler) registerRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("/api/v1/eval-datasets/", a.handleEvalDatasetByID)
 	mux.HandleFunc("/api/v1/eval-runs", a.handleEvalRuns)
 	mux.HandleFunc("/api/v1/eval-runs/", a.handleEvalRunByID)
+	mux.HandleFunc("/api/v1/eval-reports", a.handleEvalReports)
+	mux.HandleFunc("/api/v1/eval-reports/", a.handleEvalReportByID)
 	mux.HandleFunc("/api/v1/tasks", a.handleTasks)
 	mux.HandleFunc("/api/v1/tasks/", a.handleTaskByID)
 	mux.HandleFunc("/api/v1/reports", a.handleReports)

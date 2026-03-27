@@ -508,6 +508,52 @@ func (s *memoryStore) GetEvalReport(_ context.Context, reportID string) (EvalRep
 	return item, nil
 }
 
+func (s *memoryStore) ListEvalReports(_ context.Context, filter EvalReportListFilter) (EvalReportListPage, error) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	items := make([]EvalReport, 0, len(s.evalReports))
+	for _, item := range s.evalReports {
+		if filter.TenantID != "" && item.TenantID != filter.TenantID {
+			continue
+		}
+		if filter.DatasetID != "" && item.DatasetID != filter.DatasetID {
+			continue
+		}
+		if filter.RunStatus != "" && item.RunStatus != filter.RunStatus {
+			continue
+		}
+		if filter.Status != "" && item.Status != filter.Status {
+			continue
+		}
+		item.BadCases = append([]EvalReportBadCase(nil), item.BadCases...)
+		items = append(items, item)
+	}
+
+	sort.Slice(items, func(i int, j int) bool {
+		if !items[i].UpdatedAt.Equal(items[j].UpdatedAt) {
+			return items[i].UpdatedAt.After(items[j].UpdatedAt)
+		}
+		return items[i].ID > items[j].ID
+	})
+
+	start := filter.Offset
+	if start > len(items) {
+		start = len(items)
+	}
+	end := start + filter.Limit
+	page := EvalReportListPage{}
+	if end < len(items) {
+		page.HasMore = true
+		page.NextOffset = end
+	} else {
+		end = len(items)
+	}
+	page.Reports = append(page.Reports, items[start:end]...)
+
+	return page, nil
+}
+
 func withRunResultSummary(item EvalRun, results []EvalRunItemResult) EvalRun {
 	item.ResultSummary = summarizeRunResultsForTotal(item.DatasetItemCount, results)
 	return item

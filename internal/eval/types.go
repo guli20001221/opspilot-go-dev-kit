@@ -281,6 +281,23 @@ type EvalReport struct {
 	ReadyAt         time.Time
 }
 
+// EvalReportListFilter constrains eval-report list reads.
+type EvalReportListFilter struct {
+	TenantID  string
+	DatasetID string
+	RunStatus string
+	Status    string
+	Limit     int
+	Offset    int
+}
+
+// EvalReportListPage is one eval-report list page.
+type EvalReportListPage struct {
+	Reports    []EvalReport
+	HasMore    bool
+	NextOffset int
+}
+
 // RunListFilter constrains eval-run list reads.
 type RunListFilter struct {
 	TenantID  string

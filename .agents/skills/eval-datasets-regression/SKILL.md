@@ -56,6 +56,7 @@ Turn prompt, routing, retrieval, and tool changes into measurable, repeatable qu
 24. The first provider-backed judge slice should be env-gated and reuse the existing durable `item_results` contract, so local development can stay on the placeholder path until explicit credentials or an HTTP judge service are supplied.
 25. When the first external judge call is introduced, preserve a canonical terminal fallback path so provider errors do not strand eval runs in `running`.
 26. Once provider-backed judging exists, materialize terminal eval runs into a durable aggregated eval-report artifact before building comparison-heavy UI, so metrics and bad-case references have a canonical backend source of truth.
+27. Once durable aggregated eval reports exist, expose canonical `GET /api/v1/eval-reports` and `GET /api/v1/eval-reports/{report_id}` reads before building eval-report-heavy operator views, keeping the list lightweight and the single-report detail as the drill-down surface.
 
 ## Output contract
 When you finish, always report:

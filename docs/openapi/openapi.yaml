@@ -1803,6 +1803,127 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
+  /api/v1/eval-reports:
+    get:
+      summary: List durable eval reports
+      description: |
+        Returns one tenant-scoped page of aggregated eval-report artifacts.
+        This list stays lightweight and omits heavier fields such as `metadata` and `bad_cases`,
+        which remain available on the single-report detail contract.
+      operationId: listEvalReports
+      parameters:
+        - name: tenant_id
+          in: query
+          required: true
+          schema:
+            type: string
+        - name: dataset_id
+          in: query
+          required: false
+          schema:
+            type: string
+        - name: run_status
+          in: query
+          required: false
+          schema:
+            type: string
+            enum:
+              - succeeded
+              - failed
+        - name: status
+          in: query
+          required: false
+          schema:
+            type: string
+            enum:
+              - ready
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            default: 20
+        - name: offset
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 0
+      responses:
+        '200':
+          description: Eval report page returned.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ListEvalReportsResponse'
+        '400':
+          description: Query parameters were invalid or incomplete.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '405':
+          description: Method not allowed.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Eval report list failed.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+  /api/v1/eval-reports/{report_id}:
+    get:
+      summary: Get a durable eval report
+      description: |
+        Returns one aggregated eval report by stable ID.
+        This detail contract includes heavier drill-down fields such as `metadata` and `bad_cases`.
+      operationId: getEvalReport
+      parameters:
+        - name: report_id
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: tenant_id
+          in: query
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Eval report returned.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/EvalReport'
+        '400':
+          description: Missing required tenant scope query.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Eval report not found.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '405':
+          description: Method not allowed.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Eval report lookup failed.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
   /api/v1/admin/task-board:
     get:
       summary: Get the admin task board view
@@ -2912,6 +3033,189 @@ components:
         missing_results:
           type: integer
           minimum: 0
+    EvalReport:
+      type: object
+      required:
+        - report_id
+        - tenant_id
+        - run_id
+        - dataset_id
+        - dataset_name
+        - run_status
+        - status
+        - summary
+        - total_items
+        - recorded_results
+        - passed_items
+        - failed_items
+        - missing_results
+        - average_score
+        - created_at
+        - updated_at
+        - ready_at
+      properties:
+        report_id:
+          type: string
+        tenant_id:
+          type: string
+        run_id:
+          type: string
+        dataset_id:
+          type: string
+        dataset_name:
+          type: string
+        run_status:
+          type: string
+          enum:
+            - succeeded
+            - failed
+        status:
+          type: string
+          enum:
+            - ready
+        summary:
+          type: string
+        total_items:
+          type: integer
+          minimum: 0
+        recorded_results:
+          type: integer
+          minimum: 0
+        passed_items:
+          type: integer
+          minimum: 0
+        failed_items:
+          type: integer
+          minimum: 0
+        missing_results:
+          type: integer
+          minimum: 0
+        average_score:
+          type: number
+          format: double
+        judge_version:
+          type: string
+        metadata:
+          type: object
+          description: Raw aggregated report metadata, present on single-report detail reads.
+        bad_cases:
+          type: array
+          description: Failed or risky cases attached to the aggregated eval report detail.
+          items:
+            $ref: '#/components/schemas/EvalReportBadCase'
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+        ready_at:
+          type: string
+          format: date-time
+    EvalReportSnapshot:
+      type: object
+      required:
+        - report_id
+        - tenant_id
+        - run_id
+        - dataset_id
+        - dataset_name
+        - run_status
+        - status
+        - summary
+        - total_items
+        - recorded_results
+        - passed_items
+        - failed_items
+        - missing_results
+        - average_score
+        - created_at
+        - updated_at
+        - ready_at
+      properties:
+        report_id:
+          type: string
+        tenant_id:
+          type: string
+        run_id:
+          type: string
+        dataset_id:
+          type: string
+        dataset_name:
+          type: string
+        run_status:
+          type: string
+          enum:
+            - succeeded
+            - failed
+        status:
+          type: string
+          enum:
+            - ready
+        summary:
+          type: string
+        total_items:
+          type: integer
+          minimum: 0
+        recorded_results:
+          type: integer
+          minimum: 0
+        passed_items:
+          type: integer
+          minimum: 0
+        failed_items:
+          type: integer
+          minimum: 0
+        missing_results:
+          type: integer
+          minimum: 0
+        average_score:
+          type: number
+          format: double
+        judge_version:
+          type: string
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+        ready_at:
+          type: string
+          format: date-time
+    EvalReportBadCase:
+      type: object
+      required:
+        - eval_case_id
+        - title
+        - source_case_id
+        - verdict
+        - score
+      properties:
+        eval_case_id:
+          type: string
+        title:
+          type: string
+        source_case_id:
+          type: string
+        source_task_id:
+          type: string
+        source_report_id:
+          type: string
+        trace_id:
+          type: string
+        version_id:
+          type: string
+        verdict:
+          type: string
+          enum:
+            - pass
+            - fail
+        detail:
+          type: string
+        score:
+          type: number
+          format: double
     ListEvalRunsResponse:
       type: object
       required:
@@ -2922,6 +3226,21 @@ components:
           type: array
           items:
             $ref: '#/components/schemas/EvalRunSnapshot'
+        has_more:
+          type: boolean
+        next_offset:
+          type: integer
+          minimum: 0
+    ListEvalReportsResponse:
+      type: object
+      required:
+        - reports
+        - has_more
+      properties:
+        reports:
+          type: array
+          items:
+            $ref: '#/components/schemas/EvalReportSnapshot'
         has_more:
           type: boolean
         next_offset:
