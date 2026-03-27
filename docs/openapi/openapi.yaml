@@ -3479,6 +3479,8 @@ components:
         bad_case_count:
           type: integer
           minimum: 0
+        latest_follow_up_case_id:
+          type: string
         created_at:
           type: string
           format: date-time

@@ -105,6 +105,7 @@ Provide a practical operator UI for evaluation and runtime analysis while keepin
 77. When operators need the unresolved-regression slice on `/admin/eval-reports`, prefer a canonical list filter such as `needs_follow_up=true` plus a quick-view preset over inventing a second eval-report queue endpoint.
 78. When operators need direct row-level handoff from `/admin/eval-reports` into follow-up work, prefer surfacing a stable `latest_follow_up_case_id` on the canonical list contract over issuing an extra per-row detail fetch first.
 79. When an admin detail pane needs to reuse an existing handoff target, prefer rendering the same canonical ID from the selected list item or detail payload instead of adding a second handoff-specific endpoint.
+80. When a compare surface needs to show whether each side already has active follow-up, prefer extending the compare item payload with canonical linked IDs rather than adding one-off side queries from the browser.
 
 ## Output contract
 When you finish, always report:

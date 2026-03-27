@@ -78,26 +78,27 @@ type evalReportComparisonSummaryResponse struct {
 }
 
 type evalReportComparisonItemResponse struct {
-	ReportID        string  `json:"report_id"`
-	TenantID        string  `json:"tenant_id"`
-	RunID           string  `json:"run_id"`
-	DatasetID       string  `json:"dataset_id"`
-	DatasetName     string  `json:"dataset_name"`
-	RunStatus       string  `json:"run_status"`
-	Status          string  `json:"status"`
-	Summary         string  `json:"summary"`
-	TotalItems      int     `json:"total_items"`
-	RecordedResults int     `json:"recorded_results"`
-	PassedItems     int     `json:"passed_items"`
-	FailedItems     int     `json:"failed_items"`
-	MissingResults  int     `json:"missing_results"`
-	AverageScore    float64 `json:"average_score"`
-	JudgeVersion    string  `json:"judge_version,omitempty"`
-	VersionID       string  `json:"version_id,omitempty"`
-	BadCaseCount    int     `json:"bad_case_count"`
-	CreatedAt       string  `json:"created_at"`
-	UpdatedAt       string  `json:"updated_at"`
-	ReadyAt         string  `json:"ready_at"`
+	ReportID             string  `json:"report_id"`
+	TenantID             string  `json:"tenant_id"`
+	RunID                string  `json:"run_id"`
+	DatasetID            string  `json:"dataset_id"`
+	DatasetName          string  `json:"dataset_name"`
+	RunStatus            string  `json:"run_status"`
+	Status               string  `json:"status"`
+	Summary              string  `json:"summary"`
+	TotalItems           int     `json:"total_items"`
+	RecordedResults      int     `json:"recorded_results"`
+	PassedItems          int     `json:"passed_items"`
+	FailedItems          int     `json:"failed_items"`
+	MissingResults       int     `json:"missing_results"`
+	AverageScore         float64 `json:"average_score"`
+	JudgeVersion         string  `json:"judge_version,omitempty"`
+	VersionID            string  `json:"version_id,omitempty"`
+	BadCaseCount         int     `json:"bad_case_count"`
+	LatestFollowUpCaseID string  `json:"latest_follow_up_case_id,omitempty"`
+	CreatedAt            string  `json:"created_at"`
+	UpdatedAt            string  `json:"updated_at"`
+	ReadyAt              string  `json:"ready_at"`
 }
 
 type evalReportComparisonResponse struct {
@@ -172,9 +173,18 @@ func (a *appHandler) handleEvalReportCompare(w http.ResponseWriter, r *http.Requ
 		return
 	}
 
+	followUpSummaries := map[string]casesvc.EvalReportFollowUpSummary{}
+	if a.cases != nil {
+		followUpSummaries, err = a.cases.SummarizeBySourceEvalReportIDs(r.Context(), tenantID, []string{comparison.Left.ID, comparison.Right.ID})
+		if err != nil {
+			writeError(w, http.StatusInternalServerError, "eval_report_follow_up_summary_failed", err.Error())
+			return
+		}
+	}
+
 	writeJSON(w, http.StatusOK, evalReportComparisonResponse{
-		Left:  newEvalReportComparisonItemResponse(comparison.Left),
-		Right: newEvalReportComparisonItemResponse(comparison.Right),
+		Left:  newEvalReportComparisonItemResponse(comparison.Left, followUpSummaries[comparison.Left.ID]),
+		Right: newEvalReportComparisonItemResponse(comparison.Right, followUpSummaries[comparison.Right.ID]),
 		Summary: evalReportComparisonSummaryResponse{
 			SameTenant:           comparison.Summary.SameTenant,
 			SameDataset:          comparison.Summary.SameDataset,
@@ -415,28 +425,29 @@ func newEvalReportResponse(item evalsvc.EvalReport, includeHeavy bool, followUpS
 	return resp
 }
 
-func newEvalReportComparisonItemResponse(item evalsvc.EvalReport) evalReportComparisonItemResponse {
+func newEvalReportComparisonItemResponse(item evalsvc.EvalReport, followUpSummary casesvc.EvalReportFollowUpSummary) evalReportComparisonItemResponse {
 	return evalReportComparisonItemResponse{
-		ReportID:        item.ID,
-		TenantID:        item.TenantID,
-		RunID:           item.RunID,
-		DatasetID:       item.DatasetID,
-		DatasetName:     item.DatasetName,
-		RunStatus:       item.RunStatus,
-		Status:          item.Status,
-		Summary:         item.Summary,
-		TotalItems:      item.TotalItems,
-		RecordedResults: item.RecordedResults,
-		PassedItems:     item.PassedItems,
-		FailedItems:     item.FailedItems,
-		MissingResults:  item.MissingResults,
-		AverageScore:    item.AverageScore,
-		JudgeVersion:    item.JudgeVersion,
-		VersionID:       firstEvalReportVersionID(item.MetadataJSON),
-		BadCaseCount:    len(item.BadCases),
-		CreatedAt:       item.CreatedAt.Format(time.RFC3339Nano),
-		UpdatedAt:       item.UpdatedAt.Format(time.RFC3339Nano),
-		ReadyAt:         item.ReadyAt.Format(time.RFC3339Nano),
+		ReportID:             item.ID,
+		TenantID:             item.TenantID,
+		RunID:                item.RunID,
+		DatasetID:            item.DatasetID,
+		DatasetName:          item.DatasetName,
+		RunStatus:            item.RunStatus,
+		Status:               item.Status,
+		Summary:              item.Summary,
+		TotalItems:           item.TotalItems,
+		RecordedResults:      item.RecordedResults,
+		PassedItems:          item.PassedItems,
+		FailedItems:          item.FailedItems,
+		MissingResults:       item.MissingResults,
+		AverageScore:         item.AverageScore,
+		JudgeVersion:         item.JudgeVersion,
+		VersionID:            firstEvalReportVersionID(item.MetadataJSON),
+		BadCaseCount:         len(item.BadCases),
+		LatestFollowUpCaseID: followUpSummary.LatestFollowUpCaseID,
+		CreatedAt:            item.CreatedAt.Format(time.RFC3339Nano),
+		UpdatedAt:            item.UpdatedAt.Format(time.RFC3339Nano),
+		ReadyAt:              item.ReadyAt.Format(time.RFC3339Nano),
 	}
 }
 

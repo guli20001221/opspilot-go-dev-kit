@@ -133,8 +133,31 @@ func TestCompareEvalReportsReturnsTypedSummary(t *testing.T) {
 	reportService := evalsvc.NewEvalReportServiceWithDependencies(nil, runService)
 	leftReportID := materializeEvalRunReport(t, "tenant-eval-report-compare", evalsvc.RunStatusSucceeded, "success detail", caseService, evalCaseService, datasetService, runService, reportService, "Dataset Compare A", "Source Left")
 	rightReportID := materializeEvalRunReport(t, "tenant-eval-report-compare", evalsvc.RunStatusFailed, "failure detail", caseService, evalCaseService, datasetService, runService, reportService, "Dataset Compare B", "Source Right")
+	leftFollowUp, err := caseService.CreateCase(context.Background(), casesvc.CreateInput{
+		TenantID:           "tenant-eval-report-compare",
+		Title:              "Left follow-up",
+		Summary:            "left summary",
+		SourceEvalReportID: leftReportID,
+		CreatedBy:          "operator-left",
+	})
+	if err != nil {
+		t.Fatalf("CreateCase(leftFollowUp) error = %v", err)
+	}
+	rightFollowUp, err := caseService.CreateCase(context.Background(), casesvc.CreateInput{
+		TenantID:           "tenant-eval-report-compare",
+		Title:              "Right follow-up",
+		Summary:            "right summary",
+		SourceEvalReportID: rightReportID,
+		CreatedBy:          "operator-right",
+	})
+	if err != nil {
+		t.Fatalf("CreateCase(rightFollowUp) error = %v", err)
+	}
 
-	server := httptest.NewServer(NewHandlerWithDependencies(Dependencies{EvalReports: reportService}))
+	server := httptest.NewServer(NewHandlerWithDependencies(Dependencies{
+		Cases:       caseService,
+		EvalReports: reportService,
+	}))
 	defer server.Close()
 
 	resp, err := http.Get(server.URL + "/api/v1/eval-report-compare?tenant_id=tenant-eval-report-compare&left_report_id=" + leftReportID + "&right_report_id=" + rightReportID)
@@ -157,42 +180,44 @@ func TestCompareEvalReportsReturnsTypedSummary(t *testing.T) {
 	}
 	var got struct {
 		Left struct {
-			ReportID        string  `json:"report_id"`
-			TenantID        string  `json:"tenant_id"`
-			RunID           string  `json:"run_id"`
-			DatasetID       string  `json:"dataset_id"`
-			DatasetName     string  `json:"dataset_name"`
-			RunStatus       string  `json:"run_status"`
-			Status          string  `json:"status"`
-			Summary         string  `json:"summary"`
-			TotalItems      int     `json:"total_items"`
-			RecordedResults int     `json:"recorded_results"`
-			PassedItems     int     `json:"passed_items"`
-			FailedItems     int     `json:"failed_items"`
-			MissingResults  int     `json:"missing_results"`
-			AverageScore    float64 `json:"average_score"`
-			JudgeVersion    string  `json:"judge_version"`
-			VersionID       string  `json:"version_id"`
-			BadCaseCount    int     `json:"bad_case_count"`
+			ReportID             string  `json:"report_id"`
+			TenantID             string  `json:"tenant_id"`
+			RunID                string  `json:"run_id"`
+			DatasetID            string  `json:"dataset_id"`
+			DatasetName          string  `json:"dataset_name"`
+			RunStatus            string  `json:"run_status"`
+			Status               string  `json:"status"`
+			Summary              string  `json:"summary"`
+			TotalItems           int     `json:"total_items"`
+			RecordedResults      int     `json:"recorded_results"`
+			PassedItems          int     `json:"passed_items"`
+			FailedItems          int     `json:"failed_items"`
+			MissingResults       int     `json:"missing_results"`
+			AverageScore         float64 `json:"average_score"`
+			JudgeVersion         string  `json:"judge_version"`
+			VersionID            string  `json:"version_id"`
+			BadCaseCount         int     `json:"bad_case_count"`
+			LatestFollowUpCaseID string  `json:"latest_follow_up_case_id"`
 		} `json:"left"`
 		Right struct {
-			ReportID        string  `json:"report_id"`
-			TenantID        string  `json:"tenant_id"`
-			RunID           string  `json:"run_id"`
-			DatasetID       string  `json:"dataset_id"`
-			DatasetName     string  `json:"dataset_name"`
-			RunStatus       string  `json:"run_status"`
-			Status          string  `json:"status"`
-			Summary         string  `json:"summary"`
-			TotalItems      int     `json:"total_items"`
-			RecordedResults int     `json:"recorded_results"`
-			PassedItems     int     `json:"passed_items"`
-			FailedItems     int     `json:"failed_items"`
-			MissingResults  int     `json:"missing_results"`
-			AverageScore    float64 `json:"average_score"`
-			JudgeVersion    string  `json:"judge_version"`
-			VersionID       string  `json:"version_id"`
-			BadCaseCount    int     `json:"bad_case_count"`
+			ReportID             string  `json:"report_id"`
+			TenantID             string  `json:"tenant_id"`
+			RunID                string  `json:"run_id"`
+			DatasetID            string  `json:"dataset_id"`
+			DatasetName          string  `json:"dataset_name"`
+			RunStatus            string  `json:"run_status"`
+			Status               string  `json:"status"`
+			Summary              string  `json:"summary"`
+			TotalItems           int     `json:"total_items"`
+			RecordedResults      int     `json:"recorded_results"`
+			PassedItems          int     `json:"passed_items"`
+			FailedItems          int     `json:"failed_items"`
+			MissingResults       int     `json:"missing_results"`
+			AverageScore         float64 `json:"average_score"`
+			JudgeVersion         string  `json:"judge_version"`
+			VersionID            string  `json:"version_id"`
+			BadCaseCount         int     `json:"bad_case_count"`
+			LatestFollowUpCaseID string  `json:"latest_follow_up_case_id"`
 		} `json:"right"`
 		Summary struct {
 			SameTenant          bool    `json:"same_tenant"`
@@ -233,6 +258,12 @@ func TestCompareEvalReportsReturnsTypedSummary(t *testing.T) {
 	}
 	if got.Left.BadCaseCount != 0 || got.Right.BadCaseCount != 1 {
 		t.Fatalf("BadCaseCount = left:%d right:%d, want left=0 right=1", got.Left.BadCaseCount, got.Right.BadCaseCount)
+	}
+	if got.Left.LatestFollowUpCaseID != leftFollowUp.ID {
+		t.Fatalf("Left.LatestFollowUpCaseID = %q, want %q", got.Left.LatestFollowUpCaseID, leftFollowUp.ID)
+	}
+	if got.Right.LatestFollowUpCaseID != rightFollowUp.ID {
+		t.Fatalf("Right.LatestFollowUpCaseID = %q, want %q", got.Right.LatestFollowUpCaseID, rightFollowUp.ID)
 	}
 	if !got.Summary.SameTenant {
 		t.Fatal("SameTenant = false, want true")

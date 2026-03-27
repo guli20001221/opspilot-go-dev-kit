@@ -628,8 +628,14 @@ func TestAdminEvalReportComparePageRendersHTML(t *testing.T) {
 	if !strings.Contains(body, "Open left eval report API") {
 		t.Fatal("left eval report api handoff missing from compare HTML")
 	}
+	if !strings.Contains(body, "Open left latest case") {
+		t.Fatal("left latest-case handoff missing from compare HTML")
+	}
 	if !strings.Contains(body, "Open right eval report API") {
 		t.Fatal("right eval report api handoff missing from compare HTML")
+	}
+	if !strings.Contains(body, "Open right latest case") {
+		t.Fatal("right latest-case handoff missing from compare HTML")
 	}
 	if !strings.Contains(body, "Create case") {
 		t.Fatal("case handoff action missing from compare HTML")
@@ -653,6 +659,26 @@ func TestAdminEvalReportComparePageRuntimeSmoke(t *testing.T) {
 	reportService := evalsvc.NewEvalReportServiceWithDependencies(nil, runService)
 	leftReportID := materializeEvalRunReport(t, "tenant-eval-compare-admin-smoke", evalsvc.RunStatusSucceeded, "success detail", caseService, evalCaseService, datasetService, runService, reportService, "Dataset Compare A", "Source Left")
 	rightReportID := materializeEvalRunReport(t, "tenant-eval-compare-admin-smoke", evalsvc.RunStatusFailed, "failure detail", caseService, evalCaseService, datasetService, runService, reportService, "Dataset Compare B", "Source Right")
+	leftCase, err := caseService.CreateCase(context.Background(), casesvc.CreateInput{
+		TenantID:           "tenant-eval-compare-admin-smoke",
+		Title:              "Left compare follow-up",
+		Summary:            "left compare summary",
+		SourceEvalReportID: leftReportID,
+		CreatedBy:          "operator-left",
+	})
+	if err != nil {
+		t.Fatalf("CreateCase(leftCase) error = %v", err)
+	}
+	rightCase, err := caseService.CreateCase(context.Background(), casesvc.CreateInput{
+		TenantID:           "tenant-eval-compare-admin-smoke",
+		Title:              "Right compare follow-up",
+		Summary:            "right compare summary",
+		SourceEvalReportID: rightReportID,
+		CreatedBy:          "operator-right",
+	})
+	if err != nil {
+		t.Fatalf("CreateCase(rightCase) error = %v", err)
+	}
 
 	server := httptest.NewServer(NewHandlerWithDependencies(Dependencies{
 		EvalReports: reportService,
@@ -672,6 +698,8 @@ const baseURL = process.argv[2];
 const tenantID = process.argv[3];
 const leftReportID = process.argv[4];
 const rightReportID = process.argv[5];
+const leftCaseID = process.argv[6];
+const rightCaseID = process.argv[7];
 
 (async () => {
   const browser = await chromium.launch({ headless: true });
@@ -686,6 +714,14 @@ const rightReportID = process.argv[5];
   const rightHref = await page.getAttribute("#rightReportAPILink", "href");
   if (!rightHref || !rightHref.includes(rightReportID)) {
     throw new Error("right report API handoff missing selected report");
+  }
+  const leftCaseHref = await page.getAttribute("#leftLatestCaseLink", "href");
+  if (!leftCaseHref || !leftCaseHref.includes("case_id=" + encodeURIComponent(leftCaseID))) {
+    throw new Error("left latest-case handoff missing selected case");
+  }
+  const rightCaseHref = await page.getAttribute("#rightLatestCaseLink", "href");
+  if (!rightCaseHref || !rightCaseHref.includes("case_id=" + encodeURIComponent(rightCaseID))) {
+    throw new Error("right latest-case handoff missing selected case");
   }
   await page.click("#createCaseButton");
   await page.waitForURL(/\/admin\/cases\?/);
@@ -709,7 +745,7 @@ const rightReportID = process.argv[5];
 		t.Fatalf("WriteFile(scriptPath) error = %v", err)
 	}
 
-	cmd := exec.Command("node", scriptPath, server.URL, "tenant-eval-compare-admin-smoke", leftReportID, rightReportID)
+	cmd := exec.Command("node", scriptPath, server.URL, "tenant-eval-compare-admin-smoke", leftReportID, rightReportID, leftCase.ID, rightCase.ID)
 	cmd.Env = append(os.Environ(), "NODE_PATH="+nodePathRoot)
 	output, err := cmd.CombinedOutput()
 	if err != nil {
