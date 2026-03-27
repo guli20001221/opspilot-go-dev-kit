@@ -114,6 +114,7 @@ Current Milestone 1 slice:
 - that same eval-run detail now also returns durable `items`, snapshotting the published dataset membership onto the run so operators can inspect exactly which eval cases, case lineage, trace IDs, and version IDs were executed
 - that same eval-run detail now also returns durable `item_results`, so placeholder per-item terminal outcomes stay attached to the same canonical run record while create/list/retry responses remain lightweight
 - those same `item_results` now also carry structured placeholder judge fields such as `verdict`, `score`, `judge_version`, and raw `judge_output`, so the later provider-backed judge path can reuse the same durable contract
+- the structured placeholder judge fields are now emitted by an explicit `internal/eval` judge runtime with a stable version ID and prompt artifact path, rather than being assembled ad hoc in the run service
 - terminal eval-run reads now also expose lightweight `result_summary` counts on the canonical run object, so operators can scan pass/fail totals from `/api/v1/eval-runs` and `/admin/eval-runs` without unpacking the full `item_results` array first
 - `GET /admin/cases` now exposes the first case-focused operator page, backed by the durable case contract and existing task/report handoff endpoints
 - that first `/admin/cases` page now supports the minimal close action while still handing operators back into the canonical task/report surfaces instead of inventing case-only detail contracts

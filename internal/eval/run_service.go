@@ -2,7 +2,6 @@ package eval
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"strings"
 	"sync/atomic"
@@ -32,6 +31,7 @@ type datasetReader interface {
 type RunService struct {
 	store    runStore
 	datasets datasetReader
+	judge    RunJudge
 }
 
 // NewRunService constructs the eval-run service with memory-backed defaults.
@@ -48,6 +48,7 @@ func NewRunServiceWithStore(store runStore, datasets datasetReader) *RunService 
 	return &RunService{
 		store:    store,
 		datasets: datasets,
+		judge:    NewPlaceholderJudge(),
 	}
 }
 
@@ -136,11 +137,7 @@ func (s *RunService) MarkRunSucceeded(ctx context.Context, runID string) (EvalRu
 		return EvalRun{}, err
 	}
 	finishedAt := time.Now().UTC()
-
-	results := make([]EvalRunItemResult, 0, len(detail.Items))
-	for _, item := range detail.Items {
-		results = append(results, newPlaceholderRunItemResult(item.EvalCaseID, RunItemResultSucceeded, "placeholder eval passed", finishedAt))
-	}
+	results := s.judge.BuildItemResults(detail.Items, RunItemResultSucceeded, "placeholder eval passed", finishedAt)
 
 	return s.store.MarkRunSucceeded(ctx, runID, finishedAt, results)
 }
@@ -154,10 +151,7 @@ func (s *RunService) MarkRunFailed(ctx context.Context, runID string, reason str
 
 	summarized := strings.TrimSpace(reason)
 	finishedAt := time.Now().UTC()
-	results := make([]EvalRunItemResult, 0, len(detail.Items))
-	for _, item := range detail.Items {
-		results = append(results, newPlaceholderRunItemResult(item.EvalCaseID, RunItemResultFailed, summarized, finishedAt))
-	}
+	results := s.judge.BuildItemResults(detail.Items, RunItemResultFailed, summarized, finishedAt)
 
 	return s.store.MarkRunFailed(ctx, runID, summarized, finishedAt, results)
 }
@@ -169,44 +163,4 @@ func (s *RunService) RetryRun(ctx context.Context, runID string) (EvalRun, error
 
 func newEvalRunID(now time.Time) string {
 	return fmt.Sprintf("eval-run-%d-%d", now.UnixNano(), evalRunIDSequence.Add(1))
-}
-
-func newPlaceholderRunItemResult(evalCaseID string, status string, detail string, updatedAt time.Time) EvalRunItemResult {
-	result := EvalRunItemResult{
-		EvalCaseID:   evalCaseID,
-		Status:       status,
-		Detail:       detail,
-		JudgeVersion: PlaceholderJudgeVersion,
-		UpdatedAt:    updatedAt,
-	}
-	switch status {
-	case RunItemResultSucceeded:
-		result.Verdict = RunItemVerdictPass
-		result.Score = 1
-	default:
-		result.Verdict = RunItemVerdictFail
-		result.Score = 0
-	}
-	result.JudgeOutput = mustMarshalPlaceholderJudgeOutput(result.Verdict, result.Score, detail)
-	return result
-}
-
-func mustMarshalPlaceholderJudgeOutput(verdict string, score float64, rationale string) json.RawMessage {
-	payload, err := json.Marshal(struct {
-		JudgeKind    string  `json:"judge_kind"`
-		JudgeVersion string  `json:"judge_version"`
-		Verdict      string  `json:"verdict"`
-		Score        float64 `json:"score"`
-		Rationale    string  `json:"rationale"`
-	}{
-		JudgeKind:    PlaceholderJudgeKind,
-		JudgeVersion: PlaceholderJudgeVersion,
-		Verdict:      verdict,
-		Score:        score,
-		Rationale:    rationale,
-	})
-	if err != nil {
-		return json.RawMessage(`{}`)
-	}
-	return payload
 }
