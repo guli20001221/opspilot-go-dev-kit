@@ -13,6 +13,8 @@ var (
 	evalDatasetsHTML []byte
 	//go:embed eval-runs.html
 	evalRunsHTML []byte
+	//go:embed eval-reports.html
+	evalReportsHTML []byte
 	//go:embed reports.html
 	reportsHTML []byte
 	//go:embed report-compare.html
@@ -46,6 +48,11 @@ func EvalDatasetsHTML() []byte {
 // EvalRunsHTML returns the embedded admin eval runs page.
 func EvalRunsHTML() []byte {
 	return append([]byte(nil), evalRunsHTML...)
+}
+
+// EvalReportsHTML returns the embedded admin eval reports page.
+func EvalReportsHTML() []byte {
+	return append([]byte(nil), evalReportsHTML...)
 }
 
 // ReportsHTML returns the embedded admin reports page.

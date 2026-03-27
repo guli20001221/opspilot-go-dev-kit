@@ -135,6 +135,7 @@ Current Milestone 1 slice:
 - the same `/admin/eval-datasets` page now also supports `Publish dataset`, and published datasets render as immutable read-only baselines instead of mutable drafts
 - the same `/admin/eval-datasets` page now also supports `Run dataset`, handing a published baseline straight into the shared `/admin/eval-runs` lane
 - `/admin/eval-runs` now exposes the first eval-run operator page, backed directly by the canonical run list/detail contracts with handoff back to datasets and evals
+- `/admin/eval-reports` now exposes the first eval-report operator page, backed directly by the canonical eval-report list/detail contracts with bad-case and metadata drill-down
 - the same `/admin/eval-runs` lane now shows live lifecycle fields such as `started_at`, `finished_at`, and `error_reason`, so operators can watch queued run kickoffs turn into terminal records before judge wiring exists
 - that same `/admin/eval-runs` lane now exposes `Retry run` for failed runs, reusing the canonical retry endpoint instead of inventing an admin-only mutation path
 - that same `/admin/eval-runs` lane now renders a durable run timeline, so operators can still inspect prior `failed` and `retried` history after the top-level fields have been cleared by retry

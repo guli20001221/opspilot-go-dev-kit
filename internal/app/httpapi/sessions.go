@@ -117,6 +117,7 @@ func (a *appHandler) registerRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("/admin/evals", a.handleAdminEvalsPage)
 	mux.HandleFunc("/admin/eval-datasets", a.handleAdminEvalDatasetsPage)
 	mux.HandleFunc("/admin/eval-runs", a.handleAdminEvalRunsPage)
+	mux.HandleFunc("/admin/eval-reports", a.handleAdminEvalReportsPage)
 	mux.HandleFunc("/admin/reports", a.handleAdminReportsPage)
 	mux.HandleFunc("/admin/report-compare", a.handleAdminReportComparePage)
 	mux.HandleFunc("/admin/trace-detail", a.handleAdminTraceDetailPage)
@@ -218,6 +219,21 @@ func (a *appHandler) handleAdminEvalRunsPage(w http.ResponseWriter, r *http.Requ
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	w.WriteHeader(http.StatusOK)
 	_, _ = w.Write(adminweb.EvalRunsHTML())
+}
+
+func (a *appHandler) handleAdminEvalReportsPage(w http.ResponseWriter, r *http.Request) {
+	if r.URL.Path != "/admin/eval-reports" {
+		writeError(w, http.StatusNotFound, "not_found", "not found")
+		return
+	}
+	if r.Method != http.MethodGet {
+		writeError(w, http.StatusMethodNotAllowed, "method_not_allowed", "method not allowed")
+		return
+	}
+
+	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	w.WriteHeader(http.StatusOK)
+	_, _ = w.Write(adminweb.EvalReportsHTML())
 }
 
 func (a *appHandler) handleAdminReportsPage(w http.ResponseWriter, r *http.Request) {

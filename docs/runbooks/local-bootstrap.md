@@ -33,6 +33,7 @@ It does not yet wire real DB access from the app code or a real OpenTelemetry ex
 9. Check the fake ticket API at `http://localhost:19090/tickets/search?q=INC-100` with header `Authorization: Bearer local-dev-ticket-token` if you want to verify the HTTP adapter boundary directly.
 10. Open `http://localhost:18080/admin/task-board` to inspect the embedded operator page against the local admin read model.
 11. Open `http://localhost:18080/admin/reports` to inspect the first report-focused operator page against the same admin read model.
+12. Open `http://localhost:18080/admin/eval-reports` to inspect the first eval-report-focused operator page against the durable eval-report contract.
 
 Successful build artifacts are emitted under `bin/`.
 
@@ -49,6 +50,7 @@ Successful build artifacts are emitted under `bin/`.
 - `GET /admin/task-board`
 - `GET /admin/cases`
 - `GET /admin/reports`
+- `GET /admin/eval-reports`
 - `GET /admin/version-detail`
 - `GET /api/v1/reports/{report_id}`
 - `GET /api/v1/versions`
@@ -147,6 +149,7 @@ The current chat stream implementation is a Milestone 1 skeleton:
 - once a run reaches a terminal state, the worker also materializes a durable aggregated eval report carrying top-line metrics, bad-case lineage, and judge metadata for later comparison/reporting slices
 - use `GET /api/v1/eval-reports?tenant_id=<tenant>` when you need the lightweight tenant-scoped browse lane for those durable eval reports
 - use `GET /api/v1/eval-reports/{report_id}?tenant_id=<tenant>` when you need the canonical aggregated eval report detail, including metadata and bad-case lineage
+- open `http://localhost:18080/admin/eval-reports` when you want the first eval-report operator page, including bad-case drill-down plus run, dataset, eval, trace, and version handoff links
 - terminal run reads now also expose `result_summary`, so `/api/v1/eval-runs` and `/admin/eval-runs` can show quick pass/fail totals without loading the full per-item payload first
 - open `http://localhost:18080/admin/cases` when you want the first case-focused operator page, including source task/report handoff links and the minimal `Close case` action
 - open `http://localhost:18080/admin/evals` when you want the first eval-focused operator page, including durable eval detail plus case/task/report/version/trace handoff links

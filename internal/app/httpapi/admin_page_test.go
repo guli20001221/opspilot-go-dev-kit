@@ -4,8 +4,13 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"os"
+	"os/exec"
+	"path/filepath"
 	"strings"
 	"testing"
+
+	evalsvc "opspilot-go/internal/eval"
 )
 
 func TestAdminTaskBoardPageRendersHTML(t *testing.T) {
@@ -496,6 +501,134 @@ func TestAdminEvalRunsPageRendersHTML(t *testing.T) {
 	}
 }
 
+func TestAdminEvalReportsPageRendersHTML(t *testing.T) {
+	server := httptest.NewServer(NewHandler())
+	defer server.Close()
+
+	resp, err := http.Get(server.URL + "/admin/eval-reports")
+	if err != nil {
+		t.Fatalf("Get() error = %v", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("StatusCode = %d, want %d", resp.StatusCode, http.StatusOK)
+	}
+	if got := resp.Header.Get("Content-Type"); !strings.Contains(got, "text/html") {
+		t.Fatalf("Content-Type = %q, want text/html", got)
+	}
+
+	bodyBytes, err := io.ReadAll(resp.Body)
+	if err != nil {
+		t.Fatalf("ReadAll() error = %v", err)
+	}
+	body := string(bodyBytes)
+	if !strings.Contains(body, "<title>OpsPilot Eval Reports</title>") {
+		t.Fatal("page title missing from eval reports HTML")
+	}
+	if !strings.Contains(body, "/api/v1/eval-reports") {
+		t.Fatal("eval report API path missing from eval reports page HTML")
+	}
+	if !strings.Contains(body, "Eval Report Lane") {
+		t.Fatal("eval report lane heading missing from eval reports page HTML")
+	}
+	if !strings.Contains(body, "Status fixed to ready") {
+		t.Fatal("ready status summary missing from eval reports page HTML")
+	}
+	if !strings.Contains(body, "Failed items") {
+		t.Fatal("failed item summary missing from eval reports page HTML")
+	}
+	if !strings.Contains(body, "Show raw report JSON") {
+		t.Fatal("raw report json toggle missing from eval reports page HTML")
+	}
+	if !strings.Contains(body, "Copy raw report JSON") {
+		t.Fatal("raw report json copy action missing from eval reports page HTML")
+	}
+	if !strings.Contains(body, "Copy report summary") {
+		t.Fatal("report summary handoff missing from eval reports page HTML")
+	}
+	if !strings.Contains(body, "Copy report link") {
+		t.Fatal("report link handoff missing from eval reports page HTML")
+	}
+	if !strings.Contains(body, "Open eval run lane") {
+		t.Fatal("eval run lane handoff missing from eval reports page HTML")
+	}
+	if !strings.Contains(body, "Open dataset API detail") {
+		t.Fatal("dataset api handoff missing from eval reports page HTML")
+	}
+	if !strings.Contains(body, "Open eval lane") {
+		t.Fatal("eval lane handoff missing from eval reports page HTML")
+	}
+	if !strings.Contains(body, "Bad cases") {
+		t.Fatal("bad cases section missing from eval reports page HTML")
+	}
+	if !strings.Contains(body, "task-row-selected") {
+		t.Fatal("selected eval report row styling missing from eval reports page HTML")
+	}
+}
+
+func TestAdminEvalReportsPageRuntimeSmoke(t *testing.T) {
+	reportService, reportID := buildEvalReportFixture(t, "tenant-eval-admin-smoke", evalsvc.RunStatusFailed, "failure detail")
+
+	server := httptest.NewServer(NewHandlerWithDependencies(Dependencies{EvalReports: reportService}))
+	defer server.Close()
+
+	nodePathRoot, err := npmGlobalRoot()
+	if err != nil {
+		t.Skipf("skipping playwright runtime smoke: %v", err)
+	}
+
+	scriptPath := filepath.Join(t.TempDir(), "eval_reports_smoke.js")
+	script := `
+const { chromium } = require("playwright");
+const baseURL = process.argv[2];
+const tenantID = process.argv[3];
+const reportID = process.argv[4];
+
+(async () => {
+  const browser = await chromium.launch({ headless: true });
+  const page = await browser.newPage();
+  await page.goto(baseURL + "/admin/eval-reports?tenant_id=" + encodeURIComponent(tenantID) + "&limit=10");
+  await page.waitForSelector("text=Eval Report Lane");
+  await page.waitForSelector("text=Bad cases");
+  const visibleCount = (await page.textContent("#visibleCount")).trim();
+  if (visibleCount !== "1") {
+    throw new Error("unexpected visibleCount: " + visibleCount);
+  }
+  const urlAfterLoad = new URL(page.url());
+  if (urlAfterLoad.searchParams.get("report_id") !== reportID) {
+    throw new Error("selected report_id not synced into URL");
+  }
+
+  await page.goto(baseURL + "/admin/eval-reports?tenant_id=" + encodeURIComponent(tenantID) + "&limit=10&report_id=missing-report");
+  await page.waitForSelector("text=Unable to load the selected eval report detail.");
+  const failedURL = new URL(page.url());
+  if (failedURL.searchParams.get("report_id")) {
+    throw new Error("stale report_id remained in URL after detail load failure");
+  }
+  await browser.close();
+})().catch((error) => {
+  console.error(error && error.stack ? error.stack : String(error));
+  process.exit(1);
+});
+`
+	if err := os.WriteFile(scriptPath, []byte(script), 0o600); err != nil {
+		t.Fatalf("WriteFile(scriptPath) error = %v", err)
+	}
+
+	cmd := exec.Command("node", scriptPath, server.URL, "tenant-eval-admin-smoke", reportID)
+	cmd.Env = append(os.Environ(), "NODE_PATH="+nodePathRoot)
+	output, err := cmd.CombinedOutput()
+	if err != nil {
+		outText := string(output)
+		if strings.Contains(outText, "Please run the following command to download new browsers") ||
+			strings.Contains(outText, "Executable doesn't exist") {
+			t.Skip("skipping playwright runtime smoke: browser binaries not installed")
+		}
+		t.Fatalf("playwright runtime smoke failed: %v\n%s", err, string(output))
+	}
+}
+
 func TestAdminEvalRunsPageRejectsUnknownSubpath(t *testing.T) {
 	server := httptest.NewServer(NewHandler())
 	defer server.Close()
@@ -508,6 +641,34 @@ func TestAdminEvalRunsPageRejectsUnknownSubpath(t *testing.T) {
 	if resp.StatusCode != http.StatusNotFound {
 		t.Fatalf("StatusCode = %d, want %d", resp.StatusCode, http.StatusNotFound)
 	}
+}
+
+func TestAdminEvalReportsPageRejectsUnknownSubpath(t *testing.T) {
+	server := httptest.NewServer(NewHandler())
+	defer server.Close()
+
+	resp, err := http.Get(server.URL + "/admin/eval-reports/unknown")
+	if err != nil {
+		t.Fatalf("Get() error = %v", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusNotFound {
+		t.Fatalf("StatusCode = %d, want %d", resp.StatusCode, http.StatusNotFound)
+	}
+}
+
+func npmGlobalRoot() (string, error) {
+	cmd := exec.Command("npm.cmd", "root", "-g")
+	output, err := cmd.CombinedOutput()
+	if err != nil {
+		return "", err
+	}
+	root := strings.TrimSpace(string(output))
+	if root == "" {
+		return "", exec.ErrNotFound
+	}
+	return root, nil
 }
 
 func TestAdminReportsPageRejectsUnknownSubpath(t *testing.T) {

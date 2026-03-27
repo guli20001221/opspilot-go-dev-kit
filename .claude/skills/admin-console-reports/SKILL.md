@@ -117,3 +117,4 @@ When you finish, always report:
 - before judge scoring exists, render durable placeholder `item_results` on `/admin/eval-runs` detail from the canonical run endpoint instead of inventing frontend-only per-item status summaries
 - once placeholder eval-run `item_results` exist, prefer showing a lightweight terminal `result_summary` in `/admin/eval-runs` list rows before expanding the heavier detail payload
 - when placeholder eval-run `item_results` become structured, surface verdict, score, and judge version in `/admin/eval-runs` detail without adding admin-only eval APIs
+- once durable eval-report list and detail contracts exist, prefer a shared `/admin/eval-reports` lane backed directly by those canonical reads instead of reconstructing aggregated report artifacts from eval-run detail in the browser

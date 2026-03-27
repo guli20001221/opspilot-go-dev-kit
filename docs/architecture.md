@@ -103,6 +103,7 @@ The current HTTP layer also exposes the same PostgreSQL-backed workflow records 
 - `internal/eval` now also holds the first durable eval-run kickoff model, which snapshots published dataset metadata into a queued run row before judge execution is connected
 - `POST /api/v1/eval-runs`, `GET /api/v1/eval-runs`, and `GET /api/v1/eval-runs/{run_id}` now expose that tenant-scoped run-kickoff contract
 - `/admin/eval-runs` is the first eval-run operator lane, and `/admin/eval-datasets` now hands published baselines into it through `Run dataset`
+- `/admin/eval-reports` is the first eval-report operator lane, reusing the canonical eval-report list/detail contracts instead of reconstructing aggregated artifacts from run detail in the browser
 - the worker now also claims queued eval runs and advances them through `queued -> running -> succeeded|failed` with placeholder execution, persisting `started_at`, `finished_at`, and `error_reason` on the canonical run record
 - failed eval runs now have an explicit retry path on that same canonical record through `POST /api/v1/eval-runs/{run_id}/retry`, and the `/admin/eval-runs` lane reuses it directly for operator recovery
 - eval runs now also emit append-only `created`, `claimed`, `failed`, `retried`, and `succeeded` events on the same `run_id`, and detail reads surface that timeline while the list contract stays lightweight
