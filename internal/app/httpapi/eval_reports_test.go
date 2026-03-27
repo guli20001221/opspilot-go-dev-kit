@@ -137,6 +137,55 @@ func TestListEvalReportsRejectsInvalidRunStatus(t *testing.T) {
 	}
 }
 
+func TestGetEvalReportRejectsMissingTenantID(t *testing.T) {
+	reportService, reportID := buildEvalReportFixture(t, "tenant-eval-report-http", evalsvc.RunStatusSucceeded, "success detail")
+
+	server := httptest.NewServer(NewHandlerWithDependencies(Dependencies{EvalReports: reportService}))
+	defer server.Close()
+
+	resp, err := http.Get(server.URL + "/api/v1/eval-reports/" + reportID)
+	if err != nil {
+		t.Fatalf("Get() error = %v", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusBadRequest {
+		t.Fatalf("StatusCode = %d, want %d", resp.StatusCode, http.StatusBadRequest)
+	}
+}
+
+func TestGetEvalReportRejectsWrongTenant(t *testing.T) {
+	reportService, reportID := buildEvalReportFixture(t, "tenant-eval-report-http", evalsvc.RunStatusSucceeded, "success detail")
+
+	server := httptest.NewServer(NewHandlerWithDependencies(Dependencies{EvalReports: reportService}))
+	defer server.Close()
+
+	resp, err := http.Get(server.URL + "/api/v1/eval-reports/" + reportID + "?tenant_id=tenant-other")
+	if err != nil {
+		t.Fatalf("Get() error = %v", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusNotFound {
+		t.Fatalf("StatusCode = %d, want %d", resp.StatusCode, http.StatusNotFound)
+	}
+}
+
+func TestListEvalReportsRejectsInvalidStatus(t *testing.T) {
+	server := httptest.NewServer(NewHandler())
+	defer server.Close()
+
+	resp, err := http.Get(server.URL + "/api/v1/eval-reports?tenant_id=tenant-eval&status=queued")
+	if err != nil {
+		t.Fatalf("Get() error = %v", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusBadRequest {
+		t.Fatalf("StatusCode = %d, want %d", resp.StatusCode, http.StatusBadRequest)
+	}
+}
+
 func buildEvalReportFixture(t *testing.T, tenantID string, runStatus string, detail string) (*evalsvc.EvalReportService, string) {
 	t.Helper()
 

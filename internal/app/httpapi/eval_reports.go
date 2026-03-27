@@ -91,6 +91,12 @@ func (a *appHandler) handleEvalReportByID(w http.ResponseWriter, r *http.Request
 		return
 	}
 
+	tenantID := strings.TrimSpace(r.URL.Query().Get("tenant_id"))
+	if tenantID == "" {
+		writeError(w, http.StatusBadRequest, "invalid_query", "tenant_id is required")
+		return
+	}
+
 	reportID := strings.TrimPrefix(r.URL.Path, "/api/v1/eval-reports/")
 	if reportID == "" || strings.Contains(reportID, "/") {
 		writeError(w, http.StatusNotFound, "not_found", "not found")
@@ -104,12 +110,6 @@ func (a *appHandler) handleEvalReportByID(w http.ResponseWriter, r *http.Request
 			return
 		}
 		writeError(w, http.StatusInternalServerError, "eval_report_lookup_failed", err.Error())
-		return
-	}
-
-	tenantID := strings.TrimSpace(r.URL.Query().Get("tenant_id"))
-	if tenantID == "" {
-		writeError(w, http.StatusBadRequest, "invalid_query", "tenant_id is required")
 		return
 	}
 	if item.TenantID != tenantID {
