@@ -17,6 +17,7 @@ type memoryStore struct {
 	runEvents      map[string][]EvalRunEvent
 	runItems       map[string][]EvalRunItem
 	runItemResults map[string][]EvalRunItemResult
+	evalReports    map[string]EvalReport
 	nextRunEvent   int64
 }
 
@@ -29,6 +30,7 @@ func newMemoryStore() *memoryStore {
 		runEvents:      make(map[string][]EvalRunEvent),
 		runItems:       make(map[string][]EvalRunItem),
 		runItemResults: make(map[string][]EvalRunItemResult),
+		evalReports:    make(map[string]EvalReport),
 	}
 }
 
@@ -482,6 +484,28 @@ func (s *memoryStore) appendRunEventLocked(event EvalRunEvent) EvalRunEvent {
 	event.ID = s.nextRunEvent
 	s.runEvents[event.RunID] = append(s.runEvents[event.RunID], event)
 	return event
+}
+
+func (s *memoryStore) SaveEvalReport(_ context.Context, item EvalReport) (EvalReport, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	cloned := item
+	cloned.BadCases = append([]EvalReportBadCase(nil), item.BadCases...)
+	s.evalReports[item.ID] = cloned
+	return cloned, nil
+}
+
+func (s *memoryStore) GetEvalReport(_ context.Context, reportID string) (EvalReport, error) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	item, ok := s.evalReports[reportID]
+	if !ok {
+		return EvalReport{}, fmt.Errorf("%w: %s", ErrEvalReportNotFound, reportID)
+	}
+	item.BadCases = append([]EvalReportBadCase(nil), item.BadCases...)
+	return item, nil
 }
 
 func withRunResultSummary(item EvalRun, results []EvalRunItemResult) EvalRun {

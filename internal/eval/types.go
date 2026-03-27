@@ -3,6 +3,7 @@ package eval
 import (
 	"encoding/json"
 	"errors"
+	"fmt"
 	"time"
 )
 
@@ -29,6 +30,9 @@ var ErrEvalRunNotFound = errors.New("eval run not found")
 
 // ErrInvalidEvalRunState identifies invalid eval-run lifecycle transitions.
 var ErrInvalidEvalRunState = errors.New("invalid eval run state")
+
+// ErrEvalReportNotFound identifies missing durable eval-report records.
+var ErrEvalReportNotFound = errors.New("eval report not found")
 
 const (
 	// DatasetStatusDraft identifies a draft dataset that is not yet active in regression runs.
@@ -77,6 +81,11 @@ const (
 	PlaceholderJudgeKind = "placeholder"
 	// PlaceholderJudgeVersion identifies the current built-in deterministic judge version.
 	PlaceholderJudgeVersion = "placeholder-v1"
+)
+
+const (
+	// EvalReportStatusReady identifies a materialized eval report ready for operator consumption.
+	EvalReportStatusReady = "ready"
 )
 
 // EvalCase is the durable read model for a promoted evaluation case.
@@ -234,6 +243,44 @@ type EvalRunItemResult struct {
 	UpdatedAt    time.Time
 }
 
+// EvalReportBadCase is one failed or risky eval case carried on the canonical eval report.
+type EvalReportBadCase struct {
+	EvalCaseID     string
+	Title          string
+	SourceCaseID   string
+	SourceTaskID   string
+	SourceReportID string
+	TraceID        string
+	VersionID      string
+	Verdict        string
+	Detail         string
+	Score          float64
+}
+
+// EvalReport is the durable aggregated artifact for one completed eval run.
+type EvalReport struct {
+	ID              string
+	TenantID        string
+	RunID           string
+	DatasetID       string
+	DatasetName     string
+	RunStatus       string
+	Status          string
+	Summary         string
+	TotalItems      int
+	RecordedResults int
+	PassedItems     int
+	FailedItems     int
+	MissingResults  int
+	AverageScore    float64
+	JudgeVersion    string
+	MetadataJSON    json.RawMessage
+	BadCases        []EvalReportBadCase
+	CreatedAt       time.Time
+	UpdatedAt       time.Time
+	ReadyAt         time.Time
+}
+
 // RunListFilter constrains eval-run list reads.
 type RunListFilter struct {
 	TenantID  string
@@ -285,4 +332,9 @@ type CreateRunInput struct {
 	TenantID  string
 	DatasetID string
 	CreatedBy string
+}
+
+// EvalReportIDFromRunID derives the stable eval-report ID for one eval run.
+func EvalReportIDFromRunID(runID string) string {
+	return fmt.Sprintf("eval-report-%s", runID)
 }

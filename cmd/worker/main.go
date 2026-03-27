@@ -59,6 +59,7 @@ func main() {
 		os.Exit(1)
 	}
 	evalRunService := eval.NewRunServiceWithDependencies(storagepostgres.NewEvalRunStore(pool), nil, evalJudge)
+	evalReportService := eval.NewEvalReportServiceWithDependencies(storagepostgres.NewEvalReportStore(pool), evalRunService)
 	registry := toolregistry.NewDefaultRegistryWithOptions(toolregistry.Options{
 		TicketAPIBaseURL: cfg.TicketAPIBaseURL,
 		TicketAPIToken:   cfg.TicketAPIToken,
@@ -102,7 +103,7 @@ func main() {
 	}
 
 	runner := workflow.NewRunnerWithReports(service, executor, reportService)
-	evalRunner := eval.NewRunner(evalRunService, evalRunExecutor)
+	evalRunner := eval.NewRunnerWithReports(evalRunService, evalRunExecutor, evalReportService)
 
 	logger.Info("worker booted",
 		slog.String("env", cfg.Env),

@@ -142,6 +142,7 @@ The current chat stream implementation is a Milestone 1 skeleton:
 - the built-in placeholder judge is now emitted through a dedicated eval judge runtime and points at `eval/prompts/placeholder-eval-judge-v1.md`, so later provider-backed judging can replace the execution body without changing the current run-result contract
 - set `OPSPILOT_EVAL_JUDGE_PROVIDER=http_json`, `OPSPILOT_EVAL_JUDGE_BASE_URL`, `OPSPILOT_EVAL_JUDGE_MODEL`, and optionally `OPSPILOT_EVAL_JUDGE_API_KEY` when you want the worker to call an external judge service while preserving the same canonical `item_results` shape
 - if that external judge call fails during run finalization, the worker now records a canonical failed run with placeholder fallback `item_results` instead of leaving the run stuck in `running`
+- once a run reaches a terminal state, the worker also materializes a durable aggregated eval report carrying top-line metrics, bad-case lineage, and judge metadata for later comparison/reporting slices
 - terminal run reads now also expose `result_summary`, so `/api/v1/eval-runs` and `/admin/eval-runs` can show quick pass/fail totals without loading the full per-item payload first
 - open `http://localhost:18080/admin/cases` when you want the first case-focused operator page, including source task/report handoff links and the minimal `Close case` action
 - open `http://localhost:18080/admin/evals` when you want the first eval-focused operator page, including durable eval detail plus case/task/report/version/trace handoff links

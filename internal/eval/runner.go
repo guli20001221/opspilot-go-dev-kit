@@ -18,10 +18,16 @@ type RunExecutor interface {
 type Runner struct {
 	service  *RunService
 	executor RunExecutor
+	reports  *EvalReportService
 }
 
 // NewRunner constructs an eval-run worker runner.
 func NewRunner(service *RunService, executor RunExecutor) *Runner {
+	return NewRunnerWithReports(service, executor, nil)
+}
+
+// NewRunnerWithReports constructs an eval-run worker runner with optional eval-report materialization.
+func NewRunnerWithReports(service *RunService, executor RunExecutor, reports *EvalReportService) *Runner {
 	if service == nil {
 		service = NewRunServiceWithStore(nil, nil)
 	}
@@ -32,6 +38,7 @@ func NewRunner(service *RunService, executor RunExecutor) *Runner {
 	return &Runner{
 		service:  service,
 		executor: executor,
+		reports:  reports,
 	}
 }
 
@@ -54,6 +61,11 @@ func (r *Runner) ProcessNextBatch(ctx context.Context, limit int) (int, error) {
 			if markErr != nil {
 				return 0, markErr
 			}
+			if err := r.materializeRunReport(finalizeCtx, run.ID); err != nil {
+				cancel()
+				return 0, err
+			}
+			cancel()
 			continue
 		}
 		finalizeCtx, cancel := finalizationContext(ctx)
@@ -64,7 +76,16 @@ func (r *Runner) ProcessNextBatch(ctx context.Context, limit int) (int, error) {
 			if fallbackErr != nil {
 				return 0, fallbackErr
 			}
+			if err := r.materializeRunReport(finalizeCtx, run.ID); err != nil {
+				cancel()
+				return 0, err
+			}
+			cancel()
 			continue
+		}
+		if err := r.materializeRunReport(finalizeCtx, run.ID); err != nil {
+			cancel()
+			return 0, err
 		}
 		cancel()
 	}
@@ -106,6 +127,16 @@ func summarizeRunJudgeFailure(prefix string, err error) string {
 		return err.Error()
 	}
 	return fmt.Sprintf("%s: %v", summary, err)
+}
+
+func (r *Runner) materializeRunReport(ctx context.Context, runID string) error {
+	if r.reports == nil {
+		return nil
+	}
+	if _, err := r.reports.MaterializeRunReport(ctx, runID); err != nil {
+		return fmt.Errorf("materialize eval report: %w", err)
+	}
+	return nil
 }
 
 func finalizationContext(ctx context.Context) (context.Context, context.CancelFunc) {

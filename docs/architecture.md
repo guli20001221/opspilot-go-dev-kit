@@ -111,6 +111,7 @@ The current HTTP layer also exposes the same PostgreSQL-backed workflow records 
 - those same durable `item_results` now also carry structured placeholder judge metadata such as `verdict`, `score`, `judge_version`, and raw `judge_output`
 - the built-in placeholder judge now lives behind a dedicated `RunJudge` runtime boundary and points at a versioned prompt artifact under `eval/prompts`, so later provider-backed judging can swap the execution body without redesigning the run-result contract
 - that same `RunJudge` boundary now also supports an env-gated HTTP provider implementation, while the runner still degrades to placeholder failure results if the external judge call cannot finalize the canonical run
+- completed eval runs now also materialize a durable aggregated eval report read model, so top-line metrics, bad-case provenance, and judge metadata live in a canonical backend artifact instead of being derived ad hoc from run detail
 - canonical eval-run reads now also attach a lightweight `result_summary` on terminal runs, letting list and detail consumers scan placeholder pass/fail totals without moving the heavier `item_results` payload onto create/list/retry responses
 - the same case page now also shows and appends recent notes, so operator handoff context lives on the case instead of being implied by task/report provenance
 - the same case page now defaults into an open-case queue view, adds `My open cases` and `Unassigned` shortcuts, and computes age/staleness from canonical `updated_at`

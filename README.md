@@ -116,6 +116,7 @@ Current Milestone 1 slice:
 - those same `item_results` now also carry structured placeholder judge fields such as `verdict`, `score`, `judge_version`, and raw `judge_output`, so the later provider-backed judge path can reuse the same durable contract
 - the structured placeholder judge fields are now emitted by an explicit `internal/eval` judge runtime with a stable version ID and prompt artifact path, rather than being assembled ad hoc in the run service
 - the worker can now switch that same eval judge runtime from the built-in placeholder to an env-gated HTTP provider without changing the durable eval-run contract, and falls back to placeholder failure recording if the external judge call errors
+- completed eval runs now also materialize a durable aggregated eval report in `internal/eval`, so pass/fail totals, average score, bad-case lineage, and judge metadata have a canonical backend artifact instead of being recomputed from raw `item_results` every time
 - terminal eval-run reads now also expose lightweight `result_summary` counts on the canonical run object, so operators can scan pass/fail totals from `/api/v1/eval-runs` and `/admin/eval-runs` without unpacking the full `item_results` array first
 - `GET /admin/cases` now exposes the first case-focused operator page, backed by the durable case contract and existing task/report handoff endpoints
 - that first `/admin/cases` page now supports the minimal close action while still handing operators back into the canonical task/report surfaces instead of inventing case-only detail contracts

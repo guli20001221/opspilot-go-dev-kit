@@ -284,3 +284,92 @@ func TestRunnerProcessesRetriedRunToSucceeded(t *testing.T) {
 		t.Fatalf("judge_kind = %#v, want %q", judgeOutput["judge_kind"], "placeholder")
 	}
 }
+
+func TestRunnerMaterializesEvalReportAfterSucceededRun(t *testing.T) {
+	ctx := context.Background()
+	store := newMemoryStore()
+	runService := NewRunServiceWithStore(store, nil)
+	reportService := NewEvalReportServiceWithDependencies(store, runService)
+
+	run, err := store.CreateRun(ctx, EvalRun{
+		ID:               "eval-run-report-success",
+		TenantID:         "tenant-run",
+		DatasetID:        "eval-dataset-success",
+		DatasetName:      "Published baseline",
+		DatasetItemCount: 1,
+		Status:           RunStatusQueued,
+		CreatedBy:        "operator",
+		CreatedAt:        time.Unix(1700030300, 0).UTC(),
+		UpdatedAt:        time.Unix(1700030300, 0).UTC(),
+	}, EvalRunItem{EvalCaseID: "eval-case-a", Title: "Eval A", SourceCaseID: "case-a", TraceID: "trace-a"})
+	if err != nil {
+		t.Fatalf("CreateRun() error = %v", err)
+	}
+
+	runner := NewRunnerWithReports(runService, NewPlaceholderRunExecutor(), reportService)
+	processed, err := runner.ProcessNextBatch(ctx, 10)
+	if err != nil {
+		t.Fatalf("ProcessNextBatch() error = %v", err)
+	}
+	if processed != 1 {
+		t.Fatalf("processed = %d, want 1", processed)
+	}
+
+	report, err := reportService.GetEvalReport(ctx, EvalReportIDFromRunID(run.ID))
+	if err != nil {
+		t.Fatalf("GetEvalReport() error = %v", err)
+	}
+	if report.RunID != run.ID {
+		t.Fatalf("RunID = %q, want %q", report.RunID, run.ID)
+	}
+	if report.PassedItems != 1 || report.FailedItems != 0 {
+		t.Fatalf("report counts = %#v, want one passed item", report)
+	}
+}
+
+func TestRunnerMaterializesEvalReportAfterFailedRun(t *testing.T) {
+	ctx := context.Background()
+	store := newMemoryStore()
+	runService := NewRunServiceWithStore(store, nil)
+	reportService := NewEvalReportServiceWithDependencies(store, runService)
+
+	run, err := store.CreateRun(ctx, EvalRun{
+		ID:               "eval-run-report-failed",
+		TenantID:         "tenant-run",
+		DatasetID:        "eval-dataset-failed",
+		DatasetName:      "Published baseline",
+		DatasetItemCount: 1,
+		Status:           RunStatusQueued,
+		CreatedBy:        "operator",
+		CreatedAt:        time.Unix(1700030400, 0).UTC(),
+		UpdatedAt:        time.Unix(1700030400, 0).UTC(),
+	}, EvalRunItem{EvalCaseID: "eval-case-fail", Title: "Eval Fail", SourceCaseID: "case-fail", TraceID: "trace-fail"})
+	if err != nil {
+		t.Fatalf("CreateRun() error = %v", err)
+	}
+
+	executor := NewPlaceholderRunExecutor()
+	executor.FailAll = true
+	runner := NewRunnerWithReports(runService, executor, reportService)
+	processed, err := runner.ProcessNextBatch(ctx, 10)
+	if err != nil {
+		t.Fatalf("ProcessNextBatch() error = %v", err)
+	}
+	if processed != 1 {
+		t.Fatalf("processed = %d, want 1", processed)
+	}
+
+	report, err := reportService.GetEvalReport(ctx, EvalReportIDFromRunID(run.ID))
+	if err != nil {
+		t.Fatalf("GetEvalReport() error = %v", err)
+	}
+	if report.RunStatus != RunStatusFailed {
+		t.Fatalf("RunStatus = %q, want %q", report.RunStatus, RunStatusFailed)
+	}
+	if report.PassedItems != 0 || report.FailedItems != 1 {
+		t.Fatalf("report counts = %#v, want one failed item", report)
+	}
+	if len(report.BadCases) != 1 || report.BadCases[0].EvalCaseID != "eval-case-fail" {
+		t.Fatalf("BadCases = %#v, want failed case lineage", report.BadCases)
+	}
+}

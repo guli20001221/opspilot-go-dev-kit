@@ -55,6 +55,7 @@ Turn prompt, routing, retrieval, and tool changes into measurable, repeatable qu
 23. When placeholder judge fields become structured, extract them behind a replaceable judge runtime with a stable version ID and prompt artifact path before wiring any external provider.
 24. The first provider-backed judge slice should be env-gated and reuse the existing durable `item_results` contract, so local development can stay on the placeholder path until explicit credentials or an HTTP judge service are supplied.
 25. When the first external judge call is introduced, preserve a canonical terminal fallback path so provider errors do not strand eval runs in `running`.
+26. Once provider-backed judging exists, materialize terminal eval runs into a durable aggregated eval-report artifact before building comparison-heavy UI, so metrics and bad-case references have a canonical backend source of truth.
 
 ## Output contract
 When you finish, always report:
