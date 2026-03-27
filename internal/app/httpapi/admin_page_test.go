@@ -822,6 +822,10 @@ const reportID = process.argv[4];
   if (!latestCaseHref || !latestCaseHref.includes("/admin/cases?") || !latestCaseHref.includes("case_id=")) {
     throw new Error("latest case handoff link missing from list row");
   }
+  const detailLatestCaseHref = await page.getAttribute("#openLatestCaseLink", "href");
+  if (!detailLatestCaseHref || !detailLatestCaseHref.includes("/admin/cases?") || !detailLatestCaseHref.includes("case_id=")) {
+    throw new Error("latest case handoff link missing from detail pane");
+  }
   const linkedCaseCount = (await page.textContent("#linkedCaseCount")).trim();
   if (linkedCaseCount !== "5+") {
     throw new Error("unexpected linkedCaseCount: " + linkedCaseCount);

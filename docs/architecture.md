@@ -107,6 +107,7 @@ The current HTTP layer also exposes the same PostgreSQL-backed workflow records 
 - the same eval-report lane now also carries follow-up case summary directly on canonical list rows, so queue-level triage does not need a second case-list fetch per row
 - the same canonical eval-report list now also supports a `needs_follow_up` filter, so operator lanes can pull unresolved-regression slices without inventing a second queue contract
 - that canonical eval-report list also carries `latest_follow_up_case_id`, so operator lanes can hand off directly into the freshest linked follow-up case without an extra per-row lookup
+- the eval-report detail pane reuses that same canonical field for its `Open latest case` action instead of inventing a separate handoff endpoint
 - the same eval-report lane now also reuses the canonical case list filter `source_eval_report_id`, so operators can see linked durable follow-up cases for the selected regression without a second backend surface
 - `/admin/eval-report-compare` is the first eval-report comparison lane, reusing a narrow canonical compare contract instead of diffing eval reports ad hoc in the browser
 - the same compare lane now also hands regression findings into the canonical case lifecycle by reusing `POST /api/v1/cases` and deep-linking to `/admin/cases`, instead of inventing an admin-only follow-up store
