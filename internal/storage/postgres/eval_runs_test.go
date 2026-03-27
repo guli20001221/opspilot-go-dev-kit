@@ -765,13 +765,13 @@ INSERT INTO eval_cases (
 	}
 	results := []evalsvc.EvalRunItemResult{
 		{
-			EvalCaseID: "eval-case-results-a",
+			EvalCaseID: "eval-case-results-b",
 			Status:     evalsvc.RunItemResultSucceeded,
 			Detail:     "placeholder eval passed",
 			UpdatedAt:  time.Unix(1700021030, 0).UTC(),
 		},
 		{
-			EvalCaseID: "eval-case-results-b",
+			EvalCaseID: "eval-case-results-a",
 			Status:     evalsvc.RunItemResultSucceeded,
 			Detail:     "placeholder eval passed",
 			UpdatedAt:  time.Unix(1700021030, 0).UTC(),

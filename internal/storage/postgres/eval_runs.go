@@ -360,13 +360,16 @@ ORDER BY position ASC`
 func (s *EvalRunStore) listRunItemResults(ctx context.Context, q evalRunQuerier, runID string) ([]evalsvc.EvalRunItemResult, error) {
 	const query = `
 SELECT
-    eval_case_id,
-    status,
-    detail,
-    updated_at
-FROM eval_run_item_results
-WHERE run_id = $1
-ORDER BY updated_at, eval_case_id`
+    results.eval_case_id,
+    results.status,
+    results.detail,
+    results.updated_at
+FROM eval_run_item_results results
+JOIN eval_run_items items
+  ON items.run_id = results.run_id
+ AND items.eval_case_id = results.eval_case_id
+WHERE results.run_id = $1
+ORDER BY items.position ASC`
 
 	rows, err := q.Query(ctx, query, runID)
 	if err != nil {
