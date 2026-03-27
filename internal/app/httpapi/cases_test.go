@@ -464,6 +464,49 @@ func TestListCasesEndpointSupportsEvalBackedOnlyFilter(t *testing.T) {
 	}
 }
 
+func TestListCasesEndpointSupportsEvalReportSourceFilterPagination(t *testing.T) {
+	caseService := casesvc.NewService()
+
+	for i := 0; i < 6; i++ {
+		if _, err := caseService.CreateCase(context.Background(), casesvc.CreateInput{
+			TenantID:           "tenant-1",
+			Title:              "Eval-backed case",
+			SourceEvalReportID: "eval-report-many",
+		}); err != nil {
+			t.Fatalf("CreateCase(%d) error = %v", i, err)
+		}
+	}
+
+	server := httptest.NewServer(NewHandlerWithDependencies(Dependencies{
+		Cases: caseService,
+	}))
+	defer server.Close()
+
+	resp, err := http.Get(server.URL + "/api/v1/cases?tenant_id=tenant-1&source_eval_report_id=eval-report-many&limit=5")
+	if err != nil {
+		t.Fatalf("Get() error = %v", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("StatusCode = %d, want %d", resp.StatusCode, http.StatusOK)
+	}
+
+	var page listCasesResponse
+	if err := json.NewDecoder(resp.Body).Decode(&page); err != nil {
+		t.Fatalf("Decode() error = %v", err)
+	}
+	if len(page.Cases) != 5 {
+		t.Fatalf("len(page.Cases) = %d, want %d", len(page.Cases), 5)
+	}
+	if !page.HasMore {
+		t.Fatal("page.HasMore = false, want true")
+	}
+	if page.NextOffset == nil || *page.NextOffset != 5 {
+		t.Fatalf("page.NextOffset = %v, want 5", page.NextOffset)
+	}
+}
+
 func TestListCasesEndpointRejectsInvalidUnassignedOnly(t *testing.T) {
 	server := httptest.NewServer(NewHandler())
 	defer server.Close()

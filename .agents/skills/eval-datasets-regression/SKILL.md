@@ -60,6 +60,7 @@ Turn prompt, routing, retrieval, and tool changes into measurable, repeatable qu
 28. Once durable eval reports need side-by-side regression review, prefer a narrow canonical compare contract over two report IDs before building an eval-report comparison page, so score deltas and bad-case overlap stay reproducible and backend-owned.
 29. Once a durable eval-report compare lane exists, prefer handing regressions into the canonical case lifecycle through `POST /api/v1/cases` before inventing a separate regression backlog or browser-only follow-up state.
 30. If operators need to revisit promoted eval regressions, prefer canonical case filters such as `source_eval_report_id` or `eval_backed_only=true` over duplicating that queue inside eval-only storage.
+31. On eval-report detail surfaces, prefer showing linked follow-up cases by querying the canonical case list with `source_eval_report_id` rather than copying case state into eval-report storage.
 
 ## Output contract
 When you finish, always report:

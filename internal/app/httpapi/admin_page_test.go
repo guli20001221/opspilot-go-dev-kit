@@ -1,6 +1,7 @@
 package httpapi
 
 import (
+	"context"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -551,6 +552,15 @@ func TestAdminEvalReportsPageRendersHTML(t *testing.T) {
 	if !strings.Contains(body, "Copy report link") {
 		t.Fatal("report link handoff missing from eval reports page HTML")
 	}
+	if !strings.Contains(body, "Linked cases") {
+		t.Fatal("linked cases section missing from eval reports page HTML")
+	}
+	if !strings.Contains(body, "Open linked cases") {
+		t.Fatal("linked cases handoff missing from eval reports page HTML")
+	}
+	if !strings.Contains(body, "/api/v1/cases") {
+		t.Fatal("case list API path missing from eval reports page HTML")
+	}
 	if !strings.Contains(body, "Open eval run lane") {
 		t.Fatal("eval run lane handoff missing from eval reports page HTML")
 	}
@@ -704,8 +714,23 @@ const rightReportID = process.argv[5];
 
 func TestAdminEvalReportsPageRuntimeSmoke(t *testing.T) {
 	reportService, reportID := buildEvalReportFixture(t, "tenant-eval-admin-smoke", evalsvc.RunStatusFailed, "failure detail")
+	caseService := casesvc.NewService()
+	for i := 0; i < 6; i++ {
+		if _, err := caseService.CreateCase(context.Background(), casesvc.CreateInput{
+			TenantID:           "tenant-eval-admin-smoke",
+			Title:              "Investigate regression",
+			Summary:            "Follow up failing eval report",
+			SourceEvalReportID: reportID,
+			CreatedBy:          "operator-eval",
+		}); err != nil {
+			t.Fatalf("CreateCase(%d) error = %v", i, err)
+		}
+	}
 
-	server := httptest.NewServer(NewHandlerWithDependencies(Dependencies{EvalReports: reportService}))
+	server := httptest.NewServer(NewHandlerWithDependencies(Dependencies{
+		EvalReports: reportService,
+		Cases:       caseService,
+	}))
 	defer server.Close()
 
 	nodePathRoot, err := npmGlobalRoot()
@@ -726,9 +751,22 @@ const reportID = process.argv[4];
   await page.goto(baseURL + "/admin/eval-reports?tenant_id=" + encodeURIComponent(tenantID) + "&limit=10");
   await page.waitForSelector("text=Eval Report Lane");
   await page.waitForSelector("text=Bad cases");
+  await page.waitForSelector("text=Linked cases");
   const visibleCount = (await page.textContent("#visibleCount")).trim();
   if (visibleCount !== "1") {
     throw new Error("unexpected visibleCount: " + visibleCount);
+  }
+  const linkedCaseCount = (await page.textContent("#linkedCaseCount")).trim();
+  if (linkedCaseCount !== "5+") {
+    throw new Error("unexpected linkedCaseCount: " + linkedCaseCount);
+  }
+  const linkedCaseScope = (await page.textContent("#linkedCasesScope")).trim();
+  if (!linkedCaseScope.includes("Showing latest 5")) {
+    throw new Error("linked case scope note did not reflect paginated slice: " + linkedCaseScope);
+  }
+  const linkedCasesHref = await page.getAttribute("#openLinkedCasesLink", "href");
+  if (!linkedCasesHref || !linkedCasesHref.includes("source_eval_report_id=" + encodeURIComponent(reportID))) {
+    throw new Error("linked cases handoff missing source_eval_report_id");
   }
   const urlAfterLoad = new URL(page.url());
   if (urlAfterLoad.searchParams.get("report_id") !== reportID) {

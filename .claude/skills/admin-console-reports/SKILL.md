@@ -121,3 +121,4 @@ When you finish, always report:
 - once durable eval reports need side-by-side review, prefer a narrow canonical compare contract plus `/admin/eval-report-compare` over diffing two full report payloads ad hoc inside the eval-report lane
 - once a durable eval-report compare lane exists, prefer wiring `Create case` from that page to the canonical `POST /api/v1/cases` contract with `source_eval_report_id` set to the selected regression report, then deep-link into `/admin/cases`, instead of inventing an admin-only regression backlog
 - when `/admin/cases` needs an eval-regression follow-up slice, prefer backend list filters like `source_eval_report_id` or `eval_backed_only=true` over client-side provenance filtering
+- when `/admin/eval-reports` needs regression follow-up context, prefer reading linked cases through `GET /api/v1/cases?tenant_id=...&source_eval_report_id=...` and hand off back to `/admin/cases` instead of introducing an eval-report-specific case API

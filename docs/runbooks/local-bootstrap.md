@@ -152,6 +152,7 @@ The current chat stream implementation is a Milestone 1 skeleton:
 - use `GET /api/v1/eval-reports?tenant_id=<tenant>` when you need the lightweight tenant-scoped browse lane for those durable eval reports
 - use `GET /api/v1/eval-reports/{report_id}?tenant_id=<tenant>` when you need the canonical aggregated eval report detail, including metadata and bad-case lineage
 - open `http://localhost:18080/admin/eval-reports` when you want the first eval-report operator page, including bad-case drill-down plus run, dataset, eval, trace, and version handoff links
+- use `Open linked cases` on `/admin/eval-reports` when you want to jump from one durable eval report straight into the canonical `/admin/cases?source_eval_report_id=<report_id>` slice
 - use `GET /api/v1/eval-report-compare?tenant_id=<tenant>&left_report_id=<left>&right_report_id=<right>` when you need a canonical eval-report delta view with score change, metadata drift, and bad-case overlap
 - open `http://localhost:18080/admin/eval-report-compare` when you want the first eval-report comparison page, including handoff into eval runs and version detail
 - terminal run reads now also expose `result_summary`, so `/api/v1/eval-runs` and `/admin/eval-runs` can show quick pass/fail totals without loading the full per-item payload first

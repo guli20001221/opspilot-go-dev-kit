@@ -104,6 +104,7 @@ The current HTTP layer also exposes the same PostgreSQL-backed workflow records 
 - `POST /api/v1/eval-runs`, `GET /api/v1/eval-runs`, and `GET /api/v1/eval-runs/{run_id}` now expose that tenant-scoped run-kickoff contract
 - `/admin/eval-runs` is the first eval-run operator lane, and `/admin/eval-datasets` now hands published baselines into it through `Run dataset`
 - `/admin/eval-reports` is the first eval-report operator lane, reusing the canonical eval-report list/detail contracts instead of reconstructing aggregated artifacts from run detail in the browser
+- the same eval-report lane now also reuses the canonical case list filter `source_eval_report_id`, so operators can see linked durable follow-up cases for the selected regression without a second backend surface
 - `/admin/eval-report-compare` is the first eval-report comparison lane, reusing a narrow canonical compare contract instead of diffing eval reports ad hoc in the browser
 - the same compare lane now also hands regression findings into the canonical case lifecycle by reusing `POST /api/v1/cases` and deep-linking to `/admin/cases`, instead of inventing an admin-only follow-up store
 - the durable case contract now also carries `source_eval_report_id`, so compare-created follow-up work keeps a canonical pointer back to the originating eval report and `/admin/cases` can hand operators back into the eval-report lane without parsing summary text
