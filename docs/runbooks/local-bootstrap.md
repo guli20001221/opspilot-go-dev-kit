@@ -151,8 +151,10 @@ The current chat stream implementation is a Milestone 1 skeleton:
 - once a run reaches a terminal state, the worker also materializes a durable aggregated eval report carrying top-line metrics, bad-case lineage, and judge metadata for later comparison/reporting slices
 - use `GET /api/v1/eval-reports?tenant_id=<tenant>` when you need the lightweight tenant-scoped browse lane for those durable eval reports
 - that same eval-report list now also includes `follow_up_case_count`, `open_follow_up_case_count`, and `latest_follow_up_case_status`, so `/admin/eval-reports` can surface regression follow-up pressure directly from the canonical list contract
+- use `needs_follow_up=true` on `GET /api/v1/eval-reports` when you want only eval reports with at least one open follow-up case, or `needs_follow_up=false` when you want reports whose follow-up queue is already clear
 - use `GET /api/v1/eval-reports/{report_id}?tenant_id=<tenant>` when you need the canonical aggregated eval report detail, including metadata and bad-case lineage
 - open `http://localhost:18080/admin/eval-reports` when you want the first eval-report operator page, including bad-case drill-down plus run, dataset, eval, trace, and version handoff links
+- use the `Needs follow-up` quick view on `/admin/eval-reports` when you want the unresolved-regression slice without manually entering `needs_follow_up=true`
 - use `Open linked cases` on `/admin/eval-reports` when you want to jump from one durable eval report straight into the canonical `/admin/cases?source_eval_report_id=<report_id>` slice
 - use `GET /api/v1/eval-report-compare?tenant_id=<tenant>&left_report_id=<left>&right_report_id=<right>` when you need a canonical eval-report delta view with score change, metadata drift, and bad-case overlap
 - open `http://localhost:18080/admin/eval-report-compare` when you want the first eval-report comparison page, including handoff into eval runs and version detail

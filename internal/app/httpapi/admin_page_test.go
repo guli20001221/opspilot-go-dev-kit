@@ -544,6 +544,9 @@ func TestAdminEvalReportsPageRendersHTML(t *testing.T) {
 	if !strings.Contains(body, "Follow-up") {
 		t.Fatal("follow-up summary column missing from eval reports page HTML")
 	}
+	if !strings.Contains(body, "Needs follow-up") {
+		t.Fatal("needs follow-up quick view missing from eval reports page HTML")
+	}
 	if !strings.Contains(body, "Show raw report JSON") {
 		t.Fatal("raw report json toggle missing from eval reports page HTML")
 	}
@@ -717,8 +720,14 @@ const rightReportID = process.argv[5];
 }
 
 func TestAdminEvalReportsPageRuntimeSmoke(t *testing.T) {
-	reportService, reportID := buildEvalReportFixture(t, "tenant-eval-admin-smoke", evalsvc.RunStatusFailed, "failure detail")
 	caseService := casesvc.NewService()
+	evalCaseService := evalsvc.NewService(caseService, nil)
+	datasetService := evalsvc.NewDatasetService(evalCaseService)
+	runService := evalsvc.NewRunService(datasetService)
+	reportService := evalsvc.NewEvalReportServiceWithDependencies(nil, runService)
+	reportID := materializeEvalRunReport(t, "tenant-eval-admin-smoke", evalsvc.RunStatusFailed, "failure detail", caseService, evalCaseService, datasetService, runService, reportService, "Dataset Follow-up", "Source Follow-up")
+	_ = materializeEvalRunReport(t, "tenant-eval-admin-smoke", evalsvc.RunStatusSucceeded, "success detail", caseService, evalCaseService, datasetService, runService, reportService, "Dataset No Follow-up", "Source No Follow-up")
+
 	for i := 0; i < 6; i++ {
 		if _, err := caseService.CreateCase(context.Background(), casesvc.CreateInput{
 			TenantID:           "tenant-eval-admin-smoke",
@@ -779,14 +788,28 @@ const reportID = process.argv[4];
   await page.waitForSelector("text=Bad cases");
   await page.waitForSelector("text=Linked cases");
   const visibleCount = (await page.textContent("#visibleCount")).trim();
-  if (visibleCount !== "1") {
+  if (visibleCount !== "2") {
+    throw new Error("unexpected visibleCount before quick view: " + visibleCount);
+  }
+  await page.click("#quickViewNeedsFollowUp");
+  await page.waitForFunction(() => new URL(window.location.href).searchParams.get("needs_follow_up") === "true");
+  const filteredVisibleCount = (await page.textContent("#visibleCount")).trim();
+  if (filteredVisibleCount !== "1") {
+    throw new Error("unexpected visibleCount after quick view: " + filteredVisibleCount);
+  }
+  const followUpFilterValue = await page.$eval("#needs_follow_up", (el) => el.value);
+  if (followUpFilterValue !== "true") {
+    throw new Error("needs_follow_up filter was not synced to quick view");
+  }
+  const visibleCountAfterQuickView = (await page.textContent("#visibleCount")).trim();
+  if (visibleCountAfterQuickView !== "1") {
     throw new Error("unexpected visibleCount: " + visibleCount);
   }
   const followUpSummary = (await page.textContent("#reportRows tr td:nth-child(5)")).trim();
-  if (!followUpSummary.includes("2 cases")) {
+  if (!followUpSummary.includes("8 cases")) {
     throw new Error("follow-up case count missing from list row: " + followUpSummary);
   }
-  if (!followUpSummary.includes("1 open")) {
+  if (!followUpSummary.includes("7 open")) {
     throw new Error("open follow-up case count missing from list row: " + followUpSummary);
   }
   if (!followUpSummary.includes("latest open")) {

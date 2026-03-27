@@ -63,6 +63,7 @@ Turn prompt, routing, retrieval, and tool changes into measurable, repeatable qu
 31. On eval-report detail surfaces, prefer showing linked follow-up cases by querying the canonical case list with `source_eval_report_id` rather than copying case state into eval-report storage.
 32. When a durable case detail needs source eval-regression context, prefer reading the canonical eval-report detail by `source_eval_report_id` and keep the case usable if that report row is missing or was only partially recovered.
 33. When eval-report list consumers need backlog pressure signals, prefer adding durable follow-up case summary fields such as total/open counts to `GET /api/v1/eval-reports` rather than issuing per-row case-list reads or duplicating case state into eval-report storage.
+34. When operators need to isolate unresolved eval regressions, prefer a canonical boolean filter such as `needs_follow_up=true` on `GET /api/v1/eval-reports` before adding any second queue contract.
 
 ## Output contract
 When you finish, always report:

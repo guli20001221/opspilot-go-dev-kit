@@ -1847,6 +1847,11 @@ paths:
             type: string
             enum:
               - ready
+        - name: needs_follow_up
+          in: query
+          required: false
+          schema:
+            type: boolean
         - name: limit
           in: query
           required: false

@@ -102,6 +102,7 @@ Provide a practical operator UI for evaluation and runtime analysis while keepin
 74. When `/admin/eval-reports` needs regression follow-up context, prefer reading linked cases through `GET /api/v1/cases?tenant_id=...&source_eval_report_id=...` and hand off back to `/admin/cases` instead of introducing an eval-report-specific case API.
 75. When `/admin/cases` needs source eval-regression context, prefer reading the canonical `GET /api/v1/eval-reports/{report_id}` detail for `source_eval_report_id`, and degrade to the surviving case provenance if that eval-report row is missing instead of failing the whole case detail pane.
 76. When `/admin/eval-reports` list rows need follow-up pressure signals, prefer adding durable summary fields such as total/open follow-up case counts onto the canonical eval-report list contract instead of issuing per-row case-list requests from the browser.
+77. When operators need the unresolved-regression slice on `/admin/eval-reports`, prefer a canonical list filter such as `needs_follow_up=true` plus a quick-view preset over inventing a second eval-report queue endpoint.
 
 ## Output contract
 When you finish, always report:

@@ -480,6 +480,162 @@ func TestListEvalReportsIncludesFollowUpCaseSummary(t *testing.T) {
 	}
 }
 
+func TestListEvalReportsSupportsNeedsFollowUpFilter(t *testing.T) {
+	caseService := casesvc.NewService()
+	evalCaseService := evalsvc.NewService(caseService, nil)
+	datasetService := evalsvc.NewDatasetService(evalCaseService)
+	runService := evalsvc.NewRunService(datasetService)
+	reportService := evalsvc.NewEvalReportServiceWithDependencies(nil, runService)
+	withFollowUpID := materializeEvalRunReport(t, "tenant-eval-report-needs-followup", evalsvc.RunStatusFailed, "failure detail", caseService, evalCaseService, datasetService, runService, reportService, "Dataset With Follow-up", "Source With Follow-up")
+	withoutFollowUpID := materializeEvalRunReport(t, "tenant-eval-report-needs-followup", evalsvc.RunStatusSucceeded, "success detail", caseService, evalCaseService, datasetService, runService, reportService, "Dataset Without Follow-up", "Source Without Follow-up")
+
+	if _, err := caseService.CreateCase(context.Background(), casesvc.CreateInput{
+		TenantID:           "tenant-eval-report-needs-followup",
+		Title:              "Open follow-up",
+		Summary:            "open summary",
+		SourceEvalReportID: withFollowUpID,
+		CreatedBy:          "operator-followup",
+	}); err != nil {
+		t.Fatalf("CreateCase(open) error = %v", err)
+	}
+
+	server := httptest.NewServer(NewHandlerWithDependencies(Dependencies{
+		Cases:       caseService,
+		EvalReports: reportService,
+	}))
+	defer server.Close()
+
+	resp, err := http.Get(server.URL + "/api/v1/eval-reports?tenant_id=tenant-eval-report-needs-followup&status=ready&needs_follow_up=true&limit=10")
+	if err != nil {
+		t.Fatalf("Get(needs_follow_up=true) error = %v", err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("StatusCode(true) = %d, want %d", resp.StatusCode, http.StatusOK)
+	}
+
+	var followUpPage listEvalReportsResponse
+	if err := json.NewDecoder(resp.Body).Decode(&followUpPage); err != nil {
+		t.Fatalf("Decode(followUpPage) error = %v", err)
+	}
+	if len(followUpPage.Reports) != 1 {
+		t.Fatalf("len(followUpPage.Reports) = %d, want 1", len(followUpPage.Reports))
+	}
+	if followUpPage.Reports[0].ReportID != withFollowUpID {
+		t.Fatalf("followUpPage.Reports[0].ReportID = %q, want %q", followUpPage.Reports[0].ReportID, withFollowUpID)
+	}
+
+	noFollowUpResp, err := http.Get(server.URL + "/api/v1/eval-reports?tenant_id=tenant-eval-report-needs-followup&status=ready&needs_follow_up=false&limit=10")
+	if err != nil {
+		t.Fatalf("Get(needs_follow_up=false) error = %v", err)
+	}
+	defer noFollowUpResp.Body.Close()
+	if noFollowUpResp.StatusCode != http.StatusOK {
+		t.Fatalf("StatusCode(false) = %d, want %d", noFollowUpResp.StatusCode, http.StatusOK)
+	}
+
+	var noFollowUpPage listEvalReportsResponse
+	if err := json.NewDecoder(noFollowUpResp.Body).Decode(&noFollowUpPage); err != nil {
+		t.Fatalf("Decode(noFollowUpPage) error = %v", err)
+	}
+	if len(noFollowUpPage.Reports) != 1 {
+		t.Fatalf("len(noFollowUpPage.Reports) = %d, want 1", len(noFollowUpPage.Reports))
+	}
+	if noFollowUpPage.Reports[0].ReportID != withoutFollowUpID {
+		t.Fatalf("noFollowUpPage.Reports[0].ReportID = %q, want %q", noFollowUpPage.Reports[0].ReportID, withoutFollowUpID)
+	}
+}
+
+func TestListEvalReportsSupportsNeedsFollowUpPagination(t *testing.T) {
+	caseService := casesvc.NewService()
+	evalCaseService := evalsvc.NewService(caseService, nil)
+	datasetService := evalsvc.NewDatasetService(evalCaseService)
+	runService := evalsvc.NewRunService(datasetService)
+	reportService := evalsvc.NewEvalReportServiceWithDependencies(nil, runService)
+	firstReportID := materializeEvalRunReport(t, "tenant-eval-report-needs-followup-page", evalsvc.RunStatusFailed, "failure detail", caseService, evalCaseService, datasetService, runService, reportService, "Dataset First", "Source First")
+	secondReportID := materializeEvalRunReport(t, "tenant-eval-report-needs-followup-page", evalsvc.RunStatusFailed, "failure detail", caseService, evalCaseService, datasetService, runService, reportService, "Dataset Second", "Source Second")
+	_ = materializeEvalRunReport(t, "tenant-eval-report-needs-followup-page", evalsvc.RunStatusSucceeded, "success detail", caseService, evalCaseService, datasetService, runService, reportService, "Dataset No Follow-up", "Source None")
+
+	for _, reportID := range []string{firstReportID, secondReportID} {
+		if _, err := caseService.CreateCase(context.Background(), casesvc.CreateInput{
+			TenantID:           "tenant-eval-report-needs-followup-page",
+			Title:              "Open follow-up",
+			Summary:            "open summary",
+			SourceEvalReportID: reportID,
+			CreatedBy:          "operator-followup",
+		}); err != nil {
+			t.Fatalf("CreateCase(%s) error = %v", reportID, err)
+		}
+	}
+
+	server := httptest.NewServer(NewHandlerWithDependencies(Dependencies{
+		Cases:       caseService,
+		EvalReports: reportService,
+	}))
+	defer server.Close()
+
+	firstResp, err := http.Get(server.URL + "/api/v1/eval-reports?tenant_id=tenant-eval-report-needs-followup-page&status=ready&needs_follow_up=true&limit=1")
+	if err != nil {
+		t.Fatalf("Get(first page) error = %v", err)
+	}
+	defer firstResp.Body.Close()
+	if firstResp.StatusCode != http.StatusOK {
+		t.Fatalf("StatusCode(first page) = %d, want %d", firstResp.StatusCode, http.StatusOK)
+	}
+
+	var firstPage listEvalReportsResponse
+	if err := json.NewDecoder(firstResp.Body).Decode(&firstPage); err != nil {
+		t.Fatalf("Decode(firstPage) error = %v", err)
+	}
+	if len(firstPage.Reports) != 1 {
+		t.Fatalf("len(firstPage.Reports) = %d, want 1", len(firstPage.Reports))
+	}
+	if !firstPage.HasMore {
+		t.Fatal("firstPage.HasMore = false, want true")
+	}
+	if firstPage.NextOffset == nil || *firstPage.NextOffset != 1 {
+		t.Fatalf("firstPage.NextOffset = %v, want 1", firstPage.NextOffset)
+	}
+
+	secondResp, err := http.Get(server.URL + "/api/v1/eval-reports?tenant_id=tenant-eval-report-needs-followup-page&status=ready&needs_follow_up=true&limit=1&offset=1")
+	if err != nil {
+		t.Fatalf("Get(second page) error = %v", err)
+	}
+	defer secondResp.Body.Close()
+	if secondResp.StatusCode != http.StatusOK {
+		t.Fatalf("StatusCode(second page) = %d, want %d", secondResp.StatusCode, http.StatusOK)
+	}
+
+	var secondPage listEvalReportsResponse
+	if err := json.NewDecoder(secondResp.Body).Decode(&secondPage); err != nil {
+		t.Fatalf("Decode(secondPage) error = %v", err)
+	}
+	if len(secondPage.Reports) != 1 {
+		t.Fatalf("len(secondPage.Reports) = %d, want 1", len(secondPage.Reports))
+	}
+	if secondPage.HasMore {
+		t.Fatal("secondPage.HasMore = true, want false")
+	}
+	if secondPage.Reports[0].ReportID == firstPage.Reports[0].ReportID {
+		t.Fatalf("second page repeated report_id %q", secondPage.Reports[0].ReportID)
+	}
+}
+
+func TestListEvalReportsRejectsInvalidNeedsFollowUp(t *testing.T) {
+	server := httptest.NewServer(NewHandler())
+	defer server.Close()
+
+	resp, err := http.Get(server.URL + "/api/v1/eval-reports?tenant_id=tenant-eval&needs_follow_up=maybe")
+	if err != nil {
+		t.Fatalf("Get() error = %v", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusBadRequest {
+		t.Fatalf("StatusCode = %d, want %d", resp.StatusCode, http.StatusBadRequest)
+	}
+}
+
 func TestListEvalReportsRejectsInvalidRunStatus(t *testing.T) {
 	server := httptest.NewServer(NewHandler())
 	defer server.Close()

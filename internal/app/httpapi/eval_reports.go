@@ -1,8 +1,10 @@
 package httpapi
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"net/http"
 	"strconv"
 	"strings"
@@ -114,32 +116,20 @@ func (a *appHandler) handleEvalReports(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, "invalid_query", err.Error())
 		return
 	}
-
-	page, err := a.evalReports.ListEvalReports(r.Context(), filter)
+	needsFollowUp, err := parseEvalReportNeedsFollowUpFilter(r)
 	if err != nil {
-		writeError(w, http.StatusInternalServerError, "eval_report_list_failed", err.Error())
+		writeError(w, http.StatusBadRequest, "invalid_query", err.Error())
 		return
 	}
 
-	resp := listEvalReportsResponse{
-		Reports: make([]evalReportResponse, 0, len(page.Reports)),
-		HasMore: page.HasMore,
-	}
-	if page.HasMore {
-		resp.NextOffset = &page.NextOffset
-	}
-	reportIDs := make([]string, 0, len(page.Reports))
-	for _, item := range page.Reports {
-		reportIDs = append(reportIDs, item.ID)
-	}
-	followUpSummaries, err := a.cases.SummarizeBySourceEvalReportIDs(r.Context(), filter.TenantID, reportIDs)
+	resp, err := a.listEvalReportsResponse(r.Context(), filter, needsFollowUp)
 	if err != nil {
-		writeError(w, http.StatusInternalServerError, "eval_report_follow_up_summary_failed", err.Error())
+		code := "eval_report_list_failed"
+		if errors.Is(err, errEvalReportFollowUpSummaryFailed) {
+			code = "eval_report_follow_up_summary_failed"
+		}
+		writeError(w, http.StatusInternalServerError, code, err.Error())
 		return
-	}
-	for _, item := range page.Reports {
-		summary := followUpSummaries[item.ID]
-		resp.Reports = append(resp.Reports, newEvalReportResponse(item, false, summary))
 	}
 
 	writeJSON(w, http.StatusOK, resp)
@@ -277,6 +267,102 @@ func parseEvalReportListFilter(r *http.Request) (evalsvc.EvalReportListFilter, e
 	}
 
 	return filter, nil
+}
+
+var errEvalReportFollowUpSummaryFailed = errors.New("eval report follow-up summary failed")
+
+func parseEvalReportNeedsFollowUpFilter(r *http.Request) (*bool, error) {
+	rawNeedsFollowUp := strings.TrimSpace(r.URL.Query().Get("needs_follow_up"))
+	if rawNeedsFollowUp == "" {
+		return nil, nil
+	}
+
+	value, err := strconv.ParseBool(rawNeedsFollowUp)
+	if err != nil {
+		return nil, errors.New("needs_follow_up must be true or false")
+	}
+	return &value, nil
+}
+
+func (a *appHandler) listEvalReportsResponse(ctx context.Context, filter evalsvc.EvalReportListFilter, needsFollowUp *bool) (listEvalReportsResponse, error) {
+	if needsFollowUp == nil {
+		page, err := a.evalReports.ListEvalReports(ctx, filter)
+		if err != nil {
+			return listEvalReportsResponse{}, err
+		}
+		return a.buildEvalReportListResponse(ctx, filter.TenantID, page)
+	}
+
+	collectorLimit := filter.Limit
+	if collectorLimit < 50 {
+		collectorLimit = 50
+	}
+	if collectorLimit < filter.Offset+filter.Limit+1 {
+		collectorLimit = filter.Offset + filter.Limit + 1
+	}
+
+	baseFilter := filter
+	baseFilter.Offset = 0
+	baseFilter.Limit = collectorLimit
+
+	resp := listEvalReportsResponse{Reports: make([]evalReportResponse, 0, filter.Limit)}
+	matchedCount := 0
+	for {
+		page, err := a.evalReports.ListEvalReports(ctx, baseFilter)
+		if err != nil {
+			return listEvalReportsResponse{}, err
+		}
+		chunk, err := a.buildEvalReportListResponse(ctx, filter.TenantID, page)
+		if err != nil {
+			return listEvalReportsResponse{}, err
+		}
+		for _, item := range chunk.Reports {
+			hasOpenFollowUp := item.OpenFollowUpCaseCount > 0
+			if hasOpenFollowUp != *needsFollowUp {
+				continue
+			}
+			if matchedCount < filter.Offset {
+				matchedCount++
+				continue
+			}
+			if len(resp.Reports) < filter.Limit {
+				resp.Reports = append(resp.Reports, item)
+				matchedCount++
+				continue
+			}
+			resp.HasMore = true
+			nextOffset := filter.Offset + filter.Limit
+			resp.NextOffset = &nextOffset
+			return resp, nil
+		}
+		if !page.HasMore {
+			return resp, nil
+		}
+		baseFilter.Offset = page.NextOffset
+	}
+}
+
+func (a *appHandler) buildEvalReportListResponse(ctx context.Context, tenantID string, page evalsvc.EvalReportListPage) (listEvalReportsResponse, error) {
+	resp := listEvalReportsResponse{
+		Reports: make([]evalReportResponse, 0, len(page.Reports)),
+		HasMore: page.HasMore,
+	}
+	if page.HasMore {
+		resp.NextOffset = &page.NextOffset
+	}
+	reportIDs := make([]string, 0, len(page.Reports))
+	for _, item := range page.Reports {
+		reportIDs = append(reportIDs, item.ID)
+	}
+	followUpSummaries, err := a.cases.SummarizeBySourceEvalReportIDs(ctx, tenantID, reportIDs)
+	if err != nil {
+		return listEvalReportsResponse{}, fmt.Errorf("%w: %v", errEvalReportFollowUpSummaryFailed, err)
+	}
+	for _, item := range page.Reports {
+		summary := followUpSummaries[item.ID]
+		resp.Reports = append(resp.Reports, newEvalReportResponse(item, false, summary))
+	}
+	return resp, nil
 }
 
 func newEvalReportResponse(item evalsvc.EvalReport, includeHeavy bool, followUpSummary casesvc.EvalReportFollowUpSummary) evalReportResponse {
