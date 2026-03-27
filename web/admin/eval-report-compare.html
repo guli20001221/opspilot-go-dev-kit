@@ -23,6 +23,7 @@
         <a class="link-chip" href="/admin/eval-runs">Open Eval Runs</a>
         <a class="link-chip" href="/admin/eval-datasets">Open Eval Datasets</a>
         <a class="link-chip" href="/admin/evals">Open Evals</a>
+        <a class="link-chip" href="/admin/cases">Open Cases</a>
         <a class="link-chip" href="/admin/version-detail">Open Version Detail</a>
       </div>
     </section>
@@ -79,6 +80,11 @@
           <div class="detail-card" style="margin-top:18px;">
             <h3 style="margin-top:0;">Diff breakdown</h3>
             <div id="diffList" class="diff-list"></div>
+            <div class="actions" style="margin-top:14px;">
+              <button class="primary" type="button" id="createCaseButton" hidden>Create case</button>
+              <a class="button-link ghost" href="/admin/cases" id="openCasesLink">Open Cases</a>
+            </div>
+            <div id="compareActionStatus" class="panel-copy" style="margin-top:12px;">Create a durable case when this comparison represents a regression that needs operator follow-up.</div>
           </div>
         </div>
       </section>
@@ -86,21 +92,254 @@
   </main>
 
   <script>
-    const compareEndpoint="/api/v1/eval-report-compare",detailEndpointBase="/api/v1/eval-reports/",runLaneBase="/admin/eval-runs";
-    const form=document.getElementById("compareForm"),compareState=document.getElementById("compareState"),compareContent=document.getElementById("compareContent"),swapReportsButton=document.getElementById("swapReports"),resetFormButton=document.getElementById("resetForm"),sameDataset=document.getElementById("sameDataset"),sameRunStatus=document.getElementById("sameRunStatus"),averageScoreDelta=document.getElementById("averageScoreDelta"),badCaseOverlap=document.getElementById("badCaseOverlap"),leftReportDetail=document.getElementById("leftReportDetail"),rightReportDetail=document.getElementById("rightReportDetail"),leftReportAPILink=document.getElementById("leftReportAPILink"),rightReportAPILink=document.getElementById("rightReportAPILink"),leftRunLaneLink=document.getElementById("leftRunLaneLink"),rightRunLaneLink=document.getElementById("rightRunLaneLink"),leftVersionLink=document.getElementById("leftVersionLink"),rightVersionLink=document.getElementById("rightVersionLink"),diffList=document.getElementById("diffList");
-    function escapeHTML(value){return String(value??"").replaceAll("&","&amp;").replaceAll("<","&lt;").replaceAll(">","&gt;").replaceAll("\"","&quot;").replaceAll("'","&#39;")}
-    function fmtDate(value){if(!value)return"Unknown";const date=new Date(value);if(Number.isNaN(date.valueOf()))return value;return new Intl.DateTimeFormat(undefined,{year:"numeric",month:"short",day:"2-digit",hour:"2-digit",minute:"2-digit",second:"2-digit"}).format(date)}
-    function buildParams(){const params=new URLSearchParams();for(const name of["tenant_id","left_report_id","right_report_id"]){const value=form.elements.namedItem(name).value.trim();if(value)params.set(name,value)}return params}
-    function syncURL(){const params=buildParams();history.replaceState(null,"",params.toString()?`/admin/eval-report-compare?${params.toString()}`:"/admin/eval-report-compare")}
-    function populateFiltersFromURL(){const params=new URLSearchParams(window.location.search);for(const name of["tenant_id","left_report_id","right_report_id"]){form.elements.namedItem(name).value=params.get(name)||""}}
-    function renderCompareCard(container,item){container.innerHTML=`<dl class="detail-card"><dt>Report ID</dt><dd>${escapeHTML(item.report_id)}</dd></dl><dl class="detail-card"><dt>Dataset</dt><dd>${escapeHTML(item.dataset_name)}<br><small>${escapeHTML(item.dataset_id)}</small></dd></dl><dl class="detail-card"><dt>Run</dt><dd>${escapeHTML(item.run_id)}<br><small>${escapeHTML(item.run_status)}</small></dd></dl><dl class="detail-card"><dt>Summary</dt><dd>${escapeHTML(item.summary||"none")}</dd></dl><dl class="detail-card"><dt>Judge version</dt><dd>${escapeHTML(item.judge_version||"unknown")}</dd></dl><dl class="detail-card"><dt>Bad cases</dt><dd>${escapeHTML(String(item.bad_case_count||0))}</dd></dl><dl class="detail-card"><dt>Version</dt><dd>${escapeHTML(item.version_id||"Unavailable")}</dd></dl><dl class="detail-card"><dt>Ready at</dt><dd>${escapeHTML(fmtDate(item.ready_at))}</dd></dl>`}
-    function diffRow(label,changed,extra=""){return`<div class="diff-item"><strong>${escapeHTML(label)}</strong><span class="pill ${changed?"changed":"same"}">${changed?"Changed":"Same"}${extra?` | ${escapeHTML(extra)}`:""}</span></div>`}
-    function renderComparison(payload){compareState.hidden=true;compareContent.hidden=false;sameDataset.textContent=payload.summary.same_dataset?"Yes":"No";sameRunStatus.textContent=payload.summary.same_run_status?"Yes":"No";averageScoreDelta.textContent=String(payload.summary.average_score_delta);badCaseOverlap.textContent=String(payload.summary.bad_case_overlap_count);renderCompareCard(leftReportDetail,payload.left);renderCompareCard(rightReportDetail,payload.right);leftReportAPILink.href=`${detailEndpointBase}${encodeURIComponent(payload.left.report_id)}?tenant_id=${encodeURIComponent(payload.left.tenant_id)}`;rightReportAPILink.href=`${detailEndpointBase}${encodeURIComponent(payload.right.report_id)}?tenant_id=${encodeURIComponent(payload.right.tenant_id)}`;leftRunLaneLink.href=`${runLaneBase}?tenant_id=${encodeURIComponent(payload.left.tenant_id)}&dataset_id=${encodeURIComponent(payload.left.dataset_id)}&run_id=${encodeURIComponent(payload.left.run_id)}`;rightRunLaneLink.href=`${runLaneBase}?tenant_id=${encodeURIComponent(payload.right.tenant_id)}&dataset_id=${encodeURIComponent(payload.right.dataset_id)}&run_id=${encodeURIComponent(payload.right.run_id)}`;if(payload.left.version_id){leftVersionLink.hidden=false;leftVersionLink.href=`/admin/version-detail?version_id=${encodeURIComponent(payload.left.version_id)}`}else{leftVersionLink.hidden=true;leftVersionLink.href="#"}if(payload.right.version_id){rightVersionLink.hidden=false;rightVersionLink.href=`/admin/version-detail?version_id=${encodeURIComponent(payload.right.version_id)}`}else{rightVersionLink.hidden=true;rightVersionLink.href="#"}diffList.innerHTML=[diffRow("Dataset",!payload.summary.same_dataset),diffRow("Run status",!payload.summary.same_run_status),diffRow("Judge version",payload.summary.judge_version_changed),diffRow("Metadata",payload.summary.metadata_changed),diffRow("Failed items",payload.summary.failed_items_delta!==0,String(payload.summary.failed_items_delta)),diffRow("Average score",payload.summary.average_score_delta!==0,String(payload.summary.average_score_delta)),diffRow("Bad-case count",payload.summary.bad_case_count_delta!==0,String(payload.summary.bad_case_count_delta)),diffRow("Ready at",payload.summary.ready_at_delta_second!==0,`${payload.summary.ready_at_delta_second}s`)].join("")}
-    async function loadComparison(){const params=buildParams();syncURL();if(!params.get("tenant_id")||!params.get("left_report_id")||!params.get("right_report_id")){compareContent.hidden=true;compareState.hidden=false;compareState.className="empty";compareState.textContent="Provide tenant, left report ID, and right report ID to inspect a durable eval-report comparison.";return}compareContent.hidden=true;compareState.hidden=false;compareState.className="loading";compareState.textContent="Loading durable eval-report comparison...";try{const response=await fetch(`${compareEndpoint}?${params.toString()}`,{headers:{"Accept":"application/json"}});if(!response.ok)throw new Error(`Eval report comparison request failed: ${response.status} ${response.statusText}`);renderComparison(await response.json())}catch(error){compareContent.hidden=true;compareState.hidden=false;compareState.className="empty";compareState.textContent=error.message||"Unable to load durable eval-report comparison."}}
-    form.addEventListener("submit",(event)=>{event.preventDefault();loadComparison()});
-    swapReportsButton.addEventListener("click",()=>{const leftField=form.elements.namedItem("left_report_id"),rightField=form.elements.namedItem("right_report_id"),leftValue=leftField.value;leftField.value=rightField.value;rightField.value=leftValue;loadComparison()});
-    resetFormButton.addEventListener("click",()=>{form.reset();loadComparison()});
-    populateFiltersFromURL();loadComparison();
+    const compareEndpoint = "/api/v1/eval-report-compare";
+    const detailEndpointBase = "/api/v1/eval-reports/";
+    const runLaneBase = "/admin/eval-runs";
+    const caseEndpoint = "/api/v1/cases";
+
+    const form = document.getElementById("compareForm");
+    const compareState = document.getElementById("compareState");
+    const compareContent = document.getElementById("compareContent");
+    const swapReportsButton = document.getElementById("swapReports");
+    const resetFormButton = document.getElementById("resetForm");
+    const sameDataset = document.getElementById("sameDataset");
+    const sameRunStatus = document.getElementById("sameRunStatus");
+    const averageScoreDelta = document.getElementById("averageScoreDelta");
+    const badCaseOverlap = document.getElementById("badCaseOverlap");
+    const leftReportDetail = document.getElementById("leftReportDetail");
+    const rightReportDetail = document.getElementById("rightReportDetail");
+    const leftReportAPILink = document.getElementById("leftReportAPILink");
+    const rightReportAPILink = document.getElementById("rightReportAPILink");
+    const leftRunLaneLink = document.getElementById("leftRunLaneLink");
+    const rightRunLaneLink = document.getElementById("rightRunLaneLink");
+    const leftVersionLink = document.getElementById("leftVersionLink");
+    const rightVersionLink = document.getElementById("rightVersionLink");
+    const diffList = document.getElementById("diffList");
+    const createCaseButton = document.getElementById("createCaseButton");
+    const compareActionStatus = document.getElementById("compareActionStatus");
+
+    let currentComparison = null;
+
+    function escapeHTML(value) {
+      return String(value ?? "")
+        .replaceAll("&", "&amp;")
+        .replaceAll("<", "&lt;")
+        .replaceAll(">", "&gt;")
+        .replaceAll("\"", "&quot;")
+        .replaceAll("'", "&#39;");
+    }
+
+    function fmtDate(value) {
+      if (!value) return "Unknown";
+      const date = new Date(value);
+      if (Number.isNaN(date.valueOf())) return value;
+      return new Intl.DateTimeFormat(undefined, {
+        year: "numeric",
+        month: "short",
+        day: "2-digit",
+        hour: "2-digit",
+        minute: "2-digit",
+        second: "2-digit"
+      }).format(date);
+    }
+
+    function buildParams() {
+      const params = new URLSearchParams();
+      for (const name of ["tenant_id", "left_report_id", "right_report_id"]) {
+        const value = form.elements.namedItem(name).value.trim();
+        if (value) params.set(name, value);
+      }
+      return params;
+    }
+
+    function syncURL() {
+      const params = buildParams();
+      history.replaceState(null, "", params.toString() ? `/admin/eval-report-compare?${params.toString()}` : "/admin/eval-report-compare");
+    }
+
+    function populateFiltersFromURL() {
+      const params = new URLSearchParams(window.location.search);
+      for (const name of ["tenant_id", "left_report_id", "right_report_id"]) {
+        form.elements.namedItem(name).value = params.get(name) || "";
+      }
+    }
+
+    function renderCompareCard(container, item) {
+      container.innerHTML = `<dl class="detail-card"><dt>Report ID</dt><dd>${escapeHTML(item.report_id)}</dd></dl><dl class="detail-card"><dt>Dataset</dt><dd>${escapeHTML(item.dataset_name)}<br><small>${escapeHTML(item.dataset_id)}</small></dd></dl><dl class="detail-card"><dt>Run</dt><dd>${escapeHTML(item.run_id)}<br><small>${escapeHTML(item.run_status)}</small></dd></dl><dl class="detail-card"><dt>Summary</dt><dd>${escapeHTML(item.summary || "none")}</dd></dl><dl class="detail-card"><dt>Judge version</dt><dd>${escapeHTML(item.judge_version || "unknown")}</dd></dl><dl class="detail-card"><dt>Bad cases</dt><dd>${escapeHTML(String(item.bad_case_count || 0))}</dd></dl><dl class="detail-card"><dt>Version</dt><dd>${escapeHTML(item.version_id || "Unavailable")}</dd></dl><dl class="detail-card"><dt>Ready at</dt><dd>${escapeHTML(fmtDate(item.ready_at))}</dd></dl>`;
+    }
+
+    function diffRow(label, changed, extra = "") {
+      return `<div class="diff-item"><strong>${escapeHTML(label)}</strong><span class="pill ${changed ? "changed" : "same"}">${changed ? "Changed" : "Same"}${extra ? ` | ${escapeHTML(extra)}` : ""}</span></div>`;
+    }
+
+    function buildCasePayloadFromComparison(payload) {
+      const left = payload.left;
+      const right = payload.right;
+      const summary = payload.summary;
+      return {
+        tenant_id: right.tenant_id,
+        title: `Eval regression: ${right.report_id} vs ${left.report_id}`,
+        summary: [
+          `Compare: ${right.report_id} vs ${left.report_id}`,
+          `Dataset: ${right.dataset_name} (${right.dataset_id}) vs ${left.dataset_name} (${left.dataset_id})`,
+          `Run status: ${right.run_status} vs ${left.run_status}`,
+          `Average score delta: ${summary.average_score_delta}`,
+          `Failed items delta: ${summary.failed_items_delta}`,
+          `Bad-case overlap: ${summary.bad_case_overlap_count}`,
+          `Bad-case count delta: ${summary.bad_case_count_delta}`,
+          `Ready-at delta (s): ${summary.ready_at_delta_second}`
+        ].join("\n"),
+        source_eval_report_id: right.report_id,
+        created_by: "admin-eval-report-compare"
+      };
+    }
+
+    function renderComparison(payload) {
+      currentComparison = payload;
+      compareState.hidden = true;
+      compareContent.hidden = false;
+      createCaseButton.hidden = false;
+      compareActionStatus.textContent = "Create a durable case when this comparison represents a regression that needs operator follow-up.";
+
+      sameDataset.textContent = payload.summary.same_dataset ? "Yes" : "No";
+      sameRunStatus.textContent = payload.summary.same_run_status ? "Yes" : "No";
+      averageScoreDelta.textContent = String(payload.summary.average_score_delta);
+      badCaseOverlap.textContent = String(payload.summary.bad_case_overlap_count);
+
+      renderCompareCard(leftReportDetail, payload.left);
+      renderCompareCard(rightReportDetail, payload.right);
+
+      leftReportAPILink.href = `${detailEndpointBase}${encodeURIComponent(payload.left.report_id)}?tenant_id=${encodeURIComponent(payload.left.tenant_id)}`;
+      rightReportAPILink.href = `${detailEndpointBase}${encodeURIComponent(payload.right.report_id)}?tenant_id=${encodeURIComponent(payload.right.tenant_id)}`;
+      leftRunLaneLink.href = `${runLaneBase}?tenant_id=${encodeURIComponent(payload.left.tenant_id)}&dataset_id=${encodeURIComponent(payload.left.dataset_id)}&run_id=${encodeURIComponent(payload.left.run_id)}`;
+      rightRunLaneLink.href = `${runLaneBase}?tenant_id=${encodeURIComponent(payload.right.tenant_id)}&dataset_id=${encodeURIComponent(payload.right.dataset_id)}&run_id=${encodeURIComponent(payload.right.run_id)}`;
+
+      if (payload.left.version_id) {
+        leftVersionLink.hidden = false;
+        leftVersionLink.href = `/admin/version-detail?version_id=${encodeURIComponent(payload.left.version_id)}`;
+      } else {
+        leftVersionLink.hidden = true;
+        leftVersionLink.href = "#";
+      }
+      if (payload.right.version_id) {
+        rightVersionLink.hidden = false;
+        rightVersionLink.href = `/admin/version-detail?version_id=${encodeURIComponent(payload.right.version_id)}`;
+      } else {
+        rightVersionLink.hidden = true;
+        rightVersionLink.href = "#";
+      }
+
+      diffList.innerHTML = [
+        diffRow("Dataset", !payload.summary.same_dataset),
+        diffRow("Run status", !payload.summary.same_run_status),
+        diffRow("Judge version", payload.summary.judge_version_changed),
+        diffRow("Metadata", payload.summary.metadata_changed),
+        diffRow("Failed items", payload.summary.failed_items_delta !== 0, String(payload.summary.failed_items_delta)),
+        diffRow("Average score", payload.summary.average_score_delta !== 0, String(payload.summary.average_score_delta)),
+        diffRow("Bad-case count", payload.summary.bad_case_count_delta !== 0, String(payload.summary.bad_case_count_delta)),
+        diffRow("Ready at", payload.summary.ready_at_delta_second !== 0, `${payload.summary.ready_at_delta_second}s`)
+      ].join("");
+    }
+
+    async function createCaseFromComparison() {
+      if (!currentComparison) {
+        compareActionStatus.textContent = "Create case is unavailable until a durable comparison has been loaded.";
+        return;
+      }
+
+      const payload = buildCasePayloadFromComparison(currentComparison);
+      const originalText = createCaseButton.textContent;
+      createCaseButton.disabled = true;
+      createCaseButton.textContent = "Creating...";
+      compareActionStatus.textContent = `Creating a case from ${payload.source_eval_report_id}...`;
+
+      try {
+        const response = await fetch(caseEndpoint, {
+          method: "POST",
+          headers: {
+            "Accept": "application/json",
+            "Content-Type": "application/json"
+          },
+          body: JSON.stringify(payload)
+        });
+        if (!response.ok) {
+          let detail = response.statusText;
+          try {
+            const errorPayload = await response.json();
+            if (errorPayload && errorPayload.message) {
+              detail = errorPayload.message;
+            }
+          } catch (error) {
+            void error;
+          }
+          throw new Error(detail || "case creation failed");
+        }
+
+        const created = await response.json();
+        window.location.assign(`/admin/cases?tenant_id=${encodeURIComponent(created.tenant_id)}&case_id=${encodeURIComponent(created.case_id)}`);
+      } catch (error) {
+        compareActionStatus.textContent = `Create case failed: ${error.message || "unknown error"}`;
+      } finally {
+        createCaseButton.disabled = false;
+        createCaseButton.textContent = originalText;
+      }
+    }
+
+    async function loadComparison() {
+      const params = buildParams();
+      syncURL();
+      currentComparison = null;
+      createCaseButton.hidden = true;
+      compareActionStatus.textContent = "Create a durable case when this comparison represents a regression that needs operator follow-up.";
+
+      if (!params.get("tenant_id") || !params.get("left_report_id") || !params.get("right_report_id")) {
+        compareContent.hidden = true;
+        compareState.hidden = false;
+        compareState.className = "empty";
+        compareState.textContent = "Provide tenant, left report ID, and right report ID to inspect a durable eval-report comparison.";
+        return;
+      }
+
+      compareContent.hidden = true;
+      compareState.hidden = false;
+      compareState.className = "loading";
+      compareState.textContent = "Loading durable eval-report comparison...";
+      try {
+        const response = await fetch(`${compareEndpoint}?${params.toString()}`, {
+          headers: { "Accept": "application/json" }
+        });
+        if (!response.ok) {
+          throw new Error(`Eval report comparison request failed: ${response.status} ${response.statusText}`);
+        }
+        renderComparison(await response.json());
+      } catch (error) {
+        compareContent.hidden = true;
+        compareState.hidden = false;
+        compareState.className = "empty";
+        compareState.textContent = error.message || "Unable to load durable eval-report comparison.";
+      }
+    }
+
+    form.addEventListener("submit", (event) => {
+      event.preventDefault();
+      loadComparison();
+    });
+    swapReportsButton.addEventListener("click", () => {
+      const leftField = form.elements.namedItem("left_report_id");
+      const rightField = form.elements.namedItem("right_report_id");
+      const leftValue = leftField.value;
+      leftField.value = rightField.value;
+      rightField.value = leftValue;
+      loadComparison();
+    });
+    resetFormButton.addEventListener("click", () => {
+      form.reset();
+      loadComparison();
+    });
+    createCaseButton.addEventListener("click", () => createCaseFromComparison());
+
+    populateFiltersFromURL();
+    loadComparison();
   </script>
 </body>
 </html>

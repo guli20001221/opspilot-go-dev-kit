@@ -10,34 +10,37 @@ import (
 	"time"
 
 	casesvc "opspilot-go/internal/case"
+	evalsvc "opspilot-go/internal/eval"
 	"opspilot-go/internal/report"
 	"opspilot-go/internal/workflow"
 )
 
 type createCaseRequest struct {
-	TenantID       string `json:"tenant_id"`
-	Title          string `json:"title"`
-	Summary        string `json:"summary"`
-	SourceTaskID   string `json:"source_task_id,omitempty"`
-	SourceReportID string `json:"source_report_id,omitempty"`
-	CreatedBy      string `json:"created_by,omitempty"`
+	TenantID           string `json:"tenant_id"`
+	Title              string `json:"title"`
+	Summary            string `json:"summary"`
+	SourceTaskID       string `json:"source_task_id,omitempty"`
+	SourceReportID     string `json:"source_report_id,omitempty"`
+	SourceEvalReportID string `json:"source_eval_report_id,omitempty"`
+	CreatedBy          string `json:"created_by,omitempty"`
 }
 
 type caseResponse struct {
-	CaseID         string             `json:"case_id"`
-	TenantID       string             `json:"tenant_id"`
-	Status         string             `json:"status"`
-	Title          string             `json:"title"`
-	Summary        string             `json:"summary"`
-	SourceTaskID   string             `json:"source_task_id,omitempty"`
-	SourceReportID string             `json:"source_report_id,omitempty"`
-	CreatedBy      string             `json:"created_by"`
-	AssignedTo     string             `json:"assigned_to,omitempty"`
-	AssignedAt     string             `json:"assigned_at,omitempty"`
-	ClosedBy       string             `json:"closed_by,omitempty"`
-	Notes          []caseNoteResponse `json:"notes,omitempty"`
-	CreatedAt      string             `json:"created_at"`
-	UpdatedAt      string             `json:"updated_at"`
+	CaseID             string             `json:"case_id"`
+	TenantID           string             `json:"tenant_id"`
+	Status             string             `json:"status"`
+	Title              string             `json:"title"`
+	Summary            string             `json:"summary"`
+	SourceTaskID       string             `json:"source_task_id,omitempty"`
+	SourceReportID     string             `json:"source_report_id,omitempty"`
+	SourceEvalReportID string             `json:"source_eval_report_id,omitempty"`
+	CreatedBy          string             `json:"created_by"`
+	AssignedTo         string             `json:"assigned_to,omitempty"`
+	AssignedAt         string             `json:"assigned_at,omitempty"`
+	ClosedBy           string             `json:"closed_by,omitempty"`
+	Notes              []caseNoteResponse `json:"notes,omitempty"`
+	CreatedAt          string             `json:"created_at"`
+	UpdatedAt          string             `json:"updated_at"`
 }
 
 type caseNoteResponse struct {
@@ -105,12 +108,13 @@ func (a *appHandler) handleCreateCase(w http.ResponseWriter, r *http.Request) {
 	}
 
 	item, err := a.cases.CreateCase(r.Context(), casesvc.CreateInput{
-		TenantID:       req.TenantID,
-		Title:          req.Title,
-		Summary:        req.Summary,
-		SourceTaskID:   req.SourceTaskID,
-		SourceReportID: req.SourceReportID,
-		CreatedBy:      req.CreatedBy,
+		TenantID:           req.TenantID,
+		Title:              req.Title,
+		Summary:            req.Summary,
+		SourceTaskID:       req.SourceTaskID,
+		SourceReportID:     req.SourceReportID,
+		SourceEvalReportID: req.SourceEvalReportID,
+		CreatedBy:          req.CreatedBy,
 	})
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "case_create_failed", err.Error())
@@ -501,6 +505,16 @@ func (a *appHandler) validateCaseSources(r *http.Request, req createCaseRequest)
 		return item, nil
 	}
 
+	if req.SourceEvalReportID != "" {
+		item, err := a.evalReports.GetEvalReport(r.Context(), req.SourceEvalReportID)
+		if err != nil {
+			return report.Report{}, err
+		}
+		if item.TenantID != req.TenantID {
+			return report.Report{}, errInvalidCaseSource
+		}
+	}
+
 	return report.Report{}, nil
 }
 
@@ -512,6 +526,8 @@ func writeCaseSourceError(w http.ResponseWriter, err error) {
 		writeError(w, http.StatusNotFound, "task_not_found", "task not found")
 	case errors.Is(err, report.ErrReportNotFound):
 		writeError(w, http.StatusNotFound, "report_not_found", "report not found")
+	case errors.Is(err, evalsvc.ErrEvalReportNotFound):
+		writeError(w, http.StatusNotFound, "eval_report_not_found", "eval report not found")
 	case errors.Is(err, errInvalidCaseSource):
 		writeError(w, http.StatusConflict, "invalid_case_source", err.Error())
 	default:
@@ -521,19 +537,20 @@ func writeCaseSourceError(w http.ResponseWriter, err error) {
 
 func newCaseResponse(item casesvc.Case, notes ...[]casesvc.Note) caseResponse {
 	resp := caseResponse{
-		CaseID:         item.ID,
-		TenantID:       item.TenantID,
-		Status:         item.Status,
-		Title:          item.Title,
-		Summary:        item.Summary,
-		SourceTaskID:   item.SourceTaskID,
-		SourceReportID: item.SourceReportID,
-		CreatedBy:      item.CreatedBy,
-		AssignedTo:     item.AssignedTo,
-		AssignedAt:     formatOptionalTime(item.AssignedAt),
-		ClosedBy:       item.ClosedBy,
-		CreatedAt:      item.CreatedAt.Format(time.RFC3339Nano),
-		UpdatedAt:      item.UpdatedAt.Format(time.RFC3339Nano),
+		CaseID:             item.ID,
+		TenantID:           item.TenantID,
+		Status:             item.Status,
+		Title:              item.Title,
+		Summary:            item.Summary,
+		SourceTaskID:       item.SourceTaskID,
+		SourceReportID:     item.SourceReportID,
+		SourceEvalReportID: item.SourceEvalReportID,
+		CreatedBy:          item.CreatedBy,
+		AssignedTo:         item.AssignedTo,
+		AssignedAt:         formatOptionalTime(item.AssignedAt),
+		ClosedBy:           item.ClosedBy,
+		CreatedAt:          item.CreatedAt.Format(time.RFC3339Nano),
+		UpdatedAt:          item.UpdatedAt.Format(time.RFC3339Nano),
 	}
 	if len(notes) > 0 && len(notes[0]) > 0 {
 		resp.Notes = make([]caseNoteResponse, 0, len(notes[0]))

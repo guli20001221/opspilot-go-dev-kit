@@ -46,16 +46,17 @@ func NewServiceWithStore(store Store) *Service {
 func (s *Service) CreateCase(ctx context.Context, input CreateInput) (Case, error) {
 	now := time.Now().UTC()
 	item := Case{
-		ID:             newCaseID(now),
-		TenantID:       input.TenantID,
-		Status:         StatusOpen,
-		Title:          input.Title,
-		Summary:        input.Summary,
-		SourceTaskID:   input.SourceTaskID,
-		SourceReportID: input.SourceReportID,
-		CreatedBy:      fallbackString(input.CreatedBy, "operator"),
-		CreatedAt:      now,
-		UpdatedAt:      now,
+		ID:                 newCaseID(now),
+		TenantID:           input.TenantID,
+		Status:             StatusOpen,
+		Title:              input.Title,
+		Summary:            input.Summary,
+		SourceTaskID:       input.SourceTaskID,
+		SourceReportID:     input.SourceReportID,
+		SourceEvalReportID: input.SourceEvalReportID,
+		CreatedBy:          fallbackString(input.CreatedBy, "operator"),
+		CreatedAt:          now,
+		UpdatedAt:          now,
 	}
 
 	return s.store.Save(ctx, item)

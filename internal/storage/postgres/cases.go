@@ -41,6 +41,7 @@ INSERT INTO cases (
     summary,
     source_task_id,
     source_report_id,
+    source_eval_report_id,
     created_by,
     assigned_to,
     assigned_at,
@@ -48,7 +49,7 @@ INSERT INTO cases (
     created_at,
     updated_at
 ) VALUES (
-    $1, $2, $3, $4, $5, NULLIF($6, ''), NULLIF($7, ''), $8, $9, $10, $11, $12, $13
+    $1, $2, $3, $4, $5, NULLIF($6, ''), NULLIF($7, ''), NULLIF($8, ''), $9, $10, $11, $12, $13, $14
 )
 ON CONFLICT (id) DO UPDATE SET
     tenant_id = EXCLUDED.tenant_id,
@@ -57,6 +58,7 @@ ON CONFLICT (id) DO UPDATE SET
     summary = EXCLUDED.summary,
     source_task_id = EXCLUDED.source_task_id,
     source_report_id = EXCLUDED.source_report_id,
+    source_eval_report_id = EXCLUDED.source_eval_report_id,
     created_by = EXCLUDED.created_by,
     assigned_to = EXCLUDED.assigned_to,
     assigned_at = EXCLUDED.assigned_at,
@@ -71,6 +73,7 @@ RETURNING
     summary,
     COALESCE(source_task_id, ''),
     COALESCE(source_report_id, ''),
+    COALESCE(source_eval_report_id, ''),
     created_by,
     assigned_to,
     assigned_at,
@@ -88,6 +91,7 @@ RETURNING
 		item.Summary,
 		item.SourceTaskID,
 		item.SourceReportID,
+		item.SourceEvalReportID,
 		item.CreatedBy,
 		item.AssignedTo,
 		nullTime(item.AssignedAt),
@@ -110,6 +114,7 @@ SELECT
     summary,
     COALESCE(source_task_id, ''),
     COALESCE(source_report_id, ''),
+    COALESCE(source_eval_report_id, ''),
     created_by,
     assigned_to,
     assigned_at,
@@ -151,6 +156,7 @@ SELECT
     summary,
     COALESCE(source_task_id, ''),
     COALESCE(source_report_id, ''),
+    COALESCE(source_eval_report_id, ''),
     created_by,
     assigned_to,
     assigned_at,
@@ -312,6 +318,7 @@ RETURNING
     summary,
     COALESCE(source_task_id, ''),
     COALESCE(source_report_id, ''),
+    COALESCE(source_eval_report_id, ''),
     created_by,
     assigned_to,
     assigned_at,
@@ -362,6 +369,7 @@ RETURNING
     summary,
     COALESCE(source_task_id, ''),
     COALESCE(source_report_id, ''),
+    COALESCE(source_eval_report_id, ''),
     created_by,
     assigned_to,
     assigned_at,
@@ -436,6 +444,7 @@ RETURNING
     summary,
     COALESCE(source_task_id, ''),
     COALESCE(source_report_id, ''),
+    COALESCE(source_eval_report_id, ''),
     created_by,
     assigned_to,
     assigned_at,
@@ -477,6 +486,7 @@ func scanCase(row caseQuerierRow) (casesvc.Case, error) {
 		&item.Summary,
 		&item.SourceTaskID,
 		&item.SourceReportID,
+		&item.SourceEvalReportID,
 		&item.CreatedBy,
 		&item.AssignedTo,
 		&assignedAt,

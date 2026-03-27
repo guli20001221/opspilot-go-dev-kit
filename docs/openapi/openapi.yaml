@@ -832,7 +832,7 @@ paths:
     post:
       summary: Create a durable operator case
       description: |
-        Creates a durable case record that can link a source task, a source report, or both.
+        Creates a durable case record that can link a source task, a source report, a source eval report, or a valid combination of those canonical lineage pointers.
         The current slice keeps cases as operator-managed read models without workflow automation.
       operationId: createCase
       requestBody:
@@ -855,7 +855,7 @@ paths:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
         '404':
-          description: Referenced source task or report was not found.
+          description: Referenced source task, report, or eval report was not found.
           content:
             application/json:
               schema:
@@ -2522,6 +2522,8 @@ components:
           type: string
         source_report_id:
           type: string
+        source_eval_report_id:
+          type: string
         created_by:
           type: string
     CloseCaseRequest:
@@ -2666,6 +2668,8 @@ components:
         source_task_id:
           type: string
         source_report_id:
+          type: string
+        source_eval_report_id:
           type: string
         created_by:
           type: string

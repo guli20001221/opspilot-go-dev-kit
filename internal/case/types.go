@@ -26,19 +26,20 @@ var ErrInvalidNote = errors.New("invalid case note")
 
 // Case is the durable read model for an operator-managed case.
 type Case struct {
-	ID             string
-	TenantID       string
-	Status         string
-	Title          string
-	Summary        string
-	SourceTaskID   string
-	SourceReportID string
-	CreatedBy      string
-	AssignedTo     string
-	AssignedAt     time.Time
-	ClosedBy       string
-	CreatedAt      time.Time
-	UpdatedAt      time.Time
+	ID                 string
+	TenantID           string
+	Status             string
+	Title              string
+	Summary            string
+	SourceTaskID       string
+	SourceReportID     string
+	SourceEvalReportID string
+	CreatedBy          string
+	AssignedTo         string
+	AssignedAt         time.Time
+	ClosedBy           string
+	CreatedAt          time.Time
+	UpdatedAt          time.Time
 }
 
 // Note is an append-only operator note attached to a case.
@@ -53,12 +54,13 @@ type Note struct {
 
 // CreateInput is the typed case creation request.
 type CreateInput struct {
-	TenantID       string
-	Title          string
-	Summary        string
-	SourceTaskID   string
-	SourceReportID string
-	CreatedBy      string
+	TenantID           string
+	Title              string
+	Summary            string
+	SourceTaskID       string
+	SourceReportID     string
+	SourceEvalReportID string
+	CreatedBy          string
 }
 
 // ListFilter narrows case list queries for operator-facing views.

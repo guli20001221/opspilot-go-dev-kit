@@ -138,6 +138,8 @@ Current Milestone 1 slice:
 - `/admin/eval-reports` now exposes the first eval-report operator page, backed directly by the canonical eval-report list/detail contracts with bad-case and metadata drill-down
 - `GET /api/v1/eval-report-compare` now exposes a narrow read-only compare contract over two durable eval reports, so score deltas, metadata drift, and bad-case overlap stay on the backend instead of turning into browser-only diff logic
 - `/admin/eval-report-compare` now exposes the first eval-report comparison page, handing off into eval runs and version detail from that same canonical compare contract
+- the same `/admin/eval-report-compare` page now also supports `Create case`, reusing `POST /api/v1/cases` and deep-linking straight into `/admin/cases` for regression follow-up
+- durable cases now also carry `source_eval_report_id`, so eval-report regressions can survive compare-page handoff as canonical backend lineage instead of living only in summary text
 - the same `/admin/eval-runs` lane now shows live lifecycle fields such as `started_at`, `finished_at`, and `error_reason`, so operators can watch queued run kickoffs turn into terminal records before judge wiring exists
 - that same `/admin/eval-runs` lane now exposes `Retry run` for failed runs, reusing the canonical retry endpoint instead of inventing an admin-only mutation path
 - that same `/admin/eval-runs` lane now renders a durable run timeline, so operators can still inspect prior `failed` and `retried` history after the top-level fields have been cleared by retry

@@ -611,6 +611,12 @@ func TestAdminEvalReportComparePageRendersHTML(t *testing.T) {
 	if !strings.Contains(body, "Open right eval report API") {
 		t.Fatal("right eval report api handoff missing from compare HTML")
 	}
+	if !strings.Contains(body, "Create case") {
+		t.Fatal("case handoff action missing from compare HTML")
+	}
+	if !strings.Contains(body, "/admin/cases") {
+		t.Fatal("cases handoff missing from compare HTML")
+	}
 	if !strings.Contains(body, "/admin/eval-runs") {
 		t.Fatal("eval run handoff missing from compare HTML")
 	}
@@ -628,7 +634,10 @@ func TestAdminEvalReportComparePageRuntimeSmoke(t *testing.T) {
 	leftReportID := materializeEvalRunReport(t, "tenant-eval-compare-admin-smoke", evalsvc.RunStatusSucceeded, "success detail", caseService, evalCaseService, datasetService, runService, reportService, "Dataset Compare A", "Source Left")
 	rightReportID := materializeEvalRunReport(t, "tenant-eval-compare-admin-smoke", evalsvc.RunStatusFailed, "failure detail", caseService, evalCaseService, datasetService, runService, reportService, "Dataset Compare B", "Source Right")
 
-	server := httptest.NewServer(NewHandlerWithDependencies(Dependencies{EvalReports: reportService}))
+	server := httptest.NewServer(NewHandlerWithDependencies(Dependencies{
+		EvalReports: reportService,
+		Cases:       caseService,
+	}))
 	defer server.Close()
 
 	nodePathRoot, err := npmGlobalRoot()
@@ -657,6 +666,16 @@ const rightReportID = process.argv[5];
   const rightHref = await page.getAttribute("#rightReportAPILink", "href");
   if (!rightHref || !rightHref.includes(rightReportID)) {
     throw new Error("right report API handoff missing selected report");
+  }
+  await page.click("#createCaseButton");
+  await page.waitForURL(/\/admin\/cases\?/);
+  const createdURL = new URL(page.url());
+  const caseID = createdURL.searchParams.get("case_id");
+  if (!caseID) {
+    throw new Error("compare-to-case handoff missing case_id");
+  }
+  if (createdURL.searchParams.get("tenant_id") !== tenantID) {
+    throw new Error("compare-to-case handoff missing tenant_id");
   }
   await page.goto(baseURL + "/admin/eval-report-compare?tenant_id=" + encodeURIComponent(tenantID) + "&left_report_id=" + encodeURIComponent(leftReportID) + "&right_report_id=missing-report");
   await page.waitForSelector("text=Eval report comparison request failed: 404 Not Found");
@@ -1025,6 +1044,9 @@ func TestAdminCasesPageRendersHTML(t *testing.T) {
 	if !strings.Contains(body, "Open source report") {
 		t.Fatal("source report handoff missing from cases page HTML")
 	}
+	if !strings.Contains(body, "Open source eval report") {
+		t.Fatal("source eval report handoff missing from cases page HTML")
+	}
 	if !strings.Contains(body, "Close case") {
 		t.Fatal("close case action missing from cases page HTML")
 	}
@@ -1052,6 +1074,9 @@ func TestAdminCasesPageRendersHTML(t *testing.T) {
 	if !strings.Contains(body, "Task-only") {
 		t.Fatal("case provenance badge missing from cases page HTML")
 	}
+	if !strings.Contains(body, "Source eval report") {
+		t.Fatal("source eval report detail missing from cases page HTML")
+	}
 	if !strings.Contains(body, "Open cases") {
 		t.Fatal("open-cases quick view missing from cases page HTML")
 	}
@@ -1069,6 +1094,12 @@ func TestAdminCasesPageRendersHTML(t *testing.T) {
 	}
 	if !strings.Contains(body, "Open eval API detail") {
 		t.Fatal("eval api handoff missing from cases page HTML")
+	}
+	if !strings.Contains(body, "/api/v1/eval-reports/") {
+		t.Fatal("eval report api path missing from cases page HTML")
+	}
+	if !strings.Contains(body, "/admin/eval-reports") {
+		t.Fatal("eval reports handoff missing from cases page HTML")
 	}
 	if !strings.Contains(body, "Copy case link") {
 		t.Fatal("case link handoff missing from cases page HTML")

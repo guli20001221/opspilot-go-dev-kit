@@ -285,6 +285,7 @@
       <div class="hero-links">
         <a class="link-chip" href="/admin/task-board">Open Task Board</a>
         <a class="link-chip" href="/admin/reports">Open Reports</a>
+        <a class="link-chip" href="/admin/eval-reports">Open Eval Reports</a>
       </div>
     </section>
 
@@ -422,6 +423,8 @@
         <a class="button-link ghost" id="openTaskBoardLink" href="#" hidden>Open source task in Task Board</a>
         <a class="button-link ghost" id="openReportLink" href="#" hidden>Open source report</a>
         <a class="button-link ghost" id="openReportsLink" href="#" hidden>Open source report in Reports</a>
+        <a class="button-link ghost" id="openEvalReportLink" href="#" hidden>Open source eval report</a>
+        <a class="button-link ghost" id="openEvalReportsLink" href="#" hidden>Open source eval report in Eval Reports</a>
       </div>
       <p class="panel-copy" id="detailStatusNote" style="margin-top: 12px;">Select a case to manage its lifecycle and hand off its linked sources.</p>
       <div id="caseDetail" class="empty">No case selected yet.</div>
@@ -437,6 +440,7 @@
     const assignActionSuffix = "/assign";
     const taskEndpointBase = "/api/v1/tasks/";
     const reportEndpointBase = "/api/v1/reports/";
+    const evalReportEndpointBase = "/api/v1/eval-reports/";
     const form = document.getElementById("caseFilters");
     const resetFiltersButton = document.getElementById("resetFilters");
     const caseListState = document.getElementById("caseListState");
@@ -472,6 +476,8 @@
     const openTaskBoardLink = document.getElementById("openTaskBoardLink");
     const openReportLink = document.getElementById("openReportLink");
     const openReportsLink = document.getElementById("openReportsLink");
+    const openEvalReportLink = document.getElementById("openEvalReportLink");
+    const openEvalReportsLink = document.getElementById("openEvalReportsLink");
 
     let currentCases = [];
     let currentCaseID = "";
@@ -506,6 +512,9 @@
     }
 
     function provenanceLabel(item) {
+      if (item.source_eval_report_id) {
+        return "Eval report-backed";
+      }
       if (item.source_report_id && item.source_task_id) {
         return "Task + report";
       }
@@ -585,6 +594,7 @@
         `age: ${fmtAge(item.updated_at)}`,
         `source_task_id: ${item.source_task_id || "none"}`,
         `source_report_id: ${item.source_report_id || "none"}`,
+        `source_eval_report_id: ${item.source_eval_report_id || "none"}`,
         `created_by: ${item.created_by}`,
         `closed_by: ${item.closed_by || "not_closed"}`
       ];
@@ -674,7 +684,7 @@
           </td>
           <td>
             <strong>${escapeHTML(item.source_task_id || "No task source")}</strong>
-            <small>${escapeHTML(item.source_report_id || "No report source")}</small>
+            <small>${escapeHTML(item.source_eval_report_id || item.source_report_id || "No report source")}</small>
             <small><span class="provenance-pill">${escapeHTML(provenanceLabel(item))}</span></small>
           </td>
           <td>
@@ -720,21 +730,27 @@
       openEvalCaseAPILink.hidden = true;
       openTraceDetailLink.hidden = false;
       openCaseAPILink.href = `${detailEndpointBase}${encodeURIComponent(item.case_id)}?tenant_id=${encodeURIComponent(item.tenant_id)}`;
-      openTraceDetailLink.href = `/admin/trace-detail?case_id=${encodeURIComponent(item.case_id)}`;
-      openTaskLink.hidden = !item.source_task_id;
-      openTaskBoardLink.hidden = !item.source_task_id;
-      openReportLink.hidden = !item.source_report_id;
-      openReportsLink.hidden = !item.source_report_id || !item.source_task_id;
-      if (item.source_task_id) {
-        openTaskLink.href = `${taskEndpointBase}${encodeURIComponent(item.source_task_id)}`;
-        openTaskBoardLink.href = `/admin/task-board?tenant_id=${encodeURIComponent(item.tenant_id)}&task_id=${encodeURIComponent(item.source_task_id)}`;
-      }
-      if (item.source_report_id) {
-        openReportLink.href = `${reportEndpointBase}${encodeURIComponent(item.source_report_id)}`;
-      }
-      if (item.source_report_id && item.source_task_id) {
-        openReportsLink.href = `/admin/reports?tenant_id=${encodeURIComponent(item.tenant_id)}&task_id=${encodeURIComponent(item.source_task_id)}`;
-      }
+        openTraceDetailLink.href = `/admin/trace-detail?case_id=${encodeURIComponent(item.case_id)}`;
+        openTaskLink.hidden = !item.source_task_id;
+        openTaskBoardLink.hidden = !item.source_task_id;
+        openReportLink.hidden = !item.source_report_id;
+        openReportsLink.hidden = !item.source_report_id || !item.source_task_id;
+        openEvalReportLink.hidden = !item.source_eval_report_id;
+        openEvalReportsLink.hidden = !item.source_eval_report_id;
+        if (item.source_task_id) {
+          openTaskLink.href = `${taskEndpointBase}${encodeURIComponent(item.source_task_id)}`;
+          openTaskBoardLink.href = `/admin/task-board?tenant_id=${encodeURIComponent(item.tenant_id)}&task_id=${encodeURIComponent(item.source_task_id)}`;
+        }
+        if (item.source_report_id) {
+          openReportLink.href = `${reportEndpointBase}${encodeURIComponent(item.source_report_id)}`;
+        }
+        if (item.source_report_id && item.source_task_id) {
+          openReportsLink.href = `/admin/reports?tenant_id=${encodeURIComponent(item.tenant_id)}&task_id=${encodeURIComponent(item.source_task_id)}`;
+        }
+        if (item.source_eval_report_id) {
+          openEvalReportLink.href = `${evalReportEndpointBase}${encodeURIComponent(item.source_eval_report_id)}?tenant_id=${encodeURIComponent(item.tenant_id)}`;
+          openEvalReportsLink.href = `/admin/eval-reports?tenant_id=${encodeURIComponent(item.tenant_id)}&report_id=${encodeURIComponent(item.source_eval_report_id)}`;
+        }
       if (item.status === "closed") {
         setDetailStatus(`Case already closed${item.closed_by ? ` by ${item.closed_by}` : ""}. Reopen it to return the case to the open queue.`);
       } else {
@@ -779,14 +795,18 @@
             <dt>Source task</dt>
             <dd>${escapeHTML(item.source_task_id || "None")}</dd>
           </dl>
-          <dl class="detail-card">
-            <dt>Source report</dt>
-            <dd>${escapeHTML(item.source_report_id || "None")}</dd>
-          </dl>
-          <dl class="detail-card">
-            <dt>Provenance</dt>
-            <dd><span class="provenance-pill">${escapeHTML(provenanceLabel(item))}</span></dd>
-          </dl>
+            <dl class="detail-card">
+              <dt>Source report</dt>
+              <dd>${escapeHTML(item.source_report_id || "None")}</dd>
+            </dl>
+            <dl class="detail-card">
+              <dt>Source eval report</dt>
+              <dd>${escapeHTML(item.source_eval_report_id || "None")}</dd>
+            </dl>
+            <dl class="detail-card">
+              <dt>Provenance</dt>
+              <dd><span class="provenance-pill">${escapeHTML(provenanceLabel(item))}</span></dd>
+            </dl>
           <dl class="detail-card" style="grid-column: 1 / -1;">
             <dt>Title</dt>
             <dd>${escapeHTML(item.title)}</dd>

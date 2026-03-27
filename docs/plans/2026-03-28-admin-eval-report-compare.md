@@ -24,7 +24,7 @@ Land the first durable eval-report comparison slice without inventing a browser-
   - top-line metric deltas
   - bad-case overlap
   - ready-at delta
-- reuse the full eval-report detail contract for left/right panes instead of inventing compare-only report snapshots
+- keep left/right panes narrow and compare-owned, so `metadata` and `bad_cases` stay on the single-report detail contract
 
 ## Validation
 
@@ -33,9 +33,9 @@ Land the first durable eval-report comparison slice without inventing a browser-
 - `go test ./...`
 - `powershell -ExecutionPolicy Bypass -File scripts/dev/tasks.ps1 check`
 - OpenAPI YAML parse validation
+- runtime smoke for `/admin/eval-report-compare` when browser binaries are available
 
 ## Follow-up
 
 - promote `/admin/eval-reports` detail handoff into a prefilled compare flow
-- consider a runtime smoke test for `/admin/eval-report-compare` once browser binaries are reliably available in test environments
-- next likely vertical slice: durable eval-report compare deltas on bad-case membership and direct handoff into shared trace/version surfaces
+- next likely vertical slice: create a durable case directly from compare output and hand off into `/admin/cases`

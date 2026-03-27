@@ -89,6 +89,54 @@ func TestCreateAndGetCaseEndpoint(t *testing.T) {
 	}
 }
 
+func TestCreateAndGetCaseEndpointWithEvalReportSource(t *testing.T) {
+	reportService, evalReportID := buildEvalReportFixture(t, "tenant-eval-case-source", "failed", "failure detail")
+	caseService := casesvc.NewService()
+
+	server := httptest.NewServer(NewHandlerWithDependencies(Dependencies{
+		Cases:       caseService,
+		EvalReports: reportService,
+	}))
+	defer server.Close()
+
+	body := bytes.NewBufferString(`{"tenant_id":"tenant-eval-case-source","title":"Investigate regression","summary":"Follow up failing eval comparison","source_eval_report_id":"` + evalReportID + `","created_by":"operator-eval"}`)
+	resp, err := http.Post(server.URL+"/api/v1/cases", "application/json", body)
+	if err != nil {
+		t.Fatalf("Post() error = %v", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusCreated {
+		t.Fatalf("StatusCode = %d, want %d", resp.StatusCode, http.StatusCreated)
+	}
+
+	var created caseResponse
+	if err := json.NewDecoder(resp.Body).Decode(&created); err != nil {
+		t.Fatalf("Decode(created) error = %v", err)
+	}
+	if created.SourceEvalReportID != evalReportID {
+		t.Fatalf("SourceEvalReportID = %q, want %q", created.SourceEvalReportID, evalReportID)
+	}
+
+	getResp, err := http.Get(server.URL + "/api/v1/cases/" + created.CaseID + "?tenant_id=tenant-eval-case-source")
+	if err != nil {
+		t.Fatalf("Get() error = %v", err)
+	}
+	defer getResp.Body.Close()
+
+	if getResp.StatusCode != http.StatusOK {
+		t.Fatalf("StatusCode = %d, want %d", getResp.StatusCode, http.StatusOK)
+	}
+
+	var got caseResponse
+	if err := json.NewDecoder(getResp.Body).Decode(&got); err != nil {
+		t.Fatalf("Decode(get) error = %v", err)
+	}
+	if got.SourceEvalReportID != evalReportID {
+		t.Fatalf("SourceEvalReportID = %q, want %q", got.SourceEvalReportID, evalReportID)
+	}
+}
+
 func TestCreateCaseRejectsCrossTenantSources(t *testing.T) {
 	workflowService := workflow.NewService()
 	reportService := report.NewService()

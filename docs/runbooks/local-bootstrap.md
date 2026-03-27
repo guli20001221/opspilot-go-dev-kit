@@ -177,6 +177,8 @@ The current chat stream implementation is a Milestone 1 skeleton:
 - use `Add note` on `/admin/cases` when you need to capture operator progress without mutating the case lifecycle
 - use `Promote to eval` on `/admin/cases` when you want to turn the current durable case into a durable eval artifact and then jump to the canonical eval-case API detail
 - use `Create case` on `/admin/task-board` or `/admin/reports` when you want to promote the currently selected task/report into a durable follow-up object without hand-building the `POST /api/v1/cases` payload
+- use `Create case` on `/admin/eval-report-compare` when a report-vs-report regression needs durable follow-up; the page reuses `POST /api/v1/cases`, anchors the new case to the right-side report, and then deep-links into `/admin/cases`
+- compare-created cases now persist that lineage as `source_eval_report_id`, and `/admin/cases` exposes direct handoff links back into `/admin/eval-reports` and `/api/v1/eval-reports/{report_id}`
 - successful `report_generation` tasks now finalize the durable report row and task `succeeded` transition together, so `ready_at` and report `metadata.audit_ref` line up with the final task state
 - the local Compose app services now start from dedicated runtime images, which removes the previous startup dependence on downloading Go modules inside the running container
 - the last successful `audit_event.detail` now carries an execution summary, such as which ticket comment was created
@@ -206,6 +208,8 @@ docker compose exec -T postgres psql -U opspilot -d opspilot -f /docker-entrypoi
 docker compose exec -T postgres psql -U opspilot -d opspilot -f /docker-entrypoint-initdb.d/000015_eval_runs.sql
 docker compose exec -T postgres psql -U opspilot -d opspilot -f /docker-entrypoint-initdb.d/000018_eval_run_item_results.sql
 docker compose exec -T postgres psql -U opspilot -d opspilot -f /docker-entrypoint-initdb.d/000019_eval_run_item_judge_fields.sql
+docker compose exec -T postgres psql -U opspilot -d opspilot -f /docker-entrypoint-initdb.d/000020_eval_reports.sql
+docker compose exec -T postgres psql -U opspilot -d opspilot -f /docker-entrypoint-initdb.d/000021_case_eval_report_source.sql
 ```
 
 If you change Compose environment variables such as `OPSPILOT_POSTGRES_DSN`, `OPSPILOT_TEMPORAL_ENABLED`, or `OPSPILOT_WORKER_POLL_INTERVAL`, recreate the app containers instead of only restarting them:
