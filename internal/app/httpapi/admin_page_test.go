@@ -541,6 +541,9 @@ func TestAdminEvalReportsPageRendersHTML(t *testing.T) {
 	if !strings.Contains(body, "Failed items") {
 		t.Fatal("failed item summary missing from eval reports page HTML")
 	}
+	if !strings.Contains(body, "Follow-up") {
+		t.Fatal("follow-up summary column missing from eval reports page HTML")
+	}
 	if !strings.Contains(body, "Show raw report JSON") {
 		t.Fatal("raw report json toggle missing from eval reports page HTML")
 	}
@@ -727,6 +730,28 @@ func TestAdminEvalReportsPageRuntimeSmoke(t *testing.T) {
 			t.Fatalf("CreateCase(%d) error = %v", i, err)
 		}
 	}
+	if _, err := caseService.CreateCase(context.Background(), casesvc.CreateInput{
+		TenantID:           "tenant-eval-admin-smoke",
+		Title:              "Open regression follow-up",
+		Summary:            "Open follow-up summary",
+		SourceEvalReportID: reportID,
+		CreatedBy:          "operator-eval",
+	}); err != nil {
+		t.Fatalf("CreateCase(openFollowUp) error = %v", err)
+	}
+	closedFollowUp, err := caseService.CreateCase(context.Background(), casesvc.CreateInput{
+		TenantID:           "tenant-eval-admin-smoke",
+		Title:              "Closed regression follow-up",
+		Summary:            "Closed follow-up summary",
+		SourceEvalReportID: reportID,
+		CreatedBy:          "operator-eval",
+	})
+	if err != nil {
+		t.Fatalf("CreateCase(closedFollowUp) error = %v", err)
+	}
+	if _, err := caseService.CloseCase(context.Background(), closedFollowUp.ID, "operator-eval"); err != nil {
+		t.Fatalf("CloseCase() error = %v", err)
+	}
 
 	server := httptest.NewServer(NewHandlerWithDependencies(Dependencies{
 		EvalReports: reportService,
@@ -756,6 +781,16 @@ const reportID = process.argv[4];
   const visibleCount = (await page.textContent("#visibleCount")).trim();
   if (visibleCount !== "1") {
     throw new Error("unexpected visibleCount: " + visibleCount);
+  }
+  const followUpSummary = (await page.textContent("#reportRows tr td:nth-child(5)")).trim();
+  if (!followUpSummary.includes("2 cases")) {
+    throw new Error("follow-up case count missing from list row: " + followUpSummary);
+  }
+  if (!followUpSummary.includes("1 open")) {
+    throw new Error("open follow-up case count missing from list row: " + followUpSummary);
+  }
+  if (!followUpSummary.includes("latest open")) {
+    throw new Error("latest follow-up case status missing from list row: " + followUpSummary);
   }
   const linkedCaseCount = (await page.textContent("#linkedCaseCount")).trim();
   if (linkedCaseCount !== "5+") {

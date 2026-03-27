@@ -16,6 +16,7 @@ type Store interface {
 	Save(ctx context.Context, item Case) (Case, error)
 	Get(ctx context.Context, caseID string) (Case, error)
 	List(ctx context.Context, filter ListFilter) (ListPage, error)
+	SummarizeBySourceEvalReportIDs(ctx context.Context, tenantID string, reportIDs []string) (map[string]EvalReportFollowUpSummary, error)
 	AppendNote(ctx context.Context, note Note) (Note, error)
 	ListNotes(ctx context.Context, caseID string, limit int) ([]Note, error)
 	Assign(ctx context.Context, caseID string, assignedTo string, assignedAt time.Time, expectedUpdatedAt time.Time) (Case, error)
@@ -70,6 +71,11 @@ func (s *Service) GetCase(ctx context.Context, caseID string) (Case, error) {
 // ListCases returns operator-facing case rows for the provided filter.
 func (s *Service) ListCases(ctx context.Context, filter ListFilter) (ListPage, error) {
 	return s.store.List(ctx, filter)
+}
+
+// SummarizeBySourceEvalReportIDs returns follow-up case aggregates for source eval reports.
+func (s *Service) SummarizeBySourceEvalReportIDs(ctx context.Context, tenantID string, reportIDs []string) (map[string]EvalReportFollowUpSummary, error) {
+	return s.store.SummarizeBySourceEvalReportIDs(ctx, tenantID, reportIDs)
 }
 
 // ListCaseNotes returns recent append-only notes for a case.

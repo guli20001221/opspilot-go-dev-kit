@@ -62,6 +62,7 @@ Turn prompt, routing, retrieval, and tool changes into measurable, repeatable qu
 30. If operators need to revisit promoted eval regressions, prefer canonical case filters such as `source_eval_report_id` or `eval_backed_only=true` over duplicating that queue inside eval-only storage.
 31. On eval-report detail surfaces, prefer showing linked follow-up cases by querying the canonical case list with `source_eval_report_id` rather than copying case state into eval-report storage.
 32. When a durable case detail needs source eval-regression context, prefer reading the canonical eval-report detail by `source_eval_report_id` and keep the case usable if that report row is missing or was only partially recovered.
+33. When eval-report list consumers need backlog pressure signals, prefer adding durable follow-up case summary fields such as total/open counts to `GET /api/v1/eval-reports` rather than issuing per-row case-list reads or duplicating case state into eval-report storage.
 
 ## Output contract
 When you finish, always report:

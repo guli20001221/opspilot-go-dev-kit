@@ -3119,6 +3119,8 @@ components:
         - failed_items
         - missing_results
         - average_score
+        - follow_up_case_count
+        - open_follow_up_case_count
         - created_at
         - updated_at
         - ready_at
@@ -3164,6 +3166,17 @@ components:
           format: double
         judge_version:
           type: string
+        follow_up_case_count:
+          type: integer
+          minimum: 0
+        open_follow_up_case_count:
+          type: integer
+          minimum: 0
+        latest_follow_up_case_status:
+          type: string
+          enum:
+            - open
+            - closed
         metadata:
           type: object
           description: Raw aggregated report metadata, present on single-report detail reads.
@@ -3198,6 +3211,8 @@ components:
         - failed_items
         - missing_results
         - average_score
+        - follow_up_case_count
+        - open_follow_up_case_count
         - created_at
         - updated_at
         - ready_at
@@ -3243,6 +3258,17 @@ components:
           format: double
         judge_version:
           type: string
+        follow_up_case_count:
+          type: integer
+          minimum: 0
+        open_follow_up_case_count:
+          type: integer
+          minimum: 0
+        latest_follow_up_case_status:
+          type: string
+          enum:
+            - open
+            - closed
         created_at:
           type: string
           format: date-time

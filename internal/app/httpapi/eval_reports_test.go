@@ -60,6 +60,68 @@ func TestGetEvalReportReturnsMaterializedDetail(t *testing.T) {
 	}
 }
 
+func TestGetEvalReportIncludesFollowUpCaseSummary(t *testing.T) {
+	caseService := casesvc.NewService()
+	evalCaseService := evalsvc.NewService(caseService, nil)
+	datasetService := evalsvc.NewDatasetService(evalCaseService)
+	runService := evalsvc.NewRunService(datasetService)
+	reportService := evalsvc.NewEvalReportServiceWithDependencies(nil, runService)
+	reportID := materializeEvalRunReport(t, "tenant-eval-report-detail-followup", evalsvc.RunStatusFailed, "failure detail", caseService, evalCaseService, datasetService, runService, reportService, "Dataset Followup Detail", "Source Detail")
+
+	closedCase, err := caseService.CreateCase(context.Background(), casesvc.CreateInput{
+		TenantID:           "tenant-eval-report-detail-followup",
+		Title:              "Closed follow-up",
+		Summary:            "closed summary",
+		SourceEvalReportID: reportID,
+		CreatedBy:          "operator-followup",
+	})
+	if err != nil {
+		t.Fatalf("CreateCase(closed) error = %v", err)
+	}
+	if _, err := caseService.CloseCase(context.Background(), closedCase.ID, "operator-followup"); err != nil {
+		t.Fatalf("CloseCase() error = %v", err)
+	}
+	if _, err := caseService.CreateCase(context.Background(), casesvc.CreateInput{
+		TenantID:           "tenant-eval-report-detail-followup",
+		Title:              "Open follow-up",
+		Summary:            "open summary",
+		SourceEvalReportID: reportID,
+		CreatedBy:          "operator-followup",
+	}); err != nil {
+		t.Fatalf("CreateCase(open) error = %v", err)
+	}
+
+	server := httptest.NewServer(NewHandlerWithDependencies(Dependencies{
+		Cases:       caseService,
+		EvalReports: reportService,
+	}))
+	defer server.Close()
+
+	resp, err := http.Get(server.URL + "/api/v1/eval-reports/" + reportID + "?tenant_id=tenant-eval-report-detail-followup")
+	if err != nil {
+		t.Fatalf("Get() error = %v", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("StatusCode = %d, want %d", resp.StatusCode, http.StatusOK)
+	}
+
+	var got evalReportResponse
+	if err := json.NewDecoder(resp.Body).Decode(&got); err != nil {
+		t.Fatalf("Decode() error = %v", err)
+	}
+	if got.FollowUpCaseCount != 2 {
+		t.Fatalf("FollowUpCaseCount = %d, want 2", got.FollowUpCaseCount)
+	}
+	if got.OpenFollowUpCaseCount != 1 {
+		t.Fatalf("OpenFollowUpCaseCount = %d, want 1", got.OpenFollowUpCaseCount)
+	}
+	if got.LatestFollowUpCaseStatus != casesvc.StatusOpen {
+		t.Fatalf("LatestFollowUpCaseStatus = %q, want %q", got.LatestFollowUpCaseStatus, casesvc.StatusOpen)
+	}
+}
+
 func TestCompareEvalReportsReturnsTypedSummary(t *testing.T) {
 	caseService := casesvc.NewService()
 	evalCaseService := evalsvc.NewService(caseService, nil)
@@ -345,6 +407,76 @@ func TestListEvalReportsSupportsFiltersAndPagination(t *testing.T) {
 	}
 	if _, ok := rawItem["metadata"]; ok {
 		t.Fatalf("list response unexpectedly included metadata: %#v", rawItem)
+	}
+}
+
+func TestListEvalReportsIncludesFollowUpCaseSummary(t *testing.T) {
+	caseService := casesvc.NewService()
+	evalCaseService := evalsvc.NewService(caseService, nil)
+	datasetService := evalsvc.NewDatasetService(evalCaseService)
+	runService := evalsvc.NewRunService(datasetService)
+	reportService := evalsvc.NewEvalReportServiceWithDependencies(nil, runService)
+	reportID := materializeEvalRunReport(t, "tenant-eval-report-followup", evalsvc.RunStatusFailed, "failure detail", caseService, evalCaseService, datasetService, runService, reportService, "Dataset Followup", "Regression Source")
+
+	closedCase, err := caseService.CreateCase(context.Background(), casesvc.CreateInput{
+		TenantID:           "tenant-eval-report-followup",
+		Title:              "Closed follow-up",
+		Summary:            "closed summary",
+		SourceEvalReportID: reportID,
+		CreatedBy:          "operator-followup",
+	})
+	if err != nil {
+		t.Fatalf("CreateCase(closed) error = %v", err)
+	}
+	if _, err := caseService.CloseCase(context.Background(), closedCase.ID, "operator-followup"); err != nil {
+		t.Fatalf("CloseCase() error = %v", err)
+	}
+	if _, err := caseService.CreateCase(context.Background(), casesvc.CreateInput{
+		TenantID:           "tenant-eval-report-followup",
+		Title:              "Open follow-up",
+		Summary:            "open summary",
+		SourceEvalReportID: reportID,
+		CreatedBy:          "operator-followup",
+	}); err != nil {
+		t.Fatalf("CreateCase(open) error = %v", err)
+	}
+
+	server := httptest.NewServer(NewHandlerWithDependencies(Dependencies{
+		Cases:       caseService,
+		EvalReports: reportService,
+	}))
+	defer server.Close()
+
+	resp, err := http.Get(server.URL + "/api/v1/eval-reports?tenant_id=tenant-eval-report-followup&status=ready&limit=10")
+	if err != nil {
+		t.Fatalf("Get() error = %v", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("StatusCode = %d, want %d", resp.StatusCode, http.StatusOK)
+	}
+
+	bodyBytes, err := io.ReadAll(resp.Body)
+	if err != nil {
+		t.Fatalf("ReadAll() error = %v", err)
+	}
+	var page listEvalReportsResponse
+	if err := json.Unmarshal(bodyBytes, &page); err != nil {
+		t.Fatalf("Unmarshal(page) error = %v", err)
+	}
+	if len(page.Reports) != 1 {
+		t.Fatalf("len(page.Reports) = %d, want 1", len(page.Reports))
+	}
+	got := page.Reports[0]
+	if got.FollowUpCaseCount != 2 {
+		t.Fatalf("FollowUpCaseCount = %d, want 2", got.FollowUpCaseCount)
+	}
+	if got.OpenFollowUpCaseCount != 1 {
+		t.Fatalf("OpenFollowUpCaseCount = %d, want 1", got.OpenFollowUpCaseCount)
+	}
+	if got.LatestFollowUpCaseStatus != casesvc.StatusOpen {
+		t.Fatalf("LatestFollowUpCaseStatus = %q, want %q", got.LatestFollowUpCaseStatus, casesvc.StatusOpen)
 	}
 }
 

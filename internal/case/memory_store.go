@@ -114,6 +114,58 @@ func (s *memoryStore) List(_ context.Context, filter ListFilter) (ListPage, erro
 	return page, nil
 }
 
+func (s *memoryStore) SummarizeBySourceEvalReportIDs(_ context.Context, tenantID string, reportIDs []string) (map[string]EvalReportFollowUpSummary, error) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	if len(reportIDs) == 0 {
+		return map[string]EvalReportFollowUpSummary{}, nil
+	}
+
+	allowed := make(map[string]struct{}, len(reportIDs))
+	for _, reportID := range reportIDs {
+		if reportID == "" {
+			continue
+		}
+		allowed[reportID] = struct{}{}
+	}
+
+	summaries := make(map[string]EvalReportFollowUpSummary, len(allowed))
+	latestCases := make(map[string]Case, len(allowed))
+	for _, item := range s.records {
+		if item.TenantID != tenantID || item.SourceEvalReportID == "" {
+			continue
+		}
+		if _, ok := allowed[item.SourceEvalReportID]; !ok {
+			continue
+		}
+
+		summary := summaries[item.SourceEvalReportID]
+		summary.SourceEvalReportID = item.SourceEvalReportID
+		summary.FollowUpCaseCount++
+		if item.Status == StatusOpen {
+			summary.OpenFollowUpCaseCount++
+		}
+		latest, ok := latestCases[item.SourceEvalReportID]
+		if !ok ||
+			item.UpdatedAt.After(latest.UpdatedAt) ||
+			(item.UpdatedAt.Equal(latest.UpdatedAt) && item.CreatedAt.After(latest.CreatedAt)) ||
+			(item.UpdatedAt.Equal(latest.UpdatedAt) && item.CreatedAt.Equal(latest.CreatedAt) && item.ID > latest.ID) {
+			latestCases[item.SourceEvalReportID] = item
+			summary.LatestFollowUpCaseStatus = item.Status
+		}
+		summaries[item.SourceEvalReportID] = summary
+	}
+
+	for reportID := range allowed {
+		if _, ok := summaries[reportID]; !ok {
+			summaries[reportID] = EvalReportFollowUpSummary{SourceEvalReportID: reportID}
+		}
+	}
+
+	return summaries, nil
+}
+
 func (s *memoryStore) AppendNote(_ context.Context, note Note) (Note, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()

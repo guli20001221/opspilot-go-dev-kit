@@ -136,6 +136,7 @@ Current Milestone 1 slice:
 - the same `/admin/eval-datasets` page now also supports `Run dataset`, handing a published baseline straight into the shared `/admin/eval-runs` lane
 - `/admin/eval-runs` now exposes the first eval-run operator page, backed directly by the canonical run list/detail contracts with handoff back to datasets and evals
 - `/admin/eval-reports` now exposes the first eval-report operator page, backed directly by the canonical eval-report list/detail contracts with bad-case and metadata drill-down
+- the same `/admin/eval-reports` list now also surfaces durable follow-up case summary from the canonical eval-report list contract, so operators can see follow-up pressure before drilling into linked cases
 - the same `/admin/eval-reports` page now also shows linked durable follow-up cases for the selected eval report by reusing the canonical case list filter `source_eval_report_id`
 - `GET /api/v1/eval-report-compare` now exposes a narrow read-only compare contract over two durable eval reports, so score deltas, metadata drift, and bad-case overlap stay on the backend instead of turning into browser-only diff logic
 - `/admin/eval-report-compare` now exposes the first eval-report comparison page, handing off into eval runs and version detail from that same canonical compare contract

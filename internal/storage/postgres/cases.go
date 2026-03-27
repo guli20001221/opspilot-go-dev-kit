@@ -222,6 +222,83 @@ LIMIT $9 OFFSET $10`
 	return page, nil
 }
 
+// SummarizeBySourceEvalReportIDs aggregates follow-up case status by source eval report.
+func (s *CaseStore) SummarizeBySourceEvalReportIDs(ctx context.Context, tenantID string, reportIDs []string) (map[string]casesvc.EvalReportFollowUpSummary, error) {
+	summaries := make(map[string]casesvc.EvalReportFollowUpSummary, len(reportIDs))
+	if tenantID == "" || len(reportIDs) == 0 {
+		return summaries, nil
+	}
+
+	const query = `
+WITH scoped AS (
+    SELECT
+        source_eval_report_id,
+        status,
+        updated_at,
+        created_at,
+        id
+    FROM cases
+    WHERE tenant_id = $1
+      AND source_eval_report_id = ANY($2)
+),
+counts AS (
+    SELECT
+        source_eval_report_id,
+        COUNT(*) AS follow_up_case_count,
+        COUNT(*) FILTER (WHERE status = $3) AS open_follow_up_case_count
+    FROM scoped
+    GROUP BY source_eval_report_id
+),
+latest AS (
+    SELECT DISTINCT ON (source_eval_report_id)
+        source_eval_report_id,
+        status
+    FROM scoped
+    ORDER BY source_eval_report_id, updated_at DESC, created_at DESC, id DESC
+)
+SELECT
+    counts.source_eval_report_id,
+    counts.follow_up_case_count,
+    counts.open_follow_up_case_count,
+    COALESCE(latest.status, '')
+FROM counts
+LEFT JOIN latest
+  ON latest.source_eval_report_id = counts.source_eval_report_id`
+
+	rows, err := s.pool.Query(ctx, query, tenantID, reportIDs, casesvc.StatusOpen)
+	if err != nil {
+		return nil, fmt.Errorf("summarize eval report follow-up cases: %w", err)
+	}
+	defer rows.Close()
+
+	for rows.Next() {
+		var summary casesvc.EvalReportFollowUpSummary
+		if err := rows.Scan(
+			&summary.SourceEvalReportID,
+			&summary.FollowUpCaseCount,
+			&summary.OpenFollowUpCaseCount,
+			&summary.LatestFollowUpCaseStatus,
+		); err != nil {
+			return nil, fmt.Errorf("scan eval report follow-up summary: %w", err)
+		}
+		summaries[summary.SourceEvalReportID] = summary
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("iterate eval report follow-up summaries: %w", err)
+	}
+
+	for _, reportID := range reportIDs {
+		if reportID == "" {
+			continue
+		}
+		if _, ok := summaries[reportID]; !ok {
+			summaries[reportID] = casesvc.EvalReportFollowUpSummary{SourceEvalReportID: reportID}
+		}
+	}
+
+	return summaries, nil
+}
+
 // AppendNote stores an append-only operator note for a case.
 func (s *CaseStore) AppendNote(ctx context.Context, note casesvc.Note) (casesvc.Note, error) {
 	tx, err := s.pool.Begin(ctx)

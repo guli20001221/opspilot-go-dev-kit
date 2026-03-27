@@ -83,3 +83,11 @@ type ListPage struct {
 	HasMore    bool
 	NextOffset int
 }
+
+// EvalReportFollowUpSummary aggregates case follow-up state for one source eval report.
+type EvalReportFollowUpSummary struct {
+	SourceEvalReportID       string
+	FollowUpCaseCount        int
+	OpenFollowUpCaseCount    int
+	LatestFollowUpCaseStatus string
+}

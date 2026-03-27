@@ -150,6 +150,7 @@ The current chat stream implementation is a Milestone 1 skeleton:
 - if that external judge call fails during run finalization, the worker now records a canonical failed run with placeholder fallback `item_results` instead of leaving the run stuck in `running`
 - once a run reaches a terminal state, the worker also materializes a durable aggregated eval report carrying top-line metrics, bad-case lineage, and judge metadata for later comparison/reporting slices
 - use `GET /api/v1/eval-reports?tenant_id=<tenant>` when you need the lightweight tenant-scoped browse lane for those durable eval reports
+- that same eval-report list now also includes `follow_up_case_count`, `open_follow_up_case_count`, and `latest_follow_up_case_status`, so `/admin/eval-reports` can surface regression follow-up pressure directly from the canonical list contract
 - use `GET /api/v1/eval-reports/{report_id}?tenant_id=<tenant>` when you need the canonical aggregated eval report detail, including metadata and bad-case lineage
 - open `http://localhost:18080/admin/eval-reports` when you want the first eval-report operator page, including bad-case drill-down plus run, dataset, eval, trace, and version handoff links
 - use `Open linked cases` on `/admin/eval-reports` when you want to jump from one durable eval report straight into the canonical `/admin/cases?source_eval_report_id=<report_id>` slice

@@ -720,3 +720,145 @@ func TestCaseStoreAppendAndListNotes(t *testing.T) {
 		t.Fatalf("Get().UpdatedAt = %v, want %v", refreshed.UpdatedAt, second.CreatedAt)
 	}
 }
+
+func TestCaseStoreSummarizeBySourceEvalReportIDs(t *testing.T) {
+	dsn := os.Getenv("OPSPILOT_TEST_POSTGRES_DSN")
+	if dsn == "" {
+		t.Skip("OPSPILOT_TEST_POSTGRES_DSN not set")
+	}
+
+	ctx := context.Background()
+	pool, err := OpenPool(ctx, dsn)
+	if err != nil {
+		t.Fatalf("OpenPool() error = %v", err)
+	}
+	defer pool.Close()
+
+	applyMigration(t, ctx, pool)
+	if _, err := pool.Exec(ctx, "TRUNCATE case_notes, cases, eval_reports, reports, workflow_task_events, workflow_tasks RESTART IDENTITY CASCADE"); err != nil {
+		t.Fatalf("TRUNCATE eval-report lineage tables error = %v", err)
+	}
+
+	reportStore := NewEvalReportStore(pool)
+	reportNow := time.Unix(1700002700, 0).UTC()
+	for _, item := range []evalsvc.EvalReport{
+		{
+			ID:              "eval-report-summary-1",
+			TenantID:        "tenant-1",
+			RunID:           "eval-run-summary-1",
+			DatasetID:       "dataset-summary-1",
+			DatasetName:     "Dataset One",
+			RunStatus:       evalsvc.RunStatusFailed,
+			Status:          evalsvc.EvalReportStatusReady,
+			Summary:         "summary one",
+			TotalItems:      1,
+			RecordedResults: 1,
+			PassedItems:     0,
+			FailedItems:     1,
+			MissingResults:  0,
+			AverageScore:    0,
+			JudgeVersion:    "judge-a",
+			MetadataJSON:    []byte(`{}`),
+			CreatedAt:       reportNow,
+			UpdatedAt:       reportNow,
+			ReadyAt:         reportNow,
+		},
+		{
+			ID:              "eval-report-summary-2",
+			TenantID:        "tenant-1",
+			RunID:           "eval-run-summary-2",
+			DatasetID:       "dataset-summary-1",
+			DatasetName:     "Dataset One",
+			RunStatus:       evalsvc.RunStatusFailed,
+			Status:          evalsvc.EvalReportStatusReady,
+			Summary:         "summary two",
+			TotalItems:      1,
+			RecordedResults: 1,
+			PassedItems:     0,
+			FailedItems:     1,
+			MissingResults:  0,
+			AverageScore:    0,
+			JudgeVersion:    "judge-a",
+			MetadataJSON:    []byte(`{}`),
+			CreatedAt:       reportNow.Add(time.Second),
+			UpdatedAt:       reportNow.Add(time.Second),
+			ReadyAt:         reportNow.Add(time.Second),
+		},
+	} {
+		if _, err := reportStore.SaveEvalReport(ctx, item); err != nil {
+			t.Fatalf("SaveEvalReport(%s) error = %v", item.ID, err)
+		}
+	}
+
+	store := NewCaseStore(pool)
+	for _, item := range []casesvc.Case{
+		{
+			ID:                 "case-summary-1",
+			TenantID:           "tenant-1",
+			Status:             casesvc.StatusOpen,
+			Title:              "Open follow-up",
+			SourceEvalReportID: "eval-report-summary-1",
+			CreatedBy:          "operator-1",
+			CreatedAt:          reportNow,
+			UpdatedAt:          reportNow,
+		},
+		{
+			ID:                 "case-summary-2",
+			TenantID:           "tenant-1",
+			Status:             casesvc.StatusClosed,
+			Title:              "Closed follow-up",
+			SourceEvalReportID: "eval-report-summary-1",
+			CreatedBy:          "operator-2",
+			ClosedBy:           "operator-3",
+			CreatedAt:          reportNow.Add(2 * time.Second),
+			UpdatedAt:          reportNow.Add(3 * time.Second),
+		},
+		{
+			ID:                 "case-summary-other-tenant",
+			TenantID:           "tenant-2",
+			Status:             casesvc.StatusOpen,
+			Title:              "Ignored follow-up",
+			SourceEvalReportID: "eval-report-summary-1",
+			CreatedBy:          "operator-1",
+			CreatedAt:          reportNow.Add(4 * time.Second),
+			UpdatedAt:          reportNow.Add(4 * time.Second),
+		},
+	} {
+		if _, err := store.Save(ctx, item); err != nil {
+			t.Fatalf("Save(%s) error = %v", item.ID, err)
+		}
+	}
+
+	summaries, err := store.SummarizeBySourceEvalReportIDs(ctx, "tenant-1", []string{"eval-report-summary-1", "eval-report-summary-2"})
+	if err != nil {
+		t.Fatalf("SummarizeBySourceEvalReportIDs() error = %v", err)
+	}
+
+	got := summaries["eval-report-summary-1"]
+	if got.SourceEvalReportID != "eval-report-summary-1" {
+		t.Fatalf("SourceEvalReportID = %q, want %q", got.SourceEvalReportID, "eval-report-summary-1")
+	}
+	if got.FollowUpCaseCount != 2 {
+		t.Fatalf("FollowUpCaseCount = %d, want %d", got.FollowUpCaseCount, 2)
+	}
+	if got.OpenFollowUpCaseCount != 1 {
+		t.Fatalf("OpenFollowUpCaseCount = %d, want %d", got.OpenFollowUpCaseCount, 1)
+	}
+	if got.LatestFollowUpCaseStatus != casesvc.StatusClosed {
+		t.Fatalf("LatestFollowUpCaseStatus = %q, want %q", got.LatestFollowUpCaseStatus, casesvc.StatusClosed)
+	}
+
+	empty := summaries["eval-report-summary-2"]
+	if empty.SourceEvalReportID != "eval-report-summary-2" {
+		t.Fatalf("empty.SourceEvalReportID = %q, want %q", empty.SourceEvalReportID, "eval-report-summary-2")
+	}
+	if empty.FollowUpCaseCount != 0 {
+		t.Fatalf("empty.FollowUpCaseCount = %d, want %d", empty.FollowUpCaseCount, 0)
+	}
+	if empty.OpenFollowUpCaseCount != 0 {
+		t.Fatalf("empty.OpenFollowUpCaseCount = %d, want %d", empty.OpenFollowUpCaseCount, 0)
+	}
+	if empty.LatestFollowUpCaseStatus != "" {
+		t.Fatalf("empty.LatestFollowUpCaseStatus = %q, want empty", empty.LatestFollowUpCaseStatus)
+	}
+}

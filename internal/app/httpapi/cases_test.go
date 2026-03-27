@@ -1130,6 +1130,14 @@ func (s *staleAssignStore) List(_ context.Context, _ casesvc.ListFilter) (casesv
 	return casesvc.ListPage{Cases: []casesvc.Case{s.item}}, nil
 }
 
+func (s *staleAssignStore) SummarizeBySourceEvalReportIDs(_ context.Context, _ string, reportIDs []string) (map[string]casesvc.EvalReportFollowUpSummary, error) {
+	summaries := make(map[string]casesvc.EvalReportFollowUpSummary, len(reportIDs))
+	for _, reportID := range reportIDs {
+		summaries[reportID] = casesvc.EvalReportFollowUpSummary{SourceEvalReportID: reportID}
+	}
+	return summaries, nil
+}
+
 func (s *staleAssignStore) AppendNote(_ context.Context, note casesvc.Note) (casesvc.Note, error) {
 	return note, nil
 }
