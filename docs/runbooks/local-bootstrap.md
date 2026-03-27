@@ -138,6 +138,7 @@ The current chat stream implementation is a Milestone 1 skeleton:
 - the same run detail now returns append-only `events`, so prior `failed` and `retried` history remains visible after retry clears the top-level failure fields
 - the same run detail now also returns immutable `items`, so you can inspect the exact eval-case membership and case/task/report/trace/version lineage that were snapped onto the run at kickoff time
 - the same run detail now also returns durable `item_results`, so placeholder terminal outcomes for each snapped eval case remain inspectable on the canonical run until retry clears them
+- those same `item_results` now also expose structured placeholder judge fields such as `verdict`, `score`, `judge_version`, and raw `judge_output`
 - terminal run reads now also expose `result_summary`, so `/api/v1/eval-runs` and `/admin/eval-runs` can show quick pass/fail totals without loading the full per-item payload first
 - open `http://localhost:18080/admin/cases` when you want the first case-focused operator page, including source task/report handoff links and the minimal `Close case` action
 - open `http://localhost:18080/admin/evals` when you want the first eval-focused operator page, including durable eval detail plus case/task/report/version/trace handoff links
@@ -152,6 +153,7 @@ The current chat stream implementation is a Milestone 1 skeleton:
 - use the `Run timeline` card on `/admin/eval-runs` when you need the durable claim/fail/retry/succeed history for the selected run ID
 - use the `Run items` card on `/admin/eval-runs` when you need the selected run's eval-case membership and provenance handoff links without leaving the run lane
 - use the `Item results` card on `/admin/eval-runs` when you need the selected run's placeholder per-item terminal outcomes without unpacking the raw JSON payload
+- the same `Item results` card now also surfaces structured placeholder judge fields, so you can inspect verdict, score, and judge version without reading the raw JSON pane
 - use the `Results` column on `/admin/eval-runs` when you want a quick terminal pass/fail count before drilling into the selected run's full `item_results`
 - use the `My open cases` shortcut on `/admin/cases` when you want a queue view for the current operator handle without manually composing `status=open&assigned_to=<actor>`
 - use the `Unassigned` shortcut on `/admin/cases` when you want the shared open backlog without manually composing `status=open&unassigned_only=true`
@@ -187,6 +189,8 @@ docker compose exec -T postgres psql -U opspilot -d opspilot -f /docker-entrypoi
 docker compose exec -T postgres psql -U opspilot -d opspilot -f /docker-entrypoint-initdb.d/000013_eval_datasets.sql
 docker compose exec -T postgres psql -U opspilot -d opspilot -f /docker-entrypoint-initdb.d/000014_eval_dataset_publish_fields.sql
 docker compose exec -T postgres psql -U opspilot -d opspilot -f /docker-entrypoint-initdb.d/000015_eval_runs.sql
+docker compose exec -T postgres psql -U opspilot -d opspilot -f /docker-entrypoint-initdb.d/000018_eval_run_item_results.sql
+docker compose exec -T postgres psql -U opspilot -d opspilot -f /docker-entrypoint-initdb.d/000019_eval_run_item_judge_fields.sql
 ```
 
 If you change Compose environment variables such as `OPSPILOT_POSTGRES_DSN`, `OPSPILOT_TEMPORAL_ENABLED`, or `OPSPILOT_WORKER_POLL_INTERVAL`, recreate the app containers instead of only restarting them:

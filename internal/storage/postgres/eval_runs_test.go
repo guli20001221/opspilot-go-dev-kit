@@ -765,16 +765,24 @@ INSERT INTO eval_cases (
 	}
 	results := []evalsvc.EvalRunItemResult{
 		{
-			EvalCaseID: "eval-case-results-b",
-			Status:     evalsvc.RunItemResultSucceeded,
-			Detail:     "placeholder eval passed",
-			UpdatedAt:  time.Unix(1700021030, 0).UTC(),
+			EvalCaseID:   "eval-case-results-b",
+			Status:       evalsvc.RunItemResultSucceeded,
+			Verdict:      evalsvc.RunItemVerdictPass,
+			Detail:       "placeholder eval passed",
+			Score:        1,
+			JudgeVersion: evalsvc.PlaceholderJudgeVersion,
+			JudgeOutput:  []byte(`{"judge_kind":"placeholder","judge_version":"placeholder-v1","verdict":"pass","score":1,"rationale":"placeholder eval passed"}`),
+			UpdatedAt:    time.Unix(1700021030, 0).UTC(),
 		},
 		{
-			EvalCaseID: "eval-case-results-a",
-			Status:     evalsvc.RunItemResultSucceeded,
-			Detail:     "placeholder eval passed",
-			UpdatedAt:  time.Unix(1700021030, 0).UTC(),
+			EvalCaseID:   "eval-case-results-a",
+			Status:       evalsvc.RunItemResultSucceeded,
+			Verdict:      evalsvc.RunItemVerdictPass,
+			Detail:       "placeholder eval passed",
+			Score:        1,
+			JudgeVersion: evalsvc.PlaceholderJudgeVersion,
+			JudgeOutput:  []byte(`{"judge_kind":"placeholder","judge_version":"placeholder-v1","verdict":"pass","score":1,"rationale":"placeholder eval passed"}`),
+			UpdatedAt:    time.Unix(1700021030, 0).UTC(),
 		},
 	}
 	if _, err := store.MarkRunSucceeded(ctx, run.ID, time.Unix(1700021030, 0).UTC(), results); err != nil {
@@ -790,6 +798,18 @@ INSERT INTO eval_cases (
 	}
 	if detail.ItemResults[0].EvalCaseID != "eval-case-results-a" || detail.ItemResults[1].EvalCaseID != "eval-case-results-b" {
 		t.Fatalf("detail.ItemResults = %#v, want ordered run item results", detail.ItemResults)
+	}
+	if detail.ItemResults[0].Verdict != "pass" || detail.ItemResults[1].Verdict != "pass" {
+		t.Fatalf("detail.ItemResults verdicts = %#v, want pass/pass", detail.ItemResults)
+	}
+	if detail.ItemResults[0].Score != 1 || detail.ItemResults[1].Score != 1 {
+		t.Fatalf("detail.ItemResults scores = %#v, want 1/1", detail.ItemResults)
+	}
+	if detail.ItemResults[0].JudgeVersion == "" || detail.ItemResults[1].JudgeVersion == "" {
+		t.Fatalf("detail.ItemResults judge versions = %#v, want non-empty", detail.ItemResults)
+	}
+	if len(detail.ItemResults[0].JudgeOutput) == 0 || len(detail.ItemResults[1].JudgeOutput) == 0 {
+		t.Fatalf("detail.ItemResults judge outputs = %#v, want non-empty", detail.ItemResults)
 	}
 
 	if _, err := store.RetryRun(ctx, run.ID, time.Unix(1700021040, 0).UTC()); err != nil {

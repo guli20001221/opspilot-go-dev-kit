@@ -578,6 +578,18 @@ func TestGetEvalRunEndpointReturnsUpdatedStatusFields(t *testing.T) {
 	if got.ItemResults[0].Status != evalsvc.RunItemResultFailed {
 		t.Fatalf("ItemResults[0].Status = %q, want %q", got.ItemResults[0].Status, evalsvc.RunItemResultFailed)
 	}
+	if got.ItemResults[0].Verdict != "fail" {
+		t.Fatalf("ItemResults[0].Verdict = %q, want %q", got.ItemResults[0].Verdict, "fail")
+	}
+	if got.ItemResults[0].Score != 0 {
+		t.Fatalf("ItemResults[0].Score = %v, want 0", got.ItemResults[0].Score)
+	}
+	if got.ItemResults[0].JudgeVersion == "" {
+		t.Fatal("ItemResults[0].JudgeVersion is empty")
+	}
+	if len(got.ItemResults[0].JudgeOutput) == 0 {
+		t.Fatal("ItemResults[0].JudgeOutput is empty")
+	}
 }
 
 func TestRetryEvalRunEndpointRequeuesFailedRun(t *testing.T) {

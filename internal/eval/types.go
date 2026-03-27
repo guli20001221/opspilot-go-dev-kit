@@ -1,6 +1,7 @@
 package eval
 
 import (
+	"encoding/json"
 	"errors"
 	"time"
 )
@@ -65,6 +66,17 @@ const (
 	RunItemResultSucceeded = "succeeded"
 	// RunItemResultFailed identifies a placeholder failed per-item outcome.
 	RunItemResultFailed = "failed"
+)
+
+const (
+	// RunItemVerdictPass identifies a passing judge verdict.
+	RunItemVerdictPass = "pass"
+	// RunItemVerdictFail identifies a failing judge verdict.
+	RunItemVerdictFail = "fail"
+	// PlaceholderJudgeKind identifies the built-in deterministic judge implementation.
+	PlaceholderJudgeKind = "placeholder"
+	// PlaceholderJudgeVersion identifies the current built-in deterministic judge version.
+	PlaceholderJudgeVersion = "placeholder-v1"
 )
 
 // EvalCase is the durable read model for a promoted evaluation case.
@@ -212,10 +224,14 @@ type EvalRunResultSummary struct {
 
 // EvalRunItemResult is one terminal placeholder result for a snapped eval-run item.
 type EvalRunItemResult struct {
-	EvalCaseID string
-	Status     string
-	Detail     string
-	UpdatedAt  time.Time
+	EvalCaseID   string
+	Status       string
+	Verdict      string
+	Detail       string
+	Score        float64
+	JudgeVersion string
+	JudgeOutput  json.RawMessage
+	UpdatedAt    time.Time
 }
 
 // RunListFilter constrains eval-run list reads.

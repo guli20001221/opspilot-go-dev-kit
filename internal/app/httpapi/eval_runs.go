@@ -61,10 +61,14 @@ type evalRunItemResponse struct {
 }
 
 type evalRunItemResultResponse struct {
-	EvalCaseID string `json:"eval_case_id"`
-	Status     string `json:"status"`
-	Detail     string `json:"detail,omitempty"`
-	UpdatedAt  string `json:"updated_at"`
+	EvalCaseID   string          `json:"eval_case_id"`
+	Status       string          `json:"status"`
+	Verdict      string          `json:"verdict,omitempty"`
+	Detail       string          `json:"detail,omitempty"`
+	Score        float64         `json:"score,omitempty"`
+	JudgeVersion string          `json:"judge_version,omitempty"`
+	JudgeOutput  json.RawMessage `json:"judge_output,omitempty"`
+	UpdatedAt    string          `json:"updated_at"`
 }
 
 type evalRunResultSummaryResponse struct {
@@ -310,10 +314,14 @@ func newEvalRunResponse(item evalsvc.EvalRun, events []evalsvc.EvalRunEvent, ite
 		resp.ItemResults = make([]evalRunItemResultResponse, 0, len(results))
 		for _, result := range results {
 			resp.ItemResults = append(resp.ItemResults, evalRunItemResultResponse{
-				EvalCaseID: result.EvalCaseID,
-				Status:     result.Status,
-				Detail:     result.Detail,
-				UpdatedAt:  result.UpdatedAt.Format(time.RFC3339Nano),
+				EvalCaseID:   result.EvalCaseID,
+				Status:       result.Status,
+				Verdict:      result.Verdict,
+				Detail:       result.Detail,
+				Score:        result.Score,
+				JudgeVersion: result.JudgeVersion,
+				JudgeOutput:  result.JudgeOutput,
+				UpdatedAt:    result.UpdatedAt.Format(time.RFC3339Nano),
 			})
 		}
 	}

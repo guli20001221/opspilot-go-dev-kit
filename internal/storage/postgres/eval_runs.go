@@ -378,7 +378,11 @@ func (s *EvalRunStore) listRunItemResults(ctx context.Context, q evalRunQuerier,
 SELECT
     results.eval_case_id,
     results.status,
+    results.verdict,
     results.detail,
+    results.score,
+    results.judge_version,
+    results.judge_output,
     results.updated_at
 FROM eval_run_item_results results
 JOIN eval_run_items items
@@ -399,7 +403,11 @@ ORDER BY items.position ASC`
 		if err := rows.Scan(
 			&result.EvalCaseID,
 			&result.Status,
+			&result.Verdict,
 			&result.Detail,
+			&result.Score,
+			&result.JudgeVersion,
+			&result.JudgeOutput,
 			&result.UpdatedAt,
 		); err != nil {
 			return nil, fmt.Errorf("scan eval run item result: %w", err)
@@ -652,9 +660,13 @@ INSERT INTO eval_run_item_results (
     run_id,
     eval_case_id,
     status,
+    verdict,
     detail,
+    score,
+    judge_version,
+    judge_output,
     updated_at
-) VALUES ($1, $2, $3, $4, $5)`
+) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`
 
 	for _, result := range results {
 		if _, err := q.Exec(
@@ -663,7 +675,11 @@ INSERT INTO eval_run_item_results (
 			runID,
 			result.EvalCaseID,
 			result.Status,
+			result.Verdict,
 			result.Detail,
+			result.Score,
+			result.JudgeVersion,
+			result.JudgeOutput,
 			result.UpdatedAt,
 		); err != nil {
 			return fmt.Errorf("insert eval run item result: %w", err)

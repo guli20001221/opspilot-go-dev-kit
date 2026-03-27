@@ -116,3 +116,4 @@ When you finish, always report:
 - once durable eval-run items exist, render them in `/admin/eval-runs` detail with handoff links back to eval, case, task, report, trace, and version surfaces instead of forcing operators to reconstruct membership from dataset detail
 - before judge scoring exists, render durable placeholder `item_results` on `/admin/eval-runs` detail from the canonical run endpoint instead of inventing frontend-only per-item status summaries
 - once placeholder eval-run `item_results` exist, prefer showing a lightweight terminal `result_summary` in `/admin/eval-runs` list rows before expanding the heavier detail payload
+- when placeholder eval-run `item_results` become structured, surface verdict, score, and judge version in `/admin/eval-runs` detail without adding admin-only eval APIs

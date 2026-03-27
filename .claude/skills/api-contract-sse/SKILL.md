@@ -57,6 +57,7 @@ Keep the HTTP surface explicit, documented, stable, and friendly to streaming ag
 26. When per-run judging has not landed yet, prefer adding immutable `items` only on the single-run detail contract, copied from published dataset membership at kickoff time, and keep create/list/retry responses lightweight snapshots.
 27. Before per-item judging lands, prefer adding durable placeholder `item_results` only on the single-run detail contract, keep create/list/retry responses lightweight, and clear stale item results when retry re-queues the same canonical run.
 28. Once placeholder `item_results` exist, prefer a lightweight `result_summary` on terminal eval-run reads for operator scanning instead of leaking full per-item payloads into list, create, or retry responses.
+29. Before a real judge provider is wired, keep placeholder eval item results structured: expose normalized verdict/score fields plus raw judge output on detail reads so later provider integration stays backward-compatible.
 
 ## Output contract
 When you finish, always report:

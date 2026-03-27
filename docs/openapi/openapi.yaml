@@ -2855,6 +2855,10 @@ components:
       required:
         - eval_case_id
         - status
+        - verdict
+        - score
+        - judge_version
+        - judge_output
         - updated_at
       properties:
         eval_case_id:
@@ -2864,8 +2868,22 @@ components:
           enum:
             - succeeded
             - failed
+        verdict:
+          type: string
+          enum:
+            - pass
+            - fail
         detail:
           type: string
+        score:
+          type: number
+          format: double
+          minimum: 0
+        judge_version:
+          type: string
+        judge_output:
+          description: Raw structured output from the current eval judge implementation.
+          type: object
         updated_at:
           type: string
           format: date-time

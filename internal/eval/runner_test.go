@@ -2,6 +2,7 @@ package eval
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"testing"
 	"time"
@@ -73,6 +74,18 @@ func TestRunnerProcessesQueuedRunToSucceeded(t *testing.T) {
 		if result.Status != RunItemResultSucceeded {
 			t.Fatalf("result.Status = %q, want %q", result.Status, RunItemResultSucceeded)
 		}
+		if result.Verdict != "pass" {
+			t.Fatalf("result.Verdict = %q, want %q", result.Verdict, "pass")
+		}
+		if result.Score != 1 {
+			t.Fatalf("result.Score = %v, want 1", result.Score)
+		}
+		if result.JudgeVersion == "" {
+			t.Fatal("result.JudgeVersion is empty")
+		}
+		if len(result.JudgeOutput) == 0 {
+			t.Fatal("result.JudgeOutput is empty")
+		}
 	}
 }
 
@@ -136,6 +149,18 @@ func TestRunnerProcessesQueuedRunToFailed(t *testing.T) {
 		}
 		if result.Detail == "" {
 			t.Fatal("result.Detail is empty")
+		}
+		if result.Verdict != "fail" {
+			t.Fatalf("result.Verdict = %q, want %q", result.Verdict, "fail")
+		}
+		if result.Score != 0 {
+			t.Fatalf("result.Score = %v, want 0", result.Score)
+		}
+		if result.JudgeVersion == "" {
+			t.Fatal("result.JudgeVersion is empty")
+		}
+		if len(result.JudgeOutput) == 0 {
+			t.Fatal("result.JudgeOutput is empty")
 		}
 	}
 }
@@ -246,5 +271,16 @@ func TestRunnerProcessesRetriedRunToSucceeded(t *testing.T) {
 	}
 	if got.FinishedAt.IsZero() {
 		t.Fatal("FinishedAt is zero")
+	}
+	detail, err = service.GetRunDetail(ctx, run.ID)
+	if err != nil {
+		t.Fatalf("GetRunDetail() after retry success error = %v", err)
+	}
+	var judgeOutput map[string]any
+	if err := json.Unmarshal(detail.ItemResults[0].JudgeOutput, &judgeOutput); err != nil {
+		t.Fatalf("Unmarshal(JudgeOutput) error = %v", err)
+	}
+	if judgeOutput["judge_kind"] != "placeholder" {
+		t.Fatalf("judge_kind = %#v, want %q", judgeOutput["judge_kind"], "placeholder")
 	}
 }
