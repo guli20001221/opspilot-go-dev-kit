@@ -18,20 +18,21 @@ type createEvalRunRequest struct {
 }
 
 type evalRunResponse struct {
-	RunID            string                 `json:"run_id"`
-	TenantID         string                 `json:"tenant_id"`
-	DatasetID        string                 `json:"dataset_id"`
-	DatasetName      string                 `json:"dataset_name"`
-	DatasetItemCount int                    `json:"dataset_item_count"`
-	Status           string                 `json:"status"`
-	CreatedBy        string                 `json:"created_by"`
-	ErrorReason      string                 `json:"error_reason,omitempty"`
-	CreatedAt        string                 `json:"created_at"`
-	UpdatedAt        string                 `json:"updated_at"`
-	StartedAt        string                 `json:"started_at,omitempty"`
-	FinishedAt       string                 `json:"finished_at,omitempty"`
-	Events           []evalRunEventResponse `json:"events,omitempty"`
-	Items            []evalRunItemResponse  `json:"items,omitempty"`
+	RunID            string                      `json:"run_id"`
+	TenantID         string                      `json:"tenant_id"`
+	DatasetID        string                      `json:"dataset_id"`
+	DatasetName      string                      `json:"dataset_name"`
+	DatasetItemCount int                         `json:"dataset_item_count"`
+	Status           string                      `json:"status"`
+	CreatedBy        string                      `json:"created_by"`
+	ErrorReason      string                      `json:"error_reason,omitempty"`
+	CreatedAt        string                      `json:"created_at"`
+	UpdatedAt        string                      `json:"updated_at"`
+	StartedAt        string                      `json:"started_at,omitempty"`
+	FinishedAt       string                      `json:"finished_at,omitempty"`
+	Events           []evalRunEventResponse      `json:"events,omitempty"`
+	Items            []evalRunItemResponse       `json:"items,omitempty"`
+	ItemResults      []evalRunItemResultResponse `json:"item_results,omitempty"`
 }
 
 type listEvalRunsResponse struct {
@@ -56,6 +57,13 @@ type evalRunItemResponse struct {
 	SourceReportID string `json:"source_report_id,omitempty"`
 	TraceID        string `json:"trace_id"`
 	VersionID      string `json:"version_id,omitempty"`
+}
+
+type evalRunItemResultResponse struct {
+	EvalCaseID string `json:"eval_case_id"`
+	Status     string `json:"status"`
+	Detail     string `json:"detail,omitempty"`
+	UpdatedAt  string `json:"updated_at"`
 }
 
 func (a *appHandler) handleEvalRuns(w http.ResponseWriter, r *http.Request) {
@@ -142,7 +150,7 @@ func (a *appHandler) handleRetryEvalRun(w http.ResponseWriter, r *http.Request, 
 		return
 	}
 
-	writeJSON(w, http.StatusOK, newEvalRunResponse(retried, nil, nil))
+	writeJSON(w, http.StatusOK, newEvalRunResponse(retried, nil, nil, nil))
 }
 
 func (a *appHandler) handleCreateEvalRun(w http.ResponseWriter, r *http.Request) {
@@ -175,7 +183,7 @@ func (a *appHandler) handleCreateEvalRun(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	writeJSON(w, http.StatusCreated, newEvalRunResponse(item, nil, nil))
+	writeJSON(w, http.StatusCreated, newEvalRunResponse(item, nil, nil, nil))
 }
 
 func (a *appHandler) handleListEvalRuns(w http.ResponseWriter, r *http.Request) {
@@ -199,7 +207,7 @@ func (a *appHandler) handleListEvalRuns(w http.ResponseWriter, r *http.Request) 
 		resp.NextOffset = &page.NextOffset
 	}
 	for _, item := range page.Runs {
-		resp.Runs = append(resp.Runs, newEvalRunResponse(item, nil, nil))
+		resp.Runs = append(resp.Runs, newEvalRunResponse(item, nil, nil, nil))
 	}
 
 	writeJSON(w, http.StatusOK, resp)
@@ -235,7 +243,7 @@ func parseEvalRunListFilter(r *http.Request) (evalsvc.RunListFilter, error) {
 	return filter, nil
 }
 
-func newEvalRunResponse(item evalsvc.EvalRun, events []evalsvc.EvalRunEvent, items []evalsvc.EvalRunItem) evalRunResponse {
+func newEvalRunResponse(item evalsvc.EvalRun, events []evalsvc.EvalRunEvent, items []evalsvc.EvalRunItem, results []evalsvc.EvalRunItemResult) evalRunResponse {
 	resp := evalRunResponse{
 		RunID:            item.ID,
 		TenantID:         item.TenantID,
@@ -280,6 +288,17 @@ func newEvalRunResponse(item evalsvc.EvalRun, events []evalsvc.EvalRunEvent, ite
 			})
 		}
 	}
+	if len(results) > 0 {
+		resp.ItemResults = make([]evalRunItemResultResponse, 0, len(results))
+		for _, result := range results {
+			resp.ItemResults = append(resp.ItemResults, evalRunItemResultResponse{
+				EvalCaseID: result.EvalCaseID,
+				Status:     result.Status,
+				Detail:     result.Detail,
+				UpdatedAt:  result.UpdatedAt.Format(time.RFC3339Nano),
+			})
+		}
+	}
 	return resp
 }
 
@@ -299,7 +318,7 @@ func (a *appHandler) writeEvalRunDetailResponse(w http.ResponseWriter, r *http.R
 		return
 	}
 
-	writeJSON(w, statusCode, newEvalRunResponse(item, detail.Events, detail.Items))
+	writeJSON(w, statusCode, newEvalRunResponse(item, detail.Events, detail.Items, detail.ItemResults))
 }
 
 func parseEvalRunPath(path string) (runID string, action string, ok bool) {

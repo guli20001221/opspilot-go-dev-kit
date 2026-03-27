@@ -24,7 +24,7 @@ func TestEvalRunStoreRoundTrip(t *testing.T) {
 	defer pool.Close()
 
 	applyMigration(t, ctx, pool)
-	if _, err := pool.Exec(ctx, "TRUNCATE eval_runs, eval_dataset_items, eval_datasets, eval_cases, case_notes, cases, reports, workflow_task_events, workflow_tasks RESTART IDENTITY CASCADE"); err != nil {
+	if _, err := pool.Exec(ctx, "TRUNCATE eval_run_item_results, eval_run_events, eval_runs, eval_dataset_items, eval_datasets, eval_cases, case_notes, cases, reports, workflow_task_events, workflow_tasks RESTART IDENTITY CASCADE"); err != nil {
 		t.Fatalf("TRUNCATE eval run and lineage tables error = %v", err)
 	}
 
@@ -146,7 +146,7 @@ func TestEvalRunStoreListRunsSupportsFiltersAndPagination(t *testing.T) {
 	defer pool.Close()
 
 	applyMigration(t, ctx, pool)
-	if _, err := pool.Exec(ctx, "TRUNCATE eval_runs, eval_dataset_items, eval_datasets, eval_cases, case_notes, cases, reports, workflow_task_events, workflow_tasks RESTART IDENTITY CASCADE"); err != nil {
+	if _, err := pool.Exec(ctx, "TRUNCATE eval_run_item_results, eval_run_events, eval_runs, eval_dataset_items, eval_datasets, eval_cases, case_notes, cases, reports, workflow_task_events, workflow_tasks RESTART IDENTITY CASCADE"); err != nil {
 		t.Fatalf("TRUNCATE eval run and lineage tables error = %v", err)
 	}
 
@@ -235,7 +235,7 @@ func TestEvalRunStoreClaimAndUpdate(t *testing.T) {
 	defer pool.Close()
 
 	applyMigration(t, ctx, pool)
-	if _, err := pool.Exec(ctx, "TRUNCATE eval_runs, eval_dataset_items, eval_datasets, eval_cases, case_notes, cases, reports, workflow_task_events, workflow_tasks RESTART IDENTITY CASCADE"); err != nil {
+	if _, err := pool.Exec(ctx, "TRUNCATE eval_run_item_results, eval_run_events, eval_runs, eval_dataset_items, eval_datasets, eval_cases, case_notes, cases, reports, workflow_task_events, workflow_tasks RESTART IDENTITY CASCADE"); err != nil {
 		t.Fatalf("TRUNCATE eval run and lineage tables error = %v", err)
 	}
 
@@ -316,7 +316,7 @@ func TestEvalRunStoreClaimQueuedRunsUsesFIFOOrder(t *testing.T) {
 	defer pool.Close()
 
 	applyMigration(t, ctx, pool)
-	if _, err := pool.Exec(ctx, "TRUNCATE eval_runs, eval_dataset_items, eval_datasets, eval_cases, case_notes, cases, reports, workflow_task_events, workflow_tasks RESTART IDENTITY CASCADE"); err != nil {
+	if _, err := pool.Exec(ctx, "TRUNCATE eval_run_item_results, eval_run_events, eval_runs, eval_dataset_items, eval_datasets, eval_cases, case_notes, cases, reports, workflow_task_events, workflow_tasks RESTART IDENTITY CASCADE"); err != nil {
 		t.Fatalf("TRUNCATE eval run and lineage tables error = %v", err)
 	}
 
@@ -390,7 +390,7 @@ func TestEvalRunStoreListRunsUsesLatestUpdatedFirstOrder(t *testing.T) {
 	defer pool.Close()
 
 	applyMigration(t, ctx, pool)
-	if _, err := pool.Exec(ctx, "TRUNCATE eval_runs, eval_dataset_items, eval_datasets, eval_cases, case_notes, cases, reports, workflow_task_events, workflow_tasks RESTART IDENTITY CASCADE"); err != nil {
+	if _, err := pool.Exec(ctx, "TRUNCATE eval_run_item_results, eval_run_events, eval_runs, eval_dataset_items, eval_datasets, eval_cases, case_notes, cases, reports, workflow_task_events, workflow_tasks RESTART IDENTITY CASCADE"); err != nil {
 		t.Fatalf("TRUNCATE eval run and lineage tables error = %v", err)
 	}
 
@@ -468,7 +468,7 @@ func TestEvalRunStoreUpdateAllowsRetryRequeue(t *testing.T) {
 	defer pool.Close()
 
 	applyMigration(t, ctx, pool)
-	if _, err := pool.Exec(ctx, "TRUNCATE eval_runs, eval_dataset_items, eval_datasets, eval_cases, case_notes, cases, reports, workflow_task_events, workflow_tasks RESTART IDENTITY CASCADE"); err != nil {
+	if _, err := pool.Exec(ctx, "TRUNCATE eval_run_item_results, eval_run_events, eval_runs, eval_dataset_items, eval_datasets, eval_cases, case_notes, cases, reports, workflow_task_events, workflow_tasks RESTART IDENTITY CASCADE"); err != nil {
 		t.Fatalf("TRUNCATE eval run and lineage tables error = %v", err)
 	}
 
@@ -551,7 +551,7 @@ func TestEvalRunStoreListRunEventsPreservesRetryHistory(t *testing.T) {
 	defer pool.Close()
 
 	applyMigration(t, ctx, pool)
-	if _, err := pool.Exec(ctx, "TRUNCATE eval_run_events, eval_runs, eval_dataset_items, eval_datasets, eval_cases, case_notes, cases, reports, workflow_task_events, workflow_tasks RESTART IDENTITY CASCADE"); err != nil {
+	if _, err := pool.Exec(ctx, "TRUNCATE eval_run_item_results, eval_run_events, eval_runs, eval_dataset_items, eval_datasets, eval_cases, case_notes, cases, reports, workflow_task_events, workflow_tasks RESTART IDENTITY CASCADE"); err != nil {
 		t.Fatalf("TRUNCATE eval run and lineage tables error = %v", err)
 	}
 
@@ -569,6 +569,33 @@ INSERT INTO eval_datasets (
 	); err != nil {
 		t.Fatalf("seed eval_datasets error = %v", err)
 	}
+	if _, err := pool.Exec(ctx, `
+INSERT INTO cases (
+    id, tenant_id, title, status, reason, source_task_id, source_report_id, created_by, created_at, updated_at
+) VALUES (
+    $1, $2, $3, 'open', 'workflow_required', '', '', 'operator', $4, $4
+)`,
+		"case-events",
+		"tenant-run",
+		"Events case",
+		time.Unix(1700019890, 0).UTC(),
+	); err != nil {
+		t.Fatalf("seed cases error = %v", err)
+	}
+	if _, err := pool.Exec(ctx, `
+INSERT INTO eval_cases (
+    id, tenant_id, source_case_id, source_task_id, source_report_id, trace_id, version_id, title, summary, operator_note, created_by, created_at
+) VALUES (
+    $1, $2, $3, '', '', 'trace-events', 'version-events', $4, '', '', 'operator', $5
+)`,
+		"eval-case-events",
+		"tenant-run",
+		"case-events",
+		"Events eval case",
+		time.Unix(1700019895, 0).UTC(),
+	); err != nil {
+		t.Fatalf("seed eval_cases error = %v", err)
+	}
 
 	store := NewEvalRunStore(pool)
 	run, err := store.CreateRun(ctx, evalsvc.EvalRun{
@@ -581,6 +608,12 @@ INSERT INTO eval_datasets (
 		CreatedBy:        "operator",
 		CreatedAt:        time.Unix(1700020000, 0).UTC(),
 		UpdatedAt:        time.Unix(1700020000, 0).UTC(),
+	}, evalsvc.EvalRunItem{
+		EvalCaseID:   "eval-case-events",
+		Title:        "Events eval case",
+		SourceCaseID: "case-events",
+		TraceID:      "trace-events",
+		VersionID:    "version-events",
 	})
 	if err != nil {
 		t.Fatalf("CreateRun() error = %v", err)
@@ -593,7 +626,13 @@ INSERT INTO eval_datasets (
 	if len(claimed) != 1 {
 		t.Fatalf("len(claimed) = %d, want 1", len(claimed))
 	}
-	if _, err := store.MarkRunFailed(ctx, run.ID, "fault injection", time.Unix(1700020200, 0).UTC()); err != nil {
+	failedResults := []evalsvc.EvalRunItemResult{{
+		EvalCaseID: "eval-case-events",
+		Status:     evalsvc.RunItemResultFailed,
+		Detail:     "fault injection",
+		UpdatedAt:  time.Unix(1700020200, 0).UTC(),
+	}}
+	if _, err := store.MarkRunFailed(ctx, run.ID, "fault injection", time.Unix(1700020200, 0).UTC(), failedResults); err != nil {
 		t.Fatalf("MarkRunFailed() error = %v", err)
 	}
 	if _, err := store.RetryRun(ctx, run.ID, time.Unix(1700020300, 0).UTC()); err != nil {
@@ -602,7 +641,13 @@ INSERT INTO eval_datasets (
 	if _, err := store.ClaimQueuedRuns(ctx, 1, time.Unix(1700020400, 0).UTC()); err != nil {
 		t.Fatalf("ClaimQueuedRuns(second) error = %v", err)
 	}
-	if _, err := store.MarkRunSucceeded(ctx, run.ID, time.Unix(1700020500, 0).UTC()); err != nil {
+	succeededResults := []evalsvc.EvalRunItemResult{{
+		EvalCaseID: "eval-case-events",
+		Status:     evalsvc.RunItemResultSucceeded,
+		Detail:     "placeholder eval passed",
+		UpdatedAt:  time.Unix(1700020500, 0).UTC(),
+	}}
+	if _, err := store.MarkRunSucceeded(ctx, run.ID, time.Unix(1700020500, 0).UTC(), succeededResults); err != nil {
 		t.Fatalf("MarkRunSucceeded() error = %v", err)
 	}
 
@@ -633,5 +678,128 @@ INSERT INTO eval_datasets (
 	}
 	if events[2].Detail != "fault injection" {
 		t.Fatalf("failed detail = %q, want %q", events[2].Detail, "fault injection")
+	}
+}
+
+func TestEvalRunStoreRunDetailIncludesAndClearsItemResults(t *testing.T) {
+	dsn := os.Getenv("OPSPILOT_TEST_POSTGRES_DSN")
+	if dsn == "" {
+		t.Skip("OPSPILOT_TEST_POSTGRES_DSN not set")
+	}
+
+	ctx := context.Background()
+	pool, err := OpenPool(ctx, dsn)
+	if err != nil {
+		t.Fatalf("OpenPool() error = %v", err)
+	}
+	defer pool.Close()
+
+	applyMigration(t, ctx, pool)
+	if _, err := pool.Exec(ctx, "TRUNCATE eval_run_item_results, eval_run_events, eval_runs, eval_dataset_items, eval_datasets, eval_cases, case_notes, cases, reports, workflow_task_events, workflow_tasks RESTART IDENTITY CASCADE"); err != nil {
+		t.Fatalf("TRUNCATE eval run and lineage tables error = %v", err)
+	}
+
+	publishedAt := time.Unix(1700021000, 0).UTC()
+	if _, err := pool.Exec(ctx, `
+INSERT INTO eval_datasets (
+    id, tenant_id, name, description, status, created_by, created_at, updated_at, published_by, published_at
+) VALUES (
+    $1, $2, $3, '', $4, 'operator', $5, $5, 'operator', $5
+)`,
+		"eval-dataset-results",
+		"tenant-run",
+		"Dataset Results",
+		evalsvc.DatasetStatusPublished,
+		publishedAt,
+	); err != nil {
+		t.Fatalf("seed eval_datasets error = %v", err)
+	}
+	if _, err := pool.Exec(ctx, `
+INSERT INTO cases (
+    id, tenant_id, title, status, reason, source_task_id, source_report_id, created_by, created_at, updated_at
+) VALUES
+    ('case-results-a', 'tenant-run', 'Results case A', 'open', 'workflow_required', '', '', 'operator', $1, $1),
+    ('case-results-b', 'tenant-run', 'Results case B', 'open', 'workflow_required', '', '', 'operator', $1, $1)
+`, publishedAt); err != nil {
+		t.Fatalf("seed cases error = %v", err)
+	}
+	if _, err := pool.Exec(ctx, `
+INSERT INTO eval_cases (
+    id, tenant_id, source_case_id, source_task_id, source_report_id, trace_id, version_id, title, summary, operator_note, created_by, created_at
+) VALUES
+    ('eval-case-results-a', 'tenant-run', 'case-results-a', '', '', 'trace-results-a', 'version-results-a', 'Results eval case A', '', '', 'operator', $1),
+    ('eval-case-results-b', 'tenant-run', 'case-results-b', '', '', 'trace-results-b', 'version-results-b', 'Results eval case B', '', '', 'operator', $1)
+`, publishedAt); err != nil {
+		t.Fatalf("seed eval_cases error = %v", err)
+	}
+
+	store := NewEvalRunStore(pool)
+	run, err := store.CreateRun(ctx, evalsvc.EvalRun{
+		ID:               "eval-run-results",
+		TenantID:         "tenant-run",
+		DatasetID:        "eval-dataset-results",
+		DatasetName:      "Dataset Results",
+		DatasetItemCount: 2,
+		Status:           evalsvc.RunStatusQueued,
+		CreatedBy:        "operator",
+		CreatedAt:        time.Unix(1700021010, 0).UTC(),
+		UpdatedAt:        time.Unix(1700021010, 0).UTC(),
+	}, evalsvc.EvalRunItem{
+		EvalCaseID:   "eval-case-results-a",
+		Title:        "Results eval case A",
+		SourceCaseID: "case-results-a",
+		TraceID:      "trace-results-a",
+		VersionID:    "version-results-a",
+	}, evalsvc.EvalRunItem{
+		EvalCaseID:   "eval-case-results-b",
+		Title:        "Results eval case B",
+		SourceCaseID: "case-results-b",
+		TraceID:      "trace-results-b",
+		VersionID:    "version-results-b",
+	})
+	if err != nil {
+		t.Fatalf("CreateRun() error = %v", err)
+	}
+	if _, err := store.ClaimQueuedRuns(ctx, 1, time.Unix(1700021020, 0).UTC()); err != nil {
+		t.Fatalf("ClaimQueuedRuns() error = %v", err)
+	}
+	results := []evalsvc.EvalRunItemResult{
+		{
+			EvalCaseID: "eval-case-results-a",
+			Status:     evalsvc.RunItemResultSucceeded,
+			Detail:     "placeholder eval passed",
+			UpdatedAt:  time.Unix(1700021030, 0).UTC(),
+		},
+		{
+			EvalCaseID: "eval-case-results-b",
+			Status:     evalsvc.RunItemResultSucceeded,
+			Detail:     "placeholder eval passed",
+			UpdatedAt:  time.Unix(1700021030, 0).UTC(),
+		},
+	}
+	if _, err := store.MarkRunSucceeded(ctx, run.ID, time.Unix(1700021030, 0).UTC(), results); err != nil {
+		t.Fatalf("MarkRunSucceeded() error = %v", err)
+	}
+
+	detail, err := store.GetRunDetail(ctx, run.ID)
+	if err != nil {
+		t.Fatalf("GetRunDetail() after success error = %v", err)
+	}
+	if len(detail.ItemResults) != 2 {
+		t.Fatalf("len(detail.ItemResults) = %d, want 2", len(detail.ItemResults))
+	}
+	if detail.ItemResults[0].EvalCaseID != "eval-case-results-a" || detail.ItemResults[1].EvalCaseID != "eval-case-results-b" {
+		t.Fatalf("detail.ItemResults = %#v, want ordered run item results", detail.ItemResults)
+	}
+
+	if _, err := store.RetryRun(ctx, run.ID, time.Unix(1700021040, 0).UTC()); err != nil {
+		t.Fatalf("RetryRun() error = %v", err)
+	}
+	detail, err = store.GetRunDetail(ctx, run.ID)
+	if err != nil {
+		t.Fatalf("GetRunDetail() after retry error = %v", err)
+	}
+	if len(detail.ItemResults) != 0 {
+		t.Fatalf("len(detail.ItemResults) after retry = %d, want 0", len(detail.ItemResults))
 	}
 }

@@ -55,6 +55,7 @@ Keep the HTTP surface explicit, documented, stable, and friendly to streaming ag
 24. Recovery on eval runs should reuse that same canonical record; prefer `POST /api/v1/eval-runs/{run_id}/retry` with a typed 409 invalid-state error over creating a separate rerun resource or admin-only mutation path.
 25. When retry on a durable eval run clears top-level failure fields, extend only the single-run detail contract with append-only lifecycle events; keep the list contract lightweight.
 26. When per-run judging has not landed yet, prefer adding immutable `items` only on the single-run detail contract, copied from published dataset membership at kickoff time, and keep create/list/retry responses lightweight snapshots.
+27. Before per-item judging lands, prefer adding durable placeholder `item_results` only on the single-run detail contract, keep create/list/retry responses lightweight, and clear stale item results when retry re-queues the same canonical run.
 
 ## Output contract
 When you finish, always report:

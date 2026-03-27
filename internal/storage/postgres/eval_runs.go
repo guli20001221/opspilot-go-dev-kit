@@ -170,6 +170,7 @@ func (s *EvalRunStore) GetRunDetail(ctx context.Context, runID string) (evalsvc.
 	var item evalsvc.EvalRun
 	var events []evalsvc.EvalRunEvent
 	var items []evalsvc.EvalRunItem
+	var results []evalsvc.EvalRunItemResult
 
 	if err := s.withReadTx(ctx, func(tx pgx.Tx) error {
 		var err error
@@ -182,15 +183,20 @@ func (s *EvalRunStore) GetRunDetail(ctx context.Context, runID string) (evalsvc.
 			return err
 		}
 		items, err = s.listRunItems(ctx, tx, runID)
+		if err != nil {
+			return err
+		}
+		results, err = s.listRunItemResults(ctx, tx, runID)
 		return err
 	}); err != nil {
 		return evalsvc.EvalRunDetail{}, err
 	}
 
 	return evalsvc.EvalRunDetail{
-		Run:    item,
-		Events: events,
-		Items:  items,
+		Run:         item,
+		Events:      events,
+		Items:       items,
+		ItemResults: results,
 	}, nil
 }
 
@@ -351,6 +357,43 @@ ORDER BY position ASC`
 	return items, nil
 }
 
+func (s *EvalRunStore) listRunItemResults(ctx context.Context, q evalRunQuerier, runID string) ([]evalsvc.EvalRunItemResult, error) {
+	const query = `
+SELECT
+    eval_case_id,
+    status,
+    detail,
+    updated_at
+FROM eval_run_item_results
+WHERE run_id = $1
+ORDER BY updated_at, eval_case_id`
+
+	rows, err := q.Query(ctx, query, runID)
+	if err != nil {
+		return nil, fmt.Errorf("select eval run item results: %w", err)
+	}
+	defer rows.Close()
+
+	var results []evalsvc.EvalRunItemResult
+	for rows.Next() {
+		var result evalsvc.EvalRunItemResult
+		if err := rows.Scan(
+			&result.EvalCaseID,
+			&result.Status,
+			&result.Detail,
+			&result.UpdatedAt,
+		); err != nil {
+			return nil, fmt.Errorf("scan eval run item result: %w", err)
+		}
+		results = append(results, result)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("iterate eval run item results: %w", err)
+	}
+
+	return results, nil
+}
+
 // ClaimQueuedRuns marks queued eval runs as running and returns the claimed rows.
 func (s *EvalRunStore) ClaimQueuedRuns(ctx context.Context, limit int, startedAt time.Time) ([]evalsvc.EvalRun, error) {
 	const query = `
@@ -427,13 +470,13 @@ ORDER BY created_at ASC, id ASC`
 }
 
 // MarkRunSucceeded atomically finalizes a running eval run as succeeded and appends a success event.
-func (s *EvalRunStore) MarkRunSucceeded(ctx context.Context, runID string, finishedAt time.Time) (evalsvc.EvalRun, error) {
-	return s.transitionRun(ctx, runID, evalsvc.RunStatusRunning, evalsvc.RunStatusSucceeded, "", finishedAt, evalsvc.RunEventSucceeded, "worker", evalsvc.RunStatusSucceeded)
+func (s *EvalRunStore) MarkRunSucceeded(ctx context.Context, runID string, finishedAt time.Time, results []evalsvc.EvalRunItemResult) (evalsvc.EvalRun, error) {
+	return s.transitionRun(ctx, runID, evalsvc.RunStatusRunning, evalsvc.RunStatusSucceeded, "", finishedAt, evalsvc.RunEventSucceeded, "worker", evalsvc.RunStatusSucceeded, results)
 }
 
 // MarkRunFailed atomically finalizes a running eval run as failed and appends a failure event.
-func (s *EvalRunStore) MarkRunFailed(ctx context.Context, runID string, reason string, finishedAt time.Time) (evalsvc.EvalRun, error) {
-	return s.transitionRun(ctx, runID, evalsvc.RunStatusRunning, evalsvc.RunStatusFailed, reason, finishedAt, evalsvc.RunEventFailed, "worker", reason)
+func (s *EvalRunStore) MarkRunFailed(ctx context.Context, runID string, reason string, finishedAt time.Time, results []evalsvc.EvalRunItemResult) (evalsvc.EvalRun, error) {
+	return s.transitionRun(ctx, runID, evalsvc.RunStatusRunning, evalsvc.RunStatusFailed, reason, finishedAt, evalsvc.RunEventFailed, "worker", reason, results)
 }
 
 // UpdateRun updates one durable eval run row.
@@ -481,10 +524,10 @@ WHERE id = $1`
 
 // RetryRun atomically re-queues one failed durable eval run.
 func (s *EvalRunStore) RetryRun(ctx context.Context, runID string, updatedAt time.Time) (evalsvc.EvalRun, error) {
-	return s.transitionRun(ctx, runID, evalsvc.RunStatusFailed, evalsvc.RunStatusQueued, "", updatedAt, evalsvc.RunEventRetried, "operator", evalsvc.RunStatusQueued)
+	return s.transitionRun(ctx, runID, evalsvc.RunStatusFailed, evalsvc.RunStatusQueued, "", updatedAt, evalsvc.RunEventRetried, "operator", evalsvc.RunStatusQueued, nil)
 }
 
-func (s *EvalRunStore) transitionRun(ctx context.Context, runID string, fromStatus string, toStatus string, errorReason string, updatedAt time.Time, action string, actor string, detail string) (evalsvc.EvalRun, error) {
+func (s *EvalRunStore) transitionRun(ctx context.Context, runID string, fromStatus string, toStatus string, errorReason string, updatedAt time.Time, action string, actor string, detail string, results []evalsvc.EvalRunItemResult) (evalsvc.EvalRun, error) {
 	var updated evalsvc.EvalRun
 
 	if err := s.withTx(ctx, func(tx pgx.Tx) error {
@@ -520,6 +563,9 @@ RETURNING
 			}
 			return err
 		}
+		if err := s.replaceRunItemResults(ctx, tx, runID, results); err != nil {
+			return err
+		}
 		_, err = s.appendRunEvent(ctx, tx, evalsvc.EvalRunEvent{
 			RunID:     runID,
 			Action:    action,
@@ -533,6 +579,41 @@ RETURNING
 	}
 
 	return updated, nil
+}
+
+func (s *EvalRunStore) replaceRunItemResults(ctx context.Context, q evalRunQuerier, runID string, results []evalsvc.EvalRunItemResult) error {
+	const deleteQuery = `DELETE FROM eval_run_item_results WHERE run_id = $1`
+	if _, err := q.Exec(ctx, deleteQuery, runID); err != nil {
+		return fmt.Errorf("delete eval run item results: %w", err)
+	}
+	if len(results) == 0 {
+		return nil
+	}
+
+	const insertQuery = `
+INSERT INTO eval_run_item_results (
+    run_id,
+    eval_case_id,
+    status,
+    detail,
+    updated_at
+) VALUES ($1, $2, $3, $4, $5)`
+
+	for _, result := range results {
+		if _, err := q.Exec(
+			ctx,
+			insertQuery,
+			runID,
+			result.EvalCaseID,
+			result.Status,
+			result.Detail,
+			result.UpdatedAt,
+		); err != nil {
+			return fmt.Errorf("insert eval run item result: %w", err)
+		}
+	}
+
+	return nil
 }
 
 func (s *EvalRunStore) getRun(ctx context.Context, q evalRunQuerier, runID string) (evalsvc.EvalRun, error) {

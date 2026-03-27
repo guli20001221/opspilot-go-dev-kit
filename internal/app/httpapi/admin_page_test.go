@@ -485,6 +485,9 @@ func TestAdminEvalRunsPageRendersHTML(t *testing.T) {
 	if !strings.Contains(body, "Run items") {
 		t.Fatal("run items section missing from eval runs page HTML")
 	}
+	if !strings.Contains(body, "Item results") {
+		t.Fatal("item results section missing from eval runs page HTML")
+	}
 	if !strings.Contains(body, "Open dataset lane") {
 		t.Fatal("dataset lane handoff missing from eval runs page HTML")
 	}

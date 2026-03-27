@@ -114,3 +114,4 @@ When you finish, always report:
 - when failed eval runs become retryable, wire `/admin/eval-runs` straight to `POST /api/v1/eval-runs/{run_id}/retry` from the existing detail pane instead of creating an admin-only rerun flow
 - once retry clears top-level eval-run failure fields, render the canonical append-only run-event timeline in `/admin/eval-runs` detail instead of inventing a shadow frontend history model
 - once durable eval-run items exist, render them in `/admin/eval-runs` detail with handoff links back to eval, case, task, report, trace, and version surfaces instead of forcing operators to reconstruct membership from dataset detail
+- before judge scoring exists, render durable placeholder `item_results` on `/admin/eval-runs` detail from the canonical run endpoint instead of inventing frontend-only per-item status summaries

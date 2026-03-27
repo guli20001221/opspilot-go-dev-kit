@@ -60,6 +60,13 @@ const (
 	RunEventRetried = "retried"
 )
 
+const (
+	// RunItemResultSucceeded identifies a placeholder successful per-item outcome.
+	RunItemResultSucceeded = "succeeded"
+	// RunItemResultFailed identifies a placeholder failed per-item outcome.
+	RunItemResultFailed = "failed"
+)
+
 // EvalCase is the durable read model for a promoted evaluation case.
 type EvalCase struct {
 	ID             string
@@ -187,9 +194,18 @@ type EvalRunItem struct {
 
 // EvalRunDetail is the canonical detail read for one durable eval run.
 type EvalRunDetail struct {
-	Run    EvalRun
-	Events []EvalRunEvent
-	Items  []EvalRunItem
+	Run         EvalRun
+	Events      []EvalRunEvent
+	Items       []EvalRunItem
+	ItemResults []EvalRunItemResult
+}
+
+// EvalRunItemResult is one terminal placeholder result for a snapped eval-run item.
+type EvalRunItemResult struct {
+	EvalCaseID string
+	Status     string
+	Detail     string
+	UpdatedAt  time.Time
 }
 
 // RunListFilter constrains eval-run list reads.

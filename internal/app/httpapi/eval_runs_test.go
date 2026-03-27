@@ -478,6 +478,15 @@ func TestGetEvalRunEndpointReturnsUpdatedStatusFields(t *testing.T) {
 	if got.Items[0].EvalCaseID != evalCase.ID {
 		t.Fatalf("Items[0].EvalCaseID = %q, want %q", got.Items[0].EvalCaseID, evalCase.ID)
 	}
+	if len(got.ItemResults) != 1 {
+		t.Fatalf("len(ItemResults) = %d, want 1 on detail response", len(got.ItemResults))
+	}
+	if got.ItemResults[0].EvalCaseID != evalCase.ID {
+		t.Fatalf("ItemResults[0].EvalCaseID = %q, want %q", got.ItemResults[0].EvalCaseID, evalCase.ID)
+	}
+	if got.ItemResults[0].Status != evalsvc.RunItemResultFailed {
+		t.Fatalf("ItemResults[0].Status = %q, want %q", got.ItemResults[0].Status, evalsvc.RunItemResultFailed)
+	}
 }
 
 func TestRetryEvalRunEndpointRequeuesFailedRun(t *testing.T) {
@@ -581,11 +590,17 @@ func TestRetryEvalRunEndpointRequeuesFailedRun(t *testing.T) {
 	if len(got.Items) != 0 {
 		t.Fatalf("len(Items) = %d, want 0 on retry response", len(got.Items))
 	}
+	if len(got.ItemResults) != 0 {
+		t.Fatalf("len(ItemResults) = %d, want 0 on retry response", len(got.ItemResults))
+	}
 	if _, ok := retryRaw["events"]; ok {
 		t.Fatalf("retry response unexpectedly included events field: %#v", retryRaw)
 	}
 	if _, ok := retryRaw["items"]; ok {
 		t.Fatalf("retry response unexpectedly included items field: %#v", retryRaw)
+	}
+	if _, ok := retryRaw["item_results"]; ok {
+		t.Fatalf("retry response unexpectedly included item_results field: %#v", retryRaw)
 	}
 }
 

@@ -9,24 +9,26 @@ import (
 )
 
 type memoryStore struct {
-	mu           sync.RWMutex
-	byID         map[string]EvalCase
-	bySourceCase map[string]string
-	datasets     map[string]EvalDataset
-	runs         map[string]EvalRun
-	runEvents    map[string][]EvalRunEvent
-	runItems     map[string][]EvalRunItem
-	nextRunEvent int64
+	mu             sync.RWMutex
+	byID           map[string]EvalCase
+	bySourceCase   map[string]string
+	datasets       map[string]EvalDataset
+	runs           map[string]EvalRun
+	runEvents      map[string][]EvalRunEvent
+	runItems       map[string][]EvalRunItem
+	runItemResults map[string][]EvalRunItemResult
+	nextRunEvent   int64
 }
 
 func newMemoryStore() *memoryStore {
 	return &memoryStore{
-		byID:         make(map[string]EvalCase),
-		bySourceCase: make(map[string]string),
-		datasets:     make(map[string]EvalDataset),
-		runs:         make(map[string]EvalRun),
-		runEvents:    make(map[string][]EvalRunEvent),
-		runItems:     make(map[string][]EvalRunItem),
+		byID:           make(map[string]EvalCase),
+		bySourceCase:   make(map[string]string),
+		datasets:       make(map[string]EvalDataset),
+		runs:           make(map[string]EvalRun),
+		runEvents:      make(map[string][]EvalRunEvent),
+		runItems:       make(map[string][]EvalRunItem),
+		runItemResults: make(map[string][]EvalRunItemResult),
 	}
 }
 
@@ -268,10 +270,12 @@ func (s *memoryStore) GetRunDetail(_ context.Context, runID string) (EvalRunDeta
 
 	events := append([]EvalRunEvent(nil), s.runEvents[runID]...)
 	items := append([]EvalRunItem(nil), s.runItems[runID]...)
+	results := append([]EvalRunItemResult(nil), s.runItemResults[runID]...)
 	return EvalRunDetail{
-		Run:    item,
-		Events: events,
-		Items:  items,
+		Run:         item,
+		Events:      events,
+		Items:       items,
+		ItemResults: results,
 	}, nil
 }
 
@@ -401,6 +405,7 @@ func (s *memoryStore) RetryRun(_ context.Context, runID string, updatedAt time.T
 	item.StartedAt = time.Time{}
 	item.FinishedAt = time.Time{}
 	s.runs[runID] = item
+	delete(s.runItemResults, runID)
 	s.appendRunEventLocked(EvalRunEvent{
 		RunID:     item.ID,
 		Action:    RunEventRetried,
@@ -412,7 +417,7 @@ func (s *memoryStore) RetryRun(_ context.Context, runID string, updatedAt time.T
 	return item, nil
 }
 
-func (s *memoryStore) MarkRunSucceeded(_ context.Context, runID string, finishedAt time.Time) (EvalRun, error) {
+func (s *memoryStore) MarkRunSucceeded(_ context.Context, runID string, finishedAt time.Time, results []EvalRunItemResult) (EvalRun, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
@@ -429,6 +434,7 @@ func (s *memoryStore) MarkRunSucceeded(_ context.Context, runID string, finished
 	item.UpdatedAt = finishedAt
 	item.FinishedAt = finishedAt
 	s.runs[runID] = item
+	s.runItemResults[runID] = append([]EvalRunItemResult(nil), results...)
 	s.appendRunEventLocked(EvalRunEvent{
 		RunID:     item.ID,
 		Action:    RunEventSucceeded,
@@ -440,7 +446,7 @@ func (s *memoryStore) MarkRunSucceeded(_ context.Context, runID string, finished
 	return item, nil
 }
 
-func (s *memoryStore) MarkRunFailed(_ context.Context, runID string, reason string, finishedAt time.Time) (EvalRun, error) {
+func (s *memoryStore) MarkRunFailed(_ context.Context, runID string, reason string, finishedAt time.Time, results []EvalRunItemResult) (EvalRun, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
@@ -457,6 +463,7 @@ func (s *memoryStore) MarkRunFailed(_ context.Context, runID string, reason stri
 	item.UpdatedAt = finishedAt
 	item.FinishedAt = finishedAt
 	s.runs[runID] = item
+	s.runItemResults[runID] = append([]EvalRunItemResult(nil), results...)
 	s.appendRunEventLocked(EvalRunEvent{
 		RunID:     item.ID,
 		Action:    RunEventFailed,

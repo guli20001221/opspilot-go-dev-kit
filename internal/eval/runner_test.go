@@ -32,7 +32,7 @@ func TestRunnerProcessesQueuedRunToSucceeded(t *testing.T) {
 		CreatedBy:        "operator",
 		CreatedAt:        time.Unix(1700030100, 0).UTC(),
 		UpdatedAt:        time.Unix(1700030100, 0).UTC(),
-	})
+	}, EvalRunItem{EvalCaseID: "eval-case-a", Title: "Eval A", SourceCaseID: "case-a", TraceID: "trace-a"}, EvalRunItem{EvalCaseID: "eval-case-b", Title: "Eval B", SourceCaseID: "case-b", TraceID: "trace-b"})
 	if err != nil {
 		t.Fatalf("CreateRun() error = %v", err)
 	}
@@ -62,6 +62,18 @@ func TestRunnerProcessesQueuedRunToSucceeded(t *testing.T) {
 	if got.ErrorReason != "" {
 		t.Fatalf("ErrorReason = %q, want empty", got.ErrorReason)
 	}
+	detail, err := service.GetRunDetail(ctx, run.ID)
+	if err != nil {
+		t.Fatalf("GetRunDetail() error = %v", err)
+	}
+	if len(detail.ItemResults) != 2 {
+		t.Fatalf("len(detail.ItemResults) = %d, want 2", len(detail.ItemResults))
+	}
+	for _, result := range detail.ItemResults {
+		if result.Status != RunItemResultSucceeded {
+			t.Fatalf("result.Status = %q, want %q", result.Status, RunItemResultSucceeded)
+		}
+	}
 }
 
 func TestRunnerProcessesQueuedRunToFailed(t *testing.T) {
@@ -79,7 +91,7 @@ func TestRunnerProcessesQueuedRunToFailed(t *testing.T) {
 		CreatedBy:        "operator",
 		CreatedAt:        time.Unix(1700030100, 0).UTC(),
 		UpdatedAt:        time.Unix(1700030100, 0).UTC(),
-	})
+	}, EvalRunItem{EvalCaseID: "eval-case-a", Title: "Eval A", SourceCaseID: "case-a", TraceID: "trace-a"}, EvalRunItem{EvalCaseID: "eval-case-b", Title: "Eval B", SourceCaseID: "case-b", TraceID: "trace-b"})
 	if err != nil {
 		t.Fatalf("CreateRun() error = %v", err)
 	}
@@ -111,6 +123,21 @@ func TestRunnerProcessesQueuedRunToFailed(t *testing.T) {
 	if got.ErrorReason == "" {
 		t.Fatal("ErrorReason is empty")
 	}
+	detail, err := service.GetRunDetail(ctx, run.ID)
+	if err != nil {
+		t.Fatalf("GetRunDetail() error = %v", err)
+	}
+	if len(detail.ItemResults) != 2 {
+		t.Fatalf("len(detail.ItemResults) = %d, want 2", len(detail.ItemResults))
+	}
+	for _, result := range detail.ItemResults {
+		if result.Status != RunItemResultFailed {
+			t.Fatalf("result.Status = %q, want %q", result.Status, RunItemResultFailed)
+		}
+		if result.Detail == "" {
+			t.Fatal("result.Detail is empty")
+		}
+	}
 }
 
 func TestRunnerFinalizesRunAfterExecutionContextCancellation(t *testing.T) {
@@ -128,7 +155,7 @@ func TestRunnerFinalizesRunAfterExecutionContextCancellation(t *testing.T) {
 		CreatedBy:        "operator",
 		CreatedAt:        time.Unix(1700030100, 0).UTC(),
 		UpdatedAt:        time.Unix(1700030100, 0).UTC(),
-	})
+	}, EvalRunItem{EvalCaseID: "eval-case-a", Title: "Eval A", SourceCaseID: "case-a", TraceID: "trace-a"})
 	if err != nil {
 		t.Fatalf("CreateRun() error = %v", err)
 	}
@@ -179,13 +206,20 @@ func TestRunnerProcessesRetriedRunToSucceeded(t *testing.T) {
 		UpdatedAt:        failedAt,
 		StartedAt:        time.Unix(1700030150, 0).UTC(),
 		FinishedAt:       failedAt,
-	})
+	}, EvalRunItem{EvalCaseID: "eval-case-a", Title: "Eval A", SourceCaseID: "case-a", TraceID: "trace-a"})
 	if err != nil {
 		t.Fatalf("CreateRun() error = %v", err)
 	}
 
 	if _, err := service.RetryRun(ctx, run.ID); err != nil {
 		t.Fatalf("RetryRun() error = %v", err)
+	}
+	detail, err := service.GetRunDetail(ctx, run.ID)
+	if err != nil {
+		t.Fatalf("GetRunDetail(after retry) error = %v", err)
+	}
+	if len(detail.ItemResults) != 0 {
+		t.Fatalf("len(detail.ItemResults) = %d, want 0 after retry", len(detail.ItemResults))
 	}
 
 	runner := NewRunner(service, NewPlaceholderRunExecutor())

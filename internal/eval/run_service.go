@@ -17,8 +17,8 @@ type runStore interface {
 	ListRuns(ctx context.Context, filter RunListFilter) (RunListPage, error)
 	ListRunEvents(ctx context.Context, runID string) ([]EvalRunEvent, error)
 	ClaimQueuedRuns(ctx context.Context, limit int, startedAt time.Time) ([]EvalRun, error)
-	MarkRunSucceeded(ctx context.Context, runID string, finishedAt time.Time) (EvalRun, error)
-	MarkRunFailed(ctx context.Context, runID string, reason string, finishedAt time.Time) (EvalRun, error)
+	MarkRunSucceeded(ctx context.Context, runID string, finishedAt time.Time, results []EvalRunItemResult) (EvalRun, error)
+	MarkRunFailed(ctx context.Context, runID string, reason string, finishedAt time.Time, results []EvalRunItemResult) (EvalRun, error)
 	RetryRun(ctx context.Context, runID string, updatedAt time.Time) (EvalRun, error)
 	UpdateRun(ctx context.Context, item EvalRun) (EvalRun, error)
 }
@@ -130,12 +130,45 @@ func (s *RunService) ClaimQueuedRuns(ctx context.Context, limit int) ([]EvalRun,
 
 // MarkRunSucceeded finalizes a running eval run as succeeded.
 func (s *RunService) MarkRunSucceeded(ctx context.Context, runID string) (EvalRun, error) {
-	return s.store.MarkRunSucceeded(ctx, runID, time.Now().UTC())
+	detail, err := s.store.GetRunDetail(ctx, runID)
+	if err != nil {
+		return EvalRun{}, err
+	}
+	finishedAt := time.Now().UTC()
+
+	results := make([]EvalRunItemResult, 0, len(detail.Items))
+	for _, item := range detail.Items {
+		results = append(results, EvalRunItemResult{
+			EvalCaseID: item.EvalCaseID,
+			Status:     RunItemResultSucceeded,
+			Detail:     "placeholder eval passed",
+			UpdatedAt:  finishedAt,
+		})
+	}
+
+	return s.store.MarkRunSucceeded(ctx, runID, finishedAt, results)
 }
 
 // MarkRunFailed finalizes a running eval run as failed with a summarized error.
 func (s *RunService) MarkRunFailed(ctx context.Context, runID string, reason string) (EvalRun, error) {
-	return s.store.MarkRunFailed(ctx, runID, strings.TrimSpace(reason), time.Now().UTC())
+	detail, err := s.store.GetRunDetail(ctx, runID)
+	if err != nil {
+		return EvalRun{}, err
+	}
+
+	summarized := strings.TrimSpace(reason)
+	finishedAt := time.Now().UTC()
+	results := make([]EvalRunItemResult, 0, len(detail.Items))
+	for _, item := range detail.Items {
+		results = append(results, EvalRunItemResult{
+			EvalCaseID: item.EvalCaseID,
+			Status:     RunItemResultFailed,
+			Detail:     summarized,
+			UpdatedAt:  finishedAt,
+		})
+	}
+
+	return s.store.MarkRunFailed(ctx, runID, summarized, finishedAt, results)
 }
 
 // RetryRun re-queues a failed eval run for another worker attempt.
