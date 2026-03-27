@@ -95,6 +95,9 @@ func TestCreateAndGetEvalRunEndpoint(t *testing.T) {
 	if _, ok := createdRaw["items"]; ok {
 		t.Fatalf("create response unexpectedly included items field: %#v", createdRaw)
 	}
+	if _, ok := createdRaw["item_results"]; ok {
+		t.Fatalf("create response unexpectedly included item_results field: %#v", createdRaw)
+	}
 
 	getResp, err := http.Get(server.URL + "/api/v1/eval-runs/" + created.RunID + "?tenant_id=tenant-run")
 	if err != nil {
@@ -294,6 +297,9 @@ func TestListEvalRunsEndpointSupportsFiltersAndPagination(t *testing.T) {
 	}
 	if _, ok := rawItem["items"]; ok {
 		t.Fatalf("list response unexpectedly included items field: %#v", rawItem)
+	}
+	if _, ok := rawItem["item_results"]; ok {
+		t.Fatalf("list response unexpectedly included item_results field: %#v", rawItem)
 	}
 }
 
