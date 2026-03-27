@@ -1,6 +1,7 @@
 package eval
 
 import (
+	"context"
 	"encoding/json"
 	"time"
 )
@@ -10,7 +11,7 @@ const PlaceholderJudgePromptPath = "eval/prompts/placeholder-eval-judge-v1.md"
 
 // RunJudge builds per-item judged results for one eval run.
 type RunJudge interface {
-	BuildItemResults(items []EvalRunItem, status string, detail string, updatedAt time.Time) []EvalRunItemResult
+	BuildItemResults(ctx context.Context, items []EvalRunItem, status string, detail string, updatedAt time.Time) ([]EvalRunItemResult, error)
 	Version() string
 	PromptPath() string
 }
@@ -34,12 +35,12 @@ func (j *PlaceholderJudge) PromptPath() string {
 }
 
 // BuildItemResults constructs one judged result per eval-run item.
-func (j *PlaceholderJudge) BuildItemResults(items []EvalRunItem, status string, detail string, updatedAt time.Time) []EvalRunItemResult {
+func (j *PlaceholderJudge) BuildItemResults(_ context.Context, items []EvalRunItem, status string, detail string, updatedAt time.Time) ([]EvalRunItemResult, error) {
 	results := make([]EvalRunItemResult, 0, len(items))
 	for _, item := range items {
 		results = append(results, newPlaceholderRunItemResult(j, item.EvalCaseID, status, detail, updatedAt))
 	}
-	return results
+	return results, nil
 }
 
 func newPlaceholderRunItemResult(judge *PlaceholderJudge, evalCaseID string, status string, detail string, updatedAt time.Time) EvalRunItemResult {

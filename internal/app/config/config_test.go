@@ -10,6 +10,11 @@ func TestLoadUsesDefaults(t *testing.T) {
 	t.Setenv("OPSPILOT_LOG_LEVEL", "")
 	t.Setenv("OPSPILOT_API_LISTEN_ADDR", "")
 	t.Setenv("OPSPILOT_POSTGRES_DSN", "")
+	t.Setenv("OPSPILOT_EVAL_JUDGE_PROVIDER", "")
+	t.Setenv("OPSPILOT_EVAL_JUDGE_BASE_URL", "")
+	t.Setenv("OPSPILOT_EVAL_JUDGE_API_KEY", "")
+	t.Setenv("OPSPILOT_EVAL_JUDGE_MODEL", "")
+	t.Setenv("OPSPILOT_EVAL_JUDGE_TIMEOUT", "")
 	t.Setenv("OPSPILOT_WORKER_POLL_INTERVAL", "")
 	t.Setenv("OPSPILOT_WORKER_SHUTDOWN_TIMEOUT", "")
 
@@ -29,6 +34,21 @@ func TestLoadUsesDefaults(t *testing.T) {
 	}
 	if cfg.PostgresDSN != "postgres://opspilot:opspilot@localhost:5432/opspilot?sslmode=disable" {
 		t.Fatalf("PostgresDSN = %q, want %q", cfg.PostgresDSN, "postgres://opspilot:opspilot@localhost:5432/opspilot?sslmode=disable")
+	}
+	if cfg.EvalJudgeProvider != "placeholder" {
+		t.Fatalf("EvalJudgeProvider = %q, want %q", cfg.EvalJudgeProvider, "placeholder")
+	}
+	if cfg.EvalJudgeBaseURL != "" {
+		t.Fatalf("EvalJudgeBaseURL = %q, want empty", cfg.EvalJudgeBaseURL)
+	}
+	if cfg.EvalJudgeAPIKey != "" {
+		t.Fatalf("EvalJudgeAPIKey = %q, want empty", cfg.EvalJudgeAPIKey)
+	}
+	if cfg.EvalJudgeModel != "" {
+		t.Fatalf("EvalJudgeModel = %q, want empty", cfg.EvalJudgeModel)
+	}
+	if cfg.EvalJudgeTimeout != 15*time.Second {
+		t.Fatalf("EvalJudgeTimeout = %s, want %s", cfg.EvalJudgeTimeout, 15*time.Second)
 	}
 	if cfg.TemporalEnabled {
 		t.Fatal("TemporalEnabled = true, want false")
@@ -61,6 +81,11 @@ func TestLoadUsesEnvOverrides(t *testing.T) {
 	t.Setenv("OPSPILOT_LOG_LEVEL", "DEBUG")
 	t.Setenv("OPSPILOT_API_LISTEN_ADDR", ":18080")
 	t.Setenv("OPSPILOT_POSTGRES_DSN", "postgres://custom")
+	t.Setenv("OPSPILOT_EVAL_JUDGE_PROVIDER", "http_json")
+	t.Setenv("OPSPILOT_EVAL_JUDGE_BASE_URL", "http://judge.internal")
+	t.Setenv("OPSPILOT_EVAL_JUDGE_API_KEY", "judge-token")
+	t.Setenv("OPSPILOT_EVAL_JUDGE_MODEL", "judge-demo")
+	t.Setenv("OPSPILOT_EVAL_JUDGE_TIMEOUT", "12s")
 	t.Setenv("OPSPILOT_TEMPORAL_ENABLED", "true")
 	t.Setenv("OPSPILOT_TEMPORAL_ADDRESS", "temporal:7233")
 	t.Setenv("OPSPILOT_TEMPORAL_NAMESPACE", "opspilot")
@@ -88,6 +113,21 @@ func TestLoadUsesEnvOverrides(t *testing.T) {
 	}
 	if cfg.PostgresDSN != "postgres://custom" {
 		t.Fatalf("PostgresDSN = %q, want %q", cfg.PostgresDSN, "postgres://custom")
+	}
+	if cfg.EvalJudgeProvider != "http_json" {
+		t.Fatalf("EvalJudgeProvider = %q, want %q", cfg.EvalJudgeProvider, "http_json")
+	}
+	if cfg.EvalJudgeBaseURL != "http://judge.internal" {
+		t.Fatalf("EvalJudgeBaseURL = %q, want %q", cfg.EvalJudgeBaseURL, "http://judge.internal")
+	}
+	if cfg.EvalJudgeAPIKey != "judge-token" {
+		t.Fatalf("EvalJudgeAPIKey = %q, want %q", cfg.EvalJudgeAPIKey, "judge-token")
+	}
+	if cfg.EvalJudgeModel != "judge-demo" {
+		t.Fatalf("EvalJudgeModel = %q, want %q", cfg.EvalJudgeModel, "judge-demo")
+	}
+	if cfg.EvalJudgeTimeout != 12*time.Second {
+		t.Fatalf("EvalJudgeTimeout = %s, want %s", cfg.EvalJudgeTimeout, 12*time.Second)
 	}
 	if !cfg.TemporalEnabled {
 		t.Fatal("TemporalEnabled = false, want true")
@@ -131,6 +171,14 @@ func TestLoadRejectsInvalidTimeout(t *testing.T) {
 
 func TestLoadRejectsInvalidPollInterval(t *testing.T) {
 	t.Setenv("OPSPILOT_WORKER_POLL_INTERVAL", "not-a-duration")
+
+	if _, err := Load(); err == nil {
+		t.Fatal("Load() error = nil, want non-nil")
+	}
+}
+
+func TestLoadRejectsInvalidEvalJudgeTimeout(t *testing.T) {
+	t.Setenv("OPSPILOT_EVAL_JUDGE_TIMEOUT", "not-a-duration")
 
 	if _, err := Load(); err == nil {
 		t.Fatal("Load() error = nil, want non-nil")

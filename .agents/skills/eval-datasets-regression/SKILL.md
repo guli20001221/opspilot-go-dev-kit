@@ -53,7 +53,8 @@ Turn prompt, routing, retrieval, and tool changes into measurable, repeatable qu
 21. Before judge scoring lands, prefer durable placeholder `item_results` on the single-run detail contract, written when the canonical run reaches a terminal state and cleared when retry re-queues that same run.
 22. Once durable placeholder `item_results` exist, prefer adding a lightweight terminal-only `result_summary` on canonical eval-run reads so list and operator lanes can scan pass/fail totals without promoting full per-item payloads into every response.
 23. When placeholder judge fields become structured, extract them behind a replaceable judge runtime with a stable version ID and prompt artifact path before wiring any external provider.
-23. Before introducing a provider-backed judge, upgrade placeholder `item_results` to a structured contract with normalized verdict/score plus raw judge output, so later judge wiring does not require reshaping the durable run surface.
+24. The first provider-backed judge slice should be env-gated and reuse the existing durable `item_results` contract, so local development can stay on the placeholder path until explicit credentials or an HTTP judge service are supplied.
+25. When the first external judge call is introduced, preserve a canonical terminal fallback path so provider errors do not strand eval runs in `running`.
 
 ## Output contract
 When you finish, always report:

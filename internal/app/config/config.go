@@ -12,12 +12,14 @@ const (
 	defaultLogLevel                  = "INFO"
 	defaultAPIListenAddr             = ":8080"
 	defaultPostgresDSN               = "postgres://opspilot:opspilot@localhost:5432/opspilot?sslmode=disable"
+	defaultEvalJudgeProvider         = "placeholder"
 	defaultTemporalEnabled           = false
 	defaultTemporalAddress           = "localhost:7233"
 	defaultTemporalNamespace         = "default"
 	defaultTemporalTaskQueue         = "opspilot-report-tasks"
 	defaultApprovedToolFailOnApprove = false
 	defaultEvalRunFailAll            = false
+	defaultEvalJudgeTimeout          = 15 * time.Second
 	defaultWorkerPollInterval        = 1 * time.Second
 	defaultWorkerShutdownTimeout     = 10 * time.Second
 )
@@ -28,6 +30,11 @@ type Config struct {
 	LogLevel                  string
 	APIListenAddr             string
 	PostgresDSN               string
+	EvalJudgeProvider         string
+	EvalJudgeBaseURL          string
+	EvalJudgeAPIKey           string
+	EvalJudgeModel            string
+	EvalJudgeTimeout          time.Duration
 	TemporalEnabled           bool
 	TemporalAddress           string
 	TemporalNamespace         string
@@ -47,6 +54,11 @@ func Load() (Config, error) {
 		LogLevel:                  getEnv("OPSPILOT_LOG_LEVEL", defaultLogLevel),
 		APIListenAddr:             getEnv("OPSPILOT_API_LISTEN_ADDR", defaultAPIListenAddr),
 		PostgresDSN:               getEnv("OPSPILOT_POSTGRES_DSN", defaultPostgresDSN),
+		EvalJudgeProvider:         getEnv("OPSPILOT_EVAL_JUDGE_PROVIDER", defaultEvalJudgeProvider),
+		EvalJudgeBaseURL:          getEnv("OPSPILOT_EVAL_JUDGE_BASE_URL", ""),
+		EvalJudgeAPIKey:           getEnv("OPSPILOT_EVAL_JUDGE_API_KEY", ""),
+		EvalJudgeModel:            getEnv("OPSPILOT_EVAL_JUDGE_MODEL", ""),
+		EvalJudgeTimeout:          defaultEvalJudgeTimeout,
 		TemporalEnabled:           defaultTemporalEnabled,
 		TemporalAddress:           getEnv("OPSPILOT_TEMPORAL_ADDRESS", defaultTemporalAddress),
 		TemporalNamespace:         getEnv("OPSPILOT_TEMPORAL_NAMESPACE", defaultTemporalNamespace),
@@ -80,6 +92,13 @@ func Load() (Config, error) {
 		}
 		cfg.EvalRunFailAll = enabled
 	}
+	if raw := os.Getenv("OPSPILOT_EVAL_JUDGE_TIMEOUT"); raw != "" {
+		timeout, err := time.ParseDuration(raw)
+		if err != nil {
+			return Config{}, fmt.Errorf("parse OPSPILOT_EVAL_JUDGE_TIMEOUT: %w", err)
+		}
+		cfg.EvalJudgeTimeout = timeout
+	}
 
 	if raw := os.Getenv("OPSPILOT_WORKER_POLL_INTERVAL"); raw != "" {
 		interval, err := time.ParseDuration(raw)
@@ -111,6 +130,12 @@ func Load() (Config, error) {
 	}
 	if cfg.TemporalTaskQueue == "" {
 		return Config{}, fmt.Errorf("OPSPILOT_TEMPORAL_TASK_QUEUE must not be empty")
+	}
+	if cfg.EvalJudgeProvider == "" {
+		return Config{}, fmt.Errorf("OPSPILOT_EVAL_JUDGE_PROVIDER must not be empty")
+	}
+	if cfg.EvalJudgeTimeout <= 0 {
+		return Config{}, fmt.Errorf("OPSPILOT_EVAL_JUDGE_TIMEOUT must be positive")
 	}
 	if cfg.WorkerPollInterval <= 0 {
 		return Config{}, fmt.Errorf("OPSPILOT_WORKER_POLL_INTERVAL must be positive")

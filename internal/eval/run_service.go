@@ -32,23 +32,33 @@ type RunService struct {
 	store    runStore
 	datasets datasetReader
 	judge    RunJudge
+	fallback RunJudge
 }
 
 // NewRunService constructs the eval-run service with memory-backed defaults.
 func NewRunService(datasets datasetReader) *RunService {
-	return NewRunServiceWithStore(nil, datasets)
+	return NewRunServiceWithDependencies(nil, datasets, nil)
 }
 
 // NewRunServiceWithStore constructs the eval-run service with caller-provided storage.
 func NewRunServiceWithStore(store runStore, datasets datasetReader) *RunService {
+	return NewRunServiceWithDependencies(store, datasets, nil)
+}
+
+// NewRunServiceWithDependencies constructs the eval-run service with caller-provided storage and judge runtime.
+func NewRunServiceWithDependencies(store runStore, datasets datasetReader, judge RunJudge) *RunService {
 	if store == nil {
 		store = newMemoryStore()
+	}
+	if judge == nil {
+		judge = NewPlaceholderJudge()
 	}
 
 	return &RunService{
 		store:    store,
 		datasets: datasets,
-		judge:    NewPlaceholderJudge(),
+		judge:    judge,
+		fallback: NewPlaceholderJudge(),
 	}
 }
 
@@ -137,7 +147,10 @@ func (s *RunService) MarkRunSucceeded(ctx context.Context, runID string) (EvalRu
 		return EvalRun{}, err
 	}
 	finishedAt := time.Now().UTC()
-	results := s.judge.BuildItemResults(detail.Items, RunItemResultSucceeded, "placeholder eval passed", finishedAt)
+	results, err := s.judge.BuildItemResults(ctx, detail.Items, RunItemResultSucceeded, "placeholder eval passed", finishedAt)
+	if err != nil {
+		return EvalRun{}, fmt.Errorf("build succeeded item results: %w", err)
+	}
 
 	return s.store.MarkRunSucceeded(ctx, runID, finishedAt, results)
 }
@@ -151,7 +164,27 @@ func (s *RunService) MarkRunFailed(ctx context.Context, runID string, reason str
 
 	summarized := strings.TrimSpace(reason)
 	finishedAt := time.Now().UTC()
-	results := s.judge.BuildItemResults(detail.Items, RunItemResultFailed, summarized, finishedAt)
+	results, err := s.judge.BuildItemResults(ctx, detail.Items, RunItemResultFailed, summarized, finishedAt)
+	if err != nil {
+		return EvalRun{}, fmt.Errorf("build failed item results: %w", err)
+	}
+
+	return s.store.MarkRunFailed(ctx, runID, summarized, finishedAt, results)
+}
+
+// MarkRunFailedWithFallback finalizes a running eval run as failed using the deterministic placeholder judge.
+func (s *RunService) MarkRunFailedWithFallback(ctx context.Context, runID string, reason string) (EvalRun, error) {
+	detail, err := s.store.GetRunDetail(ctx, runID)
+	if err != nil {
+		return EvalRun{}, err
+	}
+
+	summarized := strings.TrimSpace(reason)
+	finishedAt := time.Now().UTC()
+	results, err := s.fallback.BuildItemResults(ctx, detail.Items, RunItemResultFailed, summarized, finishedAt)
+	if err != nil {
+		return EvalRun{}, fmt.Errorf("build fallback failed item results: %w", err)
+	}
 
 	return s.store.MarkRunFailed(ctx, runID, summarized, finishedAt, results)
 }

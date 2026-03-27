@@ -3,6 +3,7 @@ package eval
 import (
 	"context"
 	"fmt"
+	"strings"
 	"time"
 )
 
@@ -44,7 +45,11 @@ func (r *Runner) ProcessNextBatch(ctx context.Context, limit int) (int, error) {
 	for _, run := range runs {
 		if err := r.executor.ExecuteRun(ctx, run); err != nil {
 			finalizeCtx, cancel := finalizationContext(ctx)
-			_, markErr := r.service.MarkRunFailed(finalizeCtx, run.ID, summarizeRunExecutionError(err))
+			reason := summarizeRunExecutionError(err)
+			_, markErr := r.service.MarkRunFailed(finalizeCtx, run.ID, reason)
+			if markErr != nil {
+				_, markErr = r.service.MarkRunFailedWithFallback(finalizeCtx, run.ID, summarizeRunJudgeFailure(reason, markErr))
+			}
 			cancel()
 			if markErr != nil {
 				return 0, markErr
@@ -53,10 +58,15 @@ func (r *Runner) ProcessNextBatch(ctx context.Context, limit int) (int, error) {
 		}
 		finalizeCtx, cancel := finalizationContext(ctx)
 		_, err := r.service.MarkRunSucceeded(finalizeCtx, run.ID)
-		cancel()
 		if err != nil {
-			return 0, err
+			_, fallbackErr := r.service.MarkRunFailedWithFallback(finalizeCtx, run.ID, summarizeRunJudgeFailure("eval judge failed after successful execution", err))
+			cancel()
+			if fallbackErr != nil {
+				return 0, fallbackErr
+			}
+			continue
 		}
+		cancel()
 	}
 
 	return len(runs), nil
@@ -85,6 +95,17 @@ func summarizeRunExecutionError(err error) string {
 		return ""
 	}
 	return err.Error()
+}
+
+func summarizeRunJudgeFailure(prefix string, err error) string {
+	summary := strings.TrimSpace(prefix)
+	if err == nil {
+		return summary
+	}
+	if summary == "" {
+		return err.Error()
+	}
+	return fmt.Sprintf("%s: %v", summary, err)
 }
 
 func finalizationContext(ctx context.Context) (context.Context, context.CancelFunc) {

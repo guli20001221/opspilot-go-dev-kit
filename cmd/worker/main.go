@@ -44,9 +44,21 @@ func main() {
 	versionService := version.NewServiceWithStore(storagepostgres.NewVersionStore(pool))
 	service := workflow.NewServiceWithDependencies(storagepostgres.NewWorkflowTaskStore(pool), nil, versionService)
 	reportService := report.NewServiceWithDependencies(storagepostgres.NewReportStore(pool), versionService)
-	evalRunService := eval.NewRunServiceWithStore(storagepostgres.NewEvalRunStore(pool), nil)
 	executor := workflow.Executor(workflow.NewPlaceholderExecutor())
 	evalRunExecutor := eval.RunExecutor(eval.NewPlaceholderRunExecutor())
+	evalJudge, err := eval.NewConfiguredJudge(eval.JudgeOptions{
+		Provider:   cfg.EvalJudgeProvider,
+		BaseURL:    cfg.EvalJudgeBaseURL,
+		APIKey:     cfg.EvalJudgeAPIKey,
+		Model:      cfg.EvalJudgeModel,
+		PromptPath: eval.PlaceholderJudgePromptPath,
+		Timeout:    cfg.EvalJudgeTimeout,
+	})
+	if err != nil {
+		logger.Error("configure eval judge", slog.Any("error", err))
+		os.Exit(1)
+	}
+	evalRunService := eval.NewRunServiceWithDependencies(storagepostgres.NewEvalRunStore(pool), nil, evalJudge)
 	registry := toolregistry.NewDefaultRegistryWithOptions(toolregistry.Options{
 		TicketAPIBaseURL: cfg.TicketAPIBaseURL,
 		TicketAPIToken:   cfg.TicketAPIToken,
@@ -94,6 +106,8 @@ func main() {
 
 	logger.Info("worker booted",
 		slog.String("env", cfg.Env),
+		slog.String("eval_judge_provider", cfg.EvalJudgeProvider),
+		slog.String("eval_judge_model", cfg.EvalJudgeModel),
 		slog.Duration("poll_interval", cfg.WorkerPollInterval),
 	)
 

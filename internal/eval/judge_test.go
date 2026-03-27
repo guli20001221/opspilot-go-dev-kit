@@ -1,6 +1,7 @@
 package eval
 
 import (
+	"context"
 	"encoding/json"
 	"path/filepath"
 	"strings"
@@ -11,7 +12,10 @@ import (
 func TestPlaceholderJudgeBuildsVersionedResults(t *testing.T) {
 	judge := NewPlaceholderJudge()
 	item := EvalRunItem{EvalCaseID: "eval-case-a"}
-	results := judge.BuildItemResults([]EvalRunItem{item}, RunItemResultSucceeded, "placeholder eval passed", time.Unix(1700040000, 0).UTC())
+	results, err := judge.BuildItemResults(context.Background(), []EvalRunItem{item}, RunItemResultSucceeded, "placeholder eval passed", time.Unix(1700040000, 0).UTC())
+	if err != nil {
+		t.Fatalf("BuildItemResults() error = %v", err)
+	}
 	if len(results) != 1 {
 		t.Fatalf("len(results) = %d, want 1", len(results))
 	}
