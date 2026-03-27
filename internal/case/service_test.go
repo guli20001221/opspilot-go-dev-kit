@@ -518,6 +518,9 @@ func TestServiceSummarizeBySourceEvalReportIDs(t *testing.T) {
 	if got.OpenFollowUpCaseCount != 1 {
 		t.Fatalf("OpenFollowUpCaseCount = %d, want %d", got.OpenFollowUpCaseCount, 1)
 	}
+	if got.LatestFollowUpCaseID != first.ID {
+		t.Fatalf("LatestFollowUpCaseID = %q, want %q", got.LatestFollowUpCaseID, first.ID)
+	}
 	if got.LatestFollowUpCaseStatus != StatusClosed {
 		t.Fatalf("LatestFollowUpCaseStatus = %q, want %q", got.LatestFollowUpCaseStatus, StatusClosed)
 	}
@@ -531,6 +534,9 @@ func TestServiceSummarizeBySourceEvalReportIDs(t *testing.T) {
 	}
 	if empty.OpenFollowUpCaseCount != 0 {
 		t.Fatalf("empty.OpenFollowUpCaseCount = %d, want %d", empty.OpenFollowUpCaseCount, 0)
+	}
+	if empty.LatestFollowUpCaseID != "" {
+		t.Fatalf("empty.LatestFollowUpCaseID = %q, want empty", empty.LatestFollowUpCaseID)
 	}
 	if empty.LatestFollowUpCaseStatus != "" {
 		t.Fatalf("empty.LatestFollowUpCaseStatus = %q, want empty", empty.LatestFollowUpCaseStatus)

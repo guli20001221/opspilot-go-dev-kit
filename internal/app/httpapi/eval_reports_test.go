@@ -117,6 +117,9 @@ func TestGetEvalReportIncludesFollowUpCaseSummary(t *testing.T) {
 	if got.OpenFollowUpCaseCount != 1 {
 		t.Fatalf("OpenFollowUpCaseCount = %d, want 1", got.OpenFollowUpCaseCount)
 	}
+	if got.LatestFollowUpCaseID == "" {
+		t.Fatal("LatestFollowUpCaseID is empty")
+	}
 	if got.LatestFollowUpCaseStatus != casesvc.StatusOpen {
 		t.Fatalf("LatestFollowUpCaseStatus = %q, want %q", got.LatestFollowUpCaseStatus, casesvc.StatusOpen)
 	}
@@ -474,6 +477,9 @@ func TestListEvalReportsIncludesFollowUpCaseSummary(t *testing.T) {
 	}
 	if got.OpenFollowUpCaseCount != 1 {
 		t.Fatalf("OpenFollowUpCaseCount = %d, want 1", got.OpenFollowUpCaseCount)
+	}
+	if got.LatestFollowUpCaseID == "" {
+		t.Fatal("LatestFollowUpCaseID is empty")
 	}
 	if got.LatestFollowUpCaseStatus != casesvc.StatusOpen {
 		t.Fatalf("LatestFollowUpCaseStatus = %q, want %q", got.LatestFollowUpCaseStatus, casesvc.StatusOpen)

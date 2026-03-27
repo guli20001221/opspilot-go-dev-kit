@@ -89,5 +89,6 @@ type EvalReportFollowUpSummary struct {
 	SourceEvalReportID       string
 	FollowUpCaseCount        int
 	OpenFollowUpCaseCount    int
+	LatestFollowUpCaseID     string
 	LatestFollowUpCaseStatus string
 }

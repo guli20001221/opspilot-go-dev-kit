@@ -152,6 +152,7 @@ func (s *memoryStore) SummarizeBySourceEvalReportIDs(_ context.Context, tenantID
 			(item.UpdatedAt.Equal(latest.UpdatedAt) && item.CreatedAt.After(latest.CreatedAt)) ||
 			(item.UpdatedAt.Equal(latest.UpdatedAt) && item.CreatedAt.Equal(latest.CreatedAt) && item.ID > latest.ID) {
 			latestCases[item.SourceEvalReportID] = item
+			summary.LatestFollowUpCaseID = item.ID
 			summary.LatestFollowUpCaseStatus = item.Status
 		}
 		summaries[item.SourceEvalReportID] = summary

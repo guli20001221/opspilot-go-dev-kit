@@ -844,6 +844,9 @@ func TestCaseStoreSummarizeBySourceEvalReportIDs(t *testing.T) {
 	if got.OpenFollowUpCaseCount != 1 {
 		t.Fatalf("OpenFollowUpCaseCount = %d, want %d", got.OpenFollowUpCaseCount, 1)
 	}
+	if got.LatestFollowUpCaseID != "case-summary-2" {
+		t.Fatalf("LatestFollowUpCaseID = %q, want %q", got.LatestFollowUpCaseID, "case-summary-2")
+	}
 	if got.LatestFollowUpCaseStatus != casesvc.StatusClosed {
 		t.Fatalf("LatestFollowUpCaseStatus = %q, want %q", got.LatestFollowUpCaseStatus, casesvc.StatusClosed)
 	}
@@ -857,6 +860,9 @@ func TestCaseStoreSummarizeBySourceEvalReportIDs(t *testing.T) {
 	}
 	if empty.OpenFollowUpCaseCount != 0 {
 		t.Fatalf("empty.OpenFollowUpCaseCount = %d, want %d", empty.OpenFollowUpCaseCount, 0)
+	}
+	if empty.LatestFollowUpCaseID != "" {
+		t.Fatalf("empty.LatestFollowUpCaseID = %q, want empty", empty.LatestFollowUpCaseID)
 	}
 	if empty.LatestFollowUpCaseStatus != "" {
 		t.Fatalf("empty.LatestFollowUpCaseStatus = %q, want empty", empty.LatestFollowUpCaseStatus)

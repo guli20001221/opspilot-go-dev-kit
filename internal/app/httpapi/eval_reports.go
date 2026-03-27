@@ -45,6 +45,7 @@ type evalReportResponse struct {
 	JudgeVersion             string                      `json:"judge_version,omitempty"`
 	FollowUpCaseCount        int                         `json:"follow_up_case_count"`
 	OpenFollowUpCaseCount    int                         `json:"open_follow_up_case_count"`
+	LatestFollowUpCaseID     string                      `json:"latest_follow_up_case_id,omitempty"`
 	LatestFollowUpCaseStatus string                      `json:"latest_follow_up_case_status,omitempty"`
 	Metadata                 json.RawMessage             `json:"metadata,omitempty"`
 	BadCases                 []evalReportBadCaseResponse `json:"bad_cases,omitempty"`
@@ -384,6 +385,7 @@ func newEvalReportResponse(item evalsvc.EvalReport, includeHeavy bool, followUpS
 		JudgeVersion:             item.JudgeVersion,
 		FollowUpCaseCount:        followUpSummary.FollowUpCaseCount,
 		OpenFollowUpCaseCount:    followUpSummary.OpenFollowUpCaseCount,
+		LatestFollowUpCaseID:     followUpSummary.LatestFollowUpCaseID,
 		LatestFollowUpCaseStatus: followUpSummary.LatestFollowUpCaseStatus,
 		CreatedAt:                item.CreatedAt.Format(time.RFC3339Nano),
 		UpdatedAt:                item.UpdatedAt.Format(time.RFC3339Nano),

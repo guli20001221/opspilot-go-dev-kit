@@ -547,6 +547,9 @@ func TestAdminEvalReportsPageRendersHTML(t *testing.T) {
 	if !strings.Contains(body, "Needs follow-up") {
 		t.Fatal("needs follow-up quick view missing from eval reports page HTML")
 	}
+	if !strings.Contains(body, "Open latest case") {
+		t.Fatal("latest case handoff missing from eval reports page HTML")
+	}
 	if !strings.Contains(body, "Show raw report JSON") {
 		t.Fatal("raw report json toggle missing from eval reports page HTML")
 	}
@@ -814,6 +817,10 @@ const reportID = process.argv[4];
   }
   if (!followUpSummary.includes("latest open")) {
     throw new Error("latest follow-up case status missing from list row: " + followUpSummary);
+  }
+  const latestCaseHref = await page.getAttribute("#reportRows tr td:nth-child(5) a", "href");
+  if (!latestCaseHref || !latestCaseHref.includes("/admin/cases?") || !latestCaseHref.includes("case_id=")) {
+    throw new Error("latest case handoff link missing from list row");
   }
   const linkedCaseCount = (await page.textContent("#linkedCaseCount")).trim();
   if (linkedCaseCount !== "5+") {

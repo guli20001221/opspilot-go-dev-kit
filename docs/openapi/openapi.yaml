@@ -3177,6 +3177,8 @@ components:
         open_follow_up_case_count:
           type: integer
           minimum: 0
+        latest_follow_up_case_id:
+          type: string
         latest_follow_up_case_status:
           type: string
           enum:
@@ -3269,6 +3271,8 @@ components:
         open_follow_up_case_count:
           type: integer
           minimum: 0
+        latest_follow_up_case_id:
+          type: string
         latest_follow_up_case_status:
           type: string
           enum:

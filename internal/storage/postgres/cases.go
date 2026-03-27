@@ -252,6 +252,7 @@ counts AS (
 latest AS (
     SELECT DISTINCT ON (source_eval_report_id)
         source_eval_report_id,
+        id,
         status
     FROM scoped
     ORDER BY source_eval_report_id, updated_at DESC, created_at DESC, id DESC
@@ -260,6 +261,7 @@ SELECT
     counts.source_eval_report_id,
     counts.follow_up_case_count,
     counts.open_follow_up_case_count,
+    COALESCE(latest.id, ''),
     COALESCE(latest.status, '')
 FROM counts
 LEFT JOIN latest
@@ -277,6 +279,7 @@ LEFT JOIN latest
 			&summary.SourceEvalReportID,
 			&summary.FollowUpCaseCount,
 			&summary.OpenFollowUpCaseCount,
+			&summary.LatestFollowUpCaseID,
 			&summary.LatestFollowUpCaseStatus,
 		); err != nil {
 			return nil, fmt.Errorf("scan eval report follow-up summary: %w", err)

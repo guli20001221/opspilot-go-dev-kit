@@ -138,6 +138,7 @@ Current Milestone 1 slice:
 - `/admin/eval-reports` now exposes the first eval-report operator page, backed directly by the canonical eval-report list/detail contracts with bad-case and metadata drill-down
 - the same `/admin/eval-reports` list now also surfaces durable follow-up case summary from the canonical eval-report list contract, so operators can see follow-up pressure before drilling into linked cases
 - the same canonical eval-report list now also supports `needs_follow_up=true|false`, and `/admin/eval-reports` uses it for a `Needs follow-up` quick view instead of issuing per-row case queries from the browser
+- that same canonical eval-report list now also carries `latest_follow_up_case_id`, so `/admin/eval-reports` rows can hand off directly into the freshest linked case without loading detail first
 - the same `/admin/eval-reports` page now also shows linked durable follow-up cases for the selected eval report by reusing the canonical case list filter `source_eval_report_id`
 - `GET /api/v1/eval-report-compare` now exposes a narrow read-only compare contract over two durable eval reports, so score deltas, metadata drift, and bad-case overlap stay on the backend instead of turning into browser-only diff logic
 - `/admin/eval-report-compare` now exposes the first eval-report comparison page, handing off into eval runs and version detail from that same canonical compare contract
