@@ -98,6 +98,9 @@ func TestCreateAndGetEvalRunEndpoint(t *testing.T) {
 	if _, ok := createdRaw["item_results"]; ok {
 		t.Fatalf("create response unexpectedly included item_results field: %#v", createdRaw)
 	}
+	if _, ok := createdRaw["result_summary"]; ok {
+		t.Fatalf("create response unexpectedly included result_summary field: %#v", createdRaw)
+	}
 
 	getResp, err := http.Get(server.URL + "/api/v1/eval-runs/" + created.RunID + "?tenant_id=tenant-run")
 	if err != nil {
@@ -115,8 +118,15 @@ func TestCreateAndGetEvalRunEndpoint(t *testing.T) {
 	if err := json.Unmarshal(getBodyBytes, &got); err != nil {
 		t.Fatalf("Unmarshal(get detail) error = %v", err)
 	}
+	var detailRaw map[string]any
+	if err := json.Unmarshal(getBodyBytes, &detailRaw); err != nil {
+		t.Fatalf("Unmarshal(detailRaw) error = %v", err)
+	}
 	if len(got.Items) != 1 {
 		t.Fatalf("len(Items) = %d, want 1 on detail response", len(got.Items))
+	}
+	if _, ok := detailRaw["result_summary"]; ok {
+		t.Fatalf("queued detail unexpectedly included result_summary field: %#v", detailRaw)
 	}
 	if got.Items[0].EvalCaseID != evalCase.ID {
 		t.Fatalf("Items[0].EvalCaseID = %q, want %q", got.Items[0].EvalCaseID, evalCase.ID)
@@ -300,6 +310,72 @@ func TestListEvalRunsEndpointSupportsFiltersAndPagination(t *testing.T) {
 	}
 	if _, ok := rawItem["item_results"]; ok {
 		t.Fatalf("list response unexpectedly included item_results field: %#v", rawItem)
+	}
+	if _, ok := rawItem["result_summary"]; ok {
+		t.Fatalf("list response unexpectedly included result_summary field for queued run: %#v", rawItem)
+	}
+}
+
+func TestListEvalRunsEndpointReturnsResultSummaryForTerminalRuns(t *testing.T) {
+	ctx := context.Background()
+	caseService := casesvc.NewService()
+	evalCaseService := evalsvc.NewService(caseService, nil)
+	datasetService := evalsvc.NewDatasetService(evalCaseService)
+	runService := evalsvc.NewRunService(datasetService)
+
+	sourceCaseA, _ := caseService.CreateCase(ctx, casesvc.CreateInput{TenantID: "tenant-run", Title: "A"})
+	evalCaseA, _, _ := evalCaseService.PromoteCase(ctx, evalsvc.CreateInput{TenantID: "tenant-run", SourceCaseID: sourceCaseA.ID})
+	sourceCaseB, _ := caseService.CreateCase(ctx, casesvc.CreateInput{TenantID: "tenant-run", Title: "B"})
+	evalCaseB, _, _ := evalCaseService.PromoteCase(ctx, evalsvc.CreateInput{TenantID: "tenant-run", SourceCaseID: sourceCaseB.ID})
+	dataset, _ := datasetService.CreateDataset(ctx, evalsvc.CreateDatasetInput{
+		TenantID:    "tenant-run",
+		Name:        "Results dataset",
+		EvalCaseIDs: []string{evalCaseA.ID, evalCaseB.ID},
+	})
+	_, _ = datasetService.PublishDataset(ctx, dataset.ID, evalsvc.PublishDatasetInput{TenantID: "tenant-run"})
+	run, _ := runService.CreateRun(ctx, evalsvc.CreateRunInput{TenantID: "tenant-run", DatasetID: dataset.ID})
+	_, _ = runService.ClaimQueuedRuns(ctx, 10)
+	_, _ = runService.MarkRunFailed(ctx, run.ID, "fault injection")
+
+	server := httptest.NewServer(NewHandlerWithDependencies(Dependencies{
+		Cases:        caseService,
+		EvalCases:    evalCaseService,
+		EvalDatasets: datasetService,
+		EvalRuns:     runService,
+	}))
+	defer server.Close()
+
+	resp, err := http.Get(server.URL + "/api/v1/eval-runs?tenant_id=tenant-run&status=failed&limit=10")
+	if err != nil {
+		t.Fatalf("Get() error = %v", err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("StatusCode = %d, want %d", resp.StatusCode, http.StatusOK)
+	}
+
+	bodyBytes, err := io.ReadAll(resp.Body)
+	if err != nil {
+		t.Fatalf("ReadAll() error = %v", err)
+	}
+	var page listEvalRunsResponse
+	if err := json.Unmarshal(bodyBytes, &page); err != nil {
+		t.Fatalf("Unmarshal(page) error = %v", err)
+	}
+	if len(page.Runs) != 1 {
+		t.Fatalf("len(page.Runs) = %d, want 1", len(page.Runs))
+	}
+	if page.Runs[0].ResultSummary == nil {
+		t.Fatal("ResultSummary = nil, want counts on terminal run")
+	}
+	if page.Runs[0].ResultSummary.TotalItems != 2 {
+		t.Fatalf("TotalItems = %d, want 2", page.Runs[0].ResultSummary.TotalItems)
+	}
+	if page.Runs[0].ResultSummary.RecordedResults != 2 || page.Runs[0].ResultSummary.MissingResults != 0 {
+		t.Fatalf("ResultSummary = %#v, want fully recorded terminal results", page.Runs[0].ResultSummary)
+	}
+	if page.Runs[0].ResultSummary.FailedItems != 2 || page.Runs[0].ResultSummary.SucceededItems != 0 {
+		t.Fatalf("ResultSummary = %#v, want two failures and zero successes", page.Runs[0].ResultSummary)
 	}
 }
 
@@ -487,6 +563,15 @@ func TestGetEvalRunEndpointReturnsUpdatedStatusFields(t *testing.T) {
 	if len(got.ItemResults) != 1 {
 		t.Fatalf("len(ItemResults) = %d, want 1 on detail response", len(got.ItemResults))
 	}
+	if got.ResultSummary == nil {
+		t.Fatal("ResultSummary = nil, want terminal counts on detail response")
+	}
+	if got.ResultSummary.TotalItems != 1 || got.ResultSummary.FailedItems != 1 || got.ResultSummary.SucceededItems != 0 {
+		t.Fatalf("ResultSummary = %#v, want one failed item", got.ResultSummary)
+	}
+	if got.ResultSummary.RecordedResults != 1 || got.ResultSummary.MissingResults != 0 {
+		t.Fatalf("ResultSummary = %#v, want exactly one recorded result", got.ResultSummary)
+	}
 	if got.ItemResults[0].EvalCaseID != evalCase.ID {
 		t.Fatalf("ItemResults[0].EvalCaseID = %q, want %q", got.ItemResults[0].EvalCaseID, evalCase.ID)
 	}
@@ -607,6 +692,9 @@ func TestRetryEvalRunEndpointRequeuesFailedRun(t *testing.T) {
 	}
 	if _, ok := retryRaw["item_results"]; ok {
 		t.Fatalf("retry response unexpectedly included item_results field: %#v", retryRaw)
+	}
+	if _, ok := retryRaw["result_summary"]; ok {
+		t.Fatalf("retry response unexpectedly included result_summary field: %#v", retryRaw)
 	}
 }
 

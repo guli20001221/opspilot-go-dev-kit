@@ -803,3 +803,227 @@ INSERT INTO eval_cases (
 		t.Fatalf("len(detail.ItemResults) after retry = %d, want 0", len(detail.ItemResults))
 	}
 }
+
+func TestEvalRunStoreListRunsIncludesResultSummary(t *testing.T) {
+	dsn := os.Getenv("OPSPILOT_TEST_POSTGRES_DSN")
+	if dsn == "" {
+		t.Skip("OPSPILOT_TEST_POSTGRES_DSN not set")
+	}
+
+	ctx := context.Background()
+	pool, err := OpenPool(ctx, dsn)
+	if err != nil {
+		t.Fatalf("OpenPool() error = %v", err)
+	}
+	defer pool.Close()
+
+	applyMigration(t, ctx, pool)
+	if _, err := pool.Exec(ctx, "TRUNCATE eval_run_item_results, eval_run_events, eval_runs, eval_dataset_items, eval_datasets, eval_cases, case_notes, cases, reports, workflow_task_events, workflow_tasks RESTART IDENTITY CASCADE"); err != nil {
+		t.Fatalf("TRUNCATE eval run and lineage tables error = %v", err)
+	}
+
+	publishedAt := time.Unix(1700021100, 0).UTC()
+	if _, err := pool.Exec(ctx, `
+INSERT INTO eval_datasets (
+    id, tenant_id, name, description, status, created_by, created_at, updated_at, published_by, published_at
+) VALUES (
+    $1, $2, $3, '', $4, 'operator', $5, $5, 'operator', $5
+)`,
+		"eval-dataset-summary",
+		"tenant-run",
+		"Dataset Summary",
+		evalsvc.DatasetStatusPublished,
+		publishedAt,
+	); err != nil {
+		t.Fatalf("seed eval_datasets error = %v", err)
+	}
+	if _, err := pool.Exec(ctx, `
+INSERT INTO cases (
+    id, tenant_id, title, status, reason, source_task_id, source_report_id, created_by, created_at, updated_at
+) VALUES
+    ('case-summary-a', 'tenant-run', 'Summary case A', 'open', 'workflow_required', '', '', 'operator', $1, $1),
+    ('case-summary-b', 'tenant-run', 'Summary case B', 'open', 'workflow_required', '', '', 'operator', $1, $1)
+`, publishedAt); err != nil {
+		t.Fatalf("seed cases error = %v", err)
+	}
+	if _, err := pool.Exec(ctx, `
+INSERT INTO eval_cases (
+    id, tenant_id, source_case_id, source_task_id, source_report_id, trace_id, version_id, title, summary, operator_note, created_by, created_at
+) VALUES
+    ('eval-case-summary-a', 'tenant-run', 'case-summary-a', '', '', 'trace-summary-a', 'version-summary-a', 'Summary eval case A', '', '', 'operator', $1),
+    ('eval-case-summary-b', 'tenant-run', 'case-summary-b', '', '', 'trace-summary-b', 'version-summary-b', 'Summary eval case B', '', '', 'operator', $1)
+`, publishedAt); err != nil {
+		t.Fatalf("seed eval_cases error = %v", err)
+	}
+
+	store := NewEvalRunStore(pool)
+	run, err := store.CreateRun(ctx, evalsvc.EvalRun{
+		ID:               "eval-run-summary",
+		TenantID:         "tenant-run",
+		DatasetID:        "eval-dataset-summary",
+		DatasetName:      "Dataset Summary",
+		DatasetItemCount: 2,
+		Status:           evalsvc.RunStatusQueued,
+		CreatedBy:        "operator",
+		CreatedAt:        time.Unix(1700021110, 0).UTC(),
+		UpdatedAt:        time.Unix(1700021110, 0).UTC(),
+	}, evalsvc.EvalRunItem{
+		EvalCaseID:   "eval-case-summary-a",
+		Title:        "Summary eval case A",
+		SourceCaseID: "case-summary-a",
+		TraceID:      "trace-summary-a",
+		VersionID:    "version-summary-a",
+	}, evalsvc.EvalRunItem{
+		EvalCaseID:   "eval-case-summary-b",
+		Title:        "Summary eval case B",
+		SourceCaseID: "case-summary-b",
+		TraceID:      "trace-summary-b",
+		VersionID:    "version-summary-b",
+	})
+	if err != nil {
+		t.Fatalf("CreateRun() error = %v", err)
+	}
+	if _, err := store.ClaimQueuedRuns(ctx, 1, time.Unix(1700021120, 0).UTC()); err != nil {
+		t.Fatalf("ClaimQueuedRuns() error = %v", err)
+	}
+	if _, err := store.MarkRunFailed(ctx, run.ID, "fault injection", time.Unix(1700021130, 0).UTC(), []evalsvc.EvalRunItemResult{
+		{EvalCaseID: "eval-case-summary-a", Status: evalsvc.RunItemResultFailed, Detail: "fault injection", UpdatedAt: time.Unix(1700021130, 0).UTC()},
+		{EvalCaseID: "eval-case-summary-b", Status: evalsvc.RunItemResultFailed, Detail: "fault injection", UpdatedAt: time.Unix(1700021130, 0).UTC()},
+	}); err != nil {
+		t.Fatalf("MarkRunFailed() error = %v", err)
+	}
+
+	page, err := store.ListRuns(ctx, evalsvc.RunListFilter{
+		TenantID: "tenant-run",
+		Status:   evalsvc.RunStatusFailed,
+		Limit:    10,
+	})
+	if err != nil {
+		t.Fatalf("ListRuns() error = %v", err)
+	}
+	if len(page.Runs) != 1 {
+		t.Fatalf("len(page.Runs) = %d, want 1", len(page.Runs))
+	}
+	if page.Runs[0].ResultSummary == nil {
+		t.Fatal("ResultSummary = nil, want counts")
+	}
+	if page.Runs[0].ResultSummary.TotalItems != 2 {
+		t.Fatalf("TotalItems = %d, want 2", page.Runs[0].ResultSummary.TotalItems)
+	}
+	if page.Runs[0].ResultSummary.RecordedResults != 2 || page.Runs[0].ResultSummary.MissingResults != 0 {
+		t.Fatalf("ResultSummary = %#v, want fully recorded terminal results", page.Runs[0].ResultSummary)
+	}
+	if page.Runs[0].ResultSummary.FailedItems != 2 || page.Runs[0].ResultSummary.SucceededItems != 0 {
+		t.Fatalf("ResultSummary = %#v, want two failures and zero successes", page.Runs[0].ResultSummary)
+	}
+}
+
+func TestEvalRunStoreListRunsIncludesMissingResultCounts(t *testing.T) {
+	dsn := os.Getenv("OPSPILOT_TEST_POSTGRES_DSN")
+	if dsn == "" {
+		t.Skip("OPSPILOT_TEST_POSTGRES_DSN not set")
+	}
+
+	ctx := context.Background()
+	pool, err := OpenPool(ctx, dsn)
+	if err != nil {
+		t.Fatalf("OpenPool() error = %v", err)
+	}
+	defer pool.Close()
+
+	applyMigration(t, ctx, pool)
+	if _, err := pool.Exec(ctx, "TRUNCATE eval_run_item_results, eval_run_events, eval_runs, eval_dataset_items, eval_datasets, eval_cases, case_notes, cases, reports, workflow_task_events, workflow_tasks RESTART IDENTITY CASCADE"); err != nil {
+		t.Fatalf("TRUNCATE eval run and lineage tables error = %v", err)
+	}
+
+	publishedAt := time.Unix(1700022100, 0).UTC()
+	if _, err := pool.Exec(ctx, `
+INSERT INTO eval_datasets (
+    id, tenant_id, name, description, status, created_by, created_at, updated_at, published_by, published_at
+) VALUES (
+    $1, $2, $3, '', $4, 'operator', $5, $5, 'operator', $5
+)`,
+		"eval-dataset-summary-missing",
+		"tenant-run",
+		"Dataset Summary Missing",
+		evalsvc.DatasetStatusPublished,
+		publishedAt,
+	); err != nil {
+		t.Fatalf("seed eval_datasets error = %v", err)
+	}
+	if _, err := pool.Exec(ctx, `
+INSERT INTO cases (
+    id, tenant_id, title, status, reason, source_task_id, source_report_id, created_by, created_at, updated_at
+) VALUES
+    ('case-summary-missing-a', 'tenant-run', 'Summary missing case A', 'open', 'workflow_required', '', '', 'operator', $1, $1),
+    ('case-summary-missing-b', 'tenant-run', 'Summary missing case B', 'open', 'workflow_required', '', '', 'operator', $1, $1)
+`, publishedAt); err != nil {
+		t.Fatalf("seed cases error = %v", err)
+	}
+	if _, err := pool.Exec(ctx, `
+INSERT INTO eval_cases (
+    id, tenant_id, source_case_id, source_task_id, source_report_id, trace_id, version_id, title, summary, operator_note, created_by, created_at
+) VALUES
+    ('eval-case-summary-missing-a', 'tenant-run', 'case-summary-missing-a', '', '', 'trace-summary-missing-a', 'version-summary-missing-a', 'Summary missing eval case A', '', '', 'operator', $1),
+    ('eval-case-summary-missing-b', 'tenant-run', 'case-summary-missing-b', '', '', 'trace-summary-missing-b', 'version-summary-missing-b', 'Summary missing eval case B', '', '', 'operator', $1)
+`, publishedAt); err != nil {
+		t.Fatalf("seed eval_cases error = %v", err)
+	}
+
+	store := NewEvalRunStore(pool)
+	run, err := store.CreateRun(ctx, evalsvc.EvalRun{
+		ID:               "eval-run-summary-missing",
+		TenantID:         "tenant-run",
+		DatasetID:        "eval-dataset-summary-missing",
+		DatasetName:      "Dataset Summary Missing",
+		DatasetItemCount: 2,
+		Status:           evalsvc.RunStatusQueued,
+		CreatedBy:        "operator",
+		CreatedAt:        time.Unix(1700022110, 0).UTC(),
+		UpdatedAt:        time.Unix(1700022110, 0).UTC(),
+	}, evalsvc.EvalRunItem{
+		EvalCaseID:   "eval-case-summary-missing-a",
+		Title:        "Summary missing eval case A",
+		SourceCaseID: "case-summary-missing-a",
+		TraceID:      "trace-summary-missing-a",
+		VersionID:    "version-summary-missing-a",
+	}, evalsvc.EvalRunItem{
+		EvalCaseID:   "eval-case-summary-missing-b",
+		Title:        "Summary missing eval case B",
+		SourceCaseID: "case-summary-missing-b",
+		TraceID:      "trace-summary-missing-b",
+		VersionID:    "version-summary-missing-b",
+	})
+	if err != nil {
+		t.Fatalf("CreateRun() error = %v", err)
+	}
+	if _, err := store.ClaimQueuedRuns(ctx, 1, time.Unix(1700022120, 0).UTC()); err != nil {
+		t.Fatalf("ClaimQueuedRuns() error = %v", err)
+	}
+	if _, err := store.MarkRunFailed(ctx, run.ID, "partial fault injection", time.Unix(1700022130, 0).UTC(), []evalsvc.EvalRunItemResult{
+		{EvalCaseID: "eval-case-summary-missing-a", Status: evalsvc.RunItemResultFailed, Detail: "partial fault injection", UpdatedAt: time.Unix(1700022130, 0).UTC()},
+	}); err != nil {
+		t.Fatalf("MarkRunFailed() error = %v", err)
+	}
+
+	page, err := store.ListRuns(ctx, evalsvc.RunListFilter{
+		TenantID: "tenant-run",
+		Status:   evalsvc.RunStatusFailed,
+		Limit:    10,
+	})
+	if err != nil {
+		t.Fatalf("ListRuns() error = %v", err)
+	}
+	if len(page.Runs) != 1 {
+		t.Fatalf("len(page.Runs) = %d, want 1", len(page.Runs))
+	}
+	if page.Runs[0].ResultSummary == nil {
+		t.Fatal("ResultSummary = nil, want counts")
+	}
+	if page.Runs[0].ResultSummary.TotalItems != 2 || page.Runs[0].ResultSummary.RecordedResults != 1 {
+		t.Fatalf("ResultSummary = %#v, want two total items and one recorded result", page.Runs[0].ResultSummary)
+	}
+	if page.Runs[0].ResultSummary.MissingResults != 1 {
+		t.Fatalf("MissingResults = %d, want 1", page.Runs[0].ResultSummary.MissingResults)
+	}
+}

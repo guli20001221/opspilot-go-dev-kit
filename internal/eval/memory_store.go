@@ -256,6 +256,7 @@ func (s *memoryStore) GetRun(_ context.Context, runID string) (EvalRun, error) {
 	if !ok {
 		return EvalRun{}, fmt.Errorf("%w: %s", ErrEvalRunNotFound, runID)
 	}
+	item.ResultSummary = summarizeRunResultsForTotal(item.DatasetItemCount, s.runItemResults[runID])
 	return item, nil
 }
 
@@ -272,7 +273,7 @@ func (s *memoryStore) GetRunDetail(_ context.Context, runID string) (EvalRunDeta
 	items := append([]EvalRunItem(nil), s.runItems[runID]...)
 	results := append([]EvalRunItemResult(nil), s.runItemResults[runID]...)
 	return EvalRunDetail{
-		Run:         item,
+		Run:         withRunResultSummary(item, results),
 		Events:      events,
 		Items:       items,
 		ItemResults: results,
@@ -294,6 +295,7 @@ func (s *memoryStore) ListRuns(_ context.Context, filter RunListFilter) (RunList
 		if filter.Status != "" && item.Status != filter.Status {
 			continue
 		}
+		item.ResultSummary = summarizeRunResultsForTotal(item.DatasetItemCount, s.runItemResults[item.ID])
 		items = append(items, item)
 	}
 
@@ -480,4 +482,35 @@ func (s *memoryStore) appendRunEventLocked(event EvalRunEvent) EvalRunEvent {
 	event.ID = s.nextRunEvent
 	s.runEvents[event.RunID] = append(s.runEvents[event.RunID], event)
 	return event
+}
+
+func withRunResultSummary(item EvalRun, results []EvalRunItemResult) EvalRun {
+	item.ResultSummary = summarizeRunResultsForTotal(item.DatasetItemCount, results)
+	return item
+}
+
+func summarizeRunResultsForTotal(totalItems int, results []EvalRunItemResult) *EvalRunResultSummary {
+	if len(results) == 0 {
+		return nil
+	}
+
+	if totalItems == 0 {
+		totalItems = len(results)
+	}
+	summary := &EvalRunResultSummary{
+		TotalItems:      totalItems,
+		RecordedResults: len(results),
+	}
+	for _, result := range results {
+		switch result.Status {
+		case RunItemResultSucceeded:
+			summary.SucceededItems++
+		case RunItemResultFailed:
+			summary.FailedItems++
+		}
+	}
+	if summary.TotalItems > summary.RecordedResults {
+		summary.MissingResults = summary.TotalItems - summary.RecordedResults
+	}
+	return summary
 }

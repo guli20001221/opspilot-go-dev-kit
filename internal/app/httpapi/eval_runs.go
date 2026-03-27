@@ -18,21 +18,22 @@ type createEvalRunRequest struct {
 }
 
 type evalRunResponse struct {
-	RunID            string                      `json:"run_id"`
-	TenantID         string                      `json:"tenant_id"`
-	DatasetID        string                      `json:"dataset_id"`
-	DatasetName      string                      `json:"dataset_name"`
-	DatasetItemCount int                         `json:"dataset_item_count"`
-	Status           string                      `json:"status"`
-	CreatedBy        string                      `json:"created_by"`
-	ErrorReason      string                      `json:"error_reason,omitempty"`
-	CreatedAt        string                      `json:"created_at"`
-	UpdatedAt        string                      `json:"updated_at"`
-	StartedAt        string                      `json:"started_at,omitempty"`
-	FinishedAt       string                      `json:"finished_at,omitempty"`
-	Events           []evalRunEventResponse      `json:"events,omitempty"`
-	Items            []evalRunItemResponse       `json:"items,omitempty"`
-	ItemResults      []evalRunItemResultResponse `json:"item_results,omitempty"`
+	RunID            string                        `json:"run_id"`
+	TenantID         string                        `json:"tenant_id"`
+	DatasetID        string                        `json:"dataset_id"`
+	DatasetName      string                        `json:"dataset_name"`
+	DatasetItemCount int                           `json:"dataset_item_count"`
+	ResultSummary    *evalRunResultSummaryResponse `json:"result_summary,omitempty"`
+	Status           string                        `json:"status"`
+	CreatedBy        string                        `json:"created_by"`
+	ErrorReason      string                        `json:"error_reason,omitempty"`
+	CreatedAt        string                        `json:"created_at"`
+	UpdatedAt        string                        `json:"updated_at"`
+	StartedAt        string                        `json:"started_at,omitempty"`
+	FinishedAt       string                        `json:"finished_at,omitempty"`
+	Events           []evalRunEventResponse        `json:"events,omitempty"`
+	Items            []evalRunItemResponse         `json:"items,omitempty"`
+	ItemResults      []evalRunItemResultResponse   `json:"item_results,omitempty"`
 }
 
 type listEvalRunsResponse struct {
@@ -64,6 +65,14 @@ type evalRunItemResultResponse struct {
 	Status     string `json:"status"`
 	Detail     string `json:"detail,omitempty"`
 	UpdatedAt  string `json:"updated_at"`
+}
+
+type evalRunResultSummaryResponse struct {
+	TotalItems      int `json:"total_items"`
+	RecordedResults int `json:"recorded_results"`
+	SucceededItems  int `json:"succeeded_items"`
+	FailedItems     int `json:"failed_items"`
+	MissingResults  int `json:"missing_results"`
 }
 
 func (a *appHandler) handleEvalRuns(w http.ResponseWriter, r *http.Request) {
@@ -255,6 +264,15 @@ func newEvalRunResponse(item evalsvc.EvalRun, events []evalsvc.EvalRunEvent, ite
 		ErrorReason:      item.ErrorReason,
 		CreatedAt:        item.CreatedAt.Format(time.RFC3339Nano),
 		UpdatedAt:        item.UpdatedAt.Format(time.RFC3339Nano),
+	}
+	if item.ResultSummary != nil {
+		resp.ResultSummary = &evalRunResultSummaryResponse{
+			TotalItems:      item.ResultSummary.TotalItems,
+			RecordedResults: item.ResultSummary.RecordedResults,
+			SucceededItems:  item.ResultSummary.SucceededItems,
+			FailedItems:     item.ResultSummary.FailedItems,
+			MissingResults:  item.ResultSummary.MissingResults,
+		}
 	}
 	if !item.StartedAt.IsZero() {
 		resp.StartedAt = item.StartedAt.Format(time.RFC3339Nano)

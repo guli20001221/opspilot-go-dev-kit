@@ -1588,6 +1588,8 @@ paths:
       description: |
         Returns one tenant-scoped page of durable eval-run records.
         This lane is intentionally lightweight and does not inline execution payloads or judge output.
+        Terminal rows may include `result_summary`, a compact pass/fail overview derived from durable
+        `item_results`, while queued and running rows stay lightweight and omit that summary.
       operationId: listEvalRuns
       parameters:
         - name: tenant_id
@@ -1706,6 +1708,8 @@ paths:
         Returns one durable eval run by stable ID.
         Operators use this contract to inspect lifecycle timestamps, failure reason,
         and the append-only event timeline as the worker advances and retries the run.
+        When placeholder per-item results exist, the same run object also carries a lightweight
+        `result_summary` alongside the heavier `item_results` detail payload.
       operationId: getEvalRun
       parameters:
         - name: run_id
@@ -2708,6 +2712,11 @@ components:
         dataset_item_count:
           type: integer
           minimum: 0
+        result_summary:
+          description: |
+            Optional terminal-only summary derived from durable per-item results.
+            Omitted when no run-item results have been recorded yet.
+          $ref: '#/components/schemas/EvalRunResultSummary'
         status:
           type: string
           enum:
@@ -2767,6 +2776,11 @@ components:
         dataset_item_count:
           type: integer
           minimum: 0
+        result_summary:
+          description: |
+            Optional terminal-only summary derived from durable per-item results.
+            Omitted when no run-item results have been recorded yet.
+          $ref: '#/components/schemas/EvalRunResultSummary'
         status:
           type: string
           enum:
@@ -2855,6 +2869,31 @@ components:
         updated_at:
           type: string
           format: date-time
+    EvalRunResultSummary:
+      type: object
+      description: Lightweight operator-facing counts derived from durable eval-run item results.
+      required:
+        - total_items
+        - recorded_results
+        - succeeded_items
+        - failed_items
+        - missing_results
+      properties:
+        total_items:
+          type: integer
+          minimum: 0
+        recorded_results:
+          type: integer
+          minimum: 0
+        succeeded_items:
+          type: integer
+          minimum: 0
+        failed_items:
+          type: integer
+          minimum: 0
+        missing_results:
+          type: integer
+          minimum: 0
     ListEvalRunsResponse:
       type: object
       required:

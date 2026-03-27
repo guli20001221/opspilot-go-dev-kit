@@ -162,6 +162,7 @@ type EvalRun struct {
 	DatasetID        string
 	DatasetName      string
 	DatasetItemCount int
+	ResultSummary    *EvalRunResultSummary
 	Status           string
 	CreatedBy        string
 	ErrorReason      string
@@ -198,6 +199,15 @@ type EvalRunDetail struct {
 	Events      []EvalRunEvent
 	Items       []EvalRunItem
 	ItemResults []EvalRunItemResult
+}
+
+// EvalRunResultSummary captures operator-facing placeholder result counts for one run.
+type EvalRunResultSummary struct {
+	TotalItems      int
+	RecordedResults int
+	SucceededItems  int
+	FailedItems     int
+	MissingResults  int
 }
 
 // EvalRunItemResult is one terminal placeholder result for a snapped eval-run item.

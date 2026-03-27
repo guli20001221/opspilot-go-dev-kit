@@ -51,6 +51,7 @@ Turn prompt, routing, retrieval, and tool changes into measurable, repeatable qu
 19. Once retry exists on the same durable run record, preserve prior failure context with append-only eval-run events on detail reads instead of introducing a second run-attempt model too early.
 20. Before adding judge prompts or per-item scores, snapshot the published dataset membership into durable eval-run items so each run detail can stand on its own lineage without reconstructing membership from dataset state later.
 21. Before judge scoring lands, prefer durable placeholder `item_results` on the single-run detail contract, written when the canonical run reaches a terminal state and cleared when retry re-queues that same run.
+22. Once durable placeholder `item_results` exist, prefer adding a lightweight terminal-only `result_summary` on canonical eval-run reads so list and operator lanes can scan pass/fail totals without promoting full per-item payloads into every response.
 
 ## Output contract
 When you finish, always report:

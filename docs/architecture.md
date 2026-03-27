@@ -108,6 +108,7 @@ The current HTTP layer also exposes the same PostgreSQL-backed workflow records 
 - eval runs now also emit append-only `created`, `claimed`, `failed`, `retried`, and `succeeded` events on the same `run_id`, and detail reads surface that timeline while the list contract stays lightweight
 - eval runs now also snapshot immutable `items` copied from the published dataset membership at kickoff time, so future judging and operator drill-down can rely on run-local provenance instead of re-reading mutable dataset detail
 - eval-run detail now also carries durable terminal `item_results`, so placeholder per-item outcomes stay attached to the same run record and are cleared when retry re-queues the canonical run
+- canonical eval-run reads now also attach a lightweight `result_summary` on terminal runs, letting list and detail consumers scan placeholder pass/fail totals without moving the heavier `item_results` payload onto create/list/retry responses
 - the same case page now also shows and appends recent notes, so operator handoff context lives on the case instead of being implied by task/report provenance
 - the same case page now defaults into an open-case queue view, adds `My open cases` and `Unassigned` shortcuts, and computes age/staleness from canonical `updated_at`
 - the same case page now also foregrounds operator queue slices by highlighting `My open cases` and `Unassigned`, and it surfaces task-only versus report-backed provenance directly from the canonical case contract

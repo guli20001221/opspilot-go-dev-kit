@@ -162,6 +162,11 @@ WHERE id = $1`
 	if finishedAt.Valid {
 		item.FinishedAt = finishedAt.Time
 	}
+	summaries, err := s.loadRunResultSummaries(ctx, s.pool, []string{runID})
+	if err != nil {
+		return evalsvc.EvalRun{}, err
+	}
+	item.ResultSummary = applyRunResultSummaryTotal(item.DatasetItemCount, summaries[runID])
 	return item, nil
 }
 
@@ -193,7 +198,7 @@ func (s *EvalRunStore) GetRunDetail(ctx context.Context, runID string) (evalsvc.
 	}
 
 	return evalsvc.EvalRunDetail{
-		Run:         item,
+		Run:         withRunResultSummary(item, results),
 		Events:      events,
 		Items:       items,
 		ItemResults: results,
@@ -259,6 +264,17 @@ LIMIT $4 OFFSET $5`
 	}
 	if err := rows.Err(); err != nil {
 		return evalsvc.RunListPage{}, fmt.Errorf("iterate eval runs: %w", err)
+	}
+	runIDs := make([]string, 0, len(items))
+	for _, item := range items {
+		runIDs = append(runIDs, item.ID)
+	}
+	summaries, err := s.loadRunResultSummaries(ctx, s.pool, runIDs)
+	if err != nil {
+		return evalsvc.RunListPage{}, err
+	}
+	for i := range items {
+		items[i].ResultSummary = applyRunResultSummaryTotal(items[i].DatasetItemCount, summaries[items[i].ID])
 	}
 
 	page := evalsvc.RunListPage{Runs: items}
@@ -395,6 +411,44 @@ ORDER BY items.position ASC`
 	}
 
 	return results, nil
+}
+
+func (s *EvalRunStore) loadRunResultSummaries(ctx context.Context, q evalRunQuerier, runIDs []string) (map[string]*evalsvc.EvalRunResultSummary, error) {
+	if len(runIDs) == 0 {
+		return map[string]*evalsvc.EvalRunResultSummary{}, nil
+	}
+
+	const query = `
+SELECT
+    run_id,
+    COUNT(*)::INT AS recorded_results,
+    COUNT(*) FILTER (WHERE status = $2)::INT AS succeeded_items,
+    COUNT(*) FILTER (WHERE status = $3)::INT AS failed_items
+FROM eval_run_item_results
+WHERE run_id = ANY($1)
+GROUP BY run_id`
+
+	rows, err := q.Query(ctx, query, runIDs, evalsvc.RunItemResultSucceeded, evalsvc.RunItemResultFailed)
+	if err != nil {
+		return nil, fmt.Errorf("select eval run result summaries: %w", err)
+	}
+	defer rows.Close()
+
+	summaries := make(map[string]*evalsvc.EvalRunResultSummary, len(runIDs))
+	for rows.Next() {
+		var runID string
+		summary := &evalsvc.EvalRunResultSummary{}
+		if err := rows.Scan(&runID, &summary.RecordedResults, &summary.SucceededItems, &summary.FailedItems); err != nil {
+			return nil, fmt.Errorf("scan eval run result summary: %w", err)
+		}
+		summary.TotalItems = summary.RecordedResults
+		summaries[runID] = summary
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("iterate eval run result summaries: %w", err)
+	}
+
+	return summaries, nil
 }
 
 // ClaimQueuedRuns marks queued eval runs as running and returns the claimed rows.
@@ -581,7 +635,7 @@ RETURNING
 		return evalsvc.EvalRun{}, err
 	}
 
-	return updated, nil
+	return withRunResultSummary(updated, results), nil
 }
 
 func (s *EvalRunStore) replaceRunItemResults(ctx context.Context, q evalRunQuerier, runID string, results []evalsvc.EvalRunItemResult) error {
@@ -759,4 +813,58 @@ func scanEvalRun(scanner interface {
 		item.FinishedAt = finishedAt.Time
 	}
 	return item, nil
+}
+
+func withRunResultSummary(item evalsvc.EvalRun, results []evalsvc.EvalRunItemResult) evalsvc.EvalRun {
+	item.ResultSummary = summarizeRunResultsForTotal(item.DatasetItemCount, results)
+	return item
+}
+
+func summarizeRunResultsForTotal(totalItems int, results []evalsvc.EvalRunItemResult) *evalsvc.EvalRunResultSummary {
+	if len(results) == 0 {
+		return nil
+	}
+
+	if totalItems == 0 {
+		totalItems = len(results)
+	}
+	summary := &evalsvc.EvalRunResultSummary{
+		TotalItems:      totalItems,
+		RecordedResults: len(results),
+	}
+	for _, result := range results {
+		switch result.Status {
+		case evalsvc.RunItemResultSucceeded:
+			summary.SucceededItems++
+		case evalsvc.RunItemResultFailed:
+			summary.FailedItems++
+		}
+	}
+	if summary.TotalItems > summary.RecordedResults {
+		summary.MissingResults = summary.TotalItems - summary.RecordedResults
+	}
+	return summary
+}
+
+func applyRunResultSummaryTotal(totalItems int, summary *evalsvc.EvalRunResultSummary) *evalsvc.EvalRunResultSummary {
+	if summary == nil {
+		return nil
+	}
+
+	adjusted := *summary
+	if totalItems <= 0 {
+		totalItems = adjusted.RecordedResults
+	}
+	adjusted.TotalItems = totalItems
+	if adjusted.TotalItems > adjusted.RecordedResults {
+		adjusted.MissingResults = adjusted.TotalItems - adjusted.RecordedResults
+	}
+	return &adjusted
+}
+
+func derefRunResultSummary(summary *evalsvc.EvalRunResultSummary) evalsvc.EvalRunResultSummary {
+	if summary == nil {
+		return evalsvc.EvalRunResultSummary{}
+	}
+	return *summary
 }

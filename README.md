@@ -113,6 +113,7 @@ Current Milestone 1 slice:
 - `GET /api/v1/eval-runs/{run_id}` now also returns append-only `events`, so retry does not erase prior failure/claim history from operator view
 - that same eval-run detail now also returns durable `items`, snapshotting the published dataset membership onto the run so operators can inspect exactly which eval cases, case lineage, trace IDs, and version IDs were executed
 - that same eval-run detail now also returns durable `item_results`, so placeholder per-item terminal outcomes stay attached to the same canonical run record while create/list/retry responses remain lightweight
+- terminal eval-run reads now also expose lightweight `result_summary` counts on the canonical run object, so operators can scan pass/fail totals from `/api/v1/eval-runs` and `/admin/eval-runs` without unpacking the full `item_results` array first
 - `GET /admin/cases` now exposes the first case-focused operator page, backed by the durable case contract and existing task/report handoff endpoints
 - that first `/admin/cases` page now supports the minimal close action while still handing operators back into the canonical task/report surfaces instead of inventing case-only detail contracts
 - the same `/admin/cases` page now also supports copyable case summaries, shareable case links, and a direct handoff into the canonical case API detail
@@ -133,6 +134,7 @@ Current Milestone 1 slice:
 - that same `/admin/eval-runs` lane now renders a durable run timeline, so operators can still inspect prior `failed` and `retried` history after the top-level fields have been cleared by retry
 - that same `/admin/eval-runs` lane now also renders `Run items`, making the selected run self-contained instead of forcing operators back to the dataset detail to reconstruct membership
 - that same `/admin/eval-runs` lane now also renders `Item results`, so terminal placeholder outcomes for each snapped eval case are visible without opening raw JSON
+- that same `/admin/eval-runs` lane now also surfaces compact result-summary counts directly in the list rows and detail pane, while queued/running rows still stay lightweight and omit placeholder totals until terminal results exist
 - `/admin/task-board` and `/admin/reports` now both expose a `Create case` handoff that reuses `POST /api/v1/cases` and deep-links straight into `/admin/cases`
 - the task-board `Create case` handoff now preserves `source_report_id` for successful `report_generation` tasks when the durable report row exists, but degrades to a task-only case if that durable report lookup is missing or temporarily unavailable; the reports page disables case creation when the row is missing
 - successful report tasks now finalize their `succeeded` task state and durable report row together, so report `ready_at` and `metadata.audit_ref` stay aligned with the final task success event

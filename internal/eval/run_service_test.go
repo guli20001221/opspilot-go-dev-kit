@@ -407,6 +407,131 @@ func TestRunServiceListRunsUsesLatestUpdatedFirstOrder(t *testing.T) {
 	}
 }
 
+func TestRunServiceListRunsIncludesResultSummaryForTerminalRuns(t *testing.T) {
+	ctx := context.Background()
+	store := newMemoryStore()
+	service := NewRunServiceWithStore(store, nil)
+
+	run := EvalRun{
+		ID:               "eval-run-summary",
+		TenantID:         "tenant-run",
+		DatasetID:        "eval-dataset-summary",
+		DatasetName:      "Dataset Summary",
+		DatasetItemCount: 2,
+		Status:           RunStatusSucceeded,
+		CreatedBy:        "operator",
+		CreatedAt:        time.Unix(1700031000, 0).UTC(),
+		UpdatedAt:        time.Unix(1700031010, 0).UTC(),
+		StartedAt:        time.Unix(1700031005, 0).UTC(),
+		FinishedAt:       time.Unix(1700031010, 0).UTC(),
+	}
+	if _, err := store.CreateRun(ctx, run); err != nil {
+		t.Fatalf("CreateRun() error = %v", err)
+	}
+	store.runItemResults[run.ID] = []EvalRunItemResult{
+		{EvalCaseID: "eval-case-b", Status: RunItemResultFailed, Detail: "placeholder eval failed", UpdatedAt: run.FinishedAt},
+		{EvalCaseID: "eval-case-a", Status: RunItemResultSucceeded, Detail: "placeholder eval passed", UpdatedAt: run.FinishedAt},
+	}
+
+	page, err := service.ListRuns(ctx, RunListFilter{
+		TenantID: "tenant-run",
+		Limit:    10,
+	})
+	if err != nil {
+		t.Fatalf("ListRuns() error = %v", err)
+	}
+	if len(page.Runs) != 1 {
+		t.Fatalf("len(page.Runs) = %d, want 1", len(page.Runs))
+	}
+	if page.Runs[0].ResultSummary == nil {
+		t.Fatal("ResultSummary = nil, want counts")
+	}
+	if page.Runs[0].ResultSummary.TotalItems != 2 {
+		t.Fatalf("TotalItems = %d, want 2", page.Runs[0].ResultSummary.TotalItems)
+	}
+	if page.Runs[0].ResultSummary.RecordedResults != 2 || page.Runs[0].ResultSummary.MissingResults != 0 {
+		t.Fatalf("ResultSummary = %#v, want all results recorded", page.Runs[0].ResultSummary)
+	}
+	if page.Runs[0].ResultSummary.SucceededItems != 1 || page.Runs[0].ResultSummary.FailedItems != 1 {
+		t.Fatalf("ResultSummary = %#v, want one success and one failure", page.Runs[0].ResultSummary)
+	}
+}
+
+func TestRunServiceGetRunDetailOmitsResultSummaryBeforeTerminalResults(t *testing.T) {
+	ctx := context.Background()
+	store := newMemoryStore()
+	service := NewRunServiceWithStore(store, nil)
+
+	run := EvalRun{
+		ID:               "eval-run-queued-detail",
+		TenantID:         "tenant-run",
+		DatasetID:        "eval-dataset-queued-detail",
+		DatasetName:      "Dataset Queued Detail",
+		DatasetItemCount: 2,
+		Status:           RunStatusQueued,
+		CreatedBy:        "operator",
+		CreatedAt:        time.Unix(1700032000, 0).UTC(),
+		UpdatedAt:        time.Unix(1700032000, 0).UTC(),
+	}
+	if _, err := store.CreateRun(ctx, run, EvalRunItem{EvalCaseID: "eval-case-a", Title: "A", SourceCaseID: "case-a", TraceID: "trace-a"}, EvalRunItem{EvalCaseID: "eval-case-b", Title: "B", SourceCaseID: "case-b", TraceID: "trace-b"}); err != nil {
+		t.Fatalf("CreateRun() error = %v", err)
+	}
+
+	detail, err := service.GetRunDetail(ctx, run.ID)
+	if err != nil {
+		t.Fatalf("GetRunDetail() error = %v", err)
+	}
+	if detail.Run.ResultSummary != nil {
+		t.Fatalf("ResultSummary = %#v, want nil before terminal results exist", detail.Run.ResultSummary)
+	}
+}
+
+func TestRunServiceListRunsIncludesMissingResultCounts(t *testing.T) {
+	ctx := context.Background()
+	store := newMemoryStore()
+	service := NewRunServiceWithStore(store, nil)
+
+	run := EvalRun{
+		ID:               "eval-run-summary-missing",
+		TenantID:         "tenant-run",
+		DatasetID:        "eval-dataset-summary",
+		DatasetName:      "Dataset Summary",
+		DatasetItemCount: 2,
+		Status:           RunStatusFailed,
+		CreatedBy:        "operator",
+		CreatedAt:        time.Unix(1700032000, 0).UTC(),
+		UpdatedAt:        time.Unix(1700032010, 0).UTC(),
+		StartedAt:        time.Unix(1700032005, 0).UTC(),
+		FinishedAt:       time.Unix(1700032010, 0).UTC(),
+	}
+	if _, err := store.CreateRun(ctx, run); err != nil {
+		t.Fatalf("CreateRun() error = %v", err)
+	}
+	store.runItemResults[run.ID] = []EvalRunItemResult{
+		{EvalCaseID: "eval-case-a", Status: RunItemResultFailed, Detail: "placeholder eval failed", UpdatedAt: run.FinishedAt},
+	}
+
+	page, err := service.ListRuns(ctx, RunListFilter{
+		TenantID: "tenant-run",
+		Limit:    10,
+	})
+	if err != nil {
+		t.Fatalf("ListRuns() error = %v", err)
+	}
+	if len(page.Runs) != 1 {
+		t.Fatalf("len(page.Runs) = %d, want 1", len(page.Runs))
+	}
+	if page.Runs[0].ResultSummary == nil {
+		t.Fatal("ResultSummary = nil, want counts")
+	}
+	if page.Runs[0].ResultSummary.TotalItems != 2 || page.Runs[0].ResultSummary.RecordedResults != 1 {
+		t.Fatalf("ResultSummary = %#v, want two total items and one recorded result", page.Runs[0].ResultSummary)
+	}
+	if page.Runs[0].ResultSummary.MissingResults != 1 {
+		t.Fatalf("MissingResults = %d, want 1", page.Runs[0].ResultSummary.MissingResults)
+	}
+}
+
 func TestRunServiceRetryRunRequeuesFailedRun(t *testing.T) {
 	ctx := context.Background()
 	store := newMemoryStore()
