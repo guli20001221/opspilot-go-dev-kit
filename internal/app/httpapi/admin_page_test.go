@@ -637,6 +637,9 @@ func TestAdminEvalReportComparePageRendersHTML(t *testing.T) {
 	if !strings.Contains(body, "Open right latest case") {
 		t.Fatal("right latest-case handoff missing from compare HTML")
 	}
+	if !strings.Contains(body, "Follow-up") {
+		t.Fatal("follow-up summary missing from compare HTML")
+	}
 	if !strings.Contains(body, "Create case") {
 		t.Fatal("case handoff action missing from compare HTML")
 	}
@@ -719,9 +722,17 @@ const rightCaseID = process.argv[7];
   if (!leftCaseHref || !leftCaseHref.includes("case_id=" + encodeURIComponent(leftCaseID))) {
     throw new Error("left latest-case handoff missing selected case");
   }
-  const rightCaseHref = await page.getAttribute("#rightLatestCaseLink", "href");
-  if (!rightCaseHref || !rightCaseHref.includes("case_id=" + encodeURIComponent(rightCaseID))) {
-    throw new Error("right latest-case handoff missing selected case");
+	const rightCaseHref = await page.getAttribute("#rightLatestCaseLink", "href");
+	if (!rightCaseHref || !rightCaseHref.includes("case_id=" + encodeURIComponent(rightCaseID))) {
+		throw new Error("right latest-case handoff missing selected case");
+	}
+  const leftFollowUpText = (await page.textContent("#leftReportDetail")).trim();
+  if (!leftFollowUpText.includes("1 cases / 1 open")) {
+    throw new Error("left follow-up summary missing from compare detail");
+  }
+  const rightFollowUpText = (await page.textContent("#rightReportDetail")).trim();
+  if (!rightFollowUpText.includes("1 cases / 1 open")) {
+    throw new Error("right follow-up summary missing from compare detail");
   }
   await page.click("#createCaseButton");
   await page.waitForURL(/\/admin\/cases\?/);

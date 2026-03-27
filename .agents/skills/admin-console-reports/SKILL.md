@@ -106,6 +106,7 @@ Provide a practical operator UI for evaluation and runtime analysis while keepin
 78. When operators need direct row-level handoff from `/admin/eval-reports` into follow-up work, prefer surfacing a stable `latest_follow_up_case_id` on the canonical list contract over issuing an extra per-row detail fetch first.
 79. When an admin detail pane needs to reuse an existing handoff target, prefer rendering the same canonical ID from the selected list item or detail payload instead of adding a second handoff-specific endpoint.
 80. When a compare surface needs to show whether each side already has active follow-up, prefer extending the compare item payload with canonical linked IDs rather than adding one-off side queries from the browser.
+81. When operators must decide whether to create another case from a compare screen, prefer exposing the per-side follow-up summary already available from canonical case lineage rather than forcing a handoff first.
 
 ## Output contract
 When you finish, always report:

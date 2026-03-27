@@ -3479,8 +3479,19 @@ components:
         bad_case_count:
           type: integer
           minimum: 0
+        follow_up_case_count:
+          type: integer
+          minimum: 0
+        open_follow_up_case_count:
+          type: integer
+          minimum: 0
         latest_follow_up_case_id:
           type: string
+        latest_follow_up_case_status:
+          type: string
+          enum:
+            - open
+            - closed
         created_at:
           type: string
           format: date-time

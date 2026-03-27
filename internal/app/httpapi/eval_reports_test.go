@@ -180,44 +180,50 @@ func TestCompareEvalReportsReturnsTypedSummary(t *testing.T) {
 	}
 	var got struct {
 		Left struct {
-			ReportID             string  `json:"report_id"`
-			TenantID             string  `json:"tenant_id"`
-			RunID                string  `json:"run_id"`
-			DatasetID            string  `json:"dataset_id"`
-			DatasetName          string  `json:"dataset_name"`
-			RunStatus            string  `json:"run_status"`
-			Status               string  `json:"status"`
-			Summary              string  `json:"summary"`
-			TotalItems           int     `json:"total_items"`
-			RecordedResults      int     `json:"recorded_results"`
-			PassedItems          int     `json:"passed_items"`
-			FailedItems          int     `json:"failed_items"`
-			MissingResults       int     `json:"missing_results"`
-			AverageScore         float64 `json:"average_score"`
-			JudgeVersion         string  `json:"judge_version"`
-			VersionID            string  `json:"version_id"`
-			BadCaseCount         int     `json:"bad_case_count"`
-			LatestFollowUpCaseID string  `json:"latest_follow_up_case_id"`
+			ReportID                 string  `json:"report_id"`
+			TenantID                 string  `json:"tenant_id"`
+			RunID                    string  `json:"run_id"`
+			DatasetID                string  `json:"dataset_id"`
+			DatasetName              string  `json:"dataset_name"`
+			RunStatus                string  `json:"run_status"`
+			Status                   string  `json:"status"`
+			Summary                  string  `json:"summary"`
+			TotalItems               int     `json:"total_items"`
+			RecordedResults          int     `json:"recorded_results"`
+			PassedItems              int     `json:"passed_items"`
+			FailedItems              int     `json:"failed_items"`
+			MissingResults           int     `json:"missing_results"`
+			AverageScore             float64 `json:"average_score"`
+			JudgeVersion             string  `json:"judge_version"`
+			VersionID                string  `json:"version_id"`
+			BadCaseCount             int     `json:"bad_case_count"`
+			FollowUpCaseCount        int     `json:"follow_up_case_count"`
+			OpenFollowUpCaseCount    int     `json:"open_follow_up_case_count"`
+			LatestFollowUpCaseID     string  `json:"latest_follow_up_case_id"`
+			LatestFollowUpCaseStatus string  `json:"latest_follow_up_case_status"`
 		} `json:"left"`
 		Right struct {
-			ReportID             string  `json:"report_id"`
-			TenantID             string  `json:"tenant_id"`
-			RunID                string  `json:"run_id"`
-			DatasetID            string  `json:"dataset_id"`
-			DatasetName          string  `json:"dataset_name"`
-			RunStatus            string  `json:"run_status"`
-			Status               string  `json:"status"`
-			Summary              string  `json:"summary"`
-			TotalItems           int     `json:"total_items"`
-			RecordedResults      int     `json:"recorded_results"`
-			PassedItems          int     `json:"passed_items"`
-			FailedItems          int     `json:"failed_items"`
-			MissingResults       int     `json:"missing_results"`
-			AverageScore         float64 `json:"average_score"`
-			JudgeVersion         string  `json:"judge_version"`
-			VersionID            string  `json:"version_id"`
-			BadCaseCount         int     `json:"bad_case_count"`
-			LatestFollowUpCaseID string  `json:"latest_follow_up_case_id"`
+			ReportID                 string  `json:"report_id"`
+			TenantID                 string  `json:"tenant_id"`
+			RunID                    string  `json:"run_id"`
+			DatasetID                string  `json:"dataset_id"`
+			DatasetName              string  `json:"dataset_name"`
+			RunStatus                string  `json:"run_status"`
+			Status                   string  `json:"status"`
+			Summary                  string  `json:"summary"`
+			TotalItems               int     `json:"total_items"`
+			RecordedResults          int     `json:"recorded_results"`
+			PassedItems              int     `json:"passed_items"`
+			FailedItems              int     `json:"failed_items"`
+			MissingResults           int     `json:"missing_results"`
+			AverageScore             float64 `json:"average_score"`
+			JudgeVersion             string  `json:"judge_version"`
+			VersionID                string  `json:"version_id"`
+			BadCaseCount             int     `json:"bad_case_count"`
+			FollowUpCaseCount        int     `json:"follow_up_case_count"`
+			OpenFollowUpCaseCount    int     `json:"open_follow_up_case_count"`
+			LatestFollowUpCaseID     string  `json:"latest_follow_up_case_id"`
+			LatestFollowUpCaseStatus string  `json:"latest_follow_up_case_status"`
 		} `json:"right"`
 		Summary struct {
 			SameTenant          bool    `json:"same_tenant"`
@@ -262,8 +268,14 @@ func TestCompareEvalReportsReturnsTypedSummary(t *testing.T) {
 	if got.Left.LatestFollowUpCaseID != leftFollowUp.ID {
 		t.Fatalf("Left.LatestFollowUpCaseID = %q, want %q", got.Left.LatestFollowUpCaseID, leftFollowUp.ID)
 	}
+	if got.Left.FollowUpCaseCount != 1 || got.Left.OpenFollowUpCaseCount != 1 || got.Left.LatestFollowUpCaseStatus != casesvc.StatusOpen {
+		t.Fatalf("Left follow-up summary = %#v, want count=1 open=1 status=open", got.Left)
+	}
 	if got.Right.LatestFollowUpCaseID != rightFollowUp.ID {
 		t.Fatalf("Right.LatestFollowUpCaseID = %q, want %q", got.Right.LatestFollowUpCaseID, rightFollowUp.ID)
+	}
+	if got.Right.FollowUpCaseCount != 1 || got.Right.OpenFollowUpCaseCount != 1 || got.Right.LatestFollowUpCaseStatus != casesvc.StatusOpen {
+		t.Fatalf("Right follow-up summary = %#v, want count=1 open=1 status=open", got.Right)
 	}
 	if !got.Summary.SameTenant {
 		t.Fatal("SameTenant = false, want true")
