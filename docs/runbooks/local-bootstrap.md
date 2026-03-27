@@ -172,6 +172,7 @@ The current chat stream implementation is a Milestone 1 skeleton:
 - use the `Results` column on `/admin/eval-runs` when you want a quick terminal pass/fail count before drilling into the selected run's full `item_results`
 - use the `My open cases` shortcut on `/admin/cases` when you want a queue view for the current operator handle without manually composing `status=open&assigned_to=<actor>`
 - use the `Unassigned` shortcut on `/admin/cases` when you want the shared open backlog without manually composing `status=open&unassigned_only=true`
+- use the `Eval-backed cases` shortcut on `/admin/cases` when you want the durable follow-up slice created from eval regressions without manually composing `eval_backed_only=true`
 - use `Copy case summary` on `/admin/cases` when you need a compact, paste-ready handoff note, `Copy case link` when you want to share the exact filtered case-board URL, and `Open case API detail` when you want the canonical case JSON in a separate tab
 - use `Assign case` on `/admin/cases` when you need to put an open follow-up object into a named operator lane before continuing triage or handoff
 - use `Add note` on `/admin/cases` when you need to capture operator progress without mutating the case lifecycle

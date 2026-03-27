@@ -68,10 +68,16 @@ func (s *memoryStore) List(_ context.Context, filter ListFilter) (ListPage, erro
 		if filter.UnassignedOnly && item.AssignedTo != "" {
 			continue
 		}
+		if filter.EvalBackedOnly && item.SourceEvalReportID == "" {
+			continue
+		}
 		if filter.SourceTaskID != "" && item.SourceTaskID != filter.SourceTaskID {
 			continue
 		}
 		if filter.SourceReportID != "" && item.SourceReportID != filter.SourceReportID {
+			continue
+		}
+		if filter.SourceEvalReportID != "" && item.SourceEvalReportID != filter.SourceEvalReportID {
 			continue
 		}
 		items = append(items, item)

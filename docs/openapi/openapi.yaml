@@ -754,7 +754,7 @@ paths:
       summary: List durable operator cases
       description: |
         Returns operator-facing case rows ordered by `updated_at` descending.
-        The current minimal case slice supports tenant, status, and source-link filters plus offset pagination.
+        The current minimal case slice supports tenant, status, source-link filters, eval-backed queue filters, and offset pagination.
       operationId: listCases
       parameters:
         - name: tenant_id
@@ -790,6 +790,16 @@ paths:
           required: false
           schema:
             type: string
+        - name: source_eval_report_id
+          in: query
+          required: false
+          schema:
+            type: string
+        - name: eval_backed_only
+          in: query
+          required: false
+          schema:
+            type: boolean
         - name: limit
           in: query
           required: false

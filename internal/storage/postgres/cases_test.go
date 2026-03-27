@@ -8,6 +8,7 @@ import (
 	"time"
 
 	casesvc "opspilot-go/internal/case"
+	evalsvc "opspilot-go/internal/eval"
 )
 
 func TestCaseStoreRoundTrip(t *testing.T) {
@@ -295,6 +296,146 @@ func TestCaseStoreListSupportsUnassignedOnlyFilter(t *testing.T) {
 	}
 	if page.Cases[0].ID != unassigned.ID {
 		t.Fatalf("List().Cases[0].ID = %q, want %q", page.Cases[0].ID, unassigned.ID)
+	}
+}
+
+func TestCaseStoreListSupportsEvalReportFilters(t *testing.T) {
+	dsn := os.Getenv("OPSPILOT_TEST_POSTGRES_DSN")
+	if dsn == "" {
+		t.Skip("OPSPILOT_TEST_POSTGRES_DSN not set")
+	}
+
+	ctx := context.Background()
+	pool, err := OpenPool(ctx, dsn)
+	if err != nil {
+		t.Fatalf("OpenPool() error = %v", err)
+	}
+	defer pool.Close()
+
+	applyMigration(t, ctx, pool)
+	if _, err := pool.Exec(ctx, "TRUNCATE eval_reports, case_notes, cases, reports, workflow_task_events, workflow_tasks RESTART IDENTITY CASCADE"); err != nil {
+		t.Fatalf("TRUNCATE eval_reports and lineage tables error = %v", err)
+	}
+
+	reportStore := NewEvalReportStore(pool)
+	now := time.Unix(1700002070, 0).UTC()
+	for _, item := range []evalsvc.EvalReport{
+		{
+			ID:              "eval-report-filter-1",
+			TenantID:        "tenant-1",
+			RunID:           "eval-run-filter-1",
+			DatasetID:       "dataset-filter-1",
+			DatasetName:     "Dataset One",
+			RunStatus:       evalsvc.RunStatusFailed,
+			Status:          evalsvc.EvalReportStatusReady,
+			Summary:         "first eval report",
+			TotalItems:      1,
+			RecordedResults: 1,
+			PassedItems:     0,
+			FailedItems:     1,
+			MissingResults:  0,
+			AverageScore:    0,
+			JudgeVersion:    "judge-a",
+			MetadataJSON:    []byte(`{}`),
+			CreatedAt:       now,
+			UpdatedAt:       now,
+			ReadyAt:         now,
+		},
+		{
+			ID:              "eval-report-filter-2",
+			TenantID:        "tenant-1",
+			RunID:           "eval-run-filter-2",
+			DatasetID:       "dataset-filter-1",
+			DatasetName:     "Dataset One",
+			RunStatus:       evalsvc.RunStatusFailed,
+			Status:          evalsvc.EvalReportStatusReady,
+			Summary:         "second eval report",
+			TotalItems:      1,
+			RecordedResults: 1,
+			PassedItems:     0,
+			FailedItems:     1,
+			MissingResults:  0,
+			AverageScore:    0,
+			JudgeVersion:    "judge-a",
+			MetadataJSON:    []byte(`{}`),
+			CreatedAt:       now.Add(time.Second),
+			UpdatedAt:       now.Add(time.Second),
+			ReadyAt:         now.Add(time.Second),
+		},
+	} {
+		if _, err := reportStore.SaveEvalReport(ctx, item); err != nil {
+			t.Fatalf("SaveEvalReport(%s) error = %v", item.ID, err)
+		}
+	}
+
+	store := NewCaseStore(pool)
+	for _, item := range []casesvc.Case{
+		{
+			ID:                 "case-eval-filter-1",
+			TenantID:           "tenant-1",
+			Status:             casesvc.StatusOpen,
+			Title:              "Eval-backed one",
+			SourceEvalReportID: "eval-report-filter-1",
+			CreatedBy:          "operator-1",
+			CreatedAt:          now,
+			UpdatedAt:          now,
+		},
+		{
+			ID:                 "case-eval-filter-2",
+			TenantID:           "tenant-1",
+			Status:             casesvc.StatusOpen,
+			Title:              "Eval-backed two",
+			SourceEvalReportID: "eval-report-filter-2",
+			CreatedBy:          "operator-1",
+			CreatedAt:          now.Add(time.Second),
+			UpdatedAt:          now.Add(time.Second),
+		},
+		{
+			ID:        "case-non-eval-filter-1",
+			TenantID:  "tenant-1",
+			Status:    casesvc.StatusOpen,
+			Title:     "No eval linkage",
+			CreatedBy: "operator-1",
+			CreatedAt: now.Add(2 * time.Second),
+			UpdatedAt: now.Add(2 * time.Second),
+		},
+	} {
+		if _, err := store.Save(ctx, item); err != nil {
+			t.Fatalf("Save(%s) error = %v", item.ID, err)
+		}
+	}
+
+	exactPage, err := store.List(ctx, casesvc.ListFilter{
+		TenantID:           "tenant-1",
+		SourceEvalReportID: "eval-report-filter-1",
+		Limit:              10,
+	})
+	if err != nil {
+		t.Fatalf("List(exactPage) error = %v", err)
+	}
+	if len(exactPage.Cases) != 1 {
+		t.Fatalf("len(exactPage.Cases) = %d, want %d", len(exactPage.Cases), 1)
+	}
+	if exactPage.Cases[0].ID != "case-eval-filter-1" {
+		t.Fatalf("exactPage.Cases[0].ID = %q, want %q", exactPage.Cases[0].ID, "case-eval-filter-1")
+	}
+
+	evalPage, err := store.List(ctx, casesvc.ListFilter{
+		TenantID:       "tenant-1",
+		EvalBackedOnly: true,
+		Limit:          10,
+	})
+	if err != nil {
+		t.Fatalf("List(evalPage) error = %v", err)
+	}
+	if len(evalPage.Cases) != 2 {
+		t.Fatalf("len(evalPage.Cases) = %d, want %d", len(evalPage.Cases), 2)
+	}
+	if evalPage.Cases[0].ID != "case-eval-filter-2" {
+		t.Fatalf("evalPage.Cases[0].ID = %q, want %q", evalPage.Cases[0].ID, "case-eval-filter-2")
+	}
+	if evalPage.Cases[1].ID != "case-eval-filter-1" {
+		t.Fatalf("evalPage.Cases[1].ID = %q, want %q", evalPage.Cases[1].ID, "case-eval-filter-1")
 	}
 }
 

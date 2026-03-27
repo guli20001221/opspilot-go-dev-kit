@@ -352,6 +352,118 @@ func TestListCasesEndpointSupportsUnassignedOnlyFilter(t *testing.T) {
 	}
 }
 
+func TestListCasesEndpointSupportsEvalReportSourceFilter(t *testing.T) {
+	caseService := casesvc.NewService()
+
+	evalBacked, err := caseService.CreateCase(context.Background(), casesvc.CreateInput{
+		TenantID:           "tenant-1",
+		Title:              "Eval-backed case",
+		SourceEvalReportID: "eval-report-1",
+	})
+	if err != nil {
+		t.Fatalf("CreateCase(evalBacked) error = %v", err)
+	}
+	if _, err := caseService.CreateCase(context.Background(), casesvc.CreateInput{
+		TenantID:           "tenant-1",
+		Title:              "Other eval-backed case",
+		SourceEvalReportID: "eval-report-2",
+	}); err != nil {
+		t.Fatalf("CreateCase(otherEvalBacked) error = %v", err)
+	}
+	if _, err := caseService.CreateCase(context.Background(), casesvc.CreateInput{
+		TenantID: "tenant-1",
+		Title:    "Non eval-backed case",
+	}); err != nil {
+		t.Fatalf("CreateCase(nonEvalBacked) error = %v", err)
+	}
+
+	server := httptest.NewServer(NewHandlerWithDependencies(Dependencies{
+		Cases: caseService,
+	}))
+	defer server.Close()
+
+	resp, err := http.Get(server.URL + "/api/v1/cases?tenant_id=tenant-1&source_eval_report_id=eval-report-1&limit=10")
+	if err != nil {
+		t.Fatalf("Get() error = %v", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("StatusCode = %d, want %d", resp.StatusCode, http.StatusOK)
+	}
+
+	var page listCasesResponse
+	if err := json.NewDecoder(resp.Body).Decode(&page); err != nil {
+		t.Fatalf("Decode() error = %v", err)
+	}
+	if len(page.Cases) != 1 {
+		t.Fatalf("len(page.Cases) = %d, want %d", len(page.Cases), 1)
+	}
+	if page.Cases[0].CaseID != evalBacked.ID {
+		t.Fatalf("page.Cases[0].CaseID = %q, want %q", page.Cases[0].CaseID, evalBacked.ID)
+	}
+	if page.Cases[0].SourceEvalReportID != "eval-report-1" {
+		t.Fatalf("page.Cases[0].SourceEvalReportID = %q, want %q", page.Cases[0].SourceEvalReportID, "eval-report-1")
+	}
+}
+
+func TestListCasesEndpointSupportsEvalBackedOnlyFilter(t *testing.T) {
+	caseService := casesvc.NewService()
+
+	firstEvalBacked, err := caseService.CreateCase(context.Background(), casesvc.CreateInput{
+		TenantID:           "tenant-1",
+		Title:              "First eval-backed case",
+		SourceEvalReportID: "eval-report-1",
+	})
+	if err != nil {
+		t.Fatalf("CreateCase(firstEvalBacked) error = %v", err)
+	}
+	secondEvalBacked, err := caseService.CreateCase(context.Background(), casesvc.CreateInput{
+		TenantID:           "tenant-1",
+		Title:              "Second eval-backed case",
+		SourceEvalReportID: "eval-report-2",
+	})
+	if err != nil {
+		t.Fatalf("CreateCase(secondEvalBacked) error = %v", err)
+	}
+	if _, err := caseService.CreateCase(context.Background(), casesvc.CreateInput{
+		TenantID:       "tenant-1",
+		Title:          "Report-backed case",
+		SourceReportID: "report-1",
+	}); err != nil {
+		t.Fatalf("CreateCase(reportBacked) error = %v", err)
+	}
+
+	server := httptest.NewServer(NewHandlerWithDependencies(Dependencies{
+		Cases: caseService,
+	}))
+	defer server.Close()
+
+	resp, err := http.Get(server.URL + "/api/v1/cases?tenant_id=tenant-1&eval_backed_only=true&limit=10")
+	if err != nil {
+		t.Fatalf("Get() error = %v", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("StatusCode = %d, want %d", resp.StatusCode, http.StatusOK)
+	}
+
+	var page listCasesResponse
+	if err := json.NewDecoder(resp.Body).Decode(&page); err != nil {
+		t.Fatalf("Decode() error = %v", err)
+	}
+	if len(page.Cases) != 2 {
+		t.Fatalf("len(page.Cases) = %d, want %d", len(page.Cases), 2)
+	}
+	if page.Cases[0].CaseID != secondEvalBacked.ID {
+		t.Fatalf("page.Cases[0].CaseID = %q, want %q", page.Cases[0].CaseID, secondEvalBacked.ID)
+	}
+	if page.Cases[1].CaseID != firstEvalBacked.ID {
+		t.Fatalf("page.Cases[1].CaseID = %q, want %q", page.Cases[1].CaseID, firstEvalBacked.ID)
+	}
+}
+
 func TestListCasesEndpointRejectsInvalidUnassignedOnly(t *testing.T) {
 	server := httptest.NewServer(NewHandler())
 	defer server.Close()

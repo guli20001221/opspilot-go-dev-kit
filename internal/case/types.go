@@ -65,14 +65,16 @@ type CreateInput struct {
 
 // ListFilter narrows case list queries for operator-facing views.
 type ListFilter struct {
-	TenantID       string
-	Status         string
-	AssignedTo     string
-	UnassignedOnly bool
-	SourceTaskID   string
-	SourceReportID string
-	Limit          int
-	Offset         int
+	TenantID           string
+	Status             string
+	AssignedTo         string
+	UnassignedOnly     bool
+	EvalBackedOnly     bool
+	SourceTaskID       string
+	SourceReportID     string
+	SourceEvalReportID string
+	Limit              int
+	Offset             int
 }
 
 // ListPage is the paginated case list result.

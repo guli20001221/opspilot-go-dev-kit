@@ -1080,6 +1080,9 @@ func TestAdminCasesPageRendersHTML(t *testing.T) {
 	if !strings.Contains(body, "Open cases") {
 		t.Fatal("open-cases quick view missing from cases page HTML")
 	}
+	if !strings.Contains(body, "Eval-backed cases") {
+		t.Fatal("eval-backed quick view missing from cases page HTML")
+	}
 	if !strings.Contains(body, "Age") {
 		t.Fatal("age indicator missing from cases page HTML")
 	}
