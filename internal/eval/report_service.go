@@ -3,7 +3,9 @@ package eval
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
+	"reflect"
 	"slices"
 	"time"
 )
@@ -57,6 +59,32 @@ func (s *EvalReportService) ListEvalReports(ctx context.Context, filter EvalRepo
 	}
 
 	return s.store.ListEvalReports(ctx, filter)
+}
+
+// CompareEvalReports returns two durable eval reports plus an operator-facing summary
+// of the differences that matter for triage and regression review.
+func (s *EvalReportService) CompareEvalReports(ctx context.Context, leftReportID string, rightReportID string) (EvalReportComparison, error) {
+	if leftReportID == "" {
+		return EvalReportComparison{}, errors.New("left_report_id is required")
+	}
+	if rightReportID == "" {
+		return EvalReportComparison{}, errors.New("right_report_id is required")
+	}
+
+	left, err := s.store.GetEvalReport(ctx, leftReportID)
+	if err != nil {
+		return EvalReportComparison{}, err
+	}
+	right, err := s.store.GetEvalReport(ctx, rightReportID)
+	if err != nil {
+		return EvalReportComparison{}, err
+	}
+
+	return EvalReportComparison{
+		Left:    left,
+		Right:   right,
+		Summary: buildEvalReportComparisonSummary(left, right),
+	}, nil
 }
 
 // MaterializeRunReport builds and saves the canonical eval report for one completed run.
@@ -203,4 +231,56 @@ func judgePromptPathFromOutput(raw json.RawMessage) string {
 	}
 	value, _ := payload["judge_prompt_path"].(string)
 	return value
+}
+
+func buildEvalReportComparisonSummary(left EvalReport, right EvalReport) EvalReportComparisonSummary {
+	return EvalReportComparisonSummary{
+		SameTenant:           left.TenantID == right.TenantID,
+		SameDataset:          left.DatasetID == right.DatasetID,
+		SameRunStatus:        left.RunStatus == right.RunStatus,
+		JudgeVersionChanged:  left.JudgeVersion != right.JudgeVersion,
+		MetadataChanged:      !equalEvalJSON(left.MetadataJSON, right.MetadataJSON),
+		TotalItemsDelta:      right.TotalItems - left.TotalItems,
+		RecordedResultsDelta: right.RecordedResults - left.RecordedResults,
+		PassedItemsDelta:     right.PassedItems - left.PassedItems,
+		FailedItemsDelta:     right.FailedItems - left.FailedItems,
+		MissingResultsDelta:  right.MissingResults - left.MissingResults,
+		AverageScoreDelta:    right.AverageScore - left.AverageScore,
+		BadCaseCountDelta:    len(right.BadCases) - len(left.BadCases),
+		BadCaseOverlapCount:  overlapEvalBadCases(left.BadCases, right.BadCases),
+		ReadyAtDeltaSecond:   int64(right.ReadyAt.Sub(left.ReadyAt).Seconds()),
+	}
+}
+
+func overlapEvalBadCases(left []EvalReportBadCase, right []EvalReportBadCase) int {
+	leftIDs := make(map[string]struct{}, len(left))
+	for _, item := range left {
+		leftIDs[item.EvalCaseID] = struct{}{}
+	}
+
+	count := 0
+	for _, item := range right {
+		if _, ok := leftIDs[item.EvalCaseID]; ok {
+			count++
+		}
+	}
+
+	return count
+}
+
+func equalEvalJSON(left json.RawMessage, right json.RawMessage) bool {
+	if len(left) == 0 && len(right) == 0 {
+		return true
+	}
+
+	var leftValue any
+	if err := json.Unmarshal(left, &leftValue); err != nil {
+		return string(left) == string(right)
+	}
+	var rightValue any
+	if err := json.Unmarshal(right, &rightValue); err != nil {
+		return string(left) == string(right)
+	}
+
+	return reflect.DeepEqual(leftValue, rightValue)
 }

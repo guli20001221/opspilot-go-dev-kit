@@ -34,6 +34,7 @@ It does not yet wire real DB access from the app code or a real OpenTelemetry ex
 10. Open `http://localhost:18080/admin/task-board` to inspect the embedded operator page against the local admin read model.
 11. Open `http://localhost:18080/admin/reports` to inspect the first report-focused operator page against the same admin read model.
 12. Open `http://localhost:18080/admin/eval-reports` to inspect the first eval-report-focused operator page against the durable eval-report contract.
+13. Open `http://localhost:18080/admin/eval-report-compare` to compare two durable eval reports through the canonical compare contract.
 
 Successful build artifacts are emitted under `bin/`.
 
@@ -75,6 +76,7 @@ Successful build artifacts are emitted under `bin/`.
 - `POST /api/v1/eval-runs/{run_id}/retry`
 - `GET /api/v1/eval-reports`
 - `GET /api/v1/eval-reports/{report_id}`
+- `GET /api/v1/eval-report-compare`
 - `POST /api/v1/chat/stream`
 
 The current chat stream implementation is a Milestone 1 skeleton:
@@ -150,6 +152,8 @@ The current chat stream implementation is a Milestone 1 skeleton:
 - use `GET /api/v1/eval-reports?tenant_id=<tenant>` when you need the lightweight tenant-scoped browse lane for those durable eval reports
 - use `GET /api/v1/eval-reports/{report_id}?tenant_id=<tenant>` when you need the canonical aggregated eval report detail, including metadata and bad-case lineage
 - open `http://localhost:18080/admin/eval-reports` when you want the first eval-report operator page, including bad-case drill-down plus run, dataset, eval, trace, and version handoff links
+- use `GET /api/v1/eval-report-compare?tenant_id=<tenant>&left_report_id=<left>&right_report_id=<right>` when you need a canonical eval-report delta view with score change, metadata drift, and bad-case overlap
+- open `http://localhost:18080/admin/eval-report-compare` when you want the first eval-report comparison page, including handoff into eval runs and version detail
 - terminal run reads now also expose `result_summary`, so `/api/v1/eval-runs` and `/admin/eval-runs` can show quick pass/fail totals without loading the full per-item payload first
 - open `http://localhost:18080/admin/cases` when you want the first case-focused operator page, including source task/report handoff links and the minimal `Close case` action
 - open `http://localhost:18080/admin/evals` when you want the first eval-focused operator page, including durable eval detail plus case/task/report/version/trace handoff links

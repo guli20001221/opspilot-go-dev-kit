@@ -96,3 +96,100 @@ func TestEvalReportServiceMaterializesAggregatesFromRunDetail(t *testing.T) {
 		t.Fatalf("bad case = %#v, want failed eval-case lineage", report.BadCases[0])
 	}
 }
+
+func TestEvalReportServiceCompareEvalReportsBuildsOperatorFacingSummary(t *testing.T) {
+	ctx := context.Background()
+	store := newMemoryStore()
+	reportService := NewEvalReportServiceWithDependencies(store, nil)
+
+	left := EvalReport{
+		ID:              "eval-report-left",
+		TenantID:        "tenant-eval-compare",
+		RunID:           "eval-run-left",
+		DatasetID:       "eval-dataset-shared",
+		DatasetName:     "Shared Dataset",
+		RunStatus:       RunStatusSucceeded,
+		Status:          EvalReportStatusReady,
+		Summary:         "1 failed / 3 passed / 4 total",
+		TotalItems:      4,
+		RecordedResults: 4,
+		PassedItems:     3,
+		FailedItems:     1,
+		MissingResults:  0,
+		AverageScore:    0.88,
+		JudgeVersion:    "judge-v1",
+		MetadataJSON:    json.RawMessage(`{"judge_prompt_path":"eval/prompts/judge-v1.md","version_ids":["version-a"]}`),
+		BadCases: []EvalReportBadCase{
+			{EvalCaseID: "eval-case-shared", Title: "Shared bad case", Verdict: RunItemVerdictFail, Score: 0.1},
+			{EvalCaseID: "eval-case-left-only", Title: "Left-only bad case", Verdict: RunItemVerdictFail, Score: 0.2},
+		},
+		CreatedAt: time.Unix(1700042900, 0).UTC(),
+		UpdatedAt: time.Unix(1700043000, 0).UTC(),
+		ReadyAt:   time.Unix(1700043000, 0).UTC(),
+	}
+	right := EvalReport{
+		ID:              "eval-report-right",
+		TenantID:        "tenant-eval-compare",
+		RunID:           "eval-run-right",
+		DatasetID:       "eval-dataset-other",
+		DatasetName:     "Other Dataset",
+		RunStatus:       RunStatusFailed,
+		Status:          EvalReportStatusReady,
+		Summary:         "2 failed / 2 passed / 4 total",
+		TotalItems:      4,
+		RecordedResults: 4,
+		PassedItems:     2,
+		FailedItems:     2,
+		MissingResults:  0,
+		AverageScore:    0.41,
+		JudgeVersion:    "judge-v2",
+		MetadataJSON:    json.RawMessage(`{"judge_prompt_path":"eval/prompts/judge-v2.md","version_ids":["version-b"]}`),
+		BadCases: []EvalReportBadCase{
+			{EvalCaseID: "eval-case-shared", Title: "Shared bad case", Verdict: RunItemVerdictFail, Score: 0.1},
+			{EvalCaseID: "eval-case-right-only", Title: "Right-only bad case", Verdict: RunItemVerdictFail, Score: 0.05},
+		},
+		CreatedAt: time.Unix(1700042910, 0).UTC(),
+		UpdatedAt: time.Unix(1700043015, 0).UTC(),
+		ReadyAt:   time.Unix(1700043015, 0).UTC(),
+	}
+	for _, item := range []EvalReport{left, right} {
+		if _, err := store.SaveEvalReport(ctx, item); err != nil {
+			t.Fatalf("SaveEvalReport(%s) error = %v", item.ID, err)
+		}
+	}
+
+	got, err := reportService.CompareEvalReports(ctx, left.ID, right.ID)
+	if err != nil {
+		t.Fatalf("CompareEvalReports() error = %v", err)
+	}
+	if got.Left.ID != left.ID || got.Right.ID != right.ID {
+		t.Fatalf("comparison IDs = %#v, want %q and %q", got, left.ID, right.ID)
+	}
+	if !got.Summary.SameTenant {
+		t.Fatalf("SameTenant = false, want true")
+	}
+	if got.Summary.SameDataset {
+		t.Fatalf("SameDataset = true, want false")
+	}
+	if got.Summary.SameRunStatus {
+		t.Fatalf("SameRunStatus = true, want false")
+	}
+	if !got.Summary.JudgeVersionChanged || !got.Summary.MetadataChanged {
+		t.Fatalf("judge/metadata flags = %#v, want changed", got.Summary)
+	}
+	if diff := got.Summary.AverageScoreDelta - (-0.47); diff < -0.000001 || diff > 0.000001 {
+		t.Fatalf("AverageScoreDelta = %v, want approximately -0.47", got.Summary.AverageScoreDelta)
+	}
+	if got.Summary.FailedItemsDelta != 1 {
+		t.Fatalf("FailedItemsDelta = %d, want 1", got.Summary.FailedItemsDelta)
+	}
+	if got.Summary.BadCaseCountDelta != 0 {
+		t.Fatalf("BadCaseCountDelta = %d, want 0", got.Summary.BadCaseCountDelta)
+	}
+	if got.Summary.BadCaseOverlapCount != 1 {
+		t.Fatalf("BadCaseOverlapCount = %d, want 1", got.Summary.BadCaseOverlapCount)
+	}
+	if got.Summary.ReadyAtDeltaSecond != 15 {
+		t.Fatalf("ReadyAtDeltaSecond = %d, want 15", got.Summary.ReadyAtDeltaSecond)
+	}
+}

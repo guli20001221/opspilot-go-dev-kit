@@ -10,6 +10,7 @@ import (
 	"strings"
 	"testing"
 
+	casesvc "opspilot-go/internal/case"
 	evalsvc "opspilot-go/internal/eval"
 )
 
@@ -559,11 +560,126 @@ func TestAdminEvalReportsPageRendersHTML(t *testing.T) {
 	if !strings.Contains(body, "Open eval lane") {
 		t.Fatal("eval lane handoff missing from eval reports page HTML")
 	}
+	if !strings.Contains(body, "/admin/eval-report-compare") {
+		t.Fatal("eval report compare handoff missing from eval reports page HTML")
+	}
 	if !strings.Contains(body, "Bad cases") {
 		t.Fatal("bad cases section missing from eval reports page HTML")
 	}
 	if !strings.Contains(body, "task-row-selected") {
 		t.Fatal("selected eval report row styling missing from eval reports page HTML")
+	}
+}
+
+func TestAdminEvalReportComparePageRendersHTML(t *testing.T) {
+	server := httptest.NewServer(NewHandler())
+	defer server.Close()
+
+	resp, err := http.Get(server.URL + "/admin/eval-report-compare")
+	if err != nil {
+		t.Fatalf("Get() error = %v", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("StatusCode = %d, want %d", resp.StatusCode, http.StatusOK)
+	}
+	if got := resp.Header.Get("Content-Type"); !strings.Contains(got, "text/html") {
+		t.Fatalf("Content-Type = %q, want text/html", got)
+	}
+
+	bodyBytes, err := io.ReadAll(resp.Body)
+	if err != nil {
+		t.Fatalf("ReadAll() error = %v", err)
+	}
+	body := string(bodyBytes)
+	if !strings.Contains(body, "<title>OpsPilot Eval Report Compare</title>") {
+		t.Fatal("page title missing from eval report compare HTML")
+	}
+	if !strings.Contains(body, "/api/v1/eval-report-compare") {
+		t.Fatal("eval report compare API path missing from page HTML")
+	}
+	if !strings.Contains(body, "Load comparison") {
+		t.Fatal("load comparison action missing from eval report compare HTML")
+	}
+	if !strings.Contains(body, "Bad-case overlap") {
+		t.Fatal("bad-case overlap summary missing from eval report compare HTML")
+	}
+	if !strings.Contains(body, "Open left eval report API") {
+		t.Fatal("left eval report api handoff missing from compare HTML")
+	}
+	if !strings.Contains(body, "Open right eval report API") {
+		t.Fatal("right eval report api handoff missing from compare HTML")
+	}
+	if !strings.Contains(body, "/admin/eval-runs") {
+		t.Fatal("eval run handoff missing from compare HTML")
+	}
+	if !strings.Contains(body, "/admin/version-detail") {
+		t.Fatal("version handoff missing from compare HTML")
+	}
+}
+
+func TestAdminEvalReportComparePageRuntimeSmoke(t *testing.T) {
+	caseService := casesvc.NewService()
+	evalCaseService := evalsvc.NewService(caseService, nil)
+	datasetService := evalsvc.NewDatasetService(evalCaseService)
+	runService := evalsvc.NewRunService(datasetService)
+	reportService := evalsvc.NewEvalReportServiceWithDependencies(nil, runService)
+	leftReportID := materializeEvalRunReport(t, "tenant-eval-compare-admin-smoke", evalsvc.RunStatusSucceeded, "success detail", caseService, evalCaseService, datasetService, runService, reportService, "Dataset Compare A", "Source Left")
+	rightReportID := materializeEvalRunReport(t, "tenant-eval-compare-admin-smoke", evalsvc.RunStatusFailed, "failure detail", caseService, evalCaseService, datasetService, runService, reportService, "Dataset Compare B", "Source Right")
+
+	server := httptest.NewServer(NewHandlerWithDependencies(Dependencies{EvalReports: reportService}))
+	defer server.Close()
+
+	nodePathRoot, err := npmGlobalRoot()
+	if err != nil {
+		t.Skipf("skipping playwright runtime smoke: %v", err)
+	}
+
+	scriptPath := filepath.Join(t.TempDir(), "eval_report_compare_smoke.js")
+	script := `
+const { chromium } = require("playwright");
+const baseURL = process.argv[2];
+const tenantID = process.argv[3];
+const leftReportID = process.argv[4];
+const rightReportID = process.argv[5];
+
+(async () => {
+  const browser = await chromium.launch({ headless: true });
+  const page = await browser.newPage();
+  await page.goto(baseURL + "/admin/eval-report-compare?tenant_id=" + encodeURIComponent(tenantID) + "&left_report_id=" + encodeURIComponent(leftReportID) + "&right_report_id=" + encodeURIComponent(rightReportID));
+  await page.waitForSelector("text=Comparison summary");
+  await page.waitForSelector("text=Bad-case overlap");
+  const leftHref = await page.getAttribute("#leftReportAPILink", "href");
+  if (!leftHref || !leftHref.includes(leftReportID)) {
+    throw new Error("left report API handoff missing selected report");
+  }
+  const rightHref = await page.getAttribute("#rightReportAPILink", "href");
+  if (!rightHref || !rightHref.includes(rightReportID)) {
+    throw new Error("right report API handoff missing selected report");
+  }
+  await page.goto(baseURL + "/admin/eval-report-compare?tenant_id=" + encodeURIComponent(tenantID) + "&left_report_id=" + encodeURIComponent(leftReportID) + "&right_report_id=missing-report");
+  await page.waitForSelector("text=Eval report comparison request failed: 404 Not Found");
+  await browser.close();
+})().catch((error) => {
+  console.error(error && error.stack ? error.stack : String(error));
+  process.exit(1);
+});
+`
+	if err := os.WriteFile(scriptPath, []byte(script), 0o600); err != nil {
+		t.Fatalf("WriteFile(scriptPath) error = %v", err)
+	}
+
+	cmd := exec.Command("node", scriptPath, server.URL, "tenant-eval-compare-admin-smoke", leftReportID, rightReportID)
+	cmd.Env = append(os.Environ(), "NODE_PATH="+nodePathRoot)
+	output, err := cmd.CombinedOutput()
+	if err != nil {
+		outText := string(output)
+		if strings.Contains(outText, "Please run the following command to download new browsers") ||
+			strings.Contains(outText, "Executable doesn't exist") {
+			t.Skip("skipping playwright runtime smoke: browser binaries not installed")
+		}
+		t.Fatalf("playwright runtime smoke failed: %v\n%s", err, string(output))
 	}
 }
 
@@ -648,6 +764,21 @@ func TestAdminEvalReportsPageRejectsUnknownSubpath(t *testing.T) {
 	defer server.Close()
 
 	resp, err := http.Get(server.URL + "/admin/eval-reports/unknown")
+	if err != nil {
+		t.Fatalf("Get() error = %v", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusNotFound {
+		t.Fatalf("StatusCode = %d, want %d", resp.StatusCode, http.StatusNotFound)
+	}
+}
+
+func TestAdminEvalReportComparePageRejectsUnknownSubpath(t *testing.T) {
+	server := httptest.NewServer(NewHandler())
+	defer server.Close()
+
+	resp, err := http.Get(server.URL + "/admin/eval-report-compare/unknown")
 	if err != nil {
 		t.Fatalf("Get() error = %v", err)
 	}

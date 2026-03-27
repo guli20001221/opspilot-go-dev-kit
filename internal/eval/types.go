@@ -298,6 +298,31 @@ type EvalReportListPage struct {
 	NextOffset int
 }
 
+// EvalReportComparisonSummary captures operator-facing differences between two eval reports.
+type EvalReportComparisonSummary struct {
+	SameTenant           bool
+	SameDataset          bool
+	SameRunStatus        bool
+	JudgeVersionChanged  bool
+	MetadataChanged      bool
+	TotalItemsDelta      int
+	RecordedResultsDelta int
+	PassedItemsDelta     int
+	FailedItemsDelta     int
+	MissingResultsDelta  int
+	AverageScoreDelta    float64
+	BadCaseCountDelta    int
+	BadCaseOverlapCount  int
+	ReadyAtDeltaSecond   int64
+}
+
+// EvalReportComparison holds two durable eval reports and their derived compare summary.
+type EvalReportComparison struct {
+	Left    EvalReport
+	Right   EvalReport
+	Summary EvalReportComparisonSummary
+}
+
 // RunListFilter constrains eval-run list reads.
 type RunListFilter struct {
 	TenantID  string

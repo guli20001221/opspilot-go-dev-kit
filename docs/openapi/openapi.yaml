@@ -1924,6 +1924,61 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
+  /api/v1/eval-report-compare:
+    get:
+      summary: Compare two durable eval reports
+      description: |
+        Returns a narrow read-only comparison between two durable eval-report artifacts.
+        The compare contract surfaces operator-facing deltas such as score change, bad-case overlap,
+        judge-version drift, and metadata drift without forcing the browser to reconstruct report semantics.
+      operationId: compareEvalReports
+      parameters:
+        - name: tenant_id
+          in: query
+          required: true
+          schema:
+            type: string
+        - name: left_report_id
+          in: query
+          required: true
+          schema:
+            type: string
+        - name: right_report_id
+          in: query
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Eval report comparison returned.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/EvalReportComparison'
+        '400':
+          description: Query parameters were invalid or incomplete.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: One or both eval reports were not found for the tenant.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '405':
+          description: Method not allowed.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Eval report comparison failed.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
   /api/v1/admin/task-board:
     get:
       summary: Get the admin task board view
@@ -3246,6 +3301,144 @@ components:
         next_offset:
           type: integer
           minimum: 0
+    EvalReportComparisonSummary:
+      type: object
+      required:
+        - same_tenant
+        - same_dataset
+        - same_run_status
+        - judge_version_changed
+        - metadata_changed
+        - total_items_delta
+        - recorded_results_delta
+        - passed_items_delta
+        - failed_items_delta
+        - missing_results_delta
+        - average_score_delta
+        - bad_case_count_delta
+        - bad_case_overlap_count
+        - ready_at_delta_second
+      properties:
+        same_tenant:
+          type: boolean
+        same_dataset:
+          type: boolean
+        same_run_status:
+          type: boolean
+        judge_version_changed:
+          type: boolean
+        metadata_changed:
+          type: boolean
+        total_items_delta:
+          type: integer
+        recorded_results_delta:
+          type: integer
+        passed_items_delta:
+          type: integer
+        failed_items_delta:
+          type: integer
+        missing_results_delta:
+          type: integer
+        average_score_delta:
+          type: number
+          format: double
+        bad_case_count_delta:
+          type: integer
+        bad_case_overlap_count:
+          type: integer
+          minimum: 0
+        ready_at_delta_second:
+          type: integer
+    EvalReportComparison:
+      type: object
+      required:
+        - left
+        - right
+        - summary
+      properties:
+        left:
+          $ref: '#/components/schemas/EvalReportComparisonItem'
+        right:
+          $ref: '#/components/schemas/EvalReportComparisonItem'
+        summary:
+          $ref: '#/components/schemas/EvalReportComparisonSummary'
+    EvalReportComparisonItem:
+      type: object
+      required:
+        - report_id
+        - tenant_id
+        - run_id
+        - dataset_id
+        - dataset_name
+        - run_status
+        - status
+        - summary
+        - total_items
+        - recorded_results
+        - passed_items
+        - failed_items
+        - missing_results
+        - average_score
+        - bad_case_count
+        - created_at
+        - updated_at
+        - ready_at
+      properties:
+        report_id:
+          type: string
+        tenant_id:
+          type: string
+        run_id:
+          type: string
+        dataset_id:
+          type: string
+        dataset_name:
+          type: string
+        run_status:
+          type: string
+          enum:
+            - succeeded
+            - failed
+        status:
+          type: string
+          enum:
+            - ready
+        summary:
+          type: string
+        total_items:
+          type: integer
+          minimum: 0
+        recorded_results:
+          type: integer
+          minimum: 0
+        passed_items:
+          type: integer
+          minimum: 0
+        failed_items:
+          type: integer
+          minimum: 0
+        missing_results:
+          type: integer
+          minimum: 0
+        average_score:
+          type: number
+          format: double
+        judge_version:
+          type: string
+        version_id:
+          type: string
+        bad_case_count:
+          type: integer
+          minimum: 0
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+        ready_at:
+          type: string
+          format: date-time
     TaskAuditEvent:
       type: object
       required:

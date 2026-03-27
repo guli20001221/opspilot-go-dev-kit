@@ -118,6 +118,7 @@ func (a *appHandler) registerRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("/admin/eval-datasets", a.handleAdminEvalDatasetsPage)
 	mux.HandleFunc("/admin/eval-runs", a.handleAdminEvalRunsPage)
 	mux.HandleFunc("/admin/eval-reports", a.handleAdminEvalReportsPage)
+	mux.HandleFunc("/admin/eval-report-compare", a.handleAdminEvalReportComparePage)
 	mux.HandleFunc("/admin/reports", a.handleAdminReportsPage)
 	mux.HandleFunc("/admin/report-compare", a.handleAdminReportComparePage)
 	mux.HandleFunc("/admin/trace-detail", a.handleAdminTraceDetailPage)
@@ -134,6 +135,7 @@ func (a *appHandler) registerRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("/api/v1/eval-runs", a.handleEvalRuns)
 	mux.HandleFunc("/api/v1/eval-runs/", a.handleEvalRunByID)
 	mux.HandleFunc("/api/v1/eval-reports", a.handleEvalReports)
+	mux.HandleFunc("/api/v1/eval-report-compare", a.handleEvalReportCompare)
 	mux.HandleFunc("/api/v1/eval-reports/", a.handleEvalReportByID)
 	mux.HandleFunc("/api/v1/tasks", a.handleTasks)
 	mux.HandleFunc("/api/v1/tasks/", a.handleTaskByID)
@@ -234,6 +236,21 @@ func (a *appHandler) handleAdminEvalReportsPage(w http.ResponseWriter, r *http.R
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	w.WriteHeader(http.StatusOK)
 	_, _ = w.Write(adminweb.EvalReportsHTML())
+}
+
+func (a *appHandler) handleAdminEvalReportComparePage(w http.ResponseWriter, r *http.Request) {
+	if r.URL.Path != "/admin/eval-report-compare" {
+		writeError(w, http.StatusNotFound, "not_found", "not found")
+		return
+	}
+	if r.Method != http.MethodGet {
+		writeError(w, http.StatusMethodNotAllowed, "method_not_allowed", "method not allowed")
+		return
+	}
+
+	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	w.WriteHeader(http.StatusOK)
+	_, _ = w.Write(adminweb.EvalReportCompareHTML())
 }
 
 func (a *appHandler) handleAdminReportsPage(w http.ResponseWriter, r *http.Request) {

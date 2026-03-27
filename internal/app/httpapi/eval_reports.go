@@ -53,6 +53,52 @@ type listEvalReportsResponse struct {
 	NextOffset *int                 `json:"next_offset,omitempty"`
 }
 
+type evalReportComparisonSummaryResponse struct {
+	SameTenant           bool    `json:"same_tenant"`
+	SameDataset          bool    `json:"same_dataset"`
+	SameRunStatus        bool    `json:"same_run_status"`
+	JudgeVersionChanged  bool    `json:"judge_version_changed"`
+	MetadataChanged      bool    `json:"metadata_changed"`
+	TotalItemsDelta      int     `json:"total_items_delta"`
+	RecordedResultsDelta int     `json:"recorded_results_delta"`
+	PassedItemsDelta     int     `json:"passed_items_delta"`
+	FailedItemsDelta     int     `json:"failed_items_delta"`
+	MissingResultsDelta  int     `json:"missing_results_delta"`
+	AverageScoreDelta    float64 `json:"average_score_delta"`
+	BadCaseCountDelta    int     `json:"bad_case_count_delta"`
+	BadCaseOverlapCount  int     `json:"bad_case_overlap_count"`
+	ReadyAtDeltaSecond   int64   `json:"ready_at_delta_second"`
+}
+
+type evalReportComparisonItemResponse struct {
+	ReportID        string  `json:"report_id"`
+	TenantID        string  `json:"tenant_id"`
+	RunID           string  `json:"run_id"`
+	DatasetID       string  `json:"dataset_id"`
+	DatasetName     string  `json:"dataset_name"`
+	RunStatus       string  `json:"run_status"`
+	Status          string  `json:"status"`
+	Summary         string  `json:"summary"`
+	TotalItems      int     `json:"total_items"`
+	RecordedResults int     `json:"recorded_results"`
+	PassedItems     int     `json:"passed_items"`
+	FailedItems     int     `json:"failed_items"`
+	MissingResults  int     `json:"missing_results"`
+	AverageScore    float64 `json:"average_score"`
+	JudgeVersion    string  `json:"judge_version,omitempty"`
+	VersionID       string  `json:"version_id,omitempty"`
+	BadCaseCount    int     `json:"bad_case_count"`
+	CreatedAt       string  `json:"created_at"`
+	UpdatedAt       string  `json:"updated_at"`
+	ReadyAt         string  `json:"ready_at"`
+}
+
+type evalReportComparisonResponse struct {
+	Left    evalReportComparisonItemResponse    `json:"left"`
+	Right   evalReportComparisonItemResponse    `json:"right"`
+	Summary evalReportComparisonSummaryResponse `json:"summary"`
+}
+
 func (a *appHandler) handleEvalReports(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet {
 		writeError(w, http.StatusMethodNotAllowed, "method_not_allowed", "method not allowed")
@@ -83,6 +129,64 @@ func (a *appHandler) handleEvalReports(w http.ResponseWriter, r *http.Request) {
 	}
 
 	writeJSON(w, http.StatusOK, resp)
+}
+
+func (a *appHandler) handleEvalReportCompare(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		writeError(w, http.StatusMethodNotAllowed, "method_not_allowed", "method not allowed")
+		return
+	}
+
+	tenantID := strings.TrimSpace(r.URL.Query().Get("tenant_id"))
+	if tenantID == "" {
+		writeError(w, http.StatusBadRequest, "invalid_query", "tenant_id is required")
+		return
+	}
+	leftReportID := strings.TrimSpace(r.URL.Query().Get("left_report_id"))
+	if leftReportID == "" {
+		writeError(w, http.StatusBadRequest, "invalid_query", "left_report_id is required")
+		return
+	}
+	rightReportID := strings.TrimSpace(r.URL.Query().Get("right_report_id"))
+	if rightReportID == "" {
+		writeError(w, http.StatusBadRequest, "invalid_query", "right_report_id is required")
+		return
+	}
+
+	comparison, err := a.evalReports.CompareEvalReports(r.Context(), leftReportID, rightReportID)
+	if err != nil {
+		if errors.Is(err, evalsvc.ErrEvalReportNotFound) {
+			writeError(w, http.StatusNotFound, "eval_report_not_found", "eval report not found")
+			return
+		}
+		writeError(w, http.StatusInternalServerError, "eval_report_compare_failed", err.Error())
+		return
+	}
+	if comparison.Left.TenantID != tenantID || comparison.Right.TenantID != tenantID {
+		writeError(w, http.StatusNotFound, "eval_report_not_found", "eval report not found")
+		return
+	}
+
+	writeJSON(w, http.StatusOK, evalReportComparisonResponse{
+		Left:  newEvalReportComparisonItemResponse(comparison.Left),
+		Right: newEvalReportComparisonItemResponse(comparison.Right),
+		Summary: evalReportComparisonSummaryResponse{
+			SameTenant:           comparison.Summary.SameTenant,
+			SameDataset:          comparison.Summary.SameDataset,
+			SameRunStatus:        comparison.Summary.SameRunStatus,
+			JudgeVersionChanged:  comparison.Summary.JudgeVersionChanged,
+			MetadataChanged:      comparison.Summary.MetadataChanged,
+			TotalItemsDelta:      comparison.Summary.TotalItemsDelta,
+			RecordedResultsDelta: comparison.Summary.RecordedResultsDelta,
+			PassedItemsDelta:     comparison.Summary.PassedItemsDelta,
+			FailedItemsDelta:     comparison.Summary.FailedItemsDelta,
+			MissingResultsDelta:  comparison.Summary.MissingResultsDelta,
+			AverageScoreDelta:    comparison.Summary.AverageScoreDelta,
+			BadCaseCountDelta:    comparison.Summary.BadCaseCountDelta,
+			BadCaseOverlapCount:  comparison.Summary.BadCaseOverlapCount,
+			ReadyAtDeltaSecond:   comparison.Summary.ReadyAtDeltaSecond,
+		},
+	})
 }
 
 func (a *appHandler) handleEvalReportByID(w http.ResponseWriter, r *http.Request) {
@@ -198,4 +302,46 @@ func newEvalReportResponse(item evalsvc.EvalReport, includeHeavy bool) evalRepor
 	}
 
 	return resp
+}
+
+func newEvalReportComparisonItemResponse(item evalsvc.EvalReport) evalReportComparisonItemResponse {
+	return evalReportComparisonItemResponse{
+		ReportID:        item.ID,
+		TenantID:        item.TenantID,
+		RunID:           item.RunID,
+		DatasetID:       item.DatasetID,
+		DatasetName:     item.DatasetName,
+		RunStatus:       item.RunStatus,
+		Status:          item.Status,
+		Summary:         item.Summary,
+		TotalItems:      item.TotalItems,
+		RecordedResults: item.RecordedResults,
+		PassedItems:     item.PassedItems,
+		FailedItems:     item.FailedItems,
+		MissingResults:  item.MissingResults,
+		AverageScore:    item.AverageScore,
+		JudgeVersion:    item.JudgeVersion,
+		VersionID:       firstEvalReportVersionID(item.MetadataJSON),
+		BadCaseCount:    len(item.BadCases),
+		CreatedAt:       item.CreatedAt.Format(time.RFC3339Nano),
+		UpdatedAt:       item.UpdatedAt.Format(time.RFC3339Nano),
+		ReadyAt:         item.ReadyAt.Format(time.RFC3339Nano),
+	}
+}
+
+func firstEvalReportVersionID(raw json.RawMessage) string {
+	if len(raw) == 0 {
+		return ""
+	}
+
+	var payload map[string]any
+	if err := json.Unmarshal(raw, &payload); err != nil {
+		return ""
+	}
+	values, _ := payload["version_ids"].([]any)
+	if len(values) == 0 {
+		return ""
+	}
+	versionID, _ := values[0].(string)
+	return versionID
 }

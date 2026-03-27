@@ -1,0 +1,106 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>OpsPilot Eval Report Compare</title>
+  <style>
+    :root{--bg:#eef3f8;--panel:rgba(251,253,255,.9);--ink:#14212b;--muted:#5b6a78;--line:rgba(20,33,43,.12);--accent:#1d4ed8;--accent2:#155e75;--warn:#92400e;--success:#166534;--shadow:0 18px 48px rgba(39,63,88,.14);--radius:22px;--font-sans:"Segoe UI Variable","Aptos","IBM Plex Sans","Helvetica Neue",sans-serif;--font-serif:"Iowan Old Style","Georgia",serif}
+    *{box-sizing:border-box}body{margin:0;min-height:100vh;font-family:var(--font-sans);color:var(--ink);background:radial-gradient(circle at top left,rgba(29,78,216,.16),transparent 26%),radial-gradient(circle at top right,rgba(21,94,117,.12),transparent 24%),linear-gradient(180deg,#f4f8fc 0%,var(--bg) 46%,#e6edf5 100%)}.page{width:min(1240px,calc(100% - 32px));margin:0 auto;padding:28px 0 40px}.hero,.panel{background:var(--panel);border:1px solid rgba(255,255,255,.8);box-shadow:var(--shadow);backdrop-filter:blur(18px)}.hero{padding:28px;border-radius:32px;margin-bottom:18px}.panel{border-radius:var(--radius);padding:20px}.eyebrow{margin:0 0 12px;font-size:12px;font-weight:700;letter-spacing:.18em;text-transform:uppercase;color:var(--accent)}h1{margin:0 0 10px;font-family:var(--font-serif);font-size:clamp(2.1rem,4vw,3.2rem);line-height:.95;letter-spacing:-.04em}.lead,.panel-copy{margin:0;color:var(--muted);line-height:1.6}.panel-copy{margin-bottom:18px;font-size:.92rem}.hero-links,.actions{display:flex;flex-wrap:wrap;gap:10px}.hero-links{margin-top:18px}
+    a.link-chip,button,a.button-link{display:inline-flex;align-items:center;justify-content:center;gap:8px;padding:10px 14px;border-radius:999px;font:inherit;text-decoration:none;cursor:pointer;transition:transform 120ms ease}a.link-chip,.ghost,a.button-link{color:var(--ink);background:rgba(255,255,255,.78);border:1px solid rgba(20,33,43,.08)}.primary{border:none;color:#fff;background:linear-gradient(135deg,var(--accent),var(--accent2));box-shadow:0 12px 24px rgba(29,78,216,.22)}button:hover,a.link-chip:hover,a.button-link:hover{transform:translateY(-1px)}
+    .layout{display:grid;gap:18px;grid-template-columns:minmax(280px,340px) minmax(0,1fr);align-items:start}.filters,.detail-grid,.compare-grid,.diff-list{display:grid;gap:12px}.field{display:grid;gap:6px}.field label{font-size:.82rem;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.08em}.field input{width:100%;border:1px solid var(--line);border-radius:12px;padding:11px 12px;background:rgba(255,255,255,.94);color:var(--ink)}.summary-grid,.detail-grid{grid-template-columns:repeat(auto-fit,minmax(180px,1fr))}.summary-card,.detail-card,.diff-item{border-radius:16px;border:1px solid rgba(20,33,43,.08);background:rgba(255,255,255,.78);padding:16px}.summary-card small,.detail-card dt{font-size:.78rem;text-transform:uppercase;letter-spacing:.08em;font-weight:700;color:var(--muted)}.summary-card strong{display:block;font-size:1.9rem;font-family:var(--font-serif);letter-spacing:-.04em}.compare-grid{grid-template-columns:repeat(2,minmax(0,1fr));margin-top:18px}.diff-item{display:flex;align-items:center;justify-content:space-between;gap:12px}.pill{padding:5px 10px;border-radius:999px;font-size:.8rem;font-weight:700}.pill.changed{background:rgba(146,64,14,.14);color:var(--warn)}.pill.same{background:rgba(22,101,52,.12);color:var(--success)}.loading,.empty{padding:18px;border-radius:16px;background:rgba(255,255,255,.78);border:1px dashed rgba(20,33,43,.16);color:var(--muted)}code{font-family:"IBM Plex Mono","SFMono-Regular",Consolas,monospace;font-size:.9em;background:rgba(20,33,43,.08);padding:2px 6px;border-radius:6px}
+    @media (max-width:980px){.layout,.compare-grid{grid-template-columns:1fr}}
+  </style>
+</head>
+<body>
+  <main class="page">
+    <section class="hero">
+      <p class="eyebrow">OpsPilot Admin</p>
+      <h1>Eval Report Compare</h1>
+      <p class="lead">Compare two durable eval reports through the canonical <code>/api/v1/eval-report-compare</code> contract. The browser stays read-only: it surfaces top-line metric deltas, bad-case overlap, and handoff links without re-deriving report semantics.</p>
+      <div class="hero-links">
+        <a class="link-chip" href="/admin/eval-reports">Open Eval Reports</a>
+        <a class="link-chip" href="/admin/eval-runs">Open Eval Runs</a>
+        <a class="link-chip" href="/admin/eval-datasets">Open Eval Datasets</a>
+        <a class="link-chip" href="/admin/evals">Open Evals</a>
+        <a class="link-chip" href="/admin/version-detail">Open Version Detail</a>
+      </div>
+    </section>
+
+    <section class="layout">
+      <aside class="panel">
+        <h2>Inputs</h2>
+      <p class="panel-copy">Tenant scope is required. Compare stays intentionally narrow so operators can answer "what changed?" without pulling run history into the client.</p>
+        <form id="compareForm" class="filters">
+          <div class="field"><label for="tenant_id">Tenant</label><input id="tenant_id" name="tenant_id" type="text" placeholder="tenant-eval-example"></div>
+          <div class="field"><label for="left_report_id">Left report ID</label><input id="left_report_id" name="left_report_id" type="text" placeholder="eval-report-..."></div>
+          <div class="field"><label for="right_report_id">Right report ID</label><input id="right_report_id" name="right_report_id" type="text" placeholder="eval-report-..."></div>
+          <div class="actions">
+            <button class="primary" type="submit">Load comparison</button>
+            <button class="ghost" type="button" id="swapReports">Swap reports</button>
+            <button class="ghost" type="button" id="resetForm">Reset</button>
+          </div>
+        </form>
+      </aside>
+
+      <section class="panel">
+        <h2>Comparison summary</h2>
+        <p class="panel-copy">The compare summary focuses on operator-visible metrics: dataset alignment, run-status drift, judge-version drift, score delta, and overlapping bad cases.</p>
+        <div id="compareState" class="empty">Provide tenant, left report ID, and right report ID to inspect a durable eval-report comparison.</div>
+        <div id="compareContent" hidden>
+          <div class="summary-grid">
+            <article class="summary-card"><small>Same dataset</small><strong id="sameDataset">-</strong></article>
+            <article class="summary-card"><small>Same run status</small><strong id="sameRunStatus">-</strong></article>
+            <article class="summary-card"><small>Average score delta</small><strong id="averageScoreDelta">-</strong></article>
+            <article class="summary-card"><small>Bad-case overlap</small><strong id="badCaseOverlap">-</strong></article>
+          </div>
+
+          <div class="compare-grid">
+            <section class="detail-card">
+              <h3 style="margin-top:0;">Left report</h3>
+              <div class="detail-grid" id="leftReportDetail"></div>
+              <div class="actions" style="margin-top:14px;">
+                <a class="button-link ghost" id="leftReportAPILink" href="#" target="_blank" rel="noreferrer">Open left eval report API</a>
+                <a class="button-link ghost" id="leftRunLaneLink" href="#">Open left eval run lane</a>
+                <a class="button-link ghost" id="leftVersionLink" href="#" hidden>Open left version detail</a>
+              </div>
+            </section>
+            <section class="detail-card">
+              <h3 style="margin-top:0;">Right report</h3>
+              <div class="detail-grid" id="rightReportDetail"></div>
+              <div class="actions" style="margin-top:14px;">
+                <a class="button-link ghost" id="rightReportAPILink" href="#" target="_blank" rel="noreferrer">Open right eval report API</a>
+                <a class="button-link ghost" id="rightRunLaneLink" href="#">Open right eval run lane</a>
+                <a class="button-link ghost" id="rightVersionLink" href="#" hidden>Open right version detail</a>
+              </div>
+            </section>
+          </div>
+
+          <div class="detail-card" style="margin-top:18px;">
+            <h3 style="margin-top:0;">Diff breakdown</h3>
+            <div id="diffList" class="diff-list"></div>
+          </div>
+        </div>
+      </section>
+    </section>
+  </main>
+
+  <script>
+    const compareEndpoint="/api/v1/eval-report-compare",detailEndpointBase="/api/v1/eval-reports/",runLaneBase="/admin/eval-runs";
+    const form=document.getElementById("compareForm"),compareState=document.getElementById("compareState"),compareContent=document.getElementById("compareContent"),swapReportsButton=document.getElementById("swapReports"),resetFormButton=document.getElementById("resetForm"),sameDataset=document.getElementById("sameDataset"),sameRunStatus=document.getElementById("sameRunStatus"),averageScoreDelta=document.getElementById("averageScoreDelta"),badCaseOverlap=document.getElementById("badCaseOverlap"),leftReportDetail=document.getElementById("leftReportDetail"),rightReportDetail=document.getElementById("rightReportDetail"),leftReportAPILink=document.getElementById("leftReportAPILink"),rightReportAPILink=document.getElementById("rightReportAPILink"),leftRunLaneLink=document.getElementById("leftRunLaneLink"),rightRunLaneLink=document.getElementById("rightRunLaneLink"),leftVersionLink=document.getElementById("leftVersionLink"),rightVersionLink=document.getElementById("rightVersionLink"),diffList=document.getElementById("diffList");
+    function escapeHTML(value){return String(value??"").replaceAll("&","&amp;").replaceAll("<","&lt;").replaceAll(">","&gt;").replaceAll("\"","&quot;").replaceAll("'","&#39;")}
+    function fmtDate(value){if(!value)return"Unknown";const date=new Date(value);if(Number.isNaN(date.valueOf()))return value;return new Intl.DateTimeFormat(undefined,{year:"numeric",month:"short",day:"2-digit",hour:"2-digit",minute:"2-digit",second:"2-digit"}).format(date)}
+    function buildParams(){const params=new URLSearchParams();for(const name of["tenant_id","left_report_id","right_report_id"]){const value=form.elements.namedItem(name).value.trim();if(value)params.set(name,value)}return params}
+    function syncURL(){const params=buildParams();history.replaceState(null,"",params.toString()?`/admin/eval-report-compare?${params.toString()}`:"/admin/eval-report-compare")}
+    function populateFiltersFromURL(){const params=new URLSearchParams(window.location.search);for(const name of["tenant_id","left_report_id","right_report_id"]){form.elements.namedItem(name).value=params.get(name)||""}}
+    function renderCompareCard(container,item){container.innerHTML=`<dl class="detail-card"><dt>Report ID</dt><dd>${escapeHTML(item.report_id)}</dd></dl><dl class="detail-card"><dt>Dataset</dt><dd>${escapeHTML(item.dataset_name)}<br><small>${escapeHTML(item.dataset_id)}</small></dd></dl><dl class="detail-card"><dt>Run</dt><dd>${escapeHTML(item.run_id)}<br><small>${escapeHTML(item.run_status)}</small></dd></dl><dl class="detail-card"><dt>Summary</dt><dd>${escapeHTML(item.summary||"none")}</dd></dl><dl class="detail-card"><dt>Judge version</dt><dd>${escapeHTML(item.judge_version||"unknown")}</dd></dl><dl class="detail-card"><dt>Bad cases</dt><dd>${escapeHTML(String(item.bad_case_count||0))}</dd></dl><dl class="detail-card"><dt>Version</dt><dd>${escapeHTML(item.version_id||"Unavailable")}</dd></dl><dl class="detail-card"><dt>Ready at</dt><dd>${escapeHTML(fmtDate(item.ready_at))}</dd></dl>`}
+    function diffRow(label,changed,extra=""){return`<div class="diff-item"><strong>${escapeHTML(label)}</strong><span class="pill ${changed?"changed":"same"}">${changed?"Changed":"Same"}${extra?` | ${escapeHTML(extra)}`:""}</span></div>`}
+    function renderComparison(payload){compareState.hidden=true;compareContent.hidden=false;sameDataset.textContent=payload.summary.same_dataset?"Yes":"No";sameRunStatus.textContent=payload.summary.same_run_status?"Yes":"No";averageScoreDelta.textContent=String(payload.summary.average_score_delta);badCaseOverlap.textContent=String(payload.summary.bad_case_overlap_count);renderCompareCard(leftReportDetail,payload.left);renderCompareCard(rightReportDetail,payload.right);leftReportAPILink.href=`${detailEndpointBase}${encodeURIComponent(payload.left.report_id)}?tenant_id=${encodeURIComponent(payload.left.tenant_id)}`;rightReportAPILink.href=`${detailEndpointBase}${encodeURIComponent(payload.right.report_id)}?tenant_id=${encodeURIComponent(payload.right.tenant_id)}`;leftRunLaneLink.href=`${runLaneBase}?tenant_id=${encodeURIComponent(payload.left.tenant_id)}&dataset_id=${encodeURIComponent(payload.left.dataset_id)}&run_id=${encodeURIComponent(payload.left.run_id)}`;rightRunLaneLink.href=`${runLaneBase}?tenant_id=${encodeURIComponent(payload.right.tenant_id)}&dataset_id=${encodeURIComponent(payload.right.dataset_id)}&run_id=${encodeURIComponent(payload.right.run_id)}`;if(payload.left.version_id){leftVersionLink.hidden=false;leftVersionLink.href=`/admin/version-detail?version_id=${encodeURIComponent(payload.left.version_id)}`}else{leftVersionLink.hidden=true;leftVersionLink.href="#"}if(payload.right.version_id){rightVersionLink.hidden=false;rightVersionLink.href=`/admin/version-detail?version_id=${encodeURIComponent(payload.right.version_id)}`}else{rightVersionLink.hidden=true;rightVersionLink.href="#"}diffList.innerHTML=[diffRow("Dataset",!payload.summary.same_dataset),diffRow("Run status",!payload.summary.same_run_status),diffRow("Judge version",payload.summary.judge_version_changed),diffRow("Metadata",payload.summary.metadata_changed),diffRow("Failed items",payload.summary.failed_items_delta!==0,String(payload.summary.failed_items_delta)),diffRow("Average score",payload.summary.average_score_delta!==0,String(payload.summary.average_score_delta)),diffRow("Bad-case count",payload.summary.bad_case_count_delta!==0,String(payload.summary.bad_case_count_delta)),diffRow("Ready at",payload.summary.ready_at_delta_second!==0,`${payload.summary.ready_at_delta_second}s`)].join("")}
+    async function loadComparison(){const params=buildParams();syncURL();if(!params.get("tenant_id")||!params.get("left_report_id")||!params.get("right_report_id")){compareContent.hidden=true;compareState.hidden=false;compareState.className="empty";compareState.textContent="Provide tenant, left report ID, and right report ID to inspect a durable eval-report comparison.";return}compareContent.hidden=true;compareState.hidden=false;compareState.className="loading";compareState.textContent="Loading durable eval-report comparison...";try{const response=await fetch(`${compareEndpoint}?${params.toString()}`,{headers:{"Accept":"application/json"}});if(!response.ok)throw new Error(`Eval report comparison request failed: ${response.status} ${response.statusText}`);renderComparison(await response.json())}catch(error){compareContent.hidden=true;compareState.hidden=false;compareState.className="empty";compareState.textContent=error.message||"Unable to load durable eval-report comparison."}}
+    form.addEventListener("submit",(event)=>{event.preventDefault();loadComparison()});
+    swapReportsButton.addEventListener("click",()=>{const leftField=form.elements.namedItem("left_report_id"),rightField=form.elements.namedItem("right_report_id"),leftValue=leftField.value;leftField.value=rightField.value;rightField.value=leftValue;loadComparison()});
+    resetFormButton.addEventListener("click",()=>{form.reset();loadComparison()});
+    populateFiltersFromURL();loadComparison();
+  </script>
+</body>
+</html>

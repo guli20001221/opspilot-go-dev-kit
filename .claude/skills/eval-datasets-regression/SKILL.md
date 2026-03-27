@@ -57,6 +57,7 @@ Turn prompt, routing, retrieval, and tool changes into measurable, repeatable qu
 25. When the first external judge call is introduced, preserve a canonical terminal fallback path so provider errors do not strand eval runs in `running`.
 26. Once provider-backed judging exists, materialize terminal eval runs into a durable aggregated eval-report artifact before building comparison-heavy UI, so metrics and bad-case references have a canonical backend source of truth.
 27. Once durable aggregated eval reports exist, expose canonical `GET /api/v1/eval-reports` and `GET /api/v1/eval-reports/{report_id}` reads before building eval-report-heavy operator views, keeping the list lightweight and the single-report detail as the drill-down surface.
+28. Once durable eval reports need side-by-side regression review, prefer a narrow canonical compare contract over two report IDs before building an eval-report comparison page, so score deltas and bad-case overlap stay reproducible and backend-owned.
 
 ## Output contract
 When you finish, always report:

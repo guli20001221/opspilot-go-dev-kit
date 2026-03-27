@@ -60,6 +60,232 @@ func TestGetEvalReportReturnsMaterializedDetail(t *testing.T) {
 	}
 }
 
+func TestCompareEvalReportsReturnsTypedSummary(t *testing.T) {
+	caseService := casesvc.NewService()
+	evalCaseService := evalsvc.NewService(caseService, nil)
+	datasetService := evalsvc.NewDatasetService(evalCaseService)
+	runService := evalsvc.NewRunService(datasetService)
+	reportService := evalsvc.NewEvalReportServiceWithDependencies(nil, runService)
+	leftReportID := materializeEvalRunReport(t, "tenant-eval-report-compare", evalsvc.RunStatusSucceeded, "success detail", caseService, evalCaseService, datasetService, runService, reportService, "Dataset Compare A", "Source Left")
+	rightReportID := materializeEvalRunReport(t, "tenant-eval-report-compare", evalsvc.RunStatusFailed, "failure detail", caseService, evalCaseService, datasetService, runService, reportService, "Dataset Compare B", "Source Right")
+
+	server := httptest.NewServer(NewHandlerWithDependencies(Dependencies{EvalReports: reportService}))
+	defer server.Close()
+
+	resp, err := http.Get(server.URL + "/api/v1/eval-report-compare?tenant_id=tenant-eval-report-compare&left_report_id=" + leftReportID + "&right_report_id=" + rightReportID)
+	if err != nil {
+		t.Fatalf("Get() error = %v", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("StatusCode = %d, want %d", resp.StatusCode, http.StatusOK)
+	}
+
+	bodyBytes, err := io.ReadAll(resp.Body)
+	if err != nil {
+		t.Fatalf("ReadAll() error = %v", err)
+	}
+	var raw map[string]any
+	if err := json.Unmarshal(bodyBytes, &raw); err != nil {
+		t.Fatalf("Unmarshal(raw) error = %v", err)
+	}
+	var got struct {
+		Left struct {
+			ReportID        string  `json:"report_id"`
+			TenantID        string  `json:"tenant_id"`
+			RunID           string  `json:"run_id"`
+			DatasetID       string  `json:"dataset_id"`
+			DatasetName     string  `json:"dataset_name"`
+			RunStatus       string  `json:"run_status"`
+			Status          string  `json:"status"`
+			Summary         string  `json:"summary"`
+			TotalItems      int     `json:"total_items"`
+			RecordedResults int     `json:"recorded_results"`
+			PassedItems     int     `json:"passed_items"`
+			FailedItems     int     `json:"failed_items"`
+			MissingResults  int     `json:"missing_results"`
+			AverageScore    float64 `json:"average_score"`
+			JudgeVersion    string  `json:"judge_version"`
+			VersionID       string  `json:"version_id"`
+			BadCaseCount    int     `json:"bad_case_count"`
+		} `json:"left"`
+		Right struct {
+			ReportID        string  `json:"report_id"`
+			TenantID        string  `json:"tenant_id"`
+			RunID           string  `json:"run_id"`
+			DatasetID       string  `json:"dataset_id"`
+			DatasetName     string  `json:"dataset_name"`
+			RunStatus       string  `json:"run_status"`
+			Status          string  `json:"status"`
+			Summary         string  `json:"summary"`
+			TotalItems      int     `json:"total_items"`
+			RecordedResults int     `json:"recorded_results"`
+			PassedItems     int     `json:"passed_items"`
+			FailedItems     int     `json:"failed_items"`
+			MissingResults  int     `json:"missing_results"`
+			AverageScore    float64 `json:"average_score"`
+			JudgeVersion    string  `json:"judge_version"`
+			VersionID       string  `json:"version_id"`
+			BadCaseCount    int     `json:"bad_case_count"`
+		} `json:"right"`
+		Summary struct {
+			SameTenant          bool    `json:"same_tenant"`
+			SameDataset         bool    `json:"same_dataset"`
+			SameRunStatus       bool    `json:"same_run_status"`
+			JudgeVersionChanged bool    `json:"judge_version_changed"`
+			MetadataChanged     bool    `json:"metadata_changed"`
+			FailedItemsDelta    int     `json:"failed_items_delta"`
+			AverageScoreDelta   float64 `json:"average_score_delta"`
+			BadCaseOverlapCount int     `json:"bad_case_overlap_count"`
+		} `json:"summary"`
+	}
+	if err := json.Unmarshal(bodyBytes, &got); err != nil {
+		t.Fatalf("Unmarshal(got) error = %v", err)
+	}
+	leftRaw, ok := raw["left"].(map[string]any)
+	if !ok {
+		t.Fatalf("raw left payload = %#v, want object", raw["left"])
+	}
+	rightRaw, ok := raw["right"].(map[string]any)
+	if !ok {
+		t.Fatalf("raw right payload = %#v, want object", raw["right"])
+	}
+	if _, ok := leftRaw["metadata"]; ok {
+		t.Fatalf("left payload unexpectedly includes metadata: %#v", leftRaw)
+	}
+	if _, ok := leftRaw["bad_cases"]; ok {
+		t.Fatalf("left payload unexpectedly includes bad_cases: %#v", leftRaw)
+	}
+	if _, ok := rightRaw["metadata"]; ok {
+		t.Fatalf("right payload unexpectedly includes metadata: %#v", rightRaw)
+	}
+	if _, ok := rightRaw["bad_cases"]; ok {
+		t.Fatalf("right payload unexpectedly includes bad_cases: %#v", rightRaw)
+	}
+	if got.Left.ReportID != leftReportID || got.Right.ReportID != rightReportID {
+		t.Fatalf("left/right ids = %#v, want %q and %q", got, leftReportID, rightReportID)
+	}
+	if got.Left.BadCaseCount != 0 || got.Right.BadCaseCount != 1 {
+		t.Fatalf("BadCaseCount = left:%d right:%d, want left=0 right=1", got.Left.BadCaseCount, got.Right.BadCaseCount)
+	}
+	if !got.Summary.SameTenant {
+		t.Fatal("SameTenant = false, want true")
+	}
+	if got.Summary.SameDataset {
+		t.Fatal("SameDataset = true, want false")
+	}
+	if got.Summary.SameRunStatus {
+		t.Fatal("SameRunStatus = true, want false")
+	}
+	if got.Summary.JudgeVersionChanged {
+		t.Fatalf("JudgeVersionChanged = true, want false for placeholder fixtures")
+	}
+	if !got.Summary.MetadataChanged {
+		t.Fatalf("MetadataChanged = false, want true")
+	}
+	if got.Summary.FailedItemsDelta <= 0 {
+		t.Fatalf("FailedItemsDelta = %d, want positive", got.Summary.FailedItemsDelta)
+	}
+	if got.Summary.AverageScoreDelta >= 0 {
+		t.Fatalf("AverageScoreDelta = %v, want negative", got.Summary.AverageScoreDelta)
+	}
+	if got.Summary.BadCaseOverlapCount != 0 {
+		t.Fatalf("BadCaseOverlapCount = %d, want 0 for disjoint fixtures", got.Summary.BadCaseOverlapCount)
+	}
+}
+
+func TestCompareEvalReportsRejectsMissingTenantID(t *testing.T) {
+	reportService, reportID := buildEvalReportFixture(t, "tenant-eval-report-http", evalsvc.RunStatusSucceeded, "success detail")
+
+	server := httptest.NewServer(NewHandlerWithDependencies(Dependencies{EvalReports: reportService}))
+	defer server.Close()
+
+	resp, err := http.Get(server.URL + "/api/v1/eval-report-compare?left_report_id=" + reportID + "&right_report_id=" + reportID)
+	if err != nil {
+		t.Fatalf("Get() error = %v", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusBadRequest {
+		t.Fatalf("StatusCode = %d, want %d", resp.StatusCode, http.StatusBadRequest)
+	}
+}
+
+func TestCompareEvalReportsRejectsMissingLeftReportID(t *testing.T) {
+	reportService, reportID := buildEvalReportFixture(t, "tenant-eval-report-http", evalsvc.RunStatusSucceeded, "success detail")
+
+	server := httptest.NewServer(NewHandlerWithDependencies(Dependencies{EvalReports: reportService}))
+	defer server.Close()
+
+	resp, err := http.Get(server.URL + "/api/v1/eval-report-compare?tenant_id=tenant-eval-report-http&right_report_id=" + reportID)
+	if err != nil {
+		t.Fatalf("Get() error = %v", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusBadRequest {
+		t.Fatalf("StatusCode = %d, want %d", resp.StatusCode, http.StatusBadRequest)
+	}
+}
+
+func TestCompareEvalReportsRejectsMissingRightReportID(t *testing.T) {
+	reportService, reportID := buildEvalReportFixture(t, "tenant-eval-report-http", evalsvc.RunStatusSucceeded, "success detail")
+
+	server := httptest.NewServer(NewHandlerWithDependencies(Dependencies{EvalReports: reportService}))
+	defer server.Close()
+
+	resp, err := http.Get(server.URL + "/api/v1/eval-report-compare?tenant_id=tenant-eval-report-http&left_report_id=" + reportID)
+	if err != nil {
+		t.Fatalf("Get() error = %v", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusBadRequest {
+		t.Fatalf("StatusCode = %d, want %d", resp.StatusCode, http.StatusBadRequest)
+	}
+}
+
+func TestCompareEvalReportsRejectsWrongTenant(t *testing.T) {
+	caseService := casesvc.NewService()
+	evalCaseService := evalsvc.NewService(caseService, nil)
+	datasetService := evalsvc.NewDatasetService(evalCaseService)
+	runService := evalsvc.NewRunService(datasetService)
+	reportService := evalsvc.NewEvalReportServiceWithDependencies(nil, runService)
+	leftReportID := materializeEvalRunReport(t, "tenant-left", evalsvc.RunStatusSucceeded, "success detail", caseService, evalCaseService, datasetService, runService, reportService, "Dataset Compare A", "Source Left")
+	rightReportID := materializeEvalRunReport(t, "tenant-right", evalsvc.RunStatusFailed, "failure detail", caseService, evalCaseService, datasetService, runService, reportService, "Dataset Compare B", "Source Right")
+
+	server := httptest.NewServer(NewHandlerWithDependencies(Dependencies{EvalReports: reportService}))
+	defer server.Close()
+
+	resp, err := http.Get(server.URL + "/api/v1/eval-report-compare?tenant_id=tenant-left&left_report_id=" + leftReportID + "&right_report_id=" + rightReportID)
+	if err != nil {
+		t.Fatalf("Get() error = %v", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusNotFound {
+		t.Fatalf("StatusCode = %d, want %d", resp.StatusCode, http.StatusNotFound)
+	}
+}
+
+func TestCompareEvalReportsRejectsMissingReport(t *testing.T) {
+	reportService, reportID := buildEvalReportFixture(t, "tenant-eval-report-http", evalsvc.RunStatusSucceeded, "success detail")
+
+	server := httptest.NewServer(NewHandlerWithDependencies(Dependencies{EvalReports: reportService}))
+	defer server.Close()
+
+	resp, err := http.Get(server.URL + "/api/v1/eval-report-compare?tenant_id=tenant-eval-report-http&left_report_id=" + reportID + "&right_report_id=missing-report")
+	if err != nil {
+		t.Fatalf("Get() error = %v", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusNotFound {
+		t.Fatalf("StatusCode = %d, want %d", resp.StatusCode, http.StatusNotFound)
+	}
+}
+
 func TestListEvalReportsSupportsFiltersAndPagination(t *testing.T) {
 	caseService := casesvc.NewService()
 	evalCaseService := evalsvc.NewService(caseService, nil)

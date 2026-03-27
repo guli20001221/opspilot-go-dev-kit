@@ -104,6 +104,7 @@ The current HTTP layer also exposes the same PostgreSQL-backed workflow records 
 - `POST /api/v1/eval-runs`, `GET /api/v1/eval-runs`, and `GET /api/v1/eval-runs/{run_id}` now expose that tenant-scoped run-kickoff contract
 - `/admin/eval-runs` is the first eval-run operator lane, and `/admin/eval-datasets` now hands published baselines into it through `Run dataset`
 - `/admin/eval-reports` is the first eval-report operator lane, reusing the canonical eval-report list/detail contracts instead of reconstructing aggregated artifacts from run detail in the browser
+- `/admin/eval-report-compare` is the first eval-report comparison lane, reusing a narrow canonical compare contract instead of diffing eval reports ad hoc in the browser
 - the worker now also claims queued eval runs and advances them through `queued -> running -> succeeded|failed` with placeholder execution, persisting `started_at`, `finished_at`, and `error_reason` on the canonical run record
 - failed eval runs now have an explicit retry path on that same canonical record through `POST /api/v1/eval-runs/{run_id}/retry`, and the `/admin/eval-runs` lane reuses it directly for operator recovery
 - eval runs now also emit append-only `created`, `claimed`, `failed`, `retried`, and `succeeded` events on the same `run_id`, and detail reads surface that timeline while the list contract stays lightweight
@@ -114,6 +115,7 @@ The current HTTP layer also exposes the same PostgreSQL-backed workflow records 
 - that same `RunJudge` boundary now also supports an env-gated HTTP provider implementation, while the runner still degrades to placeholder failure results if the external judge call cannot finalize the canonical run
 - completed eval runs now also materialize a durable aggregated eval report read model, so top-line metrics, bad-case provenance, and judge metadata live in a canonical backend artifact instead of being derived ad hoc from run detail
 - `GET /api/v1/eval-reports` and `GET /api/v1/eval-reports/{report_id}` now expose that durable aggregated eval-report artifact directly, with a lightweight list contract and heavier single-report drill-down
+- `GET /api/v1/eval-report-compare` now exposes a narrow read-only compare contract over two durable eval reports, carrying top-line metric deltas, metadata drift, and bad-case overlap for operator review
 - canonical eval-run reads now also attach a lightweight `result_summary` on terminal runs, letting list and detail consumers scan placeholder pass/fail totals without moving the heavier `item_results` payload onto create/list/retry responses
 - the same case page now also shows and appends recent notes, so operator handoff context lives on the case instead of being implied by task/report provenance
 - the same case page now defaults into an open-case queue view, adds `My open cases` and `Unassigned` shortcuts, and computes age/staleness from canonical `updated_at`
