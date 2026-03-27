@@ -63,11 +63,11 @@ type evalRunItemResponse struct {
 type evalRunItemResultResponse struct {
 	EvalCaseID   string          `json:"eval_case_id"`
 	Status       string          `json:"status"`
-	Verdict      string          `json:"verdict,omitempty"`
+	Verdict      string          `json:"verdict"`
 	Detail       string          `json:"detail,omitempty"`
-	Score        float64         `json:"score,omitempty"`
-	JudgeVersion string          `json:"judge_version,omitempty"`
-	JudgeOutput  json.RawMessage `json:"judge_output,omitempty"`
+	Score        float64         `json:"score"`
+	JudgeVersion string          `json:"judge_version"`
+	JudgeOutput  json.RawMessage `json:"judge_output"`
 	UpdatedAt    string          `json:"updated_at"`
 }
 

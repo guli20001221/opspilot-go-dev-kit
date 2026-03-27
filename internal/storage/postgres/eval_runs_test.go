@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"os"
+	"path/filepath"
 	"testing"
 	"time"
 
@@ -1045,5 +1046,116 @@ INSERT INTO eval_cases (
 	}
 	if page.Runs[0].ResultSummary.MissingResults != 1 {
 		t.Fatalf("MissingResults = %d, want 1", page.Runs[0].ResultSummary.MissingResults)
+	}
+}
+
+func TestEvalRunJudgeFieldMigrationBackfillsLegacyRows(t *testing.T) {
+	dsn := os.Getenv("OPSPILOT_TEST_POSTGRES_DSN")
+	if dsn == "" {
+		t.Skip("OPSPILOT_TEST_POSTGRES_DSN not set")
+	}
+
+	ctx := context.Background()
+	pool, err := OpenPool(ctx, dsn)
+	if err != nil {
+		t.Fatalf("OpenPool() error = %v", err)
+	}
+	defer pool.Close()
+
+	applyMigration(t, ctx, pool)
+	if _, err := pool.Exec(ctx, "TRUNCATE eval_run_item_results, eval_run_events, eval_runs, eval_dataset_items, eval_datasets, eval_cases, case_notes, cases, reports, workflow_task_events, workflow_tasks RESTART IDENTITY CASCADE"); err != nil {
+		t.Fatalf("TRUNCATE eval run and lineage tables error = %v", err)
+	}
+
+	publishedAt := time.Unix(1700023100, 0).UTC()
+	if _, err := pool.Exec(ctx, `
+INSERT INTO eval_datasets (
+    id, tenant_id, name, description, status, created_by, created_at, updated_at, published_by, published_at
+) VALUES (
+    $1, $2, $3, '', $4, 'operator', $5, $5, 'operator', $5
+)`,
+		"eval-dataset-legacy-judge",
+		"tenant-run",
+		"Legacy Judge Dataset",
+		evalsvc.DatasetStatusPublished,
+		publishedAt,
+	); err != nil {
+		t.Fatalf("seed eval_datasets error = %v", err)
+	}
+	if _, err := pool.Exec(ctx, `
+INSERT INTO cases (
+    id, tenant_id, title, status, reason, source_task_id, source_report_id, created_by, created_at, updated_at
+) VALUES ('case-legacy-judge', 'tenant-run', 'Legacy Judge Case', 'open', 'workflow_required', '', '', 'operator', $1, $1)
+`, publishedAt); err != nil {
+		t.Fatalf("seed cases error = %v", err)
+	}
+	if _, err := pool.Exec(ctx, `
+INSERT INTO eval_cases (
+    id, tenant_id, source_case_id, source_task_id, source_report_id, trace_id, version_id, title, summary, operator_note, created_by, created_at
+) VALUES ('eval-case-legacy-judge', 'tenant-run', 'case-legacy-judge', '', '', 'trace-legacy-judge', 'version-legacy-judge', 'Legacy Judge Eval Case', '', '', 'operator', $1)
+`, publishedAt); err != nil {
+		t.Fatalf("seed eval_cases error = %v", err)
+	}
+
+	store := NewEvalRunStore(pool)
+	run, err := store.CreateRun(ctx, evalsvc.EvalRun{
+		ID:               "eval-run-legacy-judge",
+		TenantID:         "tenant-run",
+		DatasetID:        "eval-dataset-legacy-judge",
+		DatasetName:      "Legacy Judge Dataset",
+		DatasetItemCount: 1,
+		Status:           evalsvc.RunStatusQueued,
+		CreatedBy:        "operator",
+		CreatedAt:        time.Unix(1700023110, 0).UTC(),
+		UpdatedAt:        time.Unix(1700023110, 0).UTC(),
+	}, evalsvc.EvalRunItem{
+		EvalCaseID:   "eval-case-legacy-judge",
+		Title:        "Legacy Judge Eval Case",
+		SourceCaseID: "case-legacy-judge",
+		TraceID:      "trace-legacy-judge",
+		VersionID:    "version-legacy-judge",
+	})
+	if err != nil {
+		t.Fatalf("CreateRun() error = %v", err)
+	}
+
+	if _, err := pool.Exec(ctx, `
+INSERT INTO eval_run_item_results (
+    run_id, eval_case_id, status, verdict, detail, score, judge_version, judge_output, updated_at
+) VALUES (
+    $1, $2, $3, '', $4, 0, '', '{}'::jsonb, $5
+)`,
+		run.ID,
+		"eval-case-legacy-judge",
+		evalsvc.RunItemResultFailed,
+		"legacy failure detail",
+		time.Unix(1700023120, 0).UTC(),
+	); err != nil {
+		t.Fatalf("seed legacy eval_run_item_results error = %v", err)
+	}
+
+	migrationSQL, err := os.ReadFile(filepath.Join("..", "..", "..", "db", "migrations", "000019_eval_run_item_judge_fields.sql"))
+	if err != nil {
+		t.Fatalf("ReadFile(000019_eval_run_item_judge_fields.sql) error = %v", err)
+	}
+	if _, err := pool.Exec(ctx, string(migrationSQL)); err != nil {
+		t.Fatalf("reapply 000019_eval_run_item_judge_fields.sql error = %v", err)
+	}
+
+	detail, err := store.GetRunDetail(ctx, run.ID)
+	if err != nil {
+		t.Fatalf("GetRunDetail() error = %v", err)
+	}
+	if len(detail.ItemResults) != 1 {
+		t.Fatalf("len(detail.ItemResults) = %d, want 1", len(detail.ItemResults))
+	}
+	if detail.ItemResults[0].Verdict != evalsvc.RunItemVerdictFail {
+		t.Fatalf("Verdict = %q, want %q", detail.ItemResults[0].Verdict, evalsvc.RunItemVerdictFail)
+	}
+	if detail.ItemResults[0].JudgeVersion != evalsvc.PlaceholderJudgeVersion {
+		t.Fatalf("JudgeVersion = %q, want %q", detail.ItemResults[0].JudgeVersion, evalsvc.PlaceholderJudgeVersion)
+	}
+	if len(detail.ItemResults[0].JudgeOutput) == 0 || string(detail.ItemResults[0].JudgeOutput) == "{}" {
+		t.Fatalf("JudgeOutput = %s, want populated placeholder payload", string(detail.ItemResults[0].JudgeOutput))
 	}
 }

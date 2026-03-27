@@ -590,6 +590,23 @@ func TestGetEvalRunEndpointReturnsUpdatedStatusFields(t *testing.T) {
 	if len(got.ItemResults[0].JudgeOutput) == 0 {
 		t.Fatal("ItemResults[0].JudgeOutput is empty")
 	}
+	var detailRaw map[string]any
+	if err := json.Unmarshal(bodyBytes, &detailRaw); err != nil {
+		t.Fatalf("Unmarshal(detailRaw) error = %v", err)
+	}
+	itemResultsRaw, ok := detailRaw["item_results"].([]any)
+	if !ok || len(itemResultsRaw) != 1 {
+		t.Fatalf("detailRaw item_results = %#v, want one raw item result", detailRaw["item_results"])
+	}
+	itemResultRaw, ok := itemResultsRaw[0].(map[string]any)
+	if !ok {
+		t.Fatalf("itemResultsRaw[0] = %#v, want object", itemResultsRaw[0])
+	}
+	for _, field := range []string{"verdict", "score", "judge_version", "judge_output"} {
+		if _, ok := itemResultRaw[field]; !ok {
+			t.Fatalf("detail item result missing raw %q field: %#v", field, itemResultRaw)
+		}
+	}
 }
 
 func TestRetryEvalRunEndpointRequeuesFailedRun(t *testing.T) {
