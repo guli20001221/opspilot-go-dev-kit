@@ -490,6 +490,7 @@
     let currentCaseID = "";
     let currentCaseDetail = null;
     let currentEvalCaseDetail = null;
+    let currentSourceEvalReportDetail = null;
 
     function escapeHTML(value) {
       return String(value ?? "")
@@ -723,7 +724,8 @@
     function renderDetail(item) {
       currentCaseID = item.case_id;
       currentCaseDetail = item;
-       currentEvalCaseDetail = null;
+      currentEvalCaseDetail = null;
+      currentSourceEvalReportDetail = null;
       syncURL(item.case_id);
       assignCaseButton.hidden = item.status !== "open";
       assignCaseButton.disabled = false;
@@ -826,6 +828,12 @@
             <dt>Summary</dt>
             <dd>${escapeHTML(item.summary || "No summary provided.")}</dd>
           </dl>
+          ${item.source_eval_report_id ? `
+            <div class="detail-card" style="grid-column: 1 / -1;">
+              <h3 style="margin-top: 0;">Source eval report summary</h3>
+              <div id="sourceEvalReportSummary" class="loading">Loading source eval report summary...</div>
+            </div>
+          ` : ""}
           <dl class="detail-card" style="grid-column: 1 / -1;">
             <dt>Recent notes</dt>
             <dd>${renderNotes(item.notes || [])}</dd>
@@ -833,6 +841,9 @@
         </div>
       `;
       syncSelectedRow();
+      if (item.source_eval_report_id) {
+        loadSourceEvalReport(item);
+      }
     }
 
     function renderNotes(notes) {
@@ -848,11 +859,73 @@
       `).join("");
     }
 
+    async function loadSourceEvalReport(item) {
+      const summaryNode = document.getElementById("sourceEvalReportSummary");
+      if (!summaryNode || !item.source_eval_report_id) {
+        return;
+      }
+
+      summaryNode.className = "loading";
+      summaryNode.textContent = "Loading source eval report summary...";
+      try {
+        const response = await fetch(`${evalReportEndpointBase}${encodeURIComponent(item.source_eval_report_id)}?tenant_id=${encodeURIComponent(item.tenant_id)}`, {
+          headers: { "Accept": "application/json" }
+        });
+        if (!response.ok) {
+          throw new Error(`Eval report detail request failed: ${response.statusText}`);
+        }
+
+        const report = await response.json();
+        if (currentCaseID !== item.case_id) {
+          return;
+        }
+
+        currentSourceEvalReportDetail = report;
+        summaryNode.className = "";
+        summaryNode.innerHTML = `
+          <div class="detail-grid">
+            <dl class="detail-card">
+              <dt>Report ID</dt>
+              <dd>${escapeHTML(report.report_id)}</dd>
+            </dl>
+            <dl class="detail-card">
+              <dt>Dataset ID</dt>
+              <dd>${escapeHTML(report.dataset_id)}</dd>
+            </dl>
+            <dl class="detail-card">
+              <dt>Run status</dt>
+              <dd>${escapeHTML(report.run_status)}</dd>
+            </dl>
+            <dl class="detail-card">
+              <dt>Bad cases</dt>
+              <dd>${escapeHTML(String((report.bad_cases || []).length))}</dd>
+            </dl>
+            <dl class="detail-card" style="grid-column: 1 / -1;">
+              <dt>Eval summary</dt>
+              <dd>${escapeHTML(report.summary || "No eval-report summary recorded.")}</dd>
+            </dl>
+          </div>
+        `;
+      } catch (error) {
+        if (currentCaseID !== item.case_id) {
+          return;
+        }
+
+        currentSourceEvalReportDetail = null;
+        summaryNode.className = "empty";
+        summaryNode.innerHTML = `
+          <div>Unable to load source eval report metadata: ${escapeHTML(error.message || "unknown error")}</div>
+          <div style="margin-top: 8px;">Case provenance and existing handoff links remain available.</div>
+        `;
+      }
+    }
+
     async function loadCaseDetail(caseID) {
       if (!caseID) {
         currentCaseID = "";
         currentCaseDetail = null;
         currentEvalCaseDetail = null;
+        currentSourceEvalReportDetail = null;
         assignCaseButton.hidden = true;
         addCaseNoteButton.hidden = true;
         promoteEvalCaseButton.hidden = true;
@@ -861,6 +934,12 @@
         openCaseAPILink.hidden = true;
         openEvalCaseAPILink.hidden = true;
         openTraceDetailLink.hidden = true;
+        openTaskLink.hidden = true;
+        openTaskBoardLink.hidden = true;
+        openReportLink.hidden = true;
+        openReportsLink.hidden = true;
+        openEvalReportLink.hidden = true;
+        openEvalReportsLink.hidden = true;
         caseDetail.innerHTML = '<div class="empty">No case selected yet.</div>';
         syncSelectedRow();
         syncURL("");
@@ -873,6 +952,7 @@
         currentCaseID = "";
         currentCaseDetail = null;
         currentEvalCaseDetail = null;
+        currentSourceEvalReportDetail = null;
         assignCaseButton.hidden = true;
         addCaseNoteButton.hidden = true;
         promoteEvalCaseButton.hidden = true;
@@ -881,6 +961,12 @@
         openCaseAPILink.hidden = true;
         openEvalCaseAPILink.hidden = true;
         openTraceDetailLink.hidden = true;
+        openTaskLink.hidden = true;
+        openTaskBoardLink.hidden = true;
+        openReportLink.hidden = true;
+        openReportsLink.hidden = true;
+        openEvalReportLink.hidden = true;
+        openEvalReportsLink.hidden = true;
         caseDetail.innerHTML = '<div class="empty">Enter a tenant before opening case detail.</div>';
         syncSelectedRow();
         syncURL("");
@@ -907,6 +993,7 @@
       } catch (error) {
         currentCaseDetail = null;
         currentEvalCaseDetail = null;
+        currentSourceEvalReportDetail = null;
         assignCaseButton.hidden = true;
         addCaseNoteButton.hidden = true;
         promoteEvalCaseButton.hidden = true;
@@ -915,6 +1002,12 @@
         openCaseAPILink.hidden = true;
         openEvalCaseAPILink.hidden = true;
         openTraceDetailLink.hidden = true;
+        openTaskLink.hidden = true;
+        openTaskBoardLink.hidden = true;
+        openReportLink.hidden = true;
+        openReportsLink.hidden = true;
+        openEvalReportLink.hidden = true;
+        openEvalReportsLink.hidden = true;
         setDetailStatus(error.message || "Unable to load case detail.", true);
         caseDetail.innerHTML = `<div class="empty">${escapeHTML(error.message || "Unable to load case detail.")}</div>`;
       }
@@ -967,12 +1060,20 @@
         caseListState.className = "empty";
         caseListState.textContent = error.message || "Unable to load cases.";
         currentCaseDetail = null;
+        currentEvalCaseDetail = null;
+        currentSourceEvalReportDetail = null;
         assignCaseButton.hidden = true;
         addCaseNoteButton.hidden = true;
         closeCaseButton.hidden = true;
         reopenCaseButton.hidden = true;
         openCaseAPILink.hidden = true;
         openTraceDetailLink.hidden = true;
+        openTaskLink.hidden = true;
+        openTaskBoardLink.hidden = true;
+        openReportLink.hidden = true;
+        openReportsLink.hidden = true;
+        openEvalReportLink.hidden = true;
+        openEvalReportsLink.hidden = true;
         setDetailStatus("Unable to refresh the current case slice.", true);
         caseDetail.innerHTML = '<div class="empty">Unable to load case detail because the case list request failed.</div>';
       }

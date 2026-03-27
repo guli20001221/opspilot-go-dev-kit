@@ -61,6 +61,7 @@ Turn prompt, routing, retrieval, and tool changes into measurable, repeatable qu
 29. Once a durable eval-report compare lane exists, prefer handing regressions into the canonical case lifecycle through `POST /api/v1/cases` before inventing a separate regression backlog or browser-only follow-up state.
 30. If operators need to revisit promoted eval regressions, prefer canonical case filters such as `source_eval_report_id` or `eval_backed_only=true` over duplicating that queue inside eval-only storage.
 31. On eval-report detail surfaces, prefer showing linked follow-up cases by querying the canonical case list with `source_eval_report_id` rather than copying case state into eval-report storage.
+32. When a durable case detail needs source eval-regression context, prefer reading the canonical eval-report detail by `source_eval_report_id` and keep the case usable if that report row is missing or was only partially recovered.
 
 ## Output contract
 When you finish, always report:

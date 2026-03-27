@@ -8,6 +8,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"testing"
 
@@ -1142,6 +1143,9 @@ func TestAdminCasesPageRendersHTML(t *testing.T) {
 	if !strings.Contains(body, "/admin/eval-reports") {
 		t.Fatal("eval reports handoff missing from cases page HTML")
 	}
+	if !strings.Contains(body, "Source eval report summary") {
+		t.Fatal("source eval report summary section missing from cases page HTML")
+	}
 	if !strings.Contains(body, "Copy case link") {
 		t.Fatal("case link handoff missing from cases page HTML")
 	}
@@ -1153,6 +1157,135 @@ func TestAdminCasesPageRendersHTML(t *testing.T) {
 	}
 	if !strings.Contains(body, "<option value=\"closed\">Closed</option>") {
 		t.Fatal("closed status filter missing from cases page HTML")
+	}
+}
+
+func TestAdminCasesPageRuntimeSmoke(t *testing.T) {
+	reportService, reportID := buildEvalReportFixture(t, "tenant-case-admin-smoke", evalsvc.RunStatusFailed, "failure detail")
+	ctx := context.Background()
+	reportItem, err := reportService.GetEvalReport(ctx, reportID)
+	if err != nil {
+		t.Fatalf("GetEvalReport() error = %v", err)
+	}
+
+	caseService := casesvc.NewService()
+	linkedCase, err := caseService.CreateCase(ctx, casesvc.CreateInput{
+		TenantID:           "tenant-case-admin-smoke",
+		Title:              "Investigate eval regression",
+		Summary:            "Follow up eval-linked operator case",
+		SourceEvalReportID: reportID,
+		CreatedBy:          "operator-case",
+	})
+	if err != nil {
+		t.Fatalf("CreateCase(linked) error = %v", err)
+	}
+	missingCase, err := caseService.CreateCase(ctx, casesvc.CreateInput{
+		TenantID:           "tenant-case-admin-smoke",
+		Title:              "Investigate missing eval report",
+		Summary:            "Case should degrade when source eval report is unavailable",
+		SourceEvalReportID: "missing-eval-report",
+		CreatedBy:          "operator-case",
+	})
+	if err != nil {
+		t.Fatalf("CreateCase(missing) error = %v", err)
+	}
+
+	server := httptest.NewServer(NewHandlerWithDependencies(Dependencies{
+		Cases:       caseService,
+		EvalReports: reportService,
+	}))
+	defer server.Close()
+
+	nodePathRoot, err := npmGlobalRoot()
+	if err != nil {
+		t.Skipf("skipping playwright runtime smoke: %v", err)
+	}
+
+	scriptPath := filepath.Join(t.TempDir(), "cases_smoke.js")
+	script := `
+const { chromium } = require("playwright");
+const baseURL = process.argv[2];
+const tenantID = process.argv[3];
+const linkedCaseID = process.argv[4];
+const missingCaseID = process.argv[5];
+const reportID = process.argv[6];
+const datasetID = process.argv[7];
+const runStatus = process.argv[8];
+const summary = process.argv[9];
+const badCaseCount = process.argv[10];
+
+(async () => {
+  const browser = await chromium.launch({ headless: true });
+  const page = await browser.newPage();
+  await page.goto(baseURL + "/admin/cases?tenant_id=" + encodeURIComponent(tenantID) + "&limit=10&case_id=" + encodeURIComponent(linkedCaseID));
+  await page.waitForSelector("text=Source eval report summary");
+  await page.waitForFunction(
+    (expectedReportID) => {
+      const node = document.querySelector("#sourceEvalReportSummary");
+      return node && node.textContent && node.textContent.includes(expectedReportID);
+    },
+    reportID
+  );
+  const detailText = await page.textContent("#sourceEvalReportSummary");
+  if (!detailText.includes(datasetID)) throw new Error("missing dataset_id in source eval report summary");
+  if (!detailText.includes(runStatus)) throw new Error("missing run_status in source eval report summary");
+  if (!detailText.includes(summary)) throw new Error("missing eval report summary text");
+  if (!detailText.includes(badCaseCount)) throw new Error("missing bad case count");
+  const evalLaneHref = await page.getAttribute("#openEvalReportsLink", "href");
+  if (!evalLaneHref || !evalLaneHref.includes("report_id=" + encodeURIComponent(reportID))) {
+    throw new Error("eval report lane handoff missing report_id");
+  }
+
+  await page.goto(baseURL + "/admin/cases?tenant_id=" + encodeURIComponent(tenantID) + "&limit=10&case_id=" + encodeURIComponent(missingCaseID));
+  await page.waitForSelector("text=Source eval report summary");
+  await page.waitForFunction(() => {
+    const node = document.querySelector("#sourceEvalReportSummary");
+    return node && node.textContent && node.textContent.includes("Unable to load source eval report metadata");
+  });
+  const missingEvalAPIHref = await page.getAttribute("#openEvalReportLink", "href");
+  if (!missingEvalAPIHref || !missingEvalAPIHref.includes("missing-eval-report")) {
+    throw new Error("source eval report API handoff drifted after lookup failure");
+  }
+  const missingEvalLaneHref = await page.getAttribute("#openEvalReportsLink", "href");
+  if (!missingEvalLaneHref || !missingEvalLaneHref.includes("report_id=missing-eval-report")) {
+    throw new Error("source eval report lane handoff drifted after lookup failure");
+  }
+  const failedURL = new URL(page.url());
+  if (failedURL.searchParams.get("case_id") !== missingCaseID) {
+    throw new Error("selected case_id drifted after source eval report lookup failure");
+  }
+  await browser.close();
+})().catch((error) => {
+  console.error(error && error.stack ? error.stack : String(error));
+  process.exit(1);
+});
+`
+	if err := os.WriteFile(scriptPath, []byte(script), 0o600); err != nil {
+		t.Fatalf("WriteFile(scriptPath) error = %v", err)
+	}
+
+	cmd := exec.Command(
+		"node",
+		scriptPath,
+		server.URL,
+		"tenant-case-admin-smoke",
+		linkedCase.ID,
+		missingCase.ID,
+		reportID,
+		reportItem.DatasetID,
+		reportItem.RunStatus,
+		reportItem.Summary,
+		strconv.Itoa(len(reportItem.BadCases)),
+	)
+	cmd.Env = append(os.Environ(), "NODE_PATH="+nodePathRoot)
+	output, err := cmd.CombinedOutput()
+	if err != nil {
+		outText := string(output)
+		if strings.Contains(outText, "Please run the following command to download new browsers") ||
+			strings.Contains(outText, "Executable doesn't exist") {
+			t.Skip("skipping playwright runtime smoke: browser binaries not installed")
+		}
+		t.Fatalf("playwright runtime smoke failed: %v\n%s", err, string(output))
 	}
 }
 
