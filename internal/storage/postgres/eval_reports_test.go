@@ -176,4 +176,16 @@ func TestEvalReportStoreListSupportsFiltersAndPagination(t *testing.T) {
 	if len(filtered.Reports) != 1 || filtered.Reports[0].ID != "eval-report-eval-run-1" {
 		t.Fatalf("filtered.Reports = %#v, want dataset-scoped report", filtered.Reports)
 	}
+
+	reportScoped, err := store.ListEvalReports(ctx, evalsvc.EvalReportListFilter{
+		TenantID: "tenant-eval",
+		ReportID: "eval-report-eval-run-2",
+		Limit:    10,
+	})
+	if err != nil {
+		t.Fatalf("ListEvalReports(reportScoped) error = %v", err)
+	}
+	if len(reportScoped.Reports) != 1 || reportScoped.Reports[0].ID != "eval-report-eval-run-2" {
+		t.Fatalf("reportScoped.Reports = %#v, want report-id scoped report", reportScoped.Reports)
+	}
 }

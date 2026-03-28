@@ -288,6 +288,7 @@ type EvalReport struct {
 
 // EvalReportListFilter constrains eval-report list reads.
 type EvalReportListFilter struct {
+	ReportID  string
 	TenantID  string
 	DatasetID string
 	RunStatus string

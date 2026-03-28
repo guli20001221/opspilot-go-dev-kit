@@ -62,6 +62,12 @@ func TestGetEvalReportReturnsMaterializedDetail(t *testing.T) {
 	if got.BadCases[0].PreferredFollowUpAction.SourceEvalCaseID != got.BadCases[0].EvalCaseID {
 		t.Fatalf("BadCases[0].PreferredFollowUpAction.SourceEvalCaseID = %q, want %q", got.BadCases[0].PreferredFollowUpAction.SourceEvalCaseID, got.BadCases[0].EvalCaseID)
 	}
+	if got.PreferredCompareFollowUpAction.Mode != "none" {
+		t.Fatalf("PreferredCompareFollowUpAction.Mode = %q, want %q", got.PreferredCompareFollowUpAction.Mode, "none")
+	}
+	if got.PreferredCompareFollowUpAction.SourceEvalReportID != reportID {
+		t.Fatalf("PreferredCompareFollowUpAction.SourceEvalReportID = %q, want %q", got.PreferredCompareFollowUpAction.SourceEvalReportID, reportID)
+	}
 	if got.BadCaseCount != 1 {
 		t.Fatalf("BadCaseCount = %d, want 1", got.BadCaseCount)
 	}
@@ -309,6 +315,12 @@ func TestGetEvalReportIncludesCompareFollowUpSummary(t *testing.T) {
 	}
 	if got.LatestCompareFollowUpCaseStatus != casesvc.StatusOpen {
 		t.Fatalf("LatestCompareFollowUpCaseStatus = %q, want %q", got.LatestCompareFollowUpCaseStatus, casesvc.StatusOpen)
+	}
+	if got.PreferredCompareFollowUpAction.Mode != "open_existing_queue" {
+		t.Fatalf("PreferredCompareFollowUpAction.Mode = %q, want %q", got.PreferredCompareFollowUpAction.Mode, "open_existing_queue")
+	}
+	if got.PreferredCompareFollowUpAction.SourceEvalReportID != leftReportID {
+		t.Fatalf("PreferredCompareFollowUpAction.SourceEvalReportID = %q, want %q", got.PreferredCompareFollowUpAction.SourceEvalReportID, leftReportID)
 	}
 }
 
@@ -878,6 +890,40 @@ func TestListEvalReportsSupportsFiltersAndPagination(t *testing.T) {
 	}
 }
 
+func TestListEvalReportsSupportsReportIDFilter(t *testing.T) {
+	caseService := casesvc.NewService()
+	evalCaseService := evalsvc.NewService(caseService, nil)
+	datasetService := evalsvc.NewDatasetService(evalCaseService)
+	runService := evalsvc.NewRunService(datasetService)
+	reportService := evalsvc.NewEvalReportServiceWithDependencies(nil, runService)
+	firstReportID := materializeEvalRunReport(t, "tenant-eval-report-filter", evalsvc.RunStatusSucceeded, "success detail", caseService, evalCaseService, datasetService, runService, reportService, "Dataset One", "Source One")
+	_ = materializeEvalRunReport(t, "tenant-eval-report-filter", evalsvc.RunStatusFailed, "failure detail", caseService, evalCaseService, datasetService, runService, reportService, "Dataset Two", "Source Two")
+
+	server := httptest.NewServer(NewHandlerWithDependencies(Dependencies{EvalReports: reportService}))
+	defer server.Close()
+
+	resp, err := http.Get(server.URL + "/api/v1/eval-reports?tenant_id=tenant-eval-report-filter&report_id=" + firstReportID + "&limit=10")
+	if err != nil {
+		t.Fatalf("Get() error = %v", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("StatusCode = %d, want %d", resp.StatusCode, http.StatusOK)
+	}
+
+	var page listEvalReportsResponse
+	if err := json.NewDecoder(resp.Body).Decode(&page); err != nil {
+		t.Fatalf("Decode(page) error = %v", err)
+	}
+	if len(page.Reports) != 1 {
+		t.Fatalf("len(page.Reports) = %d, want 1", len(page.Reports))
+	}
+	if page.Reports[0].ReportID != firstReportID {
+		t.Fatalf("page.Reports[0].ReportID = %q, want %q", page.Reports[0].ReportID, firstReportID)
+	}
+}
+
 func TestListEvalReportsIncludesFollowUpCaseSummary(t *testing.T) {
 	caseService := casesvc.NewService()
 	evalCaseService := evalsvc.NewService(caseService, nil)
@@ -1030,6 +1076,12 @@ func TestListEvalReportsIncludesCompareFollowUpSummary(t *testing.T) {
 		}
 		if got.LatestCompareFollowUpCaseStatus != casesvc.StatusOpen {
 			t.Fatalf("LatestCompareFollowUpCaseStatus = %q, want %q", got.LatestCompareFollowUpCaseStatus, casesvc.StatusOpen)
+		}
+		if got.PreferredCompareFollowUpAction.Mode != "open_existing_queue" {
+			t.Fatalf("PreferredCompareFollowUpAction.Mode = %q, want %q", got.PreferredCompareFollowUpAction.Mode, "open_existing_queue")
+		}
+		if got.PreferredCompareFollowUpAction.SourceEvalReportID != leftReportID {
+			t.Fatalf("PreferredCompareFollowUpAction.SourceEvalReportID = %q, want %q", got.PreferredCompareFollowUpAction.SourceEvalReportID, leftReportID)
 		}
 	}
 	if !leftFound {

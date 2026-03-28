@@ -514,6 +514,9 @@ func (s *memoryStore) ListEvalReports(_ context.Context, filter EvalReportListFi
 
 	items := make([]EvalReport, 0, len(s.evalReports))
 	for _, item := range s.evalReports {
+		if filter.ReportID != "" && item.ID != filter.ReportID {
+			continue
+		}
 		if filter.TenantID != "" && item.TenantID != filter.TenantID {
 			continue
 		}

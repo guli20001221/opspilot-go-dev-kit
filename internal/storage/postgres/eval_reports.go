@@ -185,13 +185,14 @@ SELECT
     ready_at
 FROM eval_reports
 WHERE tenant_id = $1
-  AND ($2 = '' OR dataset_id = $2)
-  AND ($3 = '' OR run_status = $3)
-  AND ($4 = '' OR status = $4)
+  AND ($2 = '' OR id = $2)
+  AND ($3 = '' OR dataset_id = $3)
+  AND ($4 = '' OR run_status = $4)
+  AND ($5 = '' OR status = $5)
 ORDER BY updated_at DESC, id DESC
-LIMIT $5 OFFSET $6`
+LIMIT $6 OFFSET $7`
 
-	rows, err := s.pool.Query(ctx, query, filter.TenantID, filter.DatasetID, filter.RunStatus, filter.Status, filter.Limit+1, filter.Offset)
+	rows, err := s.pool.Query(ctx, query, filter.TenantID, filter.ReportID, filter.DatasetID, filter.RunStatus, filter.Status, filter.Limit+1, filter.Offset)
 	if err != nil {
 		return evalsvc.EvalReportListPage{}, fmt.Errorf("query eval reports: %w", err)
 	}
