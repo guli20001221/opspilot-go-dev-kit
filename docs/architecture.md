@@ -122,6 +122,8 @@ The current HTTP layer also exposes the same PostgreSQL-backed workflow records 
 - the same canonical eval-report detail now also decorates each bad case with follow-up summary and `latest_follow_up_case_id`, so bad-case triage can hand off into durable case state without adding another backend surface
 - that same canonical eval-report detail now also supports a `bad_case_needs_follow_up` filter, so bad-case triage slices stay backend-owned instead of becoming a browser-only filter over already-loaded rows
 - that same canonical eval-report detail now also carries stable `bad_case_count`, so report-level case handoff is not distorted by a filtered bad-case drill-down
+- the same canonical eval-report list now also carries `bad_case_without_open_follow_up_count`, so unresolved bad-case pressure becomes a durable queue signal instead of a detail-only inference
+- that same canonical eval-report list now also supports `bad_case_needs_follow_up=true|false`, and `/admin/eval-reports` uses it for an unresolved-bad-case slice without inventing a second queue contract
 - the same eval-report lane now also supports bad-case-specific follow-up through `source_eval_case_id`, so one failing eval case can promote to its own canonical case without collapsing back into the broader report-level follow-up
 - `/admin/eval-report-compare` is the first eval-report comparison lane, reusing a narrow canonical compare contract instead of diffing eval reports ad hoc in the browser
 - the same compare lane now also hands regression findings into the canonical case lifecycle by reusing side-specific `POST /api/v1/cases` actions and deep-linking to `/admin/cases`, instead of inventing an admin-only follow-up store

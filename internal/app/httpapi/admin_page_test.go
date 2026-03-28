@@ -566,8 +566,14 @@ func TestAdminEvalReportsPageRendersHTML(t *testing.T) {
 	if !strings.Contains(body, "Needs follow-up") {
 		t.Fatal("needs follow-up quick view missing from eval reports page HTML")
 	}
+	if !strings.Contains(body, "Unresolved bad cases") {
+		t.Fatal("unresolved bad cases quick view missing from eval reports page HTML")
+	}
 	if !strings.Contains(body, "Open latest case") {
 		t.Fatal("latest case handoff missing from eval reports page HTML")
+	}
+	if !strings.Contains(body, "bad_case_needs_follow_up") {
+		t.Fatal("bad_case_needs_follow_up filter missing from eval reports page HTML")
 	}
 	if !strings.Contains(body, "Show raw report JSON") {
 		t.Fatal("raw report json toggle missing from eval reports page HTML")
@@ -1017,6 +1023,29 @@ async function assertCasePayload(page, apiBaseURL, caseID, tenantID, expectedRep
   if (!detailLatestCaseHref || !detailLatestCaseHref.includes("/admin/cases?") || !detailLatestCaseHref.includes("case_id=")) {
     throw new Error("latest case handoff link missing from detail pane");
   }
+  await page.click("#quickViewAllReports");
+  await page.waitForFunction(() => new URL(window.location.href).searchParams.get("needs_follow_up") === null && new URL(window.location.href).searchParams.get("bad_case_needs_follow_up") === null);
+  await page.click("#quickViewBadCaseNeedsFollowUp");
+  await page.waitForFunction(() => new URL(window.location.href).searchParams.get("bad_case_needs_follow_up") === "true");
+  const unresolvedVisibleCount = (await page.textContent("#visibleCount")).trim();
+  if (unresolvedVisibleCount !== "1") {
+    throw new Error("unexpected visibleCount after unresolved bad-case quick view: " + unresolvedVisibleCount);
+  }
+  const badCaseFollowUpFilterValue = await page.$eval("#bad_case_needs_follow_up", (el) => el.value);
+  if (badCaseFollowUpFilterValue !== "true") {
+    throw new Error("bad_case_needs_follow_up filter was not synced to quick view");
+  }
+  const unresolvedSummary = (await page.textContent("#reportRows tr td:nth-child(5)")).trim();
+  if (!unresolvedSummary.includes("1 bad cases uncovered")) {
+    throw new Error("unresolved bad-case summary missing from list row: " + unresolvedSummary);
+  }
+  await page.click("#quickViewAllReports");
+  await page.waitForFunction(() => {
+    const params = new URL(window.location.href).searchParams;
+    return params.get("needs_follow_up") === null && params.get("bad_case_needs_follow_up") === null;
+  });
+  await page.waitForFunction(() => document.querySelector("#visibleCount") && document.querySelector("#visibleCount").textContent.trim() === "2");
+  await page.waitForFunction((expectedReportID) => new URL(window.location.href).searchParams.get("report_id") === expectedReportID, reportID);
   const linkedCaseCount = (await page.textContent("#linkedCaseCount")).trim();
   if (linkedCaseCount !== "5+") {
     throw new Error("unexpected linkedCaseCount: " + linkedCaseCount);
@@ -1084,16 +1113,38 @@ async function assertCasePayload(page, apiBaseURL, caseID, tenantID, expectedRep
     throw new Error("bad-case follow-up slice handoff missing source_eval_case_id");
   }
   await page.click("#badCaseQuickViewNeedsFollowUp");
-  await page.waitForFunction(() => new URL(window.location.href).searchParams.get("bad_case_needs_follow_up") === "true");
+  await page.waitForFunction(() => new URL(window.location.href).searchParams.get("detail_bad_case_needs_follow_up") === "true");
   const badCaseCountWithFollowUp = await page.locator(".bad-case-item").count();
   if (badCaseCountWithFollowUp !== 1) {
     throw new Error("unexpected bad-case count after needs-follow-up filter: " + badCaseCountWithFollowUp);
   }
   await page.click("#badCaseQuickViewNoFollowUp");
-  await page.waitForFunction(() => new URL(window.location.href).searchParams.get("bad_case_needs_follow_up") === "false");
+  await page.waitForFunction(() => new URL(window.location.href).searchParams.get("detail_bad_case_needs_follow_up") === "false");
   await page.waitForSelector("text=No bad cases were materialized for this eval report.");
+  await page.click("#quickViewBadCaseNeedsFollowUp");
+  await page.waitForFunction((expectedReportID) => {
+    const params = new URL(window.location.href).searchParams;
+    return params.get("bad_case_needs_follow_up") === "true" &&
+      params.get("detail_bad_case_needs_follow_up") === null &&
+      params.get("report_id") === expectedReportID;
+  }, reportNoReuseID);
+  const unresolvedBadCaseCount = await page.locator(".bad-case-item").count();
+  if (unresolvedBadCaseCount !== 1) {
+    throw new Error("detail did not reset to canonical unresolved bad-case slice after list quick view: " + unresolvedBadCaseCount);
+  }
+  const unresolvedDetailText = await page.locator(".bad-case-item").first().textContent();
+  if (!unresolvedDetailText.includes("0 open")) {
+    throw new Error("expected unresolved bad-case detail after list quick view reset: " + unresolvedDetailText);
+  }
+  await page.click("#quickViewAllReports");
+  await page.waitForFunction(() => {
+    const params = new URL(window.location.href).searchParams;
+    return params.get("bad_case_needs_follow_up") === null && params.get("detail_bad_case_needs_follow_up") === null;
+  });
+  await page.goto(baseURL + "/admin/eval-reports?tenant_id=" + encodeURIComponent(tenantID) + "&limit=10&report_id=" + encodeURIComponent(reportID));
+  await page.waitForSelector("text=Bad cases");
   await page.click("#badCaseQuickViewAll");
-  await page.waitForFunction(() => new URL(window.location.href).searchParams.get("bad_case_needs_follow_up") === null);
+  await page.waitForFunction(() => new URL(window.location.href).searchParams.get("detail_bad_case_needs_follow_up") === null);
   await page.waitForSelector("[data-create-bad-case]");
   const restoredBadCaseCount = await page.locator(".bad-case-item").count();
   if (restoredBadCaseCount !== 1) {
@@ -1104,13 +1155,13 @@ async function assertCasePayload(page, apiBaseURL, caseID, tenantID, expectedRep
     throw new Error("bad-case action did not restore the expected eval_case_id after clearing filter");
   }
   await page.click("#badCaseQuickViewNoFollowUp");
-  await page.waitForFunction(() => new URL(window.location.href).searchParams.get("bad_case_needs_follow_up") === "false");
+  await page.waitForFunction(() => new URL(window.location.href).searchParams.get("detail_bad_case_needs_follow_up") === "false");
   await page.goto(baseURL + "/admin/eval-reports?tenant_id=" + encodeURIComponent(tenantID) + "&limit=10&report_id=" + encodeURIComponent(reportNoReuseID));
   await page.waitForSelector("text=Bad cases");
   await page.click("#badCaseQuickViewNoFollowUp");
   await page.waitForFunction(() => {
     const params = new URL(window.location.href).searchParams;
-    return params.get("report_id") === reportNoReuseID && params.get("bad_case_needs_follow_up") === "false";
+    return params.get("report_id") === reportNoReuseID && params.get("detail_bad_case_needs_follow_up") === "false";
   });
   const filteredReportCaseButton = page.locator("#createCaseButton");
   await filteredReportCaseButton.click();

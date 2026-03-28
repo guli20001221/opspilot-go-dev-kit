@@ -155,9 +155,12 @@ The current chat stream implementation is a Milestone 1 skeleton:
 - use `GET /api/v1/eval-reports?tenant_id=<tenant>` when you need the lightweight tenant-scoped browse lane for those durable eval reports
 - that same eval-report list now also includes `follow_up_case_count`, `open_follow_up_case_count`, and `latest_follow_up_case_status`, so `/admin/eval-reports` can surface regression follow-up pressure directly from the canonical list contract
 - use `needs_follow_up=true` on `GET /api/v1/eval-reports` when you want only eval reports with at least one open follow-up case, or `needs_follow_up=false` when you want reports whose follow-up queue is already clear
+- that same eval-report list now also includes `bad_case_without_open_follow_up_count`, so you can see unresolved bad-case pressure without opening report detail
+- use `bad_case_needs_follow_up=true` on `GET /api/v1/eval-reports` when you want only eval reports that still have at least one bad case without an open linked follow-up case
 - use `GET /api/v1/eval-reports/{report_id}?tenant_id=<tenant>` when you need the canonical aggregated eval report detail, including metadata and bad-case lineage
 - open `http://localhost:18080/admin/eval-reports` when you want the first eval-report operator page, including bad-case drill-down plus run, dataset, eval, trace, and version handoff links
 - use the `Needs follow-up` quick view on `/admin/eval-reports` when you want the unresolved-regression slice without manually entering `needs_follow_up=true`
+- use the `Unresolved bad cases` quick view on `/admin/eval-reports` when you want only reports whose bad cases still have no open linked follow-up
 - use `Open latest case` on `/admin/eval-reports` rows when you want to jump straight into the freshest linked follow-up case from the canonical list slice
 - that same `Open latest case` handoff also appears inside the eval-report detail pane once a report is selected, so operators do not need to return to the table row to continue case triage
 - use `Open left latest case` / `Open right latest case` on `/admin/eval-report-compare` when you need to inspect existing follow-up before deciding whether to create another case from the comparison

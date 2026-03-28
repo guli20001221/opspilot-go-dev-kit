@@ -32,31 +32,32 @@ type evalReportBadCaseResponse struct {
 }
 
 type evalReportResponse struct {
-	ReportID                 string                      `json:"report_id"`
-	TenantID                 string                      `json:"tenant_id"`
-	RunID                    string                      `json:"run_id"`
-	DatasetID                string                      `json:"dataset_id"`
-	DatasetName              string                      `json:"dataset_name"`
-	RunStatus                string                      `json:"run_status"`
-	Status                   string                      `json:"status"`
-	Summary                  string                      `json:"summary"`
-	TotalItems               int                         `json:"total_items"`
-	RecordedResults          int                         `json:"recorded_results"`
-	PassedItems              int                         `json:"passed_items"`
-	FailedItems              int                         `json:"failed_items"`
-	MissingResults           int                         `json:"missing_results"`
-	AverageScore             float64                     `json:"average_score"`
-	JudgeVersion             string                      `json:"judge_version,omitempty"`
-	BadCaseCount             int                         `json:"bad_case_count"`
-	FollowUpCaseCount        int                         `json:"follow_up_case_count"`
-	OpenFollowUpCaseCount    int                         `json:"open_follow_up_case_count"`
-	LatestFollowUpCaseID     string                      `json:"latest_follow_up_case_id,omitempty"`
-	LatestFollowUpCaseStatus string                      `json:"latest_follow_up_case_status,omitempty"`
-	Metadata                 json.RawMessage             `json:"metadata,omitempty"`
-	BadCases                 []evalReportBadCaseResponse `json:"bad_cases,omitempty"`
-	CreatedAt                string                      `json:"created_at"`
-	UpdatedAt                string                      `json:"updated_at"`
-	ReadyAt                  string                      `json:"ready_at"`
+	ReportID                        string                      `json:"report_id"`
+	TenantID                        string                      `json:"tenant_id"`
+	RunID                           string                      `json:"run_id"`
+	DatasetID                       string                      `json:"dataset_id"`
+	DatasetName                     string                      `json:"dataset_name"`
+	RunStatus                       string                      `json:"run_status"`
+	Status                          string                      `json:"status"`
+	Summary                         string                      `json:"summary"`
+	TotalItems                      int                         `json:"total_items"`
+	RecordedResults                 int                         `json:"recorded_results"`
+	PassedItems                     int                         `json:"passed_items"`
+	FailedItems                     int                         `json:"failed_items"`
+	MissingResults                  int                         `json:"missing_results"`
+	AverageScore                    float64                     `json:"average_score"`
+	JudgeVersion                    string                      `json:"judge_version,omitempty"`
+	BadCaseCount                    int                         `json:"bad_case_count"`
+	BadCaseWithoutOpenFollowUpCount int                         `json:"bad_case_without_open_follow_up_count"`
+	FollowUpCaseCount               int                         `json:"follow_up_case_count"`
+	OpenFollowUpCaseCount           int                         `json:"open_follow_up_case_count"`
+	LatestFollowUpCaseID            string                      `json:"latest_follow_up_case_id,omitempty"`
+	LatestFollowUpCaseStatus        string                      `json:"latest_follow_up_case_status,omitempty"`
+	Metadata                        json.RawMessage             `json:"metadata,omitempty"`
+	BadCases                        []evalReportBadCaseResponse `json:"bad_cases,omitempty"`
+	CreatedAt                       string                      `json:"created_at"`
+	UpdatedAt                       string                      `json:"updated_at"`
+	ReadyAt                         string                      `json:"ready_at"`
 }
 
 type listEvalReportsResponse struct {
@@ -131,8 +132,13 @@ func (a *appHandler) handleEvalReports(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, "invalid_query", err.Error())
 		return
 	}
+	badCaseNeedsFollowUp, err := parseEvalReportBadCaseNeedsFollowUpFilter(r)
+	if err != nil {
+		writeError(w, http.StatusBadRequest, "invalid_query", err.Error())
+		return
+	}
 
-	resp, err := a.listEvalReportsResponse(r.Context(), filter, needsFollowUp)
+	resp, err := a.listEvalReportsResponse(r.Context(), filter, needsFollowUp, badCaseNeedsFollowUp)
 	if err != nil {
 		code := "eval_report_list_failed"
 		if errors.Is(err, errEvalReportFollowUpSummaryFailed) {
@@ -261,12 +267,13 @@ func (a *appHandler) handleEvalReportByID(w http.ResponseWriter, r *http.Request
 		writeError(w, http.StatusInternalServerError, "eval_case_follow_up_summary_failed", err.Error())
 		return
 	}
+	badCaseWithoutOpenFollowUpCount := countEvalReportBadCasesWithoutOpenFollowUp(item.BadCases, badCaseFollowUpSummaries)
 
 	if badCaseNeedsFollowUp != nil {
 		item.BadCases = filterEvalReportBadCasesByNeedsFollowUp(item.BadCases, badCaseFollowUpSummaries, *badCaseNeedsFollowUp)
 	}
 
-	writeJSON(w, http.StatusOK, newEvalReportResponse(item, true, followUpSummaries[reportID], badCaseFollowUpSummaries, originalBadCaseCount))
+	writeJSON(w, http.StatusOK, newEvalReportResponse(item, true, followUpSummaries[reportID], badCaseFollowUpSummaries, originalBadCaseCount, badCaseWithoutOpenFollowUpCount))
 }
 
 func parseEvalReportListFilter(r *http.Request) (evalsvc.EvalReportListFilter, error) {
@@ -332,8 +339,8 @@ func parseEvalReportBadCaseNeedsFollowUpFilter(r *http.Request) (*bool, error) {
 	return &value, nil
 }
 
-func (a *appHandler) listEvalReportsResponse(ctx context.Context, filter evalsvc.EvalReportListFilter, needsFollowUp *bool) (listEvalReportsResponse, error) {
-	if needsFollowUp == nil {
+func (a *appHandler) listEvalReportsResponse(ctx context.Context, filter evalsvc.EvalReportListFilter, needsFollowUp *bool, badCaseNeedsFollowUp *bool) (listEvalReportsResponse, error) {
+	if needsFollowUp == nil && badCaseNeedsFollowUp == nil {
 		page, err := a.evalReports.ListEvalReports(ctx, filter)
 		if err != nil {
 			return listEvalReportsResponse{}, err
@@ -366,7 +373,11 @@ func (a *appHandler) listEvalReportsResponse(ctx context.Context, filter evalsvc
 		}
 		for _, item := range chunk.Reports {
 			hasOpenFollowUp := item.OpenFollowUpCaseCount > 0
-			if hasOpenFollowUp != *needsFollowUp {
+			if needsFollowUp != nil && hasOpenFollowUp != *needsFollowUp {
+				continue
+			}
+			hasUncoveredBadCases := item.BadCaseWithoutOpenFollowUpCount > 0
+			if badCaseNeedsFollowUp != nil && hasUncoveredBadCases != *badCaseNeedsFollowUp {
 				continue
 			}
 			if matchedCount < filter.Offset {
@@ -402,18 +413,29 @@ func (a *appHandler) buildEvalReportListResponse(ctx context.Context, tenantID s
 	for _, item := range page.Reports {
 		reportIDs = append(reportIDs, item.ID)
 	}
-	followUpSummaries, err := a.cases.SummarizeBySourceEvalReportIDs(ctx, tenantID, reportIDs)
+	var err error
+	followUpSummaries := map[string]casesvc.EvalReportFollowUpSummary{}
+	if a.cases != nil && len(reportIDs) > 0 {
+		followUpSummaries, err = a.cases.SummarizeBySourceEvalReportIDs(ctx, tenantID, reportIDs)
+		if err != nil {
+			return listEvalReportsResponse{}, fmt.Errorf("%w: %v", errEvalReportFollowUpSummaryFailed, err)
+		}
+	}
+	badCaseWithoutOpenFollowUpCounts, err := a.evalReportBadCaseWithoutOpenFollowUpCounts(ctx, tenantID, page.Reports)
 	if err != nil {
 		return listEvalReportsResponse{}, fmt.Errorf("%w: %v", errEvalReportFollowUpSummaryFailed, err)
 	}
 	for _, item := range page.Reports {
 		summary := followUpSummaries[item.ID]
-		resp.Reports = append(resp.Reports, newEvalReportResponse(item, false, summary, nil, len(item.BadCases)))
+		resp.Reports = append(resp.Reports, newEvalReportResponse(item, false, summary, nil, len(item.BadCases), badCaseWithoutOpenFollowUpCounts[item.ID]))
 	}
 	return resp, nil
 }
 
 func (a *appHandler) evalCaseFollowUpSummaries(ctx context.Context, tenantID string, badCases []evalsvc.EvalReportBadCase) (map[string]casesvc.EvalCaseFollowUpSummary, error) {
+	if a.cases == nil {
+		return map[string]casesvc.EvalCaseFollowUpSummary{}, nil
+	}
 	if len(badCases) == 0 {
 		return map[string]casesvc.EvalCaseFollowUpSummary{}, nil
 	}
@@ -437,6 +459,36 @@ func (a *appHandler) evalCaseFollowUpSummaries(ctx context.Context, tenantID str
 	return a.cases.SummarizeBySourceEvalCaseIDs(ctx, tenantID, evalCaseIDs)
 }
 
+func (a *appHandler) evalReportBadCaseWithoutOpenFollowUpCounts(ctx context.Context, tenantID string, reports []evalsvc.EvalReport) (map[string]int, error) {
+	counts := make(map[string]int, len(reports))
+	if len(reports) == 0 {
+		return counts, nil
+	}
+
+	allBadCases := make([]evalsvc.EvalReportBadCase, 0)
+	for _, report := range reports {
+		allBadCases = append(allBadCases, report.BadCases...)
+	}
+	badCaseSummaries, err := a.evalCaseFollowUpSummaries(ctx, tenantID, allBadCases)
+	if err != nil {
+		return nil, err
+	}
+	for _, report := range reports {
+		counts[report.ID] = countEvalReportBadCasesWithoutOpenFollowUp(report.BadCases, badCaseSummaries)
+	}
+	return counts, nil
+}
+
+func countEvalReportBadCasesWithoutOpenFollowUp(badCases []evalsvc.EvalReportBadCase, summaries map[string]casesvc.EvalCaseFollowUpSummary) int {
+	count := 0
+	for _, badCase := range badCases {
+		if summaries[badCase.EvalCaseID].OpenFollowUpCaseCount == 0 {
+			count++
+		}
+	}
+	return count
+}
+
 func filterEvalReportBadCasesByNeedsFollowUp(badCases []evalsvc.EvalReportBadCase, summaries map[string]casesvc.EvalCaseFollowUpSummary, needsFollowUp bool) []evalsvc.EvalReportBadCase {
 	if len(badCases) == 0 {
 		return nil
@@ -454,34 +506,35 @@ func filterEvalReportBadCasesByNeedsFollowUp(badCases []evalsvc.EvalReportBadCas
 	return filtered
 }
 
-func newEvalReportResponse(item evalsvc.EvalReport, includeHeavy bool, followUpSummary casesvc.EvalReportFollowUpSummary, badCaseSummaries map[string]casesvc.EvalCaseFollowUpSummary, badCaseCount int) evalReportResponse {
+func newEvalReportResponse(item evalsvc.EvalReport, includeHeavy bool, followUpSummary casesvc.EvalReportFollowUpSummary, badCaseSummaries map[string]casesvc.EvalCaseFollowUpSummary, badCaseCount int, badCaseWithoutOpenFollowUpCount int) evalReportResponse {
 	if badCaseCount < 0 {
 		badCaseCount = len(item.BadCases)
 	}
 	resp := evalReportResponse{
-		ReportID:                 item.ID,
-		TenantID:                 item.TenantID,
-		RunID:                    item.RunID,
-		DatasetID:                item.DatasetID,
-		DatasetName:              item.DatasetName,
-		RunStatus:                item.RunStatus,
-		Status:                   item.Status,
-		Summary:                  item.Summary,
-		TotalItems:               item.TotalItems,
-		RecordedResults:          item.RecordedResults,
-		PassedItems:              item.PassedItems,
-		FailedItems:              item.FailedItems,
-		MissingResults:           item.MissingResults,
-		AverageScore:             item.AverageScore,
-		JudgeVersion:             item.JudgeVersion,
-		BadCaseCount:             badCaseCount,
-		FollowUpCaseCount:        followUpSummary.FollowUpCaseCount,
-		OpenFollowUpCaseCount:    followUpSummary.OpenFollowUpCaseCount,
-		LatestFollowUpCaseID:     followUpSummary.LatestFollowUpCaseID,
-		LatestFollowUpCaseStatus: followUpSummary.LatestFollowUpCaseStatus,
-		CreatedAt:                item.CreatedAt.Format(time.RFC3339Nano),
-		UpdatedAt:                item.UpdatedAt.Format(time.RFC3339Nano),
-		ReadyAt:                  item.ReadyAt.Format(time.RFC3339Nano),
+		ReportID:                        item.ID,
+		TenantID:                        item.TenantID,
+		RunID:                           item.RunID,
+		DatasetID:                       item.DatasetID,
+		DatasetName:                     item.DatasetName,
+		RunStatus:                       item.RunStatus,
+		Status:                          item.Status,
+		Summary:                         item.Summary,
+		TotalItems:                      item.TotalItems,
+		RecordedResults:                 item.RecordedResults,
+		PassedItems:                     item.PassedItems,
+		FailedItems:                     item.FailedItems,
+		MissingResults:                  item.MissingResults,
+		AverageScore:                    item.AverageScore,
+		JudgeVersion:                    item.JudgeVersion,
+		BadCaseCount:                    badCaseCount,
+		BadCaseWithoutOpenFollowUpCount: badCaseWithoutOpenFollowUpCount,
+		FollowUpCaseCount:               followUpSummary.FollowUpCaseCount,
+		OpenFollowUpCaseCount:           followUpSummary.OpenFollowUpCaseCount,
+		LatestFollowUpCaseID:            followUpSummary.LatestFollowUpCaseID,
+		LatestFollowUpCaseStatus:        followUpSummary.LatestFollowUpCaseStatus,
+		CreatedAt:                       item.CreatedAt.Format(time.RFC3339Nano),
+		UpdatedAt:                       item.UpdatedAt.Format(time.RFC3339Nano),
+		ReadyAt:                         item.ReadyAt.Format(time.RFC3339Nano),
 	}
 	if includeHeavy {
 		resp.Metadata = item.MetadataJSON

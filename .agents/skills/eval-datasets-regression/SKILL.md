@@ -71,6 +71,7 @@ Turn prompt, routing, retrieval, and tool changes into measurable, repeatable qu
 39. Once the canonical case contract accepts standalone `source_eval_case_id`, prefer creating or reusing precise follow-up directly from `/admin/evals` instead of routing every eval-case action through an eval-report-level case flow.
 40. Once canonical eval-report detail carries per-bad-case follow-up summary, prefer exposing those fields directly on bad-case drill-down surfaces so operators can reuse existing case lineage instead of opening duplicate follow-up from the same failing eval case.
 41. Once canonical eval-report detail supports a `bad_case_needs_follow_up` filter, prefer using that backend-owned slice for unresolved bad-case triage rather than re-implementing follow-up filtering inside admin pages.
+42. When operators need unresolved bad-case pressure at eval-report list scope, prefer durable list fields such as `bad_case_without_open_follow_up_count` and a canonical `bad_case_needs_follow_up` filter on `GET /api/v1/eval-reports` before introducing any second unresolved-regression queue.
 
 ## Output contract
 When you finish, always report:

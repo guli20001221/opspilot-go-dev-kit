@@ -215,6 +215,9 @@ func TestGetEvalReportIncludesBadCaseFollowUpCaseSummary(t *testing.T) {
 	if badCase.OpenFollowUpCaseCount != 1 {
 		t.Fatalf("BadCases[0].OpenFollowUpCaseCount = %d, want 1", badCase.OpenFollowUpCaseCount)
 	}
+	if got.BadCaseWithoutOpenFollowUpCount != 0 {
+		t.Fatalf("BadCaseWithoutOpenFollowUpCount = %d, want 0", got.BadCaseWithoutOpenFollowUpCount)
+	}
 	if badCase.LatestFollowUpCaseID != openCase.ID {
 		t.Fatalf("BadCases[0].LatestFollowUpCaseID = %q, want %q", badCase.LatestFollowUpCaseID, openCase.ID)
 	}
@@ -270,6 +273,9 @@ func TestGetEvalReportSupportsBadCaseNeedsFollowUpFilter(t *testing.T) {
 	if withFollowUp.BadCaseCount != 1 {
 		t.Fatalf("withFollowUp.BadCaseCount = %d, want 1", withFollowUp.BadCaseCount)
 	}
+	if withFollowUp.BadCaseWithoutOpenFollowUpCount != 0 {
+		t.Fatalf("withFollowUp.BadCaseWithoutOpenFollowUpCount = %d, want 0", withFollowUp.BadCaseWithoutOpenFollowUpCount)
+	}
 	if withFollowUp.BadCases[0].EvalCaseID != evalCaseID {
 		t.Fatalf("withFollowUp.BadCases[0].EvalCaseID = %q, want %q", withFollowUp.BadCases[0].EvalCaseID, evalCaseID)
 	}
@@ -291,6 +297,9 @@ func TestGetEvalReportSupportsBadCaseNeedsFollowUpFilter(t *testing.T) {
 	}
 	if noFollowUp.BadCaseCount != 1 {
 		t.Fatalf("noFollowUp.BadCaseCount = %d, want 1", noFollowUp.BadCaseCount)
+	}
+	if noFollowUp.BadCaseWithoutOpenFollowUpCount != 0 {
+		t.Fatalf("noFollowUp.BadCaseWithoutOpenFollowUpCount = %d, want 0", noFollowUp.BadCaseWithoutOpenFollowUpCount)
 	}
 }
 
@@ -715,6 +724,104 @@ func TestListEvalReportsIncludesFollowUpCaseSummary(t *testing.T) {
 	}
 	if got.LatestFollowUpCaseStatus != casesvc.StatusOpen {
 		t.Fatalf("LatestFollowUpCaseStatus = %q, want %q", got.LatestFollowUpCaseStatus, casesvc.StatusOpen)
+	}
+	if got.BadCaseWithoutOpenFollowUpCount != 1 {
+		t.Fatalf("BadCaseWithoutOpenFollowUpCount = %d, want 1", got.BadCaseWithoutOpenFollowUpCount)
+	}
+}
+
+func TestListEvalReportsSupportsBadCaseNeedsFollowUpFilter(t *testing.T) {
+	caseService := casesvc.NewService()
+	evalCaseService := evalsvc.NewService(caseService, nil)
+	datasetService := evalsvc.NewDatasetService(evalCaseService)
+	runService := evalsvc.NewRunService(datasetService)
+	reportService := evalsvc.NewEvalReportServiceWithDependencies(nil, runService)
+	reportWithGapID := materializeEvalRunReport(t, "tenant-eval-report-badcase-list", evalsvc.RunStatusFailed, "failure detail", caseService, evalCaseService, datasetService, runService, reportService, "Dataset With Gap", "Source With Gap")
+	reportWithoutGapID := materializeEvalRunReport(t, "tenant-eval-report-badcase-list", evalsvc.RunStatusFailed, "second failure detail", caseService, evalCaseService, datasetService, runService, reportService, "Dataset Without Gap", "Source Without Gap")
+
+	reportWithoutGap, err := reportService.GetEvalReport(context.Background(), reportWithoutGapID)
+	if err != nil {
+		t.Fatalf("GetEvalReport(reportWithoutGapID) error = %v", err)
+	}
+	if len(reportWithoutGap.BadCases) == 0 {
+		t.Fatal("reportWithoutGap.BadCases is empty")
+	}
+	if _, err := caseService.CreateCase(context.Background(), casesvc.CreateInput{
+		TenantID:         "tenant-eval-report-badcase-list",
+		Title:            "Open bad-case follow-up",
+		Summary:          "open summary",
+		SourceEvalCaseID: reportWithoutGap.BadCases[0].EvalCaseID,
+		CreatedBy:        "operator-followup",
+	}); err != nil {
+		t.Fatalf("CreateCase(open bad-case follow-up) error = %v", err)
+	}
+
+	server := httptest.NewServer(NewHandlerWithDependencies(Dependencies{
+		Cases:       caseService,
+		EvalReports: reportService,
+	}))
+	defer server.Close()
+
+	resp, err := http.Get(server.URL + "/api/v1/eval-reports?tenant_id=tenant-eval-report-badcase-list&bad_case_needs_follow_up=true")
+	if err != nil {
+		t.Fatalf("Get(bad_case_needs_follow_up=true) error = %v", err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("StatusCode(true) = %d, want %d", resp.StatusCode, http.StatusOK)
+	}
+	var withGap listEvalReportsResponse
+	if err := json.NewDecoder(resp.Body).Decode(&withGap); err != nil {
+		t.Fatalf("Decode(withGap) error = %v", err)
+	}
+	if len(withGap.Reports) != 1 {
+		t.Fatalf("len(withGap.Reports) = %d, want 1", len(withGap.Reports))
+	}
+	if withGap.Reports[0].ReportID != reportWithGapID {
+		t.Fatalf("withGap.Reports[0].ReportID = %q, want %q", withGap.Reports[0].ReportID, reportWithGapID)
+	}
+	if withGap.Reports[0].BadCaseWithoutOpenFollowUpCount != 1 {
+		t.Fatalf("withGap.Reports[0].BadCaseWithoutOpenFollowUpCount = %d, want 1", withGap.Reports[0].BadCaseWithoutOpenFollowUpCount)
+	}
+
+	noGapResp, err := http.Get(server.URL + "/api/v1/eval-reports?tenant_id=tenant-eval-report-badcase-list&bad_case_needs_follow_up=false")
+	if err != nil {
+		t.Fatalf("Get(bad_case_needs_follow_up=false) error = %v", err)
+	}
+	defer noGapResp.Body.Close()
+	if noGapResp.StatusCode != http.StatusOK {
+		t.Fatalf("StatusCode(false) = %d, want %d", noGapResp.StatusCode, http.StatusOK)
+	}
+	var withoutGap listEvalReportsResponse
+	if err := json.NewDecoder(noGapResp.Body).Decode(&withoutGap); err != nil {
+		t.Fatalf("Decode(withoutGap) error = %v", err)
+	}
+	if len(withoutGap.Reports) != 1 {
+		t.Fatalf("len(withoutGap.Reports) = %d, want 1", len(withoutGap.Reports))
+	}
+	if withoutGap.Reports[0].ReportID != reportWithoutGapID {
+		t.Fatalf("withoutGap.Reports[0].ReportID = %q, want %q", withoutGap.Reports[0].ReportID, reportWithoutGapID)
+	}
+	if withoutGap.Reports[0].BadCaseWithoutOpenFollowUpCount != 0 {
+		t.Fatalf("withoutGap.Reports[0].BadCaseWithoutOpenFollowUpCount = %d, want 0", withoutGap.Reports[0].BadCaseWithoutOpenFollowUpCount)
+	}
+}
+
+func TestListEvalReportsRejectsInvalidBadCaseNeedsFollowUp(t *testing.T) {
+	reportService, _ := buildEvalReportFixture(t, "tenant-eval-report-http", evalsvc.RunStatusFailed, "failure detail")
+	server := httptest.NewServer(NewHandlerWithDependencies(Dependencies{
+		Cases:       casesvc.NewService(),
+		EvalReports: reportService,
+	}))
+	defer server.Close()
+
+	resp, err := http.Get(server.URL + "/api/v1/eval-reports?tenant_id=tenant-eval-report-http&bad_case_needs_follow_up=maybe")
+	if err != nil {
+		t.Fatalf("Get() error = %v", err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusBadRequest {
+		t.Fatalf("StatusCode = %d, want %d", resp.StatusCode, http.StatusBadRequest)
 	}
 }
 

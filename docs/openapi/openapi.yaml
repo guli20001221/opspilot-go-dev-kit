@@ -1253,6 +1253,12 @@ paths:
           required: false
           schema:
             type: boolean
+        - name: bad_case_needs_follow_up
+          in: query
+          required: false
+          description: Filter the list to reports that still have at least one bad case without an open linked follow-up case (`true`) or only reports whose bad cases are already covered by open follow-up (`false`).
+          schema:
+            type: boolean
         - name: limit
           in: query
           required: false
@@ -3248,6 +3254,7 @@ components:
         - missing_results
         - average_score
         - bad_case_count
+        - bad_case_without_open_follow_up_count
         - follow_up_case_count
         - open_follow_up_case_count
         - created_at
@@ -3296,6 +3303,9 @@ components:
         judge_version:
           type: string
         bad_case_count:
+          type: integer
+          minimum: 0
+        bad_case_without_open_follow_up_count:
           type: integer
           minimum: 0
         follow_up_case_count:
