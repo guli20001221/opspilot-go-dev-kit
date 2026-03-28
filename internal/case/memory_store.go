@@ -176,6 +176,59 @@ func (s *memoryStore) SummarizeBySourceEvalReportIDs(_ context.Context, tenantID
 	return summaries, nil
 }
 
+func (s *memoryStore) SummarizeBySourceEvalCaseIDs(_ context.Context, tenantID string, evalCaseIDs []string) (map[string]EvalCaseFollowUpSummary, error) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	if len(evalCaseIDs) == 0 {
+		return map[string]EvalCaseFollowUpSummary{}, nil
+	}
+
+	allowed := make(map[string]struct{}, len(evalCaseIDs))
+	for _, evalCaseID := range evalCaseIDs {
+		if evalCaseID == "" {
+			continue
+		}
+		allowed[evalCaseID] = struct{}{}
+	}
+
+	summaries := make(map[string]EvalCaseFollowUpSummary, len(allowed))
+	latestCases := make(map[string]Case, len(allowed))
+	for _, item := range s.records {
+		if item.TenantID != tenantID || item.SourceEvalCaseID == "" {
+			continue
+		}
+		if _, ok := allowed[item.SourceEvalCaseID]; !ok {
+			continue
+		}
+
+		summary := summaries[item.SourceEvalCaseID]
+		summary.SourceEvalCaseID = item.SourceEvalCaseID
+		summary.FollowUpCaseCount++
+		if item.Status == StatusOpen {
+			summary.OpenFollowUpCaseCount++
+		}
+		latest, ok := latestCases[item.SourceEvalCaseID]
+		if !ok ||
+			item.UpdatedAt.After(latest.UpdatedAt) ||
+			(item.UpdatedAt.Equal(latest.UpdatedAt) && item.CreatedAt.After(latest.CreatedAt)) ||
+			(item.UpdatedAt.Equal(latest.UpdatedAt) && item.CreatedAt.Equal(latest.CreatedAt) && item.ID > latest.ID) {
+			latestCases[item.SourceEvalCaseID] = item
+			summary.LatestFollowUpCaseID = item.ID
+			summary.LatestFollowUpCaseStatus = item.Status
+		}
+		summaries[item.SourceEvalCaseID] = summary
+	}
+
+	for evalCaseID := range allowed {
+		if _, ok := summaries[evalCaseID]; !ok {
+			summaries[evalCaseID] = EvalCaseFollowUpSummary{SourceEvalCaseID: evalCaseID}
+		}
+	}
+
+	return summaries, nil
+}
+
 func (s *memoryStore) AppendNote(_ context.Context, note Note) (Note, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()

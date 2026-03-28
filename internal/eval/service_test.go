@@ -163,6 +163,68 @@ func TestServicePromoteCaseRejectsCrossTenantExistingRecord(t *testing.T) {
 	}
 }
 
+func TestServiceListEvalCasesIncludesFollowUpSummary(t *testing.T) {
+	caseService := casesvc.NewService()
+	service := NewService(caseService, nil)
+
+	sourceCase, err := caseService.CreateCase(context.Background(), casesvc.CreateInput{
+		TenantID: "tenant-1",
+		Title:    "Promote for summary",
+	})
+	if err != nil {
+		t.Fatalf("CreateCase(sourceCase) error = %v", err)
+	}
+	evalCase, _, err := service.PromoteCase(context.Background(), CreateInput{
+		TenantID:     "tenant-1",
+		SourceCaseID: sourceCase.ID,
+	})
+	if err != nil {
+		t.Fatalf("PromoteCase() error = %v", err)
+	}
+	followUp, err := caseService.CreateCase(context.Background(), casesvc.CreateInput{
+		TenantID:           "tenant-1",
+		Title:              "Follow-up",
+		SourceEvalReportID: "eval-report-1",
+		SourceEvalCaseID:   evalCase.ID,
+		CreatedBy:          "operator-1",
+	})
+	if err != nil {
+		t.Fatalf("CreateCase(followUp) error = %v", err)
+	}
+
+	page, err := service.ListEvalCases(context.Background(), ListFilter{
+		TenantID: "tenant-1",
+		Limit:    10,
+	})
+	if err != nil {
+		t.Fatalf("ListEvalCases() error = %v", err)
+	}
+	if len(page.EvalCases) != 1 {
+		t.Fatalf("len(EvalCases) = %d, want 1", len(page.EvalCases))
+	}
+	got := page.EvalCases[0]
+	if got.FollowUpCaseCount != 1 {
+		t.Fatalf("FollowUpCaseCount = %d, want %d", got.FollowUpCaseCount, 1)
+	}
+	if got.OpenFollowUpCaseCount != 1 {
+		t.Fatalf("OpenFollowUpCaseCount = %d, want %d", got.OpenFollowUpCaseCount, 1)
+	}
+	if got.LatestFollowUpCaseID != followUp.ID {
+		t.Fatalf("LatestFollowUpCaseID = %q, want %q", got.LatestFollowUpCaseID, followUp.ID)
+	}
+	if got.LatestFollowUpCaseStatus != casesvc.StatusOpen {
+		t.Fatalf("LatestFollowUpCaseStatus = %q, want %q", got.LatestFollowUpCaseStatus, casesvc.StatusOpen)
+	}
+
+	detail, err := service.GetEvalCase(context.Background(), evalCase.ID)
+	if err != nil {
+		t.Fatalf("GetEvalCase() error = %v", err)
+	}
+	if detail.LatestFollowUpCaseID != followUp.ID {
+		t.Fatalf("GetEvalCase().LatestFollowUpCaseID = %q, want %q", detail.LatestFollowUpCaseID, followUp.ID)
+	}
+}
+
 func TestMemoryStoreListSupportsFiltersAndPagination(t *testing.T) {
 	store := newMemoryStore()
 	fixtures := []EvalCase{

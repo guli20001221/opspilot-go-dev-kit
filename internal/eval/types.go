@@ -90,18 +90,22 @@ const (
 
 // EvalCase is the durable read model for a promoted evaluation case.
 type EvalCase struct {
-	ID             string
-	TenantID       string
-	SourceCaseID   string
-	SourceTaskID   string
-	SourceReportID string
-	TraceID        string
-	VersionID      string
-	Title          string
-	Summary        string
-	OperatorNote   string
-	CreatedBy      string
-	CreatedAt      time.Time
+	ID                       string
+	TenantID                 string
+	SourceCaseID             string
+	SourceTaskID             string
+	SourceReportID           string
+	FollowUpCaseCount        int
+	OpenFollowUpCaseCount    int
+	LatestFollowUpCaseID     string
+	LatestFollowUpCaseStatus string
+	TraceID                  string
+	VersionID                string
+	Title                    string
+	Summary                  string
+	OperatorNote             string
+	CreatedBy                string
+	CreatedAt                time.Time
 }
 
 // ListFilter constrains eval-case list reads.

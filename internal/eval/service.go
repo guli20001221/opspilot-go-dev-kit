@@ -26,15 +26,20 @@ type caseReader interface {
 	GetCase(ctx context.Context, caseID string) (casesvc.Case, error)
 }
 
+type evalCaseFollowUpSummarizer interface {
+	SummarizeBySourceEvalCaseIDs(ctx context.Context, tenantID string, evalCaseIDs []string) (map[string]casesvc.EvalCaseFollowUpSummary, error)
+}
+
 type traceLookup interface {
 	Lookup(ctx context.Context, input tracedetail.LookupInput) (tracedetail.Result, error)
 }
 
 // Service manages durable eval case promotion from operator cases.
 type Service struct {
-	store  Store
-	cases  caseReader
-	traces traceLookup
+	store     Store
+	cases     caseReader
+	summaries evalCaseFollowUpSummarizer
+	traces    traceLookup
 }
 
 // NewService constructs the eval service with in-memory defaults.
@@ -48,10 +53,16 @@ func NewServiceWithStore(store Store, cases caseReader, traces traceLookup) *Ser
 		store = newMemoryStore()
 	}
 
+	var summaries evalCaseFollowUpSummarizer
+	if candidate, ok := cases.(evalCaseFollowUpSummarizer); ok {
+		summaries = candidate
+	}
+
 	return &Service{
-		store:  store,
-		cases:  cases,
-		traces: traces,
+		store:     store,
+		cases:     cases,
+		summaries: summaries,
+		traces:    traces,
 	}
 }
 
@@ -65,7 +76,11 @@ func (s *Service) PromoteCase(ctx context.Context, input CreateInput) (EvalCase,
 		return EvalCase{}, false, ErrInvalidSource
 	}
 	if existing, err := s.store.GetBySourceCase(ctx, input.SourceCaseID); err == nil {
-		return existing, false, nil
+		enriched, enrichErr := s.enrichEvalCase(ctx, existing)
+		if enrichErr != nil {
+			return EvalCase{}, false, enrichErr
+		}
+		return enriched, false, nil
 	} else if !errors.Is(err, ErrEvalCaseNotFound) {
 		return EvalCase{}, false, err
 	}
@@ -106,17 +121,29 @@ func (s *Service) PromoteCase(ctx context.Context, input CreateInput) (EvalCase,
 			if getErr != nil {
 				return EvalCase{}, false, getErr
 			}
-			return existing, false, nil
+			enriched, enrichErr := s.enrichEvalCase(ctx, existing)
+			if enrichErr != nil {
+				return EvalCase{}, false, enrichErr
+			}
+			return enriched, false, nil
 		}
 		return EvalCase{}, false, err
 	}
 
-	return saved, true, nil
+	enriched, err := s.enrichEvalCase(ctx, saved)
+	if err != nil {
+		return EvalCase{}, false, err
+	}
+	return enriched, true, nil
 }
 
 // GetEvalCase returns a durable eval case by ID.
 func (s *Service) GetEvalCase(ctx context.Context, evalCaseID string) (EvalCase, error) {
-	return s.store.Get(ctx, evalCaseID)
+	item, err := s.store.Get(ctx, evalCaseID)
+	if err != nil {
+		return EvalCase{}, err
+	}
+	return s.enrichEvalCase(ctx, item)
 }
 
 // ListEvalCases returns one durable eval-case page.
@@ -125,7 +152,55 @@ func (s *Service) ListEvalCases(ctx context.Context, filter ListFilter) (ListPag
 		filter.Limit = 20
 	}
 
-	return s.store.List(ctx, filter)
+	page, err := s.store.List(ctx, filter)
+	if err != nil {
+		return ListPage{}, err
+	}
+	page.EvalCases, err = s.applyFollowUpSummaries(ctx, page.EvalCases)
+	if err != nil {
+		return ListPage{}, err
+	}
+	return page, nil
+}
+
+func (s *Service) applyFollowUpSummaries(ctx context.Context, items []EvalCase) ([]EvalCase, error) {
+	if len(items) == 0 || s.summaries == nil {
+		return items, nil
+	}
+
+	tenantID := items[0].TenantID
+	evalCaseIDs := make([]string, 0, len(items))
+	for _, item := range items {
+		if item.ID == "" || item.TenantID != tenantID {
+			continue
+		}
+		evalCaseIDs = append(evalCaseIDs, item.ID)
+	}
+	if len(evalCaseIDs) == 0 {
+		return items, nil
+	}
+
+	summaries, err := s.summaries.SummarizeBySourceEvalCaseIDs(ctx, tenantID, evalCaseIDs)
+	if err != nil {
+		return nil, err
+	}
+	enriched := append([]EvalCase(nil), items...)
+	for i := range enriched {
+		summary := summaries[enriched[i].ID]
+		enriched[i].FollowUpCaseCount = summary.FollowUpCaseCount
+		enriched[i].OpenFollowUpCaseCount = summary.OpenFollowUpCaseCount
+		enriched[i].LatestFollowUpCaseID = summary.LatestFollowUpCaseID
+		enriched[i].LatestFollowUpCaseStatus = summary.LatestFollowUpCaseStatus
+	}
+	return enriched, nil
+}
+
+func (s *Service) enrichEvalCase(ctx context.Context, item EvalCase) (EvalCase, error) {
+	items, err := s.applyFollowUpSummaries(ctx, []EvalCase{item})
+	if err != nil {
+		return EvalCase{}, err
+	}
+	return items[0], nil
 }
 
 func newEvalCaseID(now time.Time) string {

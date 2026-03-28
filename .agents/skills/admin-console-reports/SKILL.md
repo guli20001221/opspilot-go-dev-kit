@@ -118,6 +118,7 @@ Provide a practical operator UI for evaluation and runtime analysis while keepin
 89. When operators need to release claimed work back into a shared open queue, prefer row-level or detail actions that reuse a canonical case unassign endpoint and append a durable case note over treating an empty assignee as a special assign payload.
 90. When an eval-report handoff already has an open canonical follow-up case, prefer reusing the newest open `tenant_id + source_eval_report_id` case from `POST /api/v1/cases` instead of creating duplicate regression work items from repeated operator clicks.
 91. When one bad case inside an eval report needs distinct operator follow-up, prefer reusing `POST /api/v1/cases` with both `source_eval_report_id` and `source_eval_case_id` over collapsing the action back into a report-level follow-up.
+92. Once canonical eval-case reads carry follow-up summary fields, prefer wiring `/admin/evals` handoff through `latest_follow_up_case_id` and `/admin/cases?source_eval_case_id=...` instead of issuing browser-side case lookups per eval row.
 
 ## Output contract
 When you finish, always report:

@@ -2825,6 +2825,8 @@ components:
         - source_case_id
         - title
         - summary
+        - follow_up_case_count
+        - open_follow_up_case_count
         - created_by
         - created_at
       properties:
@@ -2846,6 +2848,19 @@ components:
           type: string
         summary:
           type: string
+        follow_up_case_count:
+          type: integer
+          minimum: 0
+        open_follow_up_case_count:
+          type: integer
+          minimum: 0
+        latest_follow_up_case_id:
+          type: string
+        latest_follow_up_case_status:
+          type: string
+          enum:
+            - open
+            - closed
         operator_note:
           type: string
         created_by:

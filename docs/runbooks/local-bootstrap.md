@@ -132,6 +132,7 @@ The current chat stream implementation is a Milestone 1 skeleton:
 - use `POST /api/v1/cases/{case_id}/notes?tenant_id=<tenant>` when you need to append a durable operator note to the case timeline
 - use `POST /api/v1/eval-cases` when you need to promote a canonical case into durable eval coverage while preserving source case, task, report, trace, and version lineage
 - use `GET /api/v1/eval-cases?tenant_id=<tenant>` when you need the first tenant-scoped queue of promoted eval coverage before creating datasets or regression runs
+- that same eval-case list/detail contract now also includes `follow_up_case_count`, `open_follow_up_case_count`, and `latest_follow_up_case_id`, so `/admin/evals` can surface regression follow-up pressure directly from canonical eval state
 - use `POST /api/v1/eval-datasets` when you need to turn one or more durable eval cases into a draft dataset for later regression work
 - use `GET /api/v1/eval-datasets?tenant_id=<tenant>` when you need the lightweight dataset lane without pulling full membership payloads into the list response
 - use `POST /api/v1/eval-datasets/{dataset_id}/items` when you need to append another durable eval case into an existing draft dataset instead of creating a new draft
@@ -171,6 +172,7 @@ The current chat stream implementation is a Milestone 1 skeleton:
 - open `http://localhost:18080/admin/evals` when you want the first eval-focused operator page, including durable eval detail plus case/task/report/version/trace handoff links
 - use `Create dataset draft` on `/admin/evals` when you want to seed a canonical dataset draft directly from the currently selected durable eval case
 - use `Add to dataset` on `/admin/evals` when you want to append the currently selected durable eval case into an existing dataset draft by ID
+- use `Open latest follow-up case` on `/admin/evals` when the selected durable eval case already has linked operator work, and use `Open follow-up slice` when you want the full `/admin/cases?source_eval_case_id=...` queue
 - open `http://localhost:18080/admin/eval-datasets` when you want the first dataset-focused operator page, including dataset membership detail plus eval/case/task/report/version/trace handoff links
 - use `Publish dataset` on `/admin/eval-datasets` when you want to freeze the selected draft and make the page read-only for that baseline
 - use `Run dataset` on `/admin/eval-datasets` when you want to create a durable queued eval run from the selected published baseline and land on the matching `/admin/eval-runs` detail

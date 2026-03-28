@@ -1937,6 +1937,14 @@ func (s *staleAssignStore) SummarizeBySourceEvalReportIDs(_ context.Context, _ s
 	return summaries, nil
 }
 
+func (s *staleAssignStore) SummarizeBySourceEvalCaseIDs(_ context.Context, _ string, evalCaseIDs []string) (map[string]casesvc.EvalCaseFollowUpSummary, error) {
+	summaries := make(map[string]casesvc.EvalCaseFollowUpSummary, len(evalCaseIDs))
+	for _, evalCaseID := range evalCaseIDs {
+		summaries[evalCaseID] = casesvc.EvalCaseFollowUpSummary{SourceEvalCaseID: evalCaseID}
+	}
+	return summaries, nil
+}
+
 func (s *staleAssignStore) AppendNote(_ context.Context, note casesvc.Note) (casesvc.Note, error) {
 	return note, nil
 }

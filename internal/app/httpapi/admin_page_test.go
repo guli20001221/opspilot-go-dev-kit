@@ -323,8 +323,17 @@ func TestAdminEvalsPageRendersHTML(t *testing.T) {
 	if !strings.Contains(body, "Open case API detail") {
 		t.Fatal("case handoff missing from eval page HTML")
 	}
+	if !strings.Contains(body, "Open latest follow-up case") {
+		t.Fatal("latest follow-up case handoff missing from eval page HTML")
+	}
+	if !strings.Contains(body, "Open follow-up slice") {
+		t.Fatal("follow-up slice handoff missing from eval page HTML")
+	}
 	if !strings.Contains(body, "Open report API detail") {
 		t.Fatal("report handoff missing from eval page HTML")
+	}
+	if !strings.Contains(body, "Follow-up cases") {
+		t.Fatal("follow-up summary missing from eval page HTML")
 	}
 	if !strings.Contains(body, "Open task API detail") {
 		t.Fatal("task handoff missing from eval page HTML")

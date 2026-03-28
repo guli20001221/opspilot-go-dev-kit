@@ -167,6 +167,7 @@
                 <th>Eval case</th>
                 <th>Source case</th>
                 <th>Version</th>
+                <th>Follow-up</th>
                 <th>Created</th>
                 <th>Inspect</th>
               </tr>
@@ -224,6 +225,13 @@
     let currentEvalID = "";
     let currentEvalDetail = null;
     let currentDatasetDetail = null;
+
+    function followUpLabel(item) {
+      const total = Number(item.follow_up_case_count || 0);
+      const open = Number(item.open_follow_up_case_count || 0);
+      if (total === 0) return "0 cases";
+      return `${total} cases / ${open} open`;
+    }
 
     function escapeHTML(value) {
       return String(value ?? "")
@@ -323,6 +331,7 @@
           </td>
           <td>${escapeHTML(item.source_case_id)}</td>
           <td>${escapeHTML(item.version_id || "none")}</td>
+          <td>${escapeHTML(followUpLabel(item))}</td>
           <td>${escapeHTML(fmtDate(item.created_at))}</td>
           <td><button class="ghost" type="button" data-eval-id="${escapeHTML(item.eval_case_id)}">Inspect</button></td>
         </tr>
@@ -337,6 +346,9 @@
         `Source case: ${item.source_case_id}`,
         `Source task: ${item.source_task_id || "none"}`,
         `Source report: ${item.source_report_id || "none"}`,
+        `Follow-up cases: ${item.follow_up_case_count || 0}`,
+        `Open follow-up cases: ${item.open_follow_up_case_count || 0}`,
+        `Latest follow-up case: ${item.latest_follow_up_case_id || "none"}`,
         `Trace: ${item.trace_id || "none"}`,
         `Version: ${item.version_id || "none"}`,
         `Title: ${item.title || "unknown"}`,
@@ -362,6 +374,8 @@
       }
       evalDetailStatusNote.textContent = "Current eval case is ready for operator handoff.";
       const caseURL = `${caseEndpointBase}${encodeURIComponent(item.source_case_id)}?tenant_id=${encodeURIComponent(item.tenant_id)}`;
+      const latestFollowUpCaseURL = item.latest_follow_up_case_id ? `/admin/cases?tenant_id=${encodeURIComponent(item.tenant_id)}&case_id=${encodeURIComponent(item.latest_follow_up_case_id)}` : "";
+      const followUpSliceURL = `/admin/cases?tenant_id=${encodeURIComponent(item.tenant_id)}&source_eval_case_id=${encodeURIComponent(item.eval_case_id)}&limit=10`;
       const reportURL = item.source_report_id ? `${reportEndpointBase}${encodeURIComponent(item.source_report_id)}` : "";
       const taskURL = item.source_task_id ? `${taskEndpointBase}${encodeURIComponent(item.source_task_id)}` : "";
       const traceURL = item.source_case_id ? `/admin/trace-detail?case_id=${encodeURIComponent(item.source_case_id)}` : "/admin/trace-detail";
@@ -377,6 +391,7 @@
             <dl class="detail-card"><dt>Source case</dt><dd>${escapeHTML(item.source_case_id)}</dd></dl>
             <dl class="detail-card"><dt>Source task</dt><dd>${escapeHTML(item.source_task_id || "none")}</dd></dl>
             <dl class="detail-card"><dt>Source report</dt><dd>${escapeHTML(item.source_report_id || "none")}</dd></dl>
+            <dl class="detail-card"><dt>Follow-up cases</dt><dd>${escapeHTML(followUpLabel(item))}</dd></dl>
             <dl class="detail-card"><dt>Trace</dt><dd>${escapeHTML(item.trace_id || "none")}</dd></dl>
           </div>
           <div class="detail-grid">
@@ -393,6 +408,8 @@
               ${currentDatasetDetail ? `<a class="button-link ghost" href="${datasetEndpoint}/${encodeURIComponent(currentDatasetDetail.dataset_id)}?tenant_id=${encodeURIComponent(item.tenant_id)}" target="_blank" rel="noreferrer">Open dataset API detail</a>` : ""}
               ${currentDatasetDetail ? `<a class="button-link ghost" href="/admin/eval-datasets?tenant_id=${encodeURIComponent(item.tenant_id)}&dataset_id=${encodeURIComponent(currentDatasetDetail.dataset_id)}">Open dataset lane</a>` : ""}
               <a class="button-link ghost" href="${caseURL}" target="_blank" rel="noreferrer">Open case API detail</a>
+              ${latestFollowUpCaseURL ? `<a class="button-link ghost" href="${latestFollowUpCaseURL}">Open latest follow-up case</a>` : ""}
+              <a class="button-link ghost" href="${followUpSliceURL}">Open follow-up slice</a>
               ${reportURL ? `<a class="button-link ghost" href="${reportURL}" target="_blank" rel="noreferrer">Open report API detail</a>` : ""}
               ${taskURL ? `<a class="button-link ghost" href="${taskURL}" target="_blank" rel="noreferrer">Open task API detail</a>` : ""}
               <a class="button-link ghost" href="${traceURL}">Open Trace Detail</a>

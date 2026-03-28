@@ -149,6 +149,15 @@ func TestCreateEvalCaseEndpointIsIdempotentBySourceCase(t *testing.T) {
 		t.Fatalf("Decode(first) error = %v", err)
 	}
 
+	_, err = caseService.CreateCase(context.Background(), casesvc.CreateInput{
+		TenantID:         "tenant-1",
+		Title:            "Follow-up from eval case",
+		SourceEvalCaseID: first.EvalCaseID,
+	})
+	if err != nil {
+		t.Fatalf("CreateCase(follow-up) error = %v", err)
+	}
+
 	secondResp, err := http.Post(server.URL+"/api/v1/eval-cases", "application/json", bytes.NewBufferString(body))
 	if err != nil {
 		t.Fatalf("Post(second) error = %v", err)
@@ -163,6 +172,18 @@ func TestCreateEvalCaseEndpointIsIdempotentBySourceCase(t *testing.T) {
 	}
 	if second.EvalCaseID != first.EvalCaseID {
 		t.Fatalf("second.EvalCaseID = %q, want %q", second.EvalCaseID, first.EvalCaseID)
+	}
+	if second.FollowUpCaseCount != 1 {
+		t.Fatalf("second.FollowUpCaseCount = %d, want %d", second.FollowUpCaseCount, 1)
+	}
+	if second.OpenFollowUpCaseCount != 1 {
+		t.Fatalf("second.OpenFollowUpCaseCount = %d, want %d", second.OpenFollowUpCaseCount, 1)
+	}
+	if second.LatestFollowUpCaseID == "" {
+		t.Fatal("second.LatestFollowUpCaseID is empty")
+	}
+	if second.LatestFollowUpCaseStatus != string(casesvc.StatusOpen) {
+		t.Fatalf("second.LatestFollowUpCaseStatus = %q, want %q", second.LatestFollowUpCaseStatus, casesvc.StatusOpen)
 	}
 }
 
@@ -342,6 +363,96 @@ func TestListEvalCasesEndpointSupportsFiltersAndPagination(t *testing.T) {
 	}
 	if len(filtered.EvalCases) != 1 || filtered.EvalCases[0].EvalCaseID != first.ID {
 		t.Fatalf("filtered EvalCases = %#v, want only %q", filtered.EvalCases, first.ID)
+	}
+}
+
+func TestEvalCaseEndpointsReturnFollowUpCaseSummary(t *testing.T) {
+	ctx := context.Background()
+	caseService := casesvc.NewService()
+	evalService := evalsvc.NewService(caseService, nil)
+
+	sourceCase, err := caseService.CreateCase(ctx, casesvc.CreateInput{
+		TenantID:       "tenant-follow-up",
+		Title:          "Source eval case",
+		Summary:        "Promote this bad case",
+		SourceTaskID:   "task-follow-up",
+		SourceReportID: "report-follow-up",
+	})
+	if err != nil {
+		t.Fatalf("CreateCase(sourceCase) error = %v", err)
+	}
+	created, _, err := evalService.PromoteCase(ctx, evalsvc.CreateInput{
+		TenantID:     "tenant-follow-up",
+		SourceCaseID: sourceCase.ID,
+	})
+	if err != nil {
+		t.Fatalf("PromoteCase() error = %v", err)
+	}
+	followUp, err := caseService.CreateCase(ctx, casesvc.CreateInput{
+		TenantID:           "tenant-follow-up",
+		Title:              "Follow-up case",
+		Summary:            "Operator needs to inspect this bad case",
+		SourceEvalReportID: "eval-report-follow-up",
+		SourceEvalCaseID:   created.ID,
+		CreatedBy:          "operator-follow-up",
+	})
+	if err != nil {
+		t.Fatalf("CreateCase(followUp) error = %v", err)
+	}
+
+	server := httptest.NewServer(NewHandlerWithDependencies(Dependencies{
+		Cases:     caseService,
+		EvalCases: evalService,
+	}))
+	defer server.Close()
+
+	listResp, err := http.Get(server.URL + "/api/v1/eval-cases?tenant_id=tenant-follow-up&limit=10")
+	if err != nil {
+		t.Fatalf("Get(list) error = %v", err)
+	}
+	defer listResp.Body.Close()
+	if listResp.StatusCode != http.StatusOK {
+		t.Fatalf("list StatusCode = %d, want %d", listResp.StatusCode, http.StatusOK)
+	}
+
+	var listBody listEvalCasesResponse
+	if err := json.NewDecoder(listResp.Body).Decode(&listBody); err != nil {
+		t.Fatalf("Decode(list) error = %v", err)
+	}
+	if len(listBody.EvalCases) != 1 {
+		t.Fatalf("len(EvalCases) = %d, want 1", len(listBody.EvalCases))
+	}
+	if listBody.EvalCases[0].FollowUpCaseCount != 1 {
+		t.Fatalf("FollowUpCaseCount = %d, want %d", listBody.EvalCases[0].FollowUpCaseCount, 1)
+	}
+	if listBody.EvalCases[0].OpenFollowUpCaseCount != 1 {
+		t.Fatalf("OpenFollowUpCaseCount = %d, want %d", listBody.EvalCases[0].OpenFollowUpCaseCount, 1)
+	}
+	if listBody.EvalCases[0].LatestFollowUpCaseID != followUp.ID {
+		t.Fatalf("LatestFollowUpCaseID = %q, want %q", listBody.EvalCases[0].LatestFollowUpCaseID, followUp.ID)
+	}
+	if listBody.EvalCases[0].LatestFollowUpCaseStatus != casesvc.StatusOpen {
+		t.Fatalf("LatestFollowUpCaseStatus = %q, want %q", listBody.EvalCases[0].LatestFollowUpCaseStatus, casesvc.StatusOpen)
+	}
+
+	detailResp, err := http.Get(server.URL + "/api/v1/eval-cases/" + created.ID + "?tenant_id=tenant-follow-up")
+	if err != nil {
+		t.Fatalf("Get(detail) error = %v", err)
+	}
+	defer detailResp.Body.Close()
+	if detailResp.StatusCode != http.StatusOK {
+		t.Fatalf("detail StatusCode = %d, want %d", detailResp.StatusCode, http.StatusOK)
+	}
+
+	var detail evalCaseResponse
+	if err := json.NewDecoder(detailResp.Body).Decode(&detail); err != nil {
+		t.Fatalf("Decode(detail) error = %v", err)
+	}
+	if detail.FollowUpCaseCount != 1 {
+		t.Fatalf("detail.FollowUpCaseCount = %d, want %d", detail.FollowUpCaseCount, 1)
+	}
+	if detail.LatestFollowUpCaseID != followUp.ID {
+		t.Fatalf("detail.LatestFollowUpCaseID = %q, want %q", detail.LatestFollowUpCaseID, followUp.ID)
 	}
 }
 

@@ -20,18 +20,22 @@ type createEvalCaseRequest struct {
 }
 
 type evalCaseResponse struct {
-	EvalCaseID     string `json:"eval_case_id"`
-	TenantID       string `json:"tenant_id"`
-	SourceCaseID   string `json:"source_case_id"`
-	SourceTaskID   string `json:"source_task_id,omitempty"`
-	SourceReportID string `json:"source_report_id,omitempty"`
-	TraceID        string `json:"trace_id,omitempty"`
-	VersionID      string `json:"version_id,omitempty"`
-	Title          string `json:"title"`
-	Summary        string `json:"summary"`
-	OperatorNote   string `json:"operator_note,omitempty"`
-	CreatedBy      string `json:"created_by"`
-	CreatedAt      string `json:"created_at"`
+	EvalCaseID               string `json:"eval_case_id"`
+	TenantID                 string `json:"tenant_id"`
+	SourceCaseID             string `json:"source_case_id"`
+	SourceTaskID             string `json:"source_task_id,omitempty"`
+	SourceReportID           string `json:"source_report_id,omitempty"`
+	FollowUpCaseCount        int    `json:"follow_up_case_count"`
+	OpenFollowUpCaseCount    int    `json:"open_follow_up_case_count"`
+	LatestFollowUpCaseID     string `json:"latest_follow_up_case_id,omitempty"`
+	LatestFollowUpCaseStatus string `json:"latest_follow_up_case_status,omitempty"`
+	TraceID                  string `json:"trace_id,omitempty"`
+	VersionID                string `json:"version_id,omitempty"`
+	Title                    string `json:"title"`
+	Summary                  string `json:"summary"`
+	OperatorNote             string `json:"operator_note,omitempty"`
+	CreatedBy                string `json:"created_by"`
+	CreatedAt                string `json:"created_at"`
 }
 
 type listEvalCasesResponse struct {
@@ -150,18 +154,22 @@ func (a *appHandler) handleEvalCaseByID(w http.ResponseWriter, r *http.Request) 
 
 func newEvalCaseResponse(item evalsvc.EvalCase) evalCaseResponse {
 	return evalCaseResponse{
-		EvalCaseID:     item.ID,
-		TenantID:       item.TenantID,
-		SourceCaseID:   item.SourceCaseID,
-		SourceTaskID:   item.SourceTaskID,
-		SourceReportID: item.SourceReportID,
-		TraceID:        item.TraceID,
-		VersionID:      item.VersionID,
-		Title:          item.Title,
-		Summary:        item.Summary,
-		OperatorNote:   item.OperatorNote,
-		CreatedBy:      item.CreatedBy,
-		CreatedAt:      item.CreatedAt.Format(time.RFC3339Nano),
+		EvalCaseID:               item.ID,
+		TenantID:                 item.TenantID,
+		SourceCaseID:             item.SourceCaseID,
+		SourceTaskID:             item.SourceTaskID,
+		SourceReportID:           item.SourceReportID,
+		FollowUpCaseCount:        item.FollowUpCaseCount,
+		OpenFollowUpCaseCount:    item.OpenFollowUpCaseCount,
+		LatestFollowUpCaseID:     item.LatestFollowUpCaseID,
+		LatestFollowUpCaseStatus: item.LatestFollowUpCaseStatus,
+		TraceID:                  item.TraceID,
+		VersionID:                item.VersionID,
+		Title:                    item.Title,
+		Summary:                  item.Summary,
+		OperatorNote:             item.OperatorNote,
+		CreatedBy:                item.CreatedBy,
+		CreatedAt:                item.CreatedAt.Format(time.RFC3339Nano),
 	}
 }
 

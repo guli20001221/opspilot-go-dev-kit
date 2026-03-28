@@ -679,6 +679,86 @@ func TestServiceSummarizeBySourceEvalReportIDs(t *testing.T) {
 	}
 }
 
+func TestServiceSummarizeBySourceEvalCaseIDs(t *testing.T) {
+	svc := NewService()
+	now := time.Unix(1700002650, 0).UTC()
+
+	first, err := svc.CreateCase(context.Background(), CreateInput{
+		TenantID:           "tenant-1",
+		Title:              "First eval-case follow-up",
+		SourceEvalReportID: "eval-report-1",
+		SourceEvalCaseID:   "eval-case-1",
+		CreatedBy:          "operator-1",
+	})
+	if err != nil {
+		t.Fatalf("CreateCase(first) error = %v", err)
+	}
+	first.CreatedAt = now
+	first.UpdatedAt = now
+	if _, err := svc.store.Save(context.Background(), first); err != nil {
+		t.Fatalf("store.Save(first) error = %v", err)
+	}
+
+	second, err := svc.CreateCase(context.Background(), CreateInput{
+		TenantID:           "tenant-1",
+		Title:              "Second eval-case follow-up",
+		SourceEvalReportID: "eval-report-1",
+		SourceEvalCaseID:   "eval-case-1",
+		CreatedBy:          "operator-2",
+	})
+	if err != nil {
+		t.Fatalf("CreateCase(second) error = %v", err)
+	}
+	second.CreatedAt = now.Add(time.Second)
+	second.UpdatedAt = now.Add(time.Second)
+	if _, err := svc.store.Save(context.Background(), second); err != nil {
+		t.Fatalf("store.Save(second) error = %v", err)
+	}
+
+	if _, err := svc.CloseCase(context.Background(), first.ID, "operator-3"); err != nil {
+		t.Fatalf("CloseCase(first) error = %v", err)
+	}
+
+	summaries, err := svc.SummarizeBySourceEvalCaseIDs(context.Background(), "tenant-1", []string{"eval-case-1", "eval-case-2"})
+	if err != nil {
+		t.Fatalf("SummarizeBySourceEvalCaseIDs() error = %v", err)
+	}
+
+	got := summaries["eval-case-1"]
+	if got.SourceEvalCaseID != "eval-case-1" {
+		t.Fatalf("SourceEvalCaseID = %q, want %q", got.SourceEvalCaseID, "eval-case-1")
+	}
+	if got.FollowUpCaseCount != 2 {
+		t.Fatalf("FollowUpCaseCount = %d, want %d", got.FollowUpCaseCount, 2)
+	}
+	if got.OpenFollowUpCaseCount != 1 {
+		t.Fatalf("OpenFollowUpCaseCount = %d, want %d", got.OpenFollowUpCaseCount, 1)
+	}
+	if got.LatestFollowUpCaseID != first.ID {
+		t.Fatalf("LatestFollowUpCaseID = %q, want %q", got.LatestFollowUpCaseID, first.ID)
+	}
+	if got.LatestFollowUpCaseStatus != StatusClosed {
+		t.Fatalf("LatestFollowUpCaseStatus = %q, want %q", got.LatestFollowUpCaseStatus, StatusClosed)
+	}
+
+	empty := summaries["eval-case-2"]
+	if empty.SourceEvalCaseID != "eval-case-2" {
+		t.Fatalf("empty.SourceEvalCaseID = %q, want %q", empty.SourceEvalCaseID, "eval-case-2")
+	}
+	if empty.FollowUpCaseCount != 0 {
+		t.Fatalf("empty.FollowUpCaseCount = %d, want %d", empty.FollowUpCaseCount, 0)
+	}
+	if empty.OpenFollowUpCaseCount != 0 {
+		t.Fatalf("empty.OpenFollowUpCaseCount = %d, want %d", empty.OpenFollowUpCaseCount, 0)
+	}
+	if empty.LatestFollowUpCaseID != "" {
+		t.Fatalf("empty.LatestFollowUpCaseID = %q, want empty", empty.LatestFollowUpCaseID)
+	}
+	if empty.LatestFollowUpCaseStatus != "" {
+		t.Fatalf("empty.LatestFollowUpCaseStatus = %q, want empty", empty.LatestFollowUpCaseStatus)
+	}
+}
+
 func TestServiceFindOpenCaseBySourceEvalReport(t *testing.T) {
 	svc := NewService()
 
