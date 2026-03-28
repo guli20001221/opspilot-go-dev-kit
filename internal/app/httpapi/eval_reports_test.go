@@ -470,6 +470,10 @@ func TestCompareEvalReportsReturnsTypedSummary(t *testing.T) {
 			OpenCompareFollowUpCaseCount    int     `json:"open_compare_follow_up_case_count"`
 			LatestCompareFollowUpCaseID     string  `json:"latest_compare_follow_up_case_id"`
 			LatestCompareFollowUpCaseStatus string  `json:"latest_compare_follow_up_case_status"`
+			PreferredCompareFollowUpAction  struct {
+				Mode               string `json:"mode"`
+				SourceEvalReportID string `json:"source_eval_report_id"`
+			} `json:"preferred_compare_follow_up_action"`
 		} `json:"left"`
 		Right struct {
 			ReportID                        string  `json:"report_id"`
@@ -498,6 +502,10 @@ func TestCompareEvalReportsReturnsTypedSummary(t *testing.T) {
 			OpenCompareFollowUpCaseCount    int     `json:"open_compare_follow_up_case_count"`
 			LatestCompareFollowUpCaseID     string  `json:"latest_compare_follow_up_case_id"`
 			LatestCompareFollowUpCaseStatus string  `json:"latest_compare_follow_up_case_status"`
+			PreferredCompareFollowUpAction  struct {
+				Mode               string `json:"mode"`
+				SourceEvalReportID string `json:"source_eval_report_id"`
+			} `json:"preferred_compare_follow_up_action"`
 		} `json:"right"`
 		Summary struct {
 			SameTenant          bool    `json:"same_tenant"`
@@ -554,6 +562,12 @@ func TestCompareEvalReportsReturnsTypedSummary(t *testing.T) {
 	if got.Left.CompareFollowUpCaseCount != 0 || got.Left.OpenCompareFollowUpCaseCount != 0 || got.Left.LatestCompareFollowUpCaseID != "" || got.Left.LatestCompareFollowUpCaseStatus != "" {
 		t.Fatalf("Left compare follow-up summary = %#v, want zero-value compare summary before compare-derived cases exist", got.Left)
 	}
+	if got.Left.PreferredCompareFollowUpAction.Mode != "create" {
+		t.Fatalf("Left.PreferredCompareFollowUpAction.Mode = %q, want %q", got.Left.PreferredCompareFollowUpAction.Mode, "create")
+	}
+	if got.Left.PreferredCompareFollowUpAction.SourceEvalReportID != leftReportID {
+		t.Fatalf("Left.PreferredCompareFollowUpAction.SourceEvalReportID = %q, want %q", got.Left.PreferredCompareFollowUpAction.SourceEvalReportID, leftReportID)
+	}
 	if got.Right.LatestFollowUpCaseID != rightFollowUp.ID {
 		t.Fatalf("Right.LatestFollowUpCaseID = %q, want %q", got.Right.LatestFollowUpCaseID, rightFollowUp.ID)
 	}
@@ -562,6 +576,12 @@ func TestCompareEvalReportsReturnsTypedSummary(t *testing.T) {
 	}
 	if got.Right.CompareFollowUpCaseCount != 0 || got.Right.OpenCompareFollowUpCaseCount != 0 || got.Right.LatestCompareFollowUpCaseID != "" || got.Right.LatestCompareFollowUpCaseStatus != "" {
 		t.Fatalf("Right compare follow-up summary = %#v, want zero-value compare summary before compare-derived cases exist", got.Right)
+	}
+	if got.Right.PreferredCompareFollowUpAction.Mode != "create" {
+		t.Fatalf("Right.PreferredCompareFollowUpAction.Mode = %q, want %q", got.Right.PreferredCompareFollowUpAction.Mode, "create")
+	}
+	if got.Right.PreferredCompareFollowUpAction.SourceEvalReportID != rightReportID {
+		t.Fatalf("Right.PreferredCompareFollowUpAction.SourceEvalReportID = %q, want %q", got.Right.PreferredCompareFollowUpAction.SourceEvalReportID, rightReportID)
 	}
 	if !got.Summary.SameTenant {
 		t.Fatal("SameTenant = false, want true")
@@ -651,12 +671,20 @@ func TestCompareEvalReportsIncludesCompareFollowUpSummary(t *testing.T) {
 			OpenCompareFollowUpCaseCount    int    `json:"open_compare_follow_up_case_count"`
 			LatestCompareFollowUpCaseID     string `json:"latest_compare_follow_up_case_id"`
 			LatestCompareFollowUpCaseStatus string `json:"latest_compare_follow_up_case_status"`
+			PreferredCompareFollowUpAction  struct {
+				Mode               string `json:"mode"`
+				SourceEvalReportID string `json:"source_eval_report_id"`
+			} `json:"preferred_compare_follow_up_action"`
 		} `json:"left"`
 		Right struct {
 			CompareFollowUpCaseCount        int    `json:"compare_follow_up_case_count"`
 			OpenCompareFollowUpCaseCount    int    `json:"open_compare_follow_up_case_count"`
 			LatestCompareFollowUpCaseID     string `json:"latest_compare_follow_up_case_id"`
 			LatestCompareFollowUpCaseStatus string `json:"latest_compare_follow_up_case_status"`
+			PreferredCompareFollowUpAction  struct {
+				Mode               string `json:"mode"`
+				SourceEvalReportID string `json:"source_eval_report_id"`
+			} `json:"preferred_compare_follow_up_action"`
 		} `json:"right"`
 	}
 	if err := json.NewDecoder(resp.Body).Decode(&got); err != nil {
@@ -665,8 +693,20 @@ func TestCompareEvalReportsIncludesCompareFollowUpSummary(t *testing.T) {
 	if got.Left.CompareFollowUpCaseCount != 1 || got.Left.OpenCompareFollowUpCaseCount != 1 || got.Left.LatestCompareFollowUpCaseID != leftCompareFollowUp.ID || got.Left.LatestCompareFollowUpCaseStatus != casesvc.StatusOpen {
 		t.Fatalf("Left compare follow-up summary = %#v, want count=1 open=1 latest=%q status=%q", got.Left, leftCompareFollowUp.ID, casesvc.StatusOpen)
 	}
+	if got.Left.PreferredCompareFollowUpAction.Mode != "open_existing_queue" {
+		t.Fatalf("Left.PreferredCompareFollowUpAction.Mode = %q, want %q", got.Left.PreferredCompareFollowUpAction.Mode, "open_existing_queue")
+	}
+	if got.Left.PreferredCompareFollowUpAction.SourceEvalReportID != leftReportID {
+		t.Fatalf("Left.PreferredCompareFollowUpAction.SourceEvalReportID = %q, want %q", got.Left.PreferredCompareFollowUpAction.SourceEvalReportID, leftReportID)
+	}
 	if got.Right.CompareFollowUpCaseCount != 1 || got.Right.OpenCompareFollowUpCaseCount != 1 || got.Right.LatestCompareFollowUpCaseID != rightCompareFollowUp.ID || got.Right.LatestCompareFollowUpCaseStatus != casesvc.StatusOpen {
 		t.Fatalf("Right compare follow-up summary = %#v, want count=1 open=1 latest=%q status=%q", got.Right, rightCompareFollowUp.ID, casesvc.StatusOpen)
+	}
+	if got.Right.PreferredCompareFollowUpAction.Mode != "open_existing_queue" {
+		t.Fatalf("Right.PreferredCompareFollowUpAction.Mode = %q, want %q", got.Right.PreferredCompareFollowUpAction.Mode, "open_existing_queue")
+	}
+	if got.Right.PreferredCompareFollowUpAction.SourceEvalReportID != rightReportID {
+		t.Fatalf("Right.PreferredCompareFollowUpAction.SourceEvalReportID = %q, want %q", got.Right.PreferredCompareFollowUpAction.SourceEvalReportID, rightReportID)
 	}
 }
 

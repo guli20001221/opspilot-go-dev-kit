@@ -132,6 +132,7 @@ Provide a practical operator UI for evaluation and runtime analysis while keepin
 101. When eval-case follow-up summary is already present on the canonical list contract, prefer exposing row-level `latest case` or `queue` handoff from `/admin/evals` instead of forcing a detail-pane round trip for basic queue navigation.
 102. Once canonical eval-case reads expose a typed `preferred_follow_up_action`, prefer consuming that backend-owned action field from `/admin/evals` instead of recomputing `create` versus reuse decisions from follow-up counts and IDs in browser code.
 103. Once canonical eval-report detail exposes a typed `preferred_follow_up_action`, prefer consuming that backend-owned action field from `/admin/eval-reports` instead of recomputing `create` versus reuse decisions from follow-up counts and IDs in browser code.
+104. Once canonical eval-report compare reads expose a typed `preferred_compare_follow_up_action` per side, prefer consuming that backend-owned action field from `/admin/eval-report-compare` instead of recomputing create-versus-queue decisions from compare-follow-up counts in browser code.
 
 ## Output contract
 When you finish, always report:

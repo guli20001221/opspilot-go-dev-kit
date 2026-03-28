@@ -229,6 +229,20 @@
         return { mode: "create", text: `Create case from ${side}` };
       }
       const item = side === "left" ? currentComparison.left : currentComparison.right;
+      const preferred = item && item.preferred_compare_follow_up_action;
+      if (preferred && typeof preferred.mode === "string" && preferred.mode !== "") {
+        if (preferred.mode === "open_existing_queue") {
+          return {
+            mode: "open-queue",
+            text: `Open ${side} compare queue`,
+            href: compareQueueHref({
+              tenant_id: item.tenant_id,
+              report_id: preferred.source_eval_report_id || item.report_id
+            })
+          };
+        }
+        return { mode: "create", text: `Create case from ${side}` };
+      }
       if ((item.open_compare_follow_up_case_count || 0) > 0) {
         return {
           mode: "open-queue",
