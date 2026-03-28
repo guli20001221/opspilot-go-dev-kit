@@ -47,6 +47,12 @@ func TestGetEvalReportReturnsMaterializedDetail(t *testing.T) {
 	if got.RunStatus != evalsvc.RunStatusFailed {
 		t.Fatalf("RunStatus = %q, want %q", got.RunStatus, evalsvc.RunStatusFailed)
 	}
+	if got.PreferredFollowUpAction.Mode != "create" {
+		t.Fatalf("PreferredFollowUpAction.Mode = %q, want %q", got.PreferredFollowUpAction.Mode, "create")
+	}
+	if got.PreferredFollowUpAction.SourceEvalReportID != reportID {
+		t.Fatalf("PreferredFollowUpAction.SourceEvalReportID = %q, want %q", got.PreferredFollowUpAction.SourceEvalReportID, reportID)
+	}
 	if len(got.BadCases) == 0 {
 		t.Fatal("BadCases is empty")
 	}
@@ -134,6 +140,15 @@ func TestGetEvalReportIncludesFollowUpCaseSummary(t *testing.T) {
 	}
 	if got.LatestFollowUpCaseStatus != casesvc.StatusOpen {
 		t.Fatalf("LatestFollowUpCaseStatus = %q, want %q", got.LatestFollowUpCaseStatus, casesvc.StatusOpen)
+	}
+	if got.PreferredFollowUpAction.Mode != "open_existing_case" {
+		t.Fatalf("PreferredFollowUpAction.Mode = %q, want %q", got.PreferredFollowUpAction.Mode, "open_existing_case")
+	}
+	if got.PreferredFollowUpAction.CaseID != openCase.ID {
+		t.Fatalf("PreferredFollowUpAction.CaseID = %q, want %q", got.PreferredFollowUpAction.CaseID, openCase.ID)
+	}
+	if got.PreferredFollowUpAction.SourceEvalReportID != reportID {
+		t.Fatalf("PreferredFollowUpAction.SourceEvalReportID = %q, want %q", got.PreferredFollowUpAction.SourceEvalReportID, reportID)
 	}
 }
 
@@ -886,6 +901,15 @@ func TestListEvalReportsIncludesFollowUpCaseSummary(t *testing.T) {
 	}
 	if got.BadCaseWithoutOpenFollowUpCount != 1 {
 		t.Fatalf("BadCaseWithoutOpenFollowUpCount = %d, want 1", got.BadCaseWithoutOpenFollowUpCount)
+	}
+	if got.PreferredFollowUpAction.Mode != "open_existing_case" {
+		t.Fatalf("PreferredFollowUpAction.Mode = %q, want %q", got.PreferredFollowUpAction.Mode, "open_existing_case")
+	}
+	if got.PreferredFollowUpAction.CaseID != openCase.ID {
+		t.Fatalf("PreferredFollowUpAction.CaseID = %q, want %q", got.PreferredFollowUpAction.CaseID, openCase.ID)
+	}
+	if got.PreferredFollowUpAction.SourceEvalReportID != reportID {
+		t.Fatalf("PreferredFollowUpAction.SourceEvalReportID = %q, want %q", got.PreferredFollowUpAction.SourceEvalReportID, reportID)
 	}
 }
 

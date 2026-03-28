@@ -114,6 +114,7 @@ The current HTTP layer also exposes the same PostgreSQL-backed workflow records 
 - `/admin/eval-runs` is the first eval-run operator lane, and `/admin/eval-datasets` now hands published baselines into it through `Run dataset`
 - `/admin/eval-reports` is the first eval-report operator lane, reusing the canonical eval-report list/detail contracts instead of reconstructing aggregated artifacts from run detail in the browser
 - the same eval-report lane now also carries follow-up case summary directly on canonical list rows, so queue-level triage does not need a second case-list fetch per row
+- the same canonical eval-report detail now also carries backend-owned `preferred_follow_up_action`, so `/admin/eval-reports` can render `Create case` versus reuse actions from one typed read-model field instead of recomputing that decision from follow-up counts and IDs in the browser
 - the same canonical eval-report list now also supports a `needs_follow_up` filter, so operator lanes can pull unresolved-regression slices without inventing a second queue contract
 - that canonical eval-report list also carries `latest_follow_up_case_id`, so operator lanes can hand off directly into the freshest linked follow-up case without an extra per-row lookup
 - the eval-report detail pane reuses that same canonical field for its `Open latest case` action instead of inventing a separate handoff endpoint

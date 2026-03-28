@@ -3277,6 +3277,7 @@ components:
         - bad_case_without_open_follow_up_count
         - follow_up_case_count
         - open_follow_up_case_count
+        - preferred_follow_up_action
         - created_at
         - updated_at
         - ready_at
@@ -3341,6 +3342,8 @@ components:
           enum:
             - open
             - closed
+        preferred_follow_up_action:
+          $ref: '#/components/schemas/EvalReportFollowUpAction'
         metadata:
           type: object
           description: Raw aggregated report metadata, present on single-report detail reads.
@@ -3444,6 +3447,22 @@ components:
         ready_at:
           type: string
           format: date-time
+    EvalReportFollowUpAction:
+      type: object
+      required:
+        - mode
+        - source_eval_report_id
+      properties:
+        mode:
+          type: string
+          enum:
+            - create
+            - open_existing_case
+            - open_existing_queue
+        case_id:
+          type: string
+        source_eval_report_id:
+          type: string
     EvalReportBadCase:
       type: object
       required:

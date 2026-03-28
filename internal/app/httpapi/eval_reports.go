@@ -32,36 +32,43 @@ type evalReportBadCaseResponse struct {
 }
 
 type evalReportResponse struct {
-	ReportID                        string                      `json:"report_id"`
-	TenantID                        string                      `json:"tenant_id"`
-	RunID                           string                      `json:"run_id"`
-	DatasetID                       string                      `json:"dataset_id"`
-	DatasetName                     string                      `json:"dataset_name"`
-	RunStatus                       string                      `json:"run_status"`
-	Status                          string                      `json:"status"`
-	Summary                         string                      `json:"summary"`
-	TotalItems                      int                         `json:"total_items"`
-	RecordedResults                 int                         `json:"recorded_results"`
-	PassedItems                     int                         `json:"passed_items"`
-	FailedItems                     int                         `json:"failed_items"`
-	MissingResults                  int                         `json:"missing_results"`
-	AverageScore                    float64                     `json:"average_score"`
-	JudgeVersion                    string                      `json:"judge_version,omitempty"`
-	BadCaseCount                    int                         `json:"bad_case_count"`
-	BadCaseWithoutOpenFollowUpCount int                         `json:"bad_case_without_open_follow_up_count"`
-	FollowUpCaseCount               int                         `json:"follow_up_case_count"`
-	OpenFollowUpCaseCount           int                         `json:"open_follow_up_case_count"`
-	LatestFollowUpCaseID            string                      `json:"latest_follow_up_case_id,omitempty"`
-	LatestFollowUpCaseStatus        string                      `json:"latest_follow_up_case_status,omitempty"`
-	CompareFollowUpCaseCount        int                         `json:"compare_follow_up_case_count"`
-	OpenCompareFollowUpCaseCount    int                         `json:"open_compare_follow_up_case_count"`
-	LatestCompareFollowUpCaseID     string                      `json:"latest_compare_follow_up_case_id,omitempty"`
-	LatestCompareFollowUpCaseStatus string                      `json:"latest_compare_follow_up_case_status,omitempty"`
-	Metadata                        json.RawMessage             `json:"metadata,omitempty"`
-	BadCases                        []evalReportBadCaseResponse `json:"bad_cases,omitempty"`
-	CreatedAt                       string                      `json:"created_at"`
-	UpdatedAt                       string                      `json:"updated_at"`
-	ReadyAt                         string                      `json:"ready_at"`
+	ReportID                        string                           `json:"report_id"`
+	TenantID                        string                           `json:"tenant_id"`
+	RunID                           string                           `json:"run_id"`
+	DatasetID                       string                           `json:"dataset_id"`
+	DatasetName                     string                           `json:"dataset_name"`
+	RunStatus                       string                           `json:"run_status"`
+	Status                          string                           `json:"status"`
+	Summary                         string                           `json:"summary"`
+	TotalItems                      int                              `json:"total_items"`
+	RecordedResults                 int                              `json:"recorded_results"`
+	PassedItems                     int                              `json:"passed_items"`
+	FailedItems                     int                              `json:"failed_items"`
+	MissingResults                  int                              `json:"missing_results"`
+	AverageScore                    float64                          `json:"average_score"`
+	JudgeVersion                    string                           `json:"judge_version,omitempty"`
+	BadCaseCount                    int                              `json:"bad_case_count"`
+	BadCaseWithoutOpenFollowUpCount int                              `json:"bad_case_without_open_follow_up_count"`
+	FollowUpCaseCount               int                              `json:"follow_up_case_count"`
+	OpenFollowUpCaseCount           int                              `json:"open_follow_up_case_count"`
+	LatestFollowUpCaseID            string                           `json:"latest_follow_up_case_id,omitempty"`
+	LatestFollowUpCaseStatus        string                           `json:"latest_follow_up_case_status,omitempty"`
+	PreferredFollowUpAction         evalReportFollowUpActionResponse `json:"preferred_follow_up_action"`
+	CompareFollowUpCaseCount        int                              `json:"compare_follow_up_case_count"`
+	OpenCompareFollowUpCaseCount    int                              `json:"open_compare_follow_up_case_count"`
+	LatestCompareFollowUpCaseID     string                           `json:"latest_compare_follow_up_case_id,omitempty"`
+	LatestCompareFollowUpCaseStatus string                           `json:"latest_compare_follow_up_case_status,omitempty"`
+	Metadata                        json.RawMessage                  `json:"metadata,omitempty"`
+	BadCases                        []evalReportBadCaseResponse      `json:"bad_cases,omitempty"`
+	CreatedAt                       string                           `json:"created_at"`
+	UpdatedAt                       string                           `json:"updated_at"`
+	ReadyAt                         string                           `json:"ready_at"`
+}
+
+type evalReportFollowUpActionResponse struct {
+	Mode               string `json:"mode"`
+	CaseID             string `json:"case_id,omitempty"`
+	SourceEvalReportID string `json:"source_eval_report_id,omitempty"`
 }
 
 type listEvalReportsResponse struct {
@@ -564,6 +571,7 @@ func newEvalReportResponse(item evalsvc.EvalReport, includeHeavy bool, followUpS
 		OpenFollowUpCaseCount:           followUpSummary.OpenFollowUpCaseCount,
 		LatestFollowUpCaseID:            followUpSummary.LatestFollowUpCaseID,
 		LatestFollowUpCaseStatus:        followUpSummary.LatestFollowUpCaseStatus,
+		PreferredFollowUpAction:         newEvalReportFollowUpActionResponse(item.ID, followUpSummary),
 		CompareFollowUpCaseCount:        compareFollowUpSummary.CompareFollowUpCaseCount,
 		OpenCompareFollowUpCaseCount:    compareFollowUpSummary.OpenCompareFollowUpCaseCount,
 		LatestCompareFollowUpCaseID:     compareFollowUpSummary.LatestCompareFollowUpCaseID,
@@ -599,6 +607,23 @@ func newEvalReportResponse(item evalsvc.EvalReport, includeHeavy bool, followUpS
 	}
 
 	return resp
+}
+
+func newEvalReportFollowUpActionResponse(reportID string, followUpSummary casesvc.EvalReportFollowUpSummary) evalReportFollowUpActionResponse {
+	action := evalReportFollowUpActionResponse{
+		Mode:               "create",
+		SourceEvalReportID: reportID,
+	}
+	if followUpSummary.OpenFollowUpCaseCount <= 0 {
+		return action
+	}
+	if followUpSummary.LatestFollowUpCaseID != "" {
+		action.Mode = "open_existing_case"
+		action.CaseID = followUpSummary.LatestFollowUpCaseID
+		return action
+	}
+	action.Mode = "open_existing_queue"
+	return action
 }
 
 func newEvalReportComparisonItemResponse(item evalsvc.EvalReport, followUpSummary casesvc.EvalReportFollowUpSummary, compareFollowUpSummary casesvc.EvalReportCompareFollowUpSummary, badCaseWithoutOpenFollowUpCount int) evalReportComparisonItemResponse {

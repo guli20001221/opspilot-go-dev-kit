@@ -154,6 +154,7 @@ Current Milestone 1 slice:
 - `/admin/eval-report-compare` now also hands each side directly into `/admin/cases?source_eval_report_id=...`, so operators can inspect the full existing follow-up slice before opening another case
 - the same `/admin/eval-reports` page now also shows linked durable follow-up cases for the selected eval report by reusing the canonical case list filter `source_eval_report_id`
 - the same `/admin/eval-reports` page now also supports `Create case`, reusing `POST /api/v1/cases` with `source_eval_report_id` and deep-linking straight into `/admin/cases` for follow-up triage
+- the same canonical eval-report detail now also carries typed `preferred_follow_up_action`, so `/admin/eval-reports` can render `Create case`, `Open existing case`, or `Open existing queue` from one backend-owned decision instead of recomputing that action from follow-up counts in browser code
 - that same eval-report `Create case` handoff now reuses the newest open follow-up case for the same `tenant_id + source_eval_report_id` instead of creating duplicate regression work items
 - when that open eval-report follow-up already exists, the same `/admin/eval-reports` primary action now renders as `Open existing case` or `Open existing queue`, so reuse is visible before another write is attempted
 - the same `/admin/eval-reports` page now also supports `Create case from bad case`, which reuses `POST /api/v1/cases` with `source_eval_report_id + source_eval_case_id` so one bad-case follow-up remains distinct from a report-level follow-up
