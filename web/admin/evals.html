@@ -248,20 +248,28 @@
       return `${total} cases / ${open} open`;
     }
 
+    function buildEvalQueueHref(item, sourceEvalCaseID) {
+      return `/admin/cases?tenant_id=${encodeURIComponent(item.tenant_id)}&source_eval_case_id=${encodeURIComponent(sourceEvalCaseID)}&limit=10`;
+    }
+
     function preferredFollowUpAction(item) {
       const action = item && item.preferred_follow_up_action ? item.preferred_follow_up_action : null;
-      if (action && action.mode) {
-        if (action.mode === "open_existing_case" && action.case_id) {
-          return { mode: action.mode, targetHref: `/admin/cases?tenant_id=${encodeURIComponent(item.tenant_id)}&case_id=${encodeURIComponent(action.case_id)}`, label: "Open existing case", hasReuse: true };
-        }
-        if (action.mode === "open_existing_queue") {
-          return { mode: action.mode, targetHref: `/admin/cases?tenant_id=${encodeURIComponent(item.tenant_id)}&source_eval_case_id=${encodeURIComponent(action.source_eval_case_id || item.eval_case_id)}&limit=10`, label: "Open existing queue", hasReuse: true };
-        }
-        if (action.mode === "create") {
-          return { mode: action.mode, targetHref: "", label: "Create case", hasReuse: false };
-        }
+      if (!action || !action.mode) {
+        return { mode: "invalid", targetHref: "", label: "Follow-up action unavailable", hasReuse: false, valid: false };
       }
-      return { mode: "create", targetHref: "", label: "Create case", hasReuse: false };
+      if (action.mode === "open_existing_case" && action.case_id) {
+        return { mode: action.mode, targetHref: `/admin/cases?tenant_id=${encodeURIComponent(item.tenant_id)}&case_id=${encodeURIComponent(action.case_id)}`, label: "Open existing case", hasReuse: true, valid: true };
+      }
+      if (action.mode === "open_existing_queue") {
+        if (action.source_eval_case_id) {
+          return { mode: action.mode, targetHref: buildEvalQueueHref(item, action.source_eval_case_id), label: "Open existing queue", hasReuse: true, valid: true };
+        }
+        return { mode: "invalid", targetHref: "", label: "Follow-up action unavailable", hasReuse: false, valid: false };
+      }
+      if (action.mode === "create") {
+        return { mode: action.mode, targetHref: "", label: "Create case", hasReuse: false, valid: true };
+      }
+      return { mode: "invalid", targetHref: "", label: "Follow-up action unavailable", hasReuse: false, valid: false };
     }
 
     function escapeHTML(value) {
@@ -372,8 +380,9 @@
       tableWrap.hidden = false;
       evalRows.innerHTML = currentItems.map((item) => {
         const preferredAction = preferredFollowUpAction(item);
-        const rowPreferredLink = preferredAction.hasReuse ? `<br><a class="button-link ghost" href="${preferredAction.targetHref}">${preferredAction.label}</a>` : "";
-        const queueLink = preferredAction.mode === "open_existing_queue" ? "" : `<br><a class="button-link ghost" href="/admin/cases?tenant_id=${encodeURIComponent(item.tenant_id)}&source_eval_case_id=${encodeURIComponent(item.eval_case_id)}&limit=10">Open queue</a>`;
+        const rowPreferredLink = preferredAction.valid && preferredAction.hasReuse ? `<br><a class="button-link ghost" href="${preferredAction.targetHref}">${preferredAction.label}</a>` : "";
+        const queueLink = preferredAction.mode === "open_existing_queue" ? "" : `<br><a class="button-link ghost" href="${buildEvalQueueHref(item, item.eval_case_id)}">Open queue</a>`;
+        const actionWarning = preferredAction.valid ? "" : `<br><small>Canonical follow-up action unavailable</small>`;
         return `
         <tr data-eval-row="${escapeHTML(item.eval_case_id)}">
           <td>
@@ -386,6 +395,7 @@
             <strong>${escapeHTML(followUpLabel(item))}</strong>
             ${rowPreferredLink}
             ${queueLink}
+            ${actionWarning}
           </td>
           <td>${escapeHTML(fmtDate(item.created_at))}</td>
           <td><button class="ghost" type="button" data-eval-id="${escapeHTML(item.eval_case_id)}">Inspect</button></td>
@@ -432,11 +442,16 @@
       const preferredAction = preferredFollowUpAction(item);
       const caseURL = `${caseEndpointBase}${encodeURIComponent(item.source_case_id)}?tenant_id=${encodeURIComponent(item.tenant_id)}`;
       const latestFollowUpCaseURL = item.latest_follow_up_case_id ? `/admin/cases?tenant_id=${encodeURIComponent(item.tenant_id)}&case_id=${encodeURIComponent(item.latest_follow_up_case_id)}` : "";
-      const followUpSliceURL = `/admin/cases?tenant_id=${encodeURIComponent(item.tenant_id)}&source_eval_case_id=${encodeURIComponent(item.eval_case_id)}&limit=10`;
-      createCaseButton.dataset.action = preferredAction.mode === "create" ? "create" : "open-existing";
+      const followUpSliceURL = buildEvalQueueHref(item, item.eval_case_id);
+      createCaseButton.dataset.action = preferredAction.valid ? (preferredAction.mode === "create" ? "create" : "open-existing") : "invalid";
       createCaseButton.dataset.targetHref = preferredAction.targetHref || "";
       createCaseButton.textContent = preferredAction.label;
-      evalDetailStatusNote.textContent = preferredAction.hasReuse ? "This eval case already has open follow-up work; reuse the canonical case before creating another." : "Current eval case is ready for operator handoff.";
+      createCaseButton.disabled = !preferredAction.valid;
+      evalDetailStatusNote.textContent = !preferredAction.valid
+        ? "This eval case is missing a canonical preferred_follow_up_action; fix the backend contract before handoff."
+        : preferredAction.hasReuse
+          ? "This eval case already has open follow-up work; reuse the canonical case before creating another."
+          : "Current eval case is ready for operator handoff.";
       const reportURL = item.source_report_id ? `${reportEndpointBase}${encodeURIComponent(item.source_report_id)}` : "";
       const taskURL = item.source_task_id ? `${taskEndpointBase}${encodeURIComponent(item.source_task_id)}` : "";
       const traceURL = item.source_case_id ? `/admin/trace-detail?case_id=${encodeURIComponent(item.source_case_id)}` : "/admin/trace-detail";
@@ -769,6 +784,10 @@
     copyEvalSummaryButton.addEventListener("click", () => copyEvalSummary());
     copyEvalLinkButton.addEventListener("click", () => copyEvalLink());
     createCaseButton.addEventListener("click", () => {
+      if (createCaseButton.dataset.action === "invalid") {
+        evalDetailStatusNote.textContent = "This eval case is missing a canonical preferred_follow_up_action.";
+        return;
+      }
       if (createCaseButton.dataset.action === "open-existing" && createCaseButton.dataset.targetHref) {
         window.location.assign(createCaseButton.dataset.targetHref);
         return;
