@@ -611,6 +611,21 @@ func TestAdminEvalReportsPageRendersHTML(t *testing.T) {
 	if !strings.Contains(body, "Open linked cases") {
 		t.Fatal("linked cases handoff missing from eval reports page HTML")
 	}
+	if !strings.Contains(body, "Open compare queue") {
+		t.Fatal("compare queue handoff missing from eval reports page HTML")
+	}
+	if !strings.Contains(body, "Open compare follow-ups") {
+		t.Fatal("compare follow-ups handoff missing from eval reports page HTML")
+	}
+	if !strings.Contains(body, "Open latest compare-origin case") {
+		t.Fatal("latest compare-origin case handoff missing from eval reports page HTML")
+	}
+	if !strings.Contains(body, "Open existing case") {
+		t.Fatal("existing report case reuse action missing from eval reports page HTML")
+	}
+	if !strings.Contains(body, "Open existing bad-case case") {
+		t.Fatal("existing bad-case case reuse action missing from eval reports page HTML")
+	}
 	if !strings.Contains(body, "/api/v1/cases") {
 		t.Fatal("case list API path missing from eval reports page HTML")
 	}
@@ -953,6 +968,7 @@ func TestAdminEvalReportsPageRuntimeSmoke(t *testing.T) {
 	reportService := evalsvc.NewEvalReportServiceWithDependencies(nil, runService)
 	reportID := materializeEvalRunReport(t, "tenant-eval-admin-smoke", evalsvc.RunStatusFailed, "failure detail", caseService, evalCaseService, datasetService, runService, reportService, "Dataset Follow-up", "Source Follow-up")
 	reportNoReuseID := materializeEvalRunReport(t, "tenant-eval-admin-smoke", evalsvc.RunStatusFailed, "secondary failure detail", caseService, evalCaseService, datasetService, runService, reportService, "Dataset Follow-up No Reuse", "Source Follow-up No Reuse")
+	comparePeerReportID := materializeEvalRunReport(t, "tenant-eval-admin-smoke", evalsvc.RunStatusSucceeded, "compare peer detail", caseService, evalCaseService, datasetService, runService, reportService, "Dataset Compare Peer", "Source Compare Peer")
 	_ = materializeEvalRunReport(t, "tenant-eval-admin-smoke", evalsvc.RunStatusSucceeded, "success detail", caseService, evalCaseService, datasetService, runService, reportService, "Dataset No Follow-up", "Source No Follow-up")
 	reportItem, err := reportService.GetEvalReport(context.Background(), reportID)
 	if err != nil {
@@ -990,6 +1006,21 @@ func TestAdminEvalReportsPageRuntimeSmoke(t *testing.T) {
 		CreatedBy:          "operator-eval",
 	}); err != nil {
 		t.Fatalf("CreateCase(openFollowUp) error = %v", err)
+	}
+	openCompareFollowUp, err := caseService.CreateCase(context.Background(), casesvc.CreateInput{
+		TenantID:           "tenant-eval-admin-smoke",
+		Title:              "Open compare-origin follow-up",
+		Summary:            "Open compare-origin summary",
+		SourceEvalReportID: reportID,
+		CompareOrigin: casesvc.CompareOrigin{
+			LeftEvalReportID:  comparePeerReportID,
+			RightEvalReportID: reportID,
+			SelectedSide:      "right",
+		},
+		CreatedBy: "operator-eval",
+	})
+	if err != nil {
+		t.Fatalf("CreateCase(openCompareFollowUp) error = %v", err)
 	}
 	closedFollowUp, err := caseService.CreateCase(context.Background(), casesvc.CreateInput{
 		TenantID:           "tenant-eval-admin-smoke",
@@ -1058,6 +1089,7 @@ const reportID = process.argv[4];
 const badCaseEvalCaseID = process.argv[5];
 const latestBadCaseFollowUpID = process.argv[6];
 const reportNoReuseID = process.argv[7];
+const latestCompareFollowUpID = process.argv[8];
 
 async function assertCasePayload(page, apiBaseURL, caseID, tenantID, expectedReportID, expectedEvalCaseID) {
   await page.goto(apiBaseURL + "/api/v1/cases/" + encodeURIComponent(caseID) + "?tenant_id=" + encodeURIComponent(tenantID));
@@ -1103,6 +1135,9 @@ async function assertCasePayload(page, apiBaseURL, caseID, tenantID, expectedRep
   if (!followUpSummary.includes("7 open")) {
     throw new Error("open follow-up case count missing from list row: " + followUpSummary);
   }
+  if (!followUpSummary.includes("1 compare-open")) {
+    throw new Error("compare-origin follow-up count missing from list row: " + followUpSummary);
+  }
   if (!followUpSummary.includes("latest open")) {
     throw new Error("latest follow-up case status missing from list row: " + followUpSummary);
   }
@@ -1110,9 +1145,44 @@ async function assertCasePayload(page, apiBaseURL, caseID, tenantID, expectedRep
   if (!latestCaseHref || !latestCaseHref.includes("/admin/cases?") || !latestCaseHref.includes("case_id=")) {
     throw new Error("latest case handoff link missing from list row");
   }
+  const compareQueueHref = await page.getAttribute("#reportRows tr td:nth-child(5) a:nth-of-type(2)", "href");
+  if (!compareQueueHref || !compareQueueHref.includes("/admin/cases?") || !compareQueueHref.includes("source_eval_report_id=" + encodeURIComponent(reportID)) || !compareQueueHref.includes("compare_origin_only=true") || !compareQueueHref.includes("status=open")) {
+    throw new Error("compare queue handoff missing from list row");
+  }
   const detailLatestCaseHref = await page.getAttribute("#openLatestCaseLink", "href");
   if (!detailLatestCaseHref || !detailLatestCaseHref.includes("/admin/cases?") || !detailLatestCaseHref.includes("case_id=")) {
     throw new Error("latest case handoff link missing from detail pane");
+  }
+  const detailLatestCompareHref = await page.getAttribute("#openLatestCompareCaseLink", "href");
+  if (!detailLatestCompareHref || !detailLatestCompareHref.includes("case_id=" + encodeURIComponent(latestCompareFollowUpID))) {
+    throw new Error("latest compare-origin case handoff missing from detail pane");
+  }
+  const detailCompareQueueHref = await page.getAttribute("#openCompareCasesLink", "href");
+  if (!detailCompareQueueHref || !detailCompareQueueHref.includes("/admin/cases?") || !detailCompareQueueHref.includes("source_eval_report_id=" + encodeURIComponent(reportID)) || !detailCompareQueueHref.includes("compare_origin_only=true") || !detailCompareQueueHref.includes("status=open")) {
+    throw new Error("compare-origin queue handoff missing from detail pane");
+  }
+  const compareFollowUpSummary = (await page.textContent("#reportDetail")).trim();
+  if (!compareFollowUpSummary.includes("Compare-origin follow-up") || !compareFollowUpSummary.includes("1 cases / 1 open")) {
+    throw new Error("compare-origin summary missing from detail pane");
+  }
+  const primaryCaseAction = (await page.textContent("#createCaseButton")).trim();
+  if (primaryCaseAction !== "Open existing case") {
+    throw new Error("primary report case action did not switch to existing case reuse: " + primaryCaseAction);
+  }
+  const primaryCaseActionMode = await page.getAttribute("#createCaseButton", "data-action");
+  if (primaryCaseActionMode !== "open-existing") {
+    throw new Error("primary report case action mode missing reuse state: " + primaryCaseActionMode);
+  }
+  const primaryCaseTargetHref = await page.getAttribute("#createCaseButton", "data-target-href");
+  if (!primaryCaseTargetHref || !primaryCaseTargetHref.includes("case_id=" + encodeURIComponent(openFollowUp.ID))) {
+    throw new Error("primary report case action target missing reused case handoff");
+  }
+  const existingBadCaseActionHref = await page.locator("#reportDetail .bad-case-item a").evaluateAll((elements) => {
+    const match = elements.find((element) => element.textContent && element.textContent.includes("Open existing bad-case case"));
+    return match ? match.getAttribute("href") : "";
+  });
+  if (!existingBadCaseActionHref || !existingBadCaseActionHref.includes("case_id=" + encodeURIComponent(openBadCaseFollowUp.ID))) {
+    throw new Error("existing bad-case reuse handoff missing from detail pane");
   }
   await page.click("#quickViewAllReports");
   await page.waitForFunction(() => new URL(window.location.href).searchParams.get("needs_follow_up") === null && new URL(window.location.href).searchParams.get("bad_case_needs_follow_up") === null);
@@ -1301,7 +1371,7 @@ async function assertCasePayload(page, apiBaseURL, caseID, tenantID, expectedRep
 		t.Fatalf("WriteFile(scriptPath) error = %v", err)
 	}
 
-	cmd := exec.Command("node", scriptPath, server.URL, "tenant-eval-admin-smoke", reportID, badCaseEvalCaseID, openBadCaseFollowUp.ID, reportNoReuseID)
+	cmd := exec.Command("node", scriptPath, server.URL, "tenant-eval-admin-smoke", reportID, badCaseEvalCaseID, openBadCaseFollowUp.ID, reportNoReuseID, openCompareFollowUp.ID)
 	cmd.Env = append(os.Environ(), "NODE_PATH="+nodePathRoot)
 	output, err := cmd.CombinedOutput()
 	if err != nil {

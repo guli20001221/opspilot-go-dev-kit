@@ -174,7 +174,9 @@ The current chat stream implementation is a Milestone 1 skeleton:
 - use `Open linked cases` on `/admin/eval-reports` when you want to jump from one durable eval report straight into the canonical `/admin/cases?source_eval_report_id=<report_id>` slice
 - use `Create case` on `/admin/eval-reports` when the selected durable eval report needs operator follow-up and you want to jump straight into the newly created canonical case
 - that same eval-report `Create case` flow now reuses the newest open follow-up for the same `tenant_id + source_eval_report_id`, so repeated clicks land on the canonical open case instead of creating duplicates
+- when that open eval-report follow-up already exists, the same primary action will render as `Open existing case` or `Open existing queue`, so you can jump straight into the canonical follow-up instead of posting again
 - use `Create case from bad case` on `/admin/eval-reports` when one failing eval case needs its own follow-up; that flow reuses `source_eval_case_id` so precise bad-case follow-up stays distinct from report-level follow-up
+- when one bad case already has open follow-up work, that row-level action will render as `Open existing bad-case case` or `Open bad-case queue` instead of `Create case from bad case`
 - the same eval-report detail now also shows per-bad-case follow-up counts plus `Open latest bad-case case` and `Open bad-case follow-up slice`, so one failing eval case can hand off directly into its existing durable operator work
 - use `bad_case_needs_follow_up=true` or `bad_case_needs_follow_up=false` on `GET /api/v1/eval-reports/{report_id}` when you need the canonical report detail to return only unresolved bad cases or only already-cleared bad cases
 - use `bad_case_count` from that same eval-report detail when you need the canonical total bad-case count for report-level handoff, even if the visible `bad_cases` slice is filtered
