@@ -79,6 +79,7 @@ type ListFilter struct {
 	AssignedTo         string
 	UnassignedOnly     bool
 	EvalBackedOnly     bool
+	CompareOriginOnly  bool
 	SourceTaskID       string
 	SourceReportID     string
 	SourceEvalReportID string

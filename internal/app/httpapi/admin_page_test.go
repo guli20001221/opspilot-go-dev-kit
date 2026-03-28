@@ -1280,6 +1280,9 @@ func TestAdminCasesPageRendersHTML(t *testing.T) {
 	if !strings.Contains(body, "Eval-backed cases") {
 		t.Fatal("eval-backed quick view missing from cases page HTML")
 	}
+	if !strings.Contains(body, "Compare follow-ups") {
+		t.Fatal("compare-follow-ups quick view missing from cases page HTML")
+	}
 	if !strings.Contains(body, "Age") {
 		t.Fatal("age indicator missing from cases page HTML")
 	}
@@ -1414,6 +1417,16 @@ const compareRightReportID = process.argv[11];
   if (!compareHref || !compareHref.includes("left_report_id=" + encodeURIComponent(reportID)) || !compareHref.includes("right_report_id=" + encodeURIComponent(compareRightReportID))) {
     throw new Error("compare origin handoff drifted");
   }
+  await page.click("#compareFollowUpsQuickView");
+  await page.waitForFunction(() => document.querySelector("#visibleCount")?.textContent?.trim() === "1");
+  const compareVisibleCount = await page.textContent("#visibleCount");
+  if (compareVisibleCount.trim() !== "1") throw new Error("compare quick view did not narrow to compare-derived cases");
+  const compareURL = new URL(page.url());
+  if (compareURL.searchParams.get("compare_origin_only") !== "true") {
+    throw new Error("compare_origin_only filter was not synced to quick view");
+  }
+  const compareOnlyStatus = await page.$eval("#status", (node) => node.value);
+  if (compareOnlyStatus !== "open") throw new Error("compare quick view drifted open status");
 
   await page.goto(baseURL + "/admin/cases?tenant_id=" + encodeURIComponent(tenantID) + "&limit=10&case_id=" + encodeURIComponent(missingCaseID));
   await page.waitForSelector("text=Source eval report summary");

@@ -71,6 +71,9 @@ func (s *memoryStore) List(_ context.Context, filter ListFilter) (ListPage, erro
 		if filter.EvalBackedOnly && item.SourceEvalReportID == "" {
 			continue
 		}
+		if filter.CompareOriginOnly && (item.CompareOrigin.LeftEvalReportID == "" || item.CompareOrigin.RightEvalReportID == "" || item.CompareOrigin.SelectedSide == "") {
+			continue
+		}
 		if filter.SourceTaskID != "" && item.SourceTaskID != filter.SourceTaskID {
 			continue
 		}

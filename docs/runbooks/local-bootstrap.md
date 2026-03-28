@@ -191,6 +191,7 @@ The current chat stream implementation is a Milestone 1 skeleton:
 - compare-created cases now persist that lineage as `source_eval_report_id`, and `/admin/cases` exposes direct handoff links back into `/admin/eval-reports` and `/api/v1/eval-reports/{report_id}`
 - when a selected case carries `source_eval_report_id`, `/admin/cases` now also loads the canonical eval-report detail and shows dataset ID, run status, summary, and bad-case count inline; if that lookup fails, the case detail stays usable and keeps the existing handoff links
 - when a case originated from `/admin/eval-report-compare`, `/admin/cases` now also shows the stored compare origin and exposes `Open compare origin`, which deep-links back into the canonical compare page with both report IDs intact
+- use the `Compare follow-ups` quick view on `/admin/cases` when you want the durable queue of compare-derived regression cases without hand-composing `compare_origin_only=true`
 - successful `report_generation` tasks now finalize the durable report row and task `succeeded` transition together, so `ready_at` and report `metadata.audit_ref` line up with the final task state
 - the local Compose app services now start from dedicated runtime images, which removes the previous startup dependence on downloading Go modules inside the running container
 - the last successful `audit_event.detail` now carries an execution summary, such as which ticket comment was created

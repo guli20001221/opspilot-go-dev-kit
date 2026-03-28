@@ -485,6 +485,7 @@ func parseCaseListFilter(r *http.Request) (casesvc.ListFilter, error) {
 		AssignedTo:         r.URL.Query().Get("assigned_to"),
 		UnassignedOnly:     false,
 		EvalBackedOnly:     false,
+		CompareOriginOnly:  false,
 		SourceTaskID:       r.URL.Query().Get("source_task_id"),
 		SourceReportID:     r.URL.Query().Get("source_report_id"),
 		SourceEvalReportID: r.URL.Query().Get("source_eval_report_id"),
@@ -506,6 +507,13 @@ func parseCaseListFilter(r *http.Request) (casesvc.ListFilter, error) {
 			return casesvc.ListFilter{}, fmt.Errorf("eval_backed_only must be a boolean")
 		}
 		filter.EvalBackedOnly = value
+	}
+	if rawCompareOriginOnly := r.URL.Query().Get("compare_origin_only"); rawCompareOriginOnly != "" {
+		value, err := strconv.ParseBool(rawCompareOriginOnly)
+		if err != nil {
+			return casesvc.ListFilter{}, fmt.Errorf("compare_origin_only must be a boolean")
+		}
+		filter.CompareOriginOnly = value
 	}
 	if rawLimit := r.URL.Query().Get("limit"); rawLimit != "" {
 		limit, err := strconv.Atoi(rawLimit)

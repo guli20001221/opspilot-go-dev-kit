@@ -570,6 +570,89 @@ func TestListCasesEndpointSupportsEvalBackedOnlyFilter(t *testing.T) {
 	}
 }
 
+func TestListCasesEndpointSupportsCompareOriginOnlyFilter(t *testing.T) {
+	caseService := casesvc.NewService()
+
+	compareDerived, err := caseService.CreateCase(context.Background(), casesvc.CreateInput{
+		TenantID:           "tenant-1",
+		Title:              "Compare-derived case",
+		SourceEvalReportID: "eval-report-compare-1",
+		CompareOrigin: casesvc.CompareOrigin{
+			LeftEvalReportID:  "eval-report-compare-1",
+			RightEvalReportID: "eval-report-compare-2",
+			SelectedSide:      "left",
+		},
+	})
+	if err != nil {
+		t.Fatalf("CreateCase(compareDerived) error = %v", err)
+	}
+	if _, err := caseService.CreateCase(context.Background(), casesvc.CreateInput{
+		TenantID:           "tenant-1",
+		Title:              "Eval-backed only case",
+		SourceEvalReportID: "eval-report-compare-3",
+	}); err != nil {
+		t.Fatalf("CreateCase(evalBackedOnly) error = %v", err)
+	}
+	if _, err := caseService.CreateCase(context.Background(), casesvc.CreateInput{
+		TenantID: "tenant-1",
+		Title:    "Manual case",
+	}); err != nil {
+		t.Fatalf("CreateCase(manual) error = %v", err)
+	}
+
+	server := httptest.NewServer(NewHandlerWithDependencies(Dependencies{
+		Cases: caseService,
+	}))
+	defer server.Close()
+
+	resp, err := http.Get(server.URL + "/api/v1/cases?tenant_id=tenant-1&compare_origin_only=true&limit=10")
+	if err != nil {
+		t.Fatalf("Get() error = %v", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("StatusCode = %d, want %d", resp.StatusCode, http.StatusOK)
+	}
+
+	var page listCasesResponse
+	if err := json.NewDecoder(resp.Body).Decode(&page); err != nil {
+		t.Fatalf("Decode() error = %v", err)
+	}
+	if len(page.Cases) != 1 {
+		t.Fatalf("len(page.Cases) = %d, want %d", len(page.Cases), 1)
+	}
+	if page.Cases[0].CaseID != compareDerived.ID {
+		t.Fatalf("page.Cases[0].CaseID = %q, want %q", page.Cases[0].CaseID, compareDerived.ID)
+	}
+	if page.Cases[0].CompareOrigin == nil || page.Cases[0].CompareOrigin.SelectedSide != "left" {
+		t.Fatalf("page.Cases[0].CompareOrigin = %#v, want selected_side=left", page.Cases[0].CompareOrigin)
+	}
+}
+
+func TestListCasesEndpointRejectsInvalidCompareOriginOnly(t *testing.T) {
+	server := httptest.NewServer(NewHandler())
+	defer server.Close()
+
+	resp, err := http.Get(server.URL + "/api/v1/cases?tenant_id=tenant-1&compare_origin_only=maybe")
+	if err != nil {
+		t.Fatalf("Get() error = %v", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusBadRequest {
+		t.Fatalf("StatusCode = %d, want %d", resp.StatusCode, http.StatusBadRequest)
+	}
+
+	var got errorResponse
+	if err := json.NewDecoder(resp.Body).Decode(&got); err != nil {
+		t.Fatalf("Decode() error = %v", err)
+	}
+	if got.Code != "invalid_query" {
+		t.Fatalf("Code = %q, want %q", got.Code, "invalid_query")
+	}
+}
+
 func TestListCasesEndpointSupportsEvalReportSourceFilterPagination(t *testing.T) {
 	caseService := casesvc.NewService()
 

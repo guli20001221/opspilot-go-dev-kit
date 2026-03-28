@@ -305,6 +305,7 @@
             <input id="assigned_to" name="assigned_to" type="text" placeholder="cases-operator">
           </div>
           <input id="unassigned_only" name="unassigned_only" type="hidden" value="">
+          <input id="compare_origin_only" name="compare_origin_only" type="hidden" value="">
           <div class="field">
             <label for="status">Status</label>
             <select id="status" name="status">
@@ -344,6 +345,7 @@
           <button class="ghost quick-view-button" id="unassignedCasesQuickView" type="button">Unassigned</button>
           <button class="ghost quick-view-button" id="openCasesQuickView" type="button">Open cases</button>
           <button class="ghost quick-view-button" id="evalBackedCasesQuickView" type="button">Eval-backed cases</button>
+          <button class="ghost quick-view-button" id="compareFollowUpsQuickView" type="button">Compare follow-ups</button>
         </div>
       </aside>
 
@@ -476,6 +478,7 @@
     const myOpenCasesQuickView = document.getElementById("myOpenCasesQuickView");
     const unassignedCasesQuickView = document.getElementById("unassignedCasesQuickView");
     const evalBackedCasesQuickView = document.getElementById("evalBackedCasesQuickView");
+    const compareFollowUpsQuickView = document.getElementById("compareFollowUpsQuickView");
     const openCaseAPILink = document.getElementById("openCaseAPILink");
     const openEvalCaseAPILink = document.getElementById("openEvalCaseAPILink");
     const openTraceDetailLink = document.getElementById("openTraceDetailLink");
@@ -545,19 +548,22 @@
         const currentStatus = form.elements.namedItem("status").value.trim();
         const currentUnassignedOnly = form.elements.namedItem("unassigned_only").value.trim();
         const currentEvalBackedOnly = form.elements.namedItem("eval_backed_only").value.trim();
+        const currentCompareOriginOnly = form.elements.namedItem("compare_origin_only").value.trim();
         const currentSourceEvalReportID = form.elements.namedItem("source_eval_report_id").value.trim();
         const actor = currentActor();
 
         const mineActive = currentStatus === "open" && currentAssignedTo === actor && currentUnassignedOnly !== "true";
         const unassignedActive = currentStatus === "open" && currentAssignedTo === "" && currentUnassignedOnly === "true";
-        const openActive = currentStatus === "open" && currentAssignedTo === "" && currentUnassignedOnly !== "true" && currentEvalBackedOnly !== "true" && currentSourceEvalReportID === "";
-        const evalBackedActive = currentAssignedTo === "" && currentUnassignedOnly !== "true" && currentEvalBackedOnly === "true" && currentSourceEvalReportID === "";
+        const openActive = currentStatus === "open" && currentAssignedTo === "" && currentUnassignedOnly !== "true" && currentEvalBackedOnly !== "true" && currentCompareOriginOnly !== "true" && currentSourceEvalReportID === "";
+        const evalBackedActive = currentAssignedTo === "" && currentUnassignedOnly !== "true" && currentEvalBackedOnly === "true" && currentCompareOriginOnly !== "true" && currentSourceEvalReportID === "";
+        const compareFollowUpsActive = currentStatus === "open" && currentAssignedTo === "" && currentUnassignedOnly !== "true" && currentEvalBackedOnly !== "true" && currentCompareOriginOnly === "true" && currentSourceEvalReportID === "";
 
         [
           [myOpenCasesQuickView, mineActive],
           [unassignedCasesQuickView, unassignedActive],
           [openCasesQuickView, openActive],
-          [evalBackedCasesQuickView, evalBackedActive]
+          [evalBackedCasesQuickView, evalBackedActive],
+          [compareFollowUpsQuickView, compareFollowUpsActive]
         ].forEach(([button, active]) => {
           button.classList.toggle("quick-view-active", active);
           button.setAttribute("aria-pressed", active ? "true" : "false");
@@ -581,7 +587,7 @@
 
     function buildParams() {
       const params = new URLSearchParams();
-      for (const name of ["tenant_id", "assigned_to", "unassigned_only", "eval_backed_only", "status", "source_task_id", "source_report_id", "source_eval_report_id", "limit", "offset"]) {
+      for (const name of ["tenant_id", "assigned_to", "unassigned_only", "eval_backed_only", "compare_origin_only", "status", "source_task_id", "source_report_id", "source_eval_report_id", "limit", "offset"]) {
         const value = form.elements.namedItem(name).value.trim();
         if (value) params.set(name, value);
       }
@@ -662,7 +668,7 @@
 
     function readParamsFromURL() {
       const params = new URLSearchParams(window.location.search);
-      for (const name of ["tenant_id", "assigned_to", "unassigned_only", "eval_backed_only", "status", "source_task_id", "source_report_id", "source_eval_report_id", "limit", "offset"]) {
+      for (const name of ["tenant_id", "assigned_to", "unassigned_only", "eval_backed_only", "compare_origin_only", "status", "source_task_id", "source_report_id", "source_eval_report_id", "limit", "offset"]) {
         form.elements.namedItem(name).value = params.get(name) || (name === "status" ? "open" : name === "limit" ? "10" : name === "offset" ? "0" : "");
       }
       return params.get("case_id") || "";
@@ -1132,6 +1138,7 @@
       form.reset();
       form.elements.namedItem("unassigned_only").value = "";
       form.elements.namedItem("eval_backed_only").value = "";
+      form.elements.namedItem("compare_origin_only").value = "";
       form.elements.namedItem("status").value = "open";
       form.elements.namedItem("limit").value = "10";
       form.elements.namedItem("offset").value = "0";
@@ -1143,6 +1150,7 @@
       form.elements.namedItem("assigned_to").value = "";
       form.elements.namedItem("unassigned_only").value = "";
       form.elements.namedItem("eval_backed_only").value = "";
+      form.elements.namedItem("compare_origin_only").value = "";
       form.elements.namedItem("source_eval_report_id").value = "";
       form.elements.namedItem("offset").value = "0";
       loadCases("");
@@ -1153,6 +1161,7 @@
       form.elements.namedItem("assigned_to").value = caseActorInput.value.trim() || "cases-operator";
       form.elements.namedItem("unassigned_only").value = "";
       form.elements.namedItem("eval_backed_only").value = "";
+      form.elements.namedItem("compare_origin_only").value = "";
       form.elements.namedItem("source_eval_report_id").value = "";
       form.elements.namedItem("offset").value = "0";
       loadCases("");
@@ -1163,6 +1172,7 @@
       form.elements.namedItem("assigned_to").value = "";
       form.elements.namedItem("unassigned_only").value = "true";
       form.elements.namedItem("eval_backed_only").value = "";
+      form.elements.namedItem("compare_origin_only").value = "";
       form.elements.namedItem("source_eval_report_id").value = "";
       form.elements.namedItem("offset").value = "0";
       loadCases("");
@@ -1172,6 +1182,18 @@
       form.elements.namedItem("assigned_to").value = "";
       form.elements.namedItem("unassigned_only").value = "";
       form.elements.namedItem("eval_backed_only").value = "true";
+      form.elements.namedItem("compare_origin_only").value = "";
+      form.elements.namedItem("source_eval_report_id").value = "";
+      form.elements.namedItem("offset").value = "0";
+      loadCases("");
+    });
+
+    compareFollowUpsQuickView.addEventListener("click", () => {
+      form.elements.namedItem("status").value = "open";
+      form.elements.namedItem("assigned_to").value = "";
+      form.elements.namedItem("unassigned_only").value = "";
+      form.elements.namedItem("eval_backed_only").value = "";
+      form.elements.namedItem("compare_origin_only").value = "true";
       form.elements.namedItem("source_eval_report_id").value = "";
       form.elements.namedItem("offset").value = "0";
       loadCases("");
