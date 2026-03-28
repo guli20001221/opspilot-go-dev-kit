@@ -132,3 +132,4 @@ When you finish, always report:
 - when operators need the full follow-up slice for one compare side, prefer linking straight into the canonical `/admin/cases?source_eval_report_id=...` view for that side rather than inventing a compare-only case queue
 - when a case originates from an eval-report comparison, prefer persisting explicit compare provenance on the canonical case contract and hand back into `/admin/eval-report-compare` from that stored lineage instead of reconstructing compare context from summary text
 - when operators need to triage compare-derived cases as a queue, prefer a canonical case-list filter such as `compare_origin_only=true` plus a quick-view preset on `/admin/cases` over client-side provenance filtering
+- when compare-derived cases are already visible in the canonical case queue, prefer a row-level handoff back into `/admin/eval-report-compare` from stored compare provenance instead of forcing a detail-pane round trip first

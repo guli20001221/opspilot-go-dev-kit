@@ -118,6 +118,7 @@ The current HTTP layer also exposes the same PostgreSQL-backed workflow records 
 - the same `/admin/cases` detail pane now also reads source eval-report metadata from the canonical eval-report detail endpoint and degrades to surviving case provenance if that report row is missing
 - the same canonical case contract now also persists compare-origin fields for left/right eval reports plus the selected side, so case detail can hand operators back into `/admin/eval-report-compare` without scraping that context out of notes or summaries
 - the canonical case list contract now also supports `compare_origin_only`, so `/admin/cases` can expose a true compare-follow-up queue without client-side provenance filtering
+- when compare provenance is already present on case list rows, `/admin/cases` should hand operators straight back into `/admin/eval-report-compare` from the queue instead of forcing a detail drill-down first
 - the worker now also claims queued eval runs and advances them through `queued -> running -> succeeded|failed` with placeholder execution, persisting `started_at`, `finished_at`, and `error_reason` on the canonical run record
 - failed eval runs now have an explicit retry path on that same canonical record through `POST /api/v1/eval-runs/{run_id}/retry`, and the `/admin/eval-runs` lane reuses it directly for operator recovery
 - eval runs now also emit append-only `created`, `claimed`, `failed`, `retried`, and `succeeded` events on the same `run_id`, and detail reads surface that timeline while the list contract stays lightweight

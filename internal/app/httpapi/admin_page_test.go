@@ -1322,6 +1322,9 @@ func TestAdminCasesPageRendersHTML(t *testing.T) {
 	if !strings.Contains(body, "Open compare origin") {
 		t.Fatal("compare origin handoff missing from cases page HTML")
 	}
+	if !strings.Contains(body, "data-case-compare-link") {
+		t.Fatal("row-level compare handoff missing from cases page HTML")
+	}
 	if !strings.Contains(body, "<option value=\"closed\">Closed</option>") {
 		t.Fatal("closed status filter missing from cases page HTML")
 	}
@@ -1416,6 +1419,10 @@ const compareRightReportID = process.argv[11];
   const compareHref = await page.getAttribute("#openEvalCompareLink", "href");
   if (!compareHref || !compareHref.includes("left_report_id=" + encodeURIComponent(reportID)) || !compareHref.includes("right_report_id=" + encodeURIComponent(compareRightReportID))) {
     throw new Error("compare origin handoff drifted");
+  }
+  const rowCompareHref = await page.getAttribute('[data-case-compare-link="' + linkedCaseID + '"]', "href");
+  if (!rowCompareHref || !rowCompareHref.includes("left_report_id=" + encodeURIComponent(reportID)) || !rowCompareHref.includes("right_report_id=" + encodeURIComponent(compareRightReportID))) {
+    throw new Error("row-level compare handoff drifted");
   }
   await page.click("#compareFollowUpsQuickView");
   await page.waitForFunction(() => document.querySelector("#visibleCount")?.textContent?.trim() === "1");
