@@ -122,6 +122,7 @@ Provide a practical operator UI for evaluation and runtime analysis while keepin
 93. Once canonical eval-case reads expose `needs_follow_up`, prefer a quick-view preset on `/admin/evals` that writes back into that filter over building a second eval-only follow-up queue.
 94. Once the canonical case contract accepts standalone `source_eval_case_id`, prefer wiring `Create case` directly from `/admin/evals` instead of forcing operators to detour through the eval-report lane.
 95. Once canonical eval-report detail carries per-bad-case follow-up summary, prefer surfacing `latest_follow_up_case_id` and the `/admin/cases?source_eval_case_id=...` handoff directly inside `/admin/eval-reports` bad-case rows instead of issuing browser-side case lookups per bad case.
+96. Once canonical eval-report detail supports a backend-owned bad-case follow-up filter, prefer wiring detail-level quick views to that query parameter instead of filtering already-loaded bad cases only in the browser.
 
 ## Output contract
 When you finish, always report:

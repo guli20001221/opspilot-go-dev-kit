@@ -593,6 +593,12 @@ func TestAdminEvalReportsPageRendersHTML(t *testing.T) {
 	if !strings.Contains(body, "Open bad-case follow-up slice") {
 		t.Fatal("bad-case follow-up slice handoff missing from eval reports page HTML")
 	}
+	if !strings.Contains(body, "Bad cases needing follow-up") {
+		t.Fatal("bad-case needs-follow-up quick view missing from eval reports page HTML")
+	}
+	if !strings.Contains(body, "Bad cases without follow-up") {
+		t.Fatal("bad-case no-follow-up quick view missing from eval reports page HTML")
+	}
 	if !strings.Contains(body, "Linked cases") {
 		t.Fatal("linked cases section missing from eval reports page HTML")
 	}
@@ -849,6 +855,7 @@ func TestAdminEvalReportsPageRuntimeSmoke(t *testing.T) {
 	runService := evalsvc.NewRunService(datasetService)
 	reportService := evalsvc.NewEvalReportServiceWithDependencies(nil, runService)
 	reportID := materializeEvalRunReport(t, "tenant-eval-admin-smoke", evalsvc.RunStatusFailed, "failure detail", caseService, evalCaseService, datasetService, runService, reportService, "Dataset Follow-up", "Source Follow-up")
+	reportNoReuseID := materializeEvalRunReport(t, "tenant-eval-admin-smoke", evalsvc.RunStatusFailed, "secondary failure detail", caseService, evalCaseService, datasetService, runService, reportService, "Dataset Follow-up No Reuse", "Source Follow-up No Reuse")
 	_ = materializeEvalRunReport(t, "tenant-eval-admin-smoke", evalsvc.RunStatusSucceeded, "success detail", caseService, evalCaseService, datasetService, runService, reportService, "Dataset No Follow-up", "Source No Follow-up")
 	reportItem, err := reportService.GetEvalReport(context.Background(), reportID)
 	if err != nil {
@@ -858,6 +865,14 @@ func TestAdminEvalReportsPageRuntimeSmoke(t *testing.T) {
 		t.Fatal("reportItem.BadCases is empty")
 	}
 	badCaseEvalCaseID := reportItem.BadCases[0].EvalCaseID
+	reportNoReuseItem, err := reportService.GetEvalReport(context.Background(), reportNoReuseID)
+	if err != nil {
+		t.Fatalf("GetEvalReport(reportNoReuseID) error = %v", err)
+	}
+	if len(reportNoReuseItem.BadCases) == 0 {
+		t.Fatal("reportNoReuseItem.BadCases is empty")
+	}
+	noReuseBadCaseEvalCaseID := reportNoReuseItem.BadCases[0].EvalCaseID
 
 	for i := 0; i < 6; i++ {
 		if _, err := caseService.CreateCase(context.Background(), casesvc.CreateInput{
@@ -916,6 +931,15 @@ func TestAdminEvalReportsPageRuntimeSmoke(t *testing.T) {
 	if err != nil {
 		t.Fatalf("CreateCase(openBadCaseFollowUp) error = %v", err)
 	}
+	if _, err := caseService.CreateCase(context.Background(), casesvc.CreateInput{
+		TenantID:         "tenant-eval-admin-smoke",
+		Title:            "Open bad-case follow-up without report-level case",
+		Summary:          "Open bad-case follow-up summary without report-level case",
+		SourceEvalCaseID: noReuseBadCaseEvalCaseID,
+		CreatedBy:        "operator-eval",
+	}); err != nil {
+		t.Fatalf("CreateCase(noReuseBadCaseFollowUp) error = %v", err)
+	}
 
 	server := httptest.NewServer(NewHandlerWithDependencies(Dependencies{
 		EvalReports: reportService,
@@ -936,6 +960,7 @@ const tenantID = process.argv[3];
 const reportID = process.argv[4];
 const badCaseEvalCaseID = process.argv[5];
 const latestBadCaseFollowUpID = process.argv[6];
+const reportNoReuseID = process.argv[7];
 
 async function assertCasePayload(page, apiBaseURL, caseID, tenantID, expectedReportID, expectedEvalCaseID) {
   await page.goto(apiBaseURL + "/api/v1/cases/" + encodeURIComponent(caseID) + "?tenant_id=" + encodeURIComponent(tenantID));
@@ -1058,7 +1083,58 @@ async function assertCasePayload(page, apiBaseURL, caseID, tenantID, expectedRep
   if (!badCaseSliceHref || !badCaseSliceHref.includes("source_eval_case_id=" + encodeURIComponent(sourceEvalCaseID))) {
     throw new Error("bad-case follow-up slice handoff missing source_eval_case_id");
   }
-  await badCaseButton.click();
+  await page.click("#badCaseQuickViewNeedsFollowUp");
+  await page.waitForFunction(() => new URL(window.location.href).searchParams.get("bad_case_needs_follow_up") === "true");
+  const badCaseCountWithFollowUp = await page.locator(".bad-case-item").count();
+  if (badCaseCountWithFollowUp !== 1) {
+    throw new Error("unexpected bad-case count after needs-follow-up filter: " + badCaseCountWithFollowUp);
+  }
+  await page.click("#badCaseQuickViewNoFollowUp");
+  await page.waitForFunction(() => new URL(window.location.href).searchParams.get("bad_case_needs_follow_up") === "false");
+  await page.waitForSelector("text=No bad cases were materialized for this eval report.");
+  await page.click("#badCaseQuickViewAll");
+  await page.waitForFunction(() => new URL(window.location.href).searchParams.get("bad_case_needs_follow_up") === null);
+  await page.waitForSelector("[data-create-bad-case]");
+  const restoredBadCaseCount = await page.locator(".bad-case-item").count();
+  if (restoredBadCaseCount !== 1) {
+    throw new Error("unexpected bad-case count after clearing filter: " + restoredBadCaseCount);
+  }
+  const filteredBadCaseButton = await page.locator("[data-create-bad-case]").first();
+  if ((await filteredBadCaseButton.getAttribute("data-create-bad-case")) !== sourceEvalCaseID) {
+    throw new Error("bad-case action did not restore the expected eval_case_id after clearing filter");
+  }
+  await page.click("#badCaseQuickViewNoFollowUp");
+  await page.waitForFunction(() => new URL(window.location.href).searchParams.get("bad_case_needs_follow_up") === "false");
+  await page.goto(baseURL + "/admin/eval-reports?tenant_id=" + encodeURIComponent(tenantID) + "&limit=10&report_id=" + encodeURIComponent(reportNoReuseID));
+  await page.waitForSelector("text=Bad cases");
+  await page.click("#badCaseQuickViewNoFollowUp");
+  await page.waitForFunction(() => {
+    const params = new URL(window.location.href).searchParams;
+    return params.get("report_id") === reportNoReuseID && params.get("bad_case_needs_follow_up") === "false";
+  });
+  const filteredReportCaseButton = page.locator("#createCaseButton");
+  await filteredReportCaseButton.click();
+  await page.waitForURL(/\/admin\/cases\?/);
+  const filteredReportCaseURL = new URL(page.url());
+  const filteredReportCaseID = filteredReportCaseURL.searchParams.get("case_id");
+  if (!filteredReportCaseID) {
+    throw new Error("filtered report create-case handoff missing case_id");
+  }
+  await page.goto(baseURL + "/api/v1/cases/" + encodeURIComponent(filteredReportCaseID) + "?tenant_id=" + encodeURIComponent(tenantID));
+  await page.waitForSelector("body");
+  const filteredReportCasePayload = JSON.parse(await page.textContent("body"));
+  if (filteredReportCasePayload.source_eval_report_id !== reportNoReuseID) {
+    throw new Error("filtered report create-case used the wrong report lineage: " + filteredReportCasePayload.source_eval_report_id);
+  }
+  if (!String(filteredReportCasePayload.summary || "").includes("Bad cases: 1")) {
+    throw new Error("filtered report create-case summary lost canonical bad_case_count: " + filteredReportCasePayload.summary);
+  }
+
+  await page.goto(baseURL + "/admin/eval-reports?tenant_id=" + encodeURIComponent(tenantID) + "&limit=10&report_id=" + encodeURIComponent(reportID));
+  await page.waitForSelector("text=Bad cases");
+  await page.waitForSelector("[data-create-bad-case]");
+  const finalBadCaseButton = await page.locator("[data-create-bad-case]").first();
+  await finalBadCaseButton.click();
   await page.waitForURL(/\/admin\/cases\?/);
   const createdBadCaseURL = new URL(page.url());
   const createdBadCaseID = createdBadCaseURL.searchParams.get("case_id");
@@ -1083,7 +1159,7 @@ async function assertCasePayload(page, apiBaseURL, caseID, tenantID, expectedRep
 		t.Fatalf("WriteFile(scriptPath) error = %v", err)
 	}
 
-	cmd := exec.Command("node", scriptPath, server.URL, "tenant-eval-admin-smoke", reportID, badCaseEvalCaseID, openBadCaseFollowUp.ID)
+	cmd := exec.Command("node", scriptPath, server.URL, "tenant-eval-admin-smoke", reportID, badCaseEvalCaseID, openBadCaseFollowUp.ID, reportNoReuseID)
 	cmd.Env = append(os.Environ(), "NODE_PATH="+nodePathRoot)
 	output, err := cmd.CombinedOutput()
 	if err != nil {

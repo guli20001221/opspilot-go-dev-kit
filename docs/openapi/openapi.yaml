@@ -1980,6 +1980,12 @@ paths:
           required: true
           schema:
             type: string
+        - name: bad_case_needs_follow_up
+          in: query
+          required: false
+          description: Filter the heavy `bad_cases` drill-down to only rows with open follow-up cases (`true`) or only rows without open follow-up cases (`false`).
+          schema:
+            type: boolean
       responses:
         '200':
           description: Eval report returned.
@@ -3241,6 +3247,7 @@ components:
         - failed_items
         - missing_results
         - average_score
+        - bad_case_count
         - follow_up_case_count
         - open_follow_up_case_count
         - created_at
@@ -3288,6 +3295,9 @@ components:
           format: double
         judge_version:
           type: string
+        bad_case_count:
+          type: integer
+          minimum: 0
         follow_up_case_count:
           type: integer
           minimum: 0
