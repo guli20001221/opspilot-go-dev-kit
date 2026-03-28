@@ -326,6 +326,10 @@
             <label for="source_eval_report_id">Source Eval Report</label>
             <input id="source_eval_report_id" name="source_eval_report_id" type="text" placeholder="eval-report-...">
           </div>
+          <div class="field">
+            <label for="source_eval_case_id">Source Eval Case</label>
+            <input id="source_eval_case_id" name="source_eval_case_id" type="text" placeholder="eval-case-...">
+          </div>
           <input id="eval_backed_only" name="eval_backed_only" type="hidden" value="">
           <div class="field">
             <label for="limit">Page Size</label>
@@ -531,6 +535,9 @@
       if (item.compare_origin && item.compare_origin.left_eval_report_id && item.compare_origin.right_eval_report_id) {
         return "Compare-derived";
       }
+      if (item.source_eval_case_id) {
+        return "Eval case-backed";
+      }
       if (item.source_eval_report_id) {
         return "Eval report-backed";
       }
@@ -553,13 +560,14 @@
         const currentEvalBackedOnly = form.elements.namedItem("eval_backed_only").value.trim();
         const currentCompareOriginOnly = form.elements.namedItem("compare_origin_only").value.trim();
         const currentSourceEvalReportID = form.elements.namedItem("source_eval_report_id").value.trim();
+        const currentSourceEvalCaseID = form.elements.namedItem("source_eval_case_id").value.trim();
         const actor = currentActor();
 
         const mineActive = currentStatus === "open" && currentAssignedTo === actor && currentUnassignedOnly !== "true";
         const unassignedActive = currentStatus === "open" && currentAssignedTo === "" && currentUnassignedOnly === "true";
-        const openActive = currentStatus === "open" && currentAssignedTo === "" && currentUnassignedOnly !== "true" && currentEvalBackedOnly !== "true" && currentCompareOriginOnly !== "true" && currentSourceEvalReportID === "";
-        const evalBackedActive = currentAssignedTo === "" && currentUnassignedOnly !== "true" && currentEvalBackedOnly === "true" && currentCompareOriginOnly !== "true" && currentSourceEvalReportID === "";
-        const compareFollowUpsActive = currentStatus === "open" && currentAssignedTo === "" && currentUnassignedOnly !== "true" && currentEvalBackedOnly !== "true" && currentCompareOriginOnly === "true" && currentSourceEvalReportID === "";
+        const openActive = currentStatus === "open" && currentAssignedTo === "" && currentUnassignedOnly !== "true" && currentEvalBackedOnly !== "true" && currentCompareOriginOnly !== "true" && currentSourceEvalReportID === "" && currentSourceEvalCaseID === "";
+        const evalBackedActive = currentAssignedTo === "" && currentUnassignedOnly !== "true" && currentEvalBackedOnly === "true" && currentCompareOriginOnly !== "true" && currentSourceEvalReportID === "" && currentSourceEvalCaseID === "";
+        const compareFollowUpsActive = currentStatus === "open" && currentAssignedTo === "" && currentUnassignedOnly !== "true" && currentEvalBackedOnly !== "true" && currentCompareOriginOnly === "true" && currentSourceEvalReportID === "" && currentSourceEvalCaseID === "";
 
         [
           [myOpenCasesQuickView, mineActive],
@@ -590,7 +598,7 @@
 
     function buildParams() {
       const params = new URLSearchParams();
-      for (const name of ["tenant_id", "assigned_to", "unassigned_only", "eval_backed_only", "compare_origin_only", "status", "source_task_id", "source_report_id", "source_eval_report_id", "limit", "offset"]) {
+      for (const name of ["tenant_id", "assigned_to", "unassigned_only", "eval_backed_only", "compare_origin_only", "status", "source_task_id", "source_report_id", "source_eval_report_id", "source_eval_case_id", "limit", "offset"]) {
         const value = form.elements.namedItem(name).value.trim();
         if (value) params.set(name, value);
       }
@@ -621,6 +629,7 @@
         `source_task_id: ${item.source_task_id || "none"}`,
         `source_report_id: ${item.source_report_id || "none"}`,
         `source_eval_report_id: ${item.source_eval_report_id || "none"}`,
+        `source_eval_case_id: ${item.source_eval_case_id || "none"}`,
         `compare_left_eval_report_id: ${item.compare_origin ? item.compare_origin.left_eval_report_id || "none" : "none"}`,
         `compare_right_eval_report_id: ${item.compare_origin ? item.compare_origin.right_eval_report_id || "none" : "none"}`,
         `compare_selected_side: ${item.compare_origin ? item.compare_origin.selected_side || "none" : "none"}`,
@@ -671,7 +680,7 @@
 
     function readParamsFromURL() {
       const params = new URLSearchParams(window.location.search);
-      for (const name of ["tenant_id", "assigned_to", "unassigned_only", "eval_backed_only", "compare_origin_only", "status", "source_task_id", "source_report_id", "source_eval_report_id", "limit", "offset"]) {
+      for (const name of ["tenant_id", "assigned_to", "unassigned_only", "eval_backed_only", "compare_origin_only", "status", "source_task_id", "source_report_id", "source_eval_report_id", "source_eval_case_id", "limit", "offset"]) {
         form.elements.namedItem(name).value = params.get(name) || (name === "status" ? "open" : name === "limit" ? "10" : name === "offset" ? "0" : "");
       }
       return params.get("case_id") || "";
@@ -740,6 +749,7 @@
           <td>
             <strong>${escapeHTML(item.source_task_id || "No task source")}</strong>
             <small>${escapeHTML(item.source_eval_report_id || item.source_report_id || "No report source")}</small>
+            <small>${escapeHTML(item.source_eval_case_id || "No eval case source")}</small>
             <small><span class="provenance-pill">${escapeHTML(provenanceLabel(item))}</span></small>
           </td>
           <td>
@@ -804,7 +814,7 @@
       copyCaseSummaryButton.disabled = false;
       copyCaseLinkButton.disabled = false;
       openCaseAPILink.hidden = false;
-      openEvalCaseAPILink.hidden = true;
+      openEvalCaseAPILink.hidden = !item.source_eval_case_id;
       openTraceDetailLink.hidden = false;
       openCaseAPILink.href = `${detailEndpointBase}${encodeURIComponent(item.case_id)}?tenant_id=${encodeURIComponent(item.tenant_id)}`;
         openTraceDetailLink.href = `/admin/trace-detail?case_id=${encodeURIComponent(item.case_id)}`;
@@ -828,6 +838,9 @@
         if (item.source_eval_report_id) {
           openEvalReportLink.href = `${evalReportEndpointBase}${encodeURIComponent(item.source_eval_report_id)}?tenant_id=${encodeURIComponent(item.tenant_id)}`;
           openEvalReportsLink.href = `/admin/eval-reports?tenant_id=${encodeURIComponent(item.tenant_id)}&report_id=${encodeURIComponent(item.source_eval_report_id)}`;
+        }
+        if (item.source_eval_case_id) {
+          openEvalCaseAPILink.href = `${evalCaseEndpoint}/${encodeURIComponent(item.source_eval_case_id)}?tenant_id=${encodeURIComponent(item.tenant_id)}`;
         }
         if (item.compare_origin && item.compare_origin.left_eval_report_id && item.compare_origin.right_eval_report_id) {
           openEvalCompareLink.href = `/admin/eval-report-compare?tenant_id=${encodeURIComponent(item.tenant_id)}&left_report_id=${encodeURIComponent(item.compare_origin.left_eval_report_id)}&right_report_id=${encodeURIComponent(item.compare_origin.right_eval_report_id)}`;
@@ -883,6 +896,10 @@
             <dl class="detail-card">
               <dt>Source eval report</dt>
               <dd>${escapeHTML(item.source_eval_report_id || "None")}</dd>
+            </dl>
+            <dl class="detail-card">
+              <dt>Source eval case</dt>
+              <dd>${escapeHTML(item.source_eval_case_id || "None")}</dd>
             </dl>
             <dl class="detail-card">
               <dt>Provenance</dt>
@@ -969,6 +986,12 @@
               <dt>Bad cases</dt>
               <dd>${escapeHTML(String((report.bad_cases || []).length))}</dd>
             </dl>
+            ${item.source_eval_case_id ? `
+              <dl class="detail-card">
+                <dt>Selected eval case</dt>
+                <dd>${escapeHTML(item.source_eval_case_id)}</dd>
+              </dl>
+            ` : ""}
             <dl class="detail-card" style="grid-column: 1 / -1;">
               <dt>Eval summary</dt>
               <dd>${escapeHTML(report.summary || "No eval-report summary recorded.")}</dd>
@@ -1181,6 +1204,7 @@
       form.elements.namedItem("eval_backed_only").value = "";
       form.elements.namedItem("compare_origin_only").value = "";
       form.elements.namedItem("source_eval_report_id").value = "";
+      form.elements.namedItem("source_eval_case_id").value = "";
       form.elements.namedItem("offset").value = "0";
       loadCases("");
     });
@@ -1192,6 +1216,7 @@
       form.elements.namedItem("eval_backed_only").value = "";
       form.elements.namedItem("compare_origin_only").value = "";
       form.elements.namedItem("source_eval_report_id").value = "";
+      form.elements.namedItem("source_eval_case_id").value = "";
       form.elements.namedItem("offset").value = "0";
       loadCases("");
     });
@@ -1203,6 +1228,7 @@
       form.elements.namedItem("eval_backed_only").value = "";
       form.elements.namedItem("compare_origin_only").value = "";
       form.elements.namedItem("source_eval_report_id").value = "";
+      form.elements.namedItem("source_eval_case_id").value = "";
       form.elements.namedItem("offset").value = "0";
       loadCases("");
     });
@@ -1213,6 +1239,7 @@
       form.elements.namedItem("eval_backed_only").value = "true";
       form.elements.namedItem("compare_origin_only").value = "";
       form.elements.namedItem("source_eval_report_id").value = "";
+      form.elements.namedItem("source_eval_case_id").value = "";
       form.elements.namedItem("offset").value = "0";
       loadCases("");
     });
@@ -1224,6 +1251,7 @@
       form.elements.namedItem("eval_backed_only").value = "";
       form.elements.namedItem("compare_origin_only").value = "true";
       form.elements.namedItem("source_eval_report_id").value = "";
+      form.elements.namedItem("source_eval_case_id").value = "";
       form.elements.namedItem("offset").value = "0";
       loadCases("");
     });

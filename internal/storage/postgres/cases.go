@@ -42,6 +42,7 @@ INSERT INTO cases (
     source_task_id,
     source_report_id,
     source_eval_report_id,
+    source_eval_case_id,
     compare_left_eval_report_id,
     compare_right_eval_report_id,
     compare_selected_side,
@@ -52,7 +53,7 @@ INSERT INTO cases (
     created_at,
     updated_at
 ) VALUES (
-    $1, $2, $3, $4, $5, NULLIF($6, ''), NULLIF($7, ''), NULLIF($8, ''), NULLIF($9, ''), NULLIF($10, ''), $11, $12, $13, $14, $15, $16, $17
+    $1, $2, $3, $4, $5, NULLIF($6, ''), NULLIF($7, ''), NULLIF($8, ''), NULLIF($9, ''), NULLIF($10, ''), NULLIF($11, ''), $12, $13, $14, $15, $16, $17, $18
 )
 ON CONFLICT (id) DO UPDATE SET
     tenant_id = EXCLUDED.tenant_id,
@@ -62,6 +63,7 @@ ON CONFLICT (id) DO UPDATE SET
     source_task_id = EXCLUDED.source_task_id,
     source_report_id = EXCLUDED.source_report_id,
     source_eval_report_id = EXCLUDED.source_eval_report_id,
+    source_eval_case_id = EXCLUDED.source_eval_case_id,
     compare_left_eval_report_id = EXCLUDED.compare_left_eval_report_id,
     compare_right_eval_report_id = EXCLUDED.compare_right_eval_report_id,
     compare_selected_side = EXCLUDED.compare_selected_side,
@@ -80,6 +82,7 @@ RETURNING
     COALESCE(source_task_id, ''),
     COALESCE(source_report_id, ''),
     COALESCE(source_eval_report_id, ''),
+    COALESCE(source_eval_case_id, ''),
     COALESCE(compare_left_eval_report_id, ''),
     COALESCE(compare_right_eval_report_id, ''),
     compare_selected_side,
@@ -101,6 +104,7 @@ RETURNING
 		item.SourceTaskID,
 		item.SourceReportID,
 		item.SourceEvalReportID,
+		item.SourceEvalCaseID,
 		item.CompareOrigin.LeftEvalReportID,
 		item.CompareOrigin.RightEvalReportID,
 		item.CompareOrigin.SelectedSide,
@@ -127,6 +131,7 @@ SELECT
     COALESCE(source_task_id, ''),
     COALESCE(source_report_id, ''),
     COALESCE(source_eval_report_id, ''),
+    COALESCE(source_eval_case_id, ''),
     COALESCE(compare_left_eval_report_id, ''),
     COALESCE(compare_right_eval_report_id, ''),
     compare_selected_side,
@@ -172,6 +177,7 @@ SELECT
     COALESCE(source_task_id, ''),
     COALESCE(source_report_id, ''),
     COALESCE(source_eval_report_id, ''),
+    COALESCE(source_eval_case_id, ''),
     COALESCE(compare_left_eval_report_id, ''),
     COALESCE(compare_right_eval_report_id, ''),
     compare_selected_side,
@@ -192,8 +198,9 @@ WHERE ($1 = '' OR tenant_id = $1)
   AND ($8 = '' OR source_task_id = $8)
   AND ($9 = '' OR source_report_id = $9)
   AND ($10 = '' OR source_eval_report_id = $10)
+  AND ($11 = '' OR source_eval_case_id = $11)
 ORDER BY updated_at DESC, created_at DESC, id DESC
-LIMIT $11 OFFSET $12`
+LIMIT $12 OFFSET $13`
 
 	rows, err := s.pool.Query(
 		ctx,
@@ -208,6 +215,7 @@ LIMIT $11 OFFSET $12`
 		filter.SourceTaskID,
 		filter.SourceReportID,
 		filter.SourceEvalReportID,
+		filter.SourceEvalCaseID,
 		limit+1,
 		offset,
 	)
@@ -436,6 +444,7 @@ RETURNING
     COALESCE(source_task_id, ''),
     COALESCE(source_report_id, ''),
     COALESCE(source_eval_report_id, ''),
+    COALESCE(source_eval_case_id, ''),
     COALESCE(compare_left_eval_report_id, ''),
     COALESCE(compare_right_eval_report_id, ''),
     compare_selected_side,
@@ -490,6 +499,7 @@ RETURNING
     COALESCE(source_task_id, ''),
     COALESCE(source_report_id, ''),
     COALESCE(source_eval_report_id, ''),
+    COALESCE(source_eval_case_id, ''),
     COALESCE(compare_left_eval_report_id, ''),
     COALESCE(compare_right_eval_report_id, ''),
     compare_selected_side,
@@ -568,6 +578,7 @@ RETURNING
     COALESCE(source_task_id, ''),
     COALESCE(source_report_id, ''),
     COALESCE(source_eval_report_id, ''),
+    COALESCE(source_eval_case_id, ''),
     COALESCE(compare_left_eval_report_id, ''),
     COALESCE(compare_right_eval_report_id, ''),
     compare_selected_side,
@@ -627,6 +638,7 @@ RETURNING
     COALESCE(source_task_id, ''),
     COALESCE(source_report_id, ''),
     COALESCE(source_eval_report_id, ''),
+    COALESCE(source_eval_case_id, ''),
     COALESCE(compare_left_eval_report_id, ''),
     COALESCE(compare_right_eval_report_id, ''),
     compare_selected_side,
@@ -701,6 +713,7 @@ func scanCase(row caseQuerierRow) (casesvc.Case, error) {
 		&item.SourceTaskID,
 		&item.SourceReportID,
 		&item.SourceEvalReportID,
+		&item.SourceEvalCaseID,
 		&item.CompareOrigin.LeftEvalReportID,
 		&item.CompareOrigin.RightEvalReportID,
 		&item.CompareOrigin.SelectedSide,

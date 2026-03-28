@@ -39,6 +39,7 @@ func TestCaseStoreRoundTrip(t *testing.T) {
 		SourceTaskID:       "task-source-1",
 		SourceReportID:     "report-source-1",
 		SourceEvalReportID: "eval-report-roundtrip-1",
+		SourceEvalCaseID:   "eval-case-roundtrip-1",
 		CompareOrigin: casesvc.CompareOrigin{
 			LeftEvalReportID:  "eval-report-roundtrip-1",
 			RightEvalReportID: "eval-report-roundtrip-2",
@@ -83,6 +84,15 @@ INSERT INTO eval_reports (
 )`); err != nil {
 		t.Fatalf("insert eval reports error = %v", err)
 	}
+	if _, err := pool.Exec(ctx, `
+INSERT INTO eval_cases (
+    id, tenant_id, source_case_id, source_task_id, source_report_id, trace_id, version_id, title, summary, operator_note, created_by, created_at
+) VALUES (
+    'eval-case-roundtrip-1', 'tenant-1', 'source-case-roundtrip-1', 'task-source-1', 'report-source-1', 'trace-roundtrip-1', 'version-roundtrip-1',
+    'Roundtrip eval case', 'Roundtrip summary', '', 'operator-1', NOW()
+)`); err != nil {
+		t.Fatalf("insert eval case error = %v", err)
+	}
 
 	saved, err := store.Save(ctx, want)
 	if err != nil {
@@ -107,6 +117,9 @@ INSERT INTO eval_reports (
 	}
 	if got.SourceEvalReportID != want.SourceEvalReportID {
 		t.Fatalf("Get().SourceEvalReportID = %q, want %q", got.SourceEvalReportID, want.SourceEvalReportID)
+	}
+	if got.SourceEvalCaseID != want.SourceEvalCaseID {
+		t.Fatalf("Get().SourceEvalCaseID = %q, want %q", got.SourceEvalCaseID, want.SourceEvalCaseID)
 	}
 	if got.CompareOrigin.LeftEvalReportID != want.CompareOrigin.LeftEvalReportID {
 		t.Fatalf("Get().CompareOrigin.LeftEvalReportID = %q, want %q", got.CompareOrigin.LeftEvalReportID, want.CompareOrigin.LeftEvalReportID)
@@ -403,6 +416,34 @@ func TestCaseStoreListSupportsEvalReportFilters(t *testing.T) {
 			t.Fatalf("SaveEvalReport(%s) error = %v", item.ID, err)
 		}
 	}
+	for _, item := range []evalsvc.EvalCase{
+		{
+			ID:             "eval-case-filter-1",
+			TenantID:       "tenant-1",
+			SourceCaseID:   "source-case-filter-1",
+			SourceTaskID:   "task-source-filter-1",
+			SourceReportID: "report-source-filter-1",
+			Title:          "Eval case filter one",
+			Summary:        "Eval case filter one summary",
+			CreatedBy:      "operator-1",
+			CreatedAt:      now,
+		},
+		{
+			ID:             "eval-case-filter-2",
+			TenantID:       "tenant-1",
+			SourceCaseID:   "source-case-filter-2",
+			SourceTaskID:   "task-source-filter-2",
+			SourceReportID: "report-source-filter-2",
+			Title:          "Eval case filter two",
+			Summary:        "Eval case filter two summary",
+			CreatedBy:      "operator-1",
+			CreatedAt:      now.Add(time.Second),
+		},
+	} {
+		if _, err := NewEvalCaseStore(pool).Save(ctx, item); err != nil {
+			t.Fatalf("Save(evalCase %s) error = %v", item.ID, err)
+		}
+	}
 
 	store := NewCaseStore(pool)
 	for _, item := range []casesvc.Case{
@@ -412,6 +453,7 @@ func TestCaseStoreListSupportsEvalReportFilters(t *testing.T) {
 			Status:             casesvc.StatusOpen,
 			Title:              "Eval-backed one",
 			SourceEvalReportID: "eval-report-filter-1",
+			SourceEvalCaseID:   "eval-case-filter-1",
 			CreatedBy:          "operator-1",
 			CreatedAt:          now,
 			UpdatedAt:          now,
@@ -422,6 +464,7 @@ func TestCaseStoreListSupportsEvalReportFilters(t *testing.T) {
 			Status:             casesvc.StatusOpen,
 			Title:              "Eval-backed two",
 			SourceEvalReportID: "eval-report-filter-2",
+			SourceEvalCaseID:   "eval-case-filter-2",
 			CreatedBy:          "operator-1",
 			CreatedAt:          now.Add(time.Second),
 			UpdatedAt:          now.Add(time.Second),
@@ -500,6 +543,21 @@ func TestCaseStoreListSupportsEvalReportFilters(t *testing.T) {
 	}
 	if len(plainEvalPage.Cases) != 0 {
 		t.Fatalf("len(plainEvalPage.Cases) = %d, want %d", len(plainEvalPage.Cases), 0)
+	}
+
+	evalCasePage, err := store.List(ctx, casesvc.ListFilter{
+		TenantID:         "tenant-1",
+		SourceEvalCaseID: "eval-case-filter-2",
+		Limit:            10,
+	})
+	if err != nil {
+		t.Fatalf("List(evalCasePage) error = %v", err)
+	}
+	if len(evalCasePage.Cases) != 1 {
+		t.Fatalf("len(evalCasePage.Cases) = %d, want %d", len(evalCasePage.Cases), 1)
+	}
+	if evalCasePage.Cases[0].ID != "case-eval-filter-2" {
+		t.Fatalf("evalCasePage.Cases[0].ID = %q, want %q", evalCasePage.Cases[0].ID, "case-eval-filter-2")
 	}
 }
 

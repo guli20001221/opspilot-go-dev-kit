@@ -86,6 +86,9 @@ func (s *memoryStore) List(_ context.Context, filter ListFilter) (ListPage, erro
 		if filter.SourceEvalReportID != "" && item.SourceEvalReportID != filter.SourceEvalReportID {
 			continue
 		}
+		if filter.SourceEvalCaseID != "" && item.SourceEvalCaseID != filter.SourceEvalCaseID {
+			continue
+		}
 		items = append(items, item)
 	}
 

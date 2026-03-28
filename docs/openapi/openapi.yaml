@@ -795,6 +795,11 @@ paths:
           required: false
           schema:
             type: string
+        - name: source_eval_case_id
+          in: query
+          required: false
+          schema:
+            type: string
         - name: eval_backed_only
           in: query
           required: false
@@ -849,7 +854,8 @@ paths:
       description: |
         Creates a durable case record that can link a source task, a source report, a source eval report, or a valid combination of those canonical lineage pointers.
         The current slice keeps cases as operator-managed read models without workflow automation.
-        When `source_eval_report_id` is provided without `compare_origin`, the API reuses the newest open follow-up case for the same `tenant_id + source_eval_report_id` instead of creating a duplicate.
+        When `source_eval_case_id` is provided, the API reuses the newest open follow-up case for the same `tenant_id + source_eval_case_id` instead of creating a duplicate.
+        When `source_eval_report_id` is provided without `source_eval_case_id` or `compare_origin`, the API reuses the newest open follow-up case for the same `tenant_id + source_eval_report_id` instead of creating a duplicate.
       operationId: createCase
       requestBody:
         required: true
@@ -2600,6 +2606,8 @@ components:
           type: string
         source_eval_report_id:
           type: string
+        source_eval_case_id:
+          type: string
         compare_origin:
           $ref: '#/components/schemas/CaseCompareOrigin'
         created_by:
@@ -2754,6 +2762,8 @@ components:
         source_report_id:
           type: string
         source_eval_report_id:
+          type: string
+        source_eval_case_id:
           type: string
         compare_origin:
           $ref: '#/components/schemas/CaseCompareOrigin'

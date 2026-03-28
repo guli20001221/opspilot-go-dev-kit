@@ -565,6 +565,9 @@ func TestAdminEvalReportsPageRendersHTML(t *testing.T) {
 	if !strings.Contains(body, "Create case") {
 		t.Fatal("create-case action missing from eval reports page HTML")
 	}
+	if !strings.Contains(body, "Create case from bad case") {
+		t.Fatal("bad-case create-case action missing from eval reports page HTML")
+	}
 	if !strings.Contains(body, "Linked cases") {
 		t.Fatal("linked cases section missing from eval reports page HTML")
 	}
@@ -875,6 +878,18 @@ const baseURL = process.argv[2];
 const tenantID = process.argv[3];
 const reportID = process.argv[4];
 
+async function assertCasePayload(page, apiBaseURL, caseID, tenantID, expectedReportID, expectedEvalCaseID) {
+  await page.goto(apiBaseURL + "/api/v1/cases/" + encodeURIComponent(caseID) + "?tenant_id=" + encodeURIComponent(tenantID));
+  await page.waitForSelector("body");
+  const payload = JSON.parse(await page.textContent("body"));
+  if (payload.source_eval_report_id !== expectedReportID) {
+    throw new Error("unexpected source_eval_report_id for " + caseID + ": " + payload.source_eval_report_id);
+  }
+  if ((expectedEvalCaseID || "") !== (payload.source_eval_case_id || "")) {
+    throw new Error("unexpected source_eval_case_id for " + caseID + ": " + payload.source_eval_case_id);
+  }
+}
+
 (async () => {
   const browser = await chromium.launch({ headless: true });
   const page = await browser.newPage();
@@ -960,6 +975,23 @@ const reportID = process.argv[4];
   if (!evalReportLink || !evalReportLink.includes(reportID)) {
     throw new Error("created case did not preserve source_eval_report_id");
   }
+  await assertCasePayload(page, baseURL, createdCaseID, tenantID, reportID, "");
+
+  await page.goto(baseURL + "/admin/eval-reports?tenant_id=" + encodeURIComponent(tenantID) + "&limit=10&report_id=" + encodeURIComponent(reportID));
+  await page.waitForSelector("text=Bad cases");
+  const badCaseButton = await page.locator("[data-create-bad-case]").first();
+  const sourceEvalCaseID = await badCaseButton.getAttribute("data-create-bad-case");
+  if (!sourceEvalCaseID) {
+    throw new Error("missing bad-case eval_case_id in detail action");
+  }
+  await badCaseButton.click();
+  await page.waitForURL(/\/admin\/cases\?/);
+  const createdBadCaseURL = new URL(page.url());
+  const createdBadCaseID = createdBadCaseURL.searchParams.get("case_id");
+  if (!createdBadCaseID) {
+    throw new Error("bad-case create-case handoff missing case_id");
+  }
+  await assertCasePayload(page, baseURL, createdBadCaseID, tenantID, reportID, sourceEvalCaseID);
 
   await page.goto(baseURL + "/admin/eval-reports?tenant_id=" + encodeURIComponent(tenantID) + "&limit=10&report_id=missing-report");
   await page.waitForSelector("text=Unable to load the selected eval report detail.");
@@ -1273,6 +1305,9 @@ func TestAdminCasesPageRendersHTML(t *testing.T) {
 	if !strings.Contains(body, "Open source eval report") {
 		t.Fatal("source eval report handoff missing from cases page HTML")
 	}
+	if !strings.Contains(body, "Open eval API detail") {
+		t.Fatal("source eval case handoff missing from cases page HTML")
+	}
 	if !strings.Contains(body, "Close case") {
 		t.Fatal("close case action missing from cases page HTML")
 	}
@@ -1314,6 +1349,9 @@ func TestAdminCasesPageRendersHTML(t *testing.T) {
 	}
 	if !strings.Contains(body, "Source eval report") {
 		t.Fatal("source eval report detail missing from cases page HTML")
+	}
+	if !strings.Contains(body, "Source eval case") {
+		t.Fatal("source eval case detail missing from cases page HTML")
 	}
 	if !strings.Contains(body, "Open cases") {
 		t.Fatal("open-cases quick view missing from cases page HTML")
@@ -1386,6 +1424,7 @@ func TestAdminCasesPageRuntimeSmoke(t *testing.T) {
 		Title:              "Investigate eval regression",
 		Summary:            "Follow up eval-linked operator case",
 		SourceEvalReportID: reportID,
+		SourceEvalCaseID:   reportItem.BadCases[0].EvalCaseID,
 		CompareOrigin: casesvc.CompareOrigin{
 			LeftEvalReportID:  reportID,
 			RightEvalReportID: compareRightReportID,
@@ -1449,10 +1488,16 @@ const compareRightReportID = process.argv[11];
   if (!detailText.includes(runStatus)) throw new Error("missing run_status in source eval report summary");
   if (!detailText.includes(summary)) throw new Error("missing eval report summary text");
   if (!detailText.includes(badCaseCount)) throw new Error("missing bad case count");
+  if (!detailText.includes("Selected eval case")) throw new Error("missing selected eval case summary");
   const caseDetailText = await page.textContent("#caseDetail");
   if (!caseDetailText.includes("Compare origin")) throw new Error("missing compare origin section");
+  if (!caseDetailText.includes("Source eval case")) throw new Error("missing source eval case section");
   if (!caseDetailText.includes(reportID)) throw new Error("missing compare left report id");
   if (!caseDetailText.includes(compareRightReportID)) throw new Error("missing compare right report id");
+  const evalCaseHref = await page.getAttribute("#openEvalCaseAPILink", "href");
+  if (!evalCaseHref || !evalCaseHref.includes("/api/v1/eval-cases/")) {
+    throw new Error("source eval case api handoff missing selected eval case");
+  }
   const evalLaneHref = await page.getAttribute("#openEvalReportsLink", "href");
   if (!evalLaneHref || !evalLaneHref.includes("report_id=" + encodeURIComponent(reportID))) {
     throw new Error("eval report lane handoff missing report_id");

@@ -22,6 +22,7 @@ type createCaseRequest struct {
 	SourceTaskID       string                    `json:"source_task_id,omitempty"`
 	SourceReportID     string                    `json:"source_report_id,omitempty"`
 	SourceEvalReportID string                    `json:"source_eval_report_id,omitempty"`
+	SourceEvalCaseID   string                    `json:"source_eval_case_id,omitempty"`
 	CompareOrigin      *caseCompareOriginRequest `json:"compare_origin,omitempty"`
 	CreatedBy          string                    `json:"created_by,omitempty"`
 }
@@ -35,6 +36,7 @@ type caseResponse struct {
 	SourceTaskID       string                     `json:"source_task_id,omitempty"`
 	SourceReportID     string                     `json:"source_report_id,omitempty"`
 	SourceEvalReportID string                     `json:"source_eval_report_id,omitempty"`
+	SourceEvalCaseID   string                     `json:"source_eval_case_id,omitempty"`
 	CompareOrigin      *caseCompareOriginResponse `json:"compare_origin,omitempty"`
 	CreatedBy          string                     `json:"created_by"`
 	AssignedTo         string                     `json:"assigned_to,omitempty"`
@@ -124,7 +126,18 @@ func (a *appHandler) handleCreateCase(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusConflict, "invalid_case_source", "source report does not belong to source task")
 		return
 	}
-	if req.SourceEvalReportID != "" && req.CompareOrigin == nil {
+	if req.SourceEvalCaseID != "" {
+		existing, ok, err := a.cases.FindOpenCaseBySourceEvalCase(r.Context(), req.TenantID, req.SourceEvalCaseID)
+		if err != nil {
+			writeError(w, http.StatusInternalServerError, "case_lookup_failed", err.Error())
+			return
+		}
+		if ok {
+			writeJSON(w, http.StatusOK, newCaseResponse(existing))
+			return
+		}
+	}
+	if req.SourceEvalReportID != "" && req.SourceEvalCaseID == "" && req.CompareOrigin == nil {
 		existing, ok, err := a.cases.FindOpenCaseBySourceEvalReport(r.Context(), req.TenantID, req.SourceEvalReportID)
 		if err != nil {
 			writeError(w, http.StatusInternalServerError, "case_lookup_failed", err.Error())
@@ -143,6 +156,7 @@ func (a *appHandler) handleCreateCase(w http.ResponseWriter, r *http.Request) {
 		SourceTaskID:       req.SourceTaskID,
 		SourceReportID:     req.SourceReportID,
 		SourceEvalReportID: req.SourceEvalReportID,
+		SourceEvalCaseID:   req.SourceEvalCaseID,
 		CompareOrigin:      newCaseCompareOriginModel(req.CompareOrigin),
 		CreatedBy:          req.CreatedBy,
 	})
@@ -530,12 +544,14 @@ func validateCreateCaseRequest(req createCaseRequest) error {
 		return errors.New("tenant_id is required")
 	case req.Title == "":
 		return errors.New("title is required")
+	case req.SourceEvalCaseID != "" && req.SourceEvalReportID == "":
+		return errors.New("source_eval_case_id requires source_eval_report_id")
 	case req.CompareOrigin != nil:
 		if req.CompareOrigin.LeftEvalReportID == "" || req.CompareOrigin.RightEvalReportID == "" {
 			return errors.New("compare_origin.left_eval_report_id and compare_origin.right_eval_report_id are required")
 		}
-		if req.SourceTaskID != "" || req.SourceReportID != "" {
-			return errors.New("compare_origin cannot be combined with source_task_id or source_report_id")
+		if req.SourceTaskID != "" || req.SourceReportID != "" || req.SourceEvalCaseID != "" {
+			return errors.New("compare_origin cannot be combined with source_task_id, source_report_id, or source_eval_case_id")
 		}
 		if req.CompareOrigin.SelectedSide != "left" && req.CompareOrigin.SelectedSide != "right" {
 			return errors.New("compare_origin.selected_side must be left or right")
@@ -564,6 +580,7 @@ func parseCaseListFilter(r *http.Request) (casesvc.ListFilter, error) {
 		SourceTaskID:       r.URL.Query().Get("source_task_id"),
 		SourceReportID:     r.URL.Query().Get("source_report_id"),
 		SourceEvalReportID: r.URL.Query().Get("source_eval_report_id"),
+		SourceEvalCaseID:   r.URL.Query().Get("source_eval_case_id"),
 		Limit:              20,
 	}
 	if strings.TrimSpace(filter.TenantID) == "" {
@@ -609,6 +626,8 @@ func parseCaseListFilter(r *http.Request) (casesvc.ListFilter, error) {
 }
 
 func (a *appHandler) validateCaseSources(r *http.Request, req createCaseRequest) (report.Report, error) {
+	reportItem := evalsvc.EvalReport{}
+
 	if req.SourceTaskID != "" {
 		task, err := a.workflows.GetTask(r.Context(), req.SourceTaskID)
 		if err != nil {
@@ -638,6 +657,19 @@ func (a *appHandler) validateCaseSources(r *http.Request, req createCaseRequest)
 		if item.TenantID != req.TenantID {
 			return report.Report{}, errInvalidCaseSource
 		}
+		reportItem = item
+	}
+	if req.SourceEvalCaseID != "" {
+		item, err := a.evalCases.GetEvalCase(r.Context(), req.SourceEvalCaseID)
+		if err != nil {
+			return report.Report{}, err
+		}
+		if item.TenantID != req.TenantID {
+			return report.Report{}, errInvalidCaseSource
+		}
+		if req.SourceEvalReportID != "" && !evalReportContainsBadCase(req.SourceEvalCaseID, reportItem) {
+			return report.Report{}, errInvalidEvalCaseSource
+		}
 	}
 	if req.CompareOrigin != nil {
 		for _, reportID := range []string{req.CompareOrigin.LeftEvalReportID, req.CompareOrigin.RightEvalReportID} {
@@ -655,6 +687,7 @@ func (a *appHandler) validateCaseSources(r *http.Request, req createCaseRequest)
 }
 
 var errInvalidCaseSource = errors.New("case source tenant mismatch")
+var errInvalidEvalCaseSource = errors.New("source eval case does not belong to source eval report")
 
 func writeCaseSourceError(w http.ResponseWriter, err error) {
 	switch {
@@ -664,8 +697,12 @@ func writeCaseSourceError(w http.ResponseWriter, err error) {
 		writeError(w, http.StatusNotFound, "report_not_found", "report not found")
 	case errors.Is(err, evalsvc.ErrEvalReportNotFound):
 		writeError(w, http.StatusNotFound, "eval_report_not_found", "eval report not found")
+	case errors.Is(err, evalsvc.ErrEvalCaseNotFound):
+		writeError(w, http.StatusNotFound, "eval_case_not_found", "eval case not found")
 	case errors.Is(err, errInvalidCaseSource):
 		writeError(w, http.StatusConflict, "invalid_case_source", err.Error())
+	case errors.Is(err, errInvalidEvalCaseSource):
+		writeError(w, http.StatusConflict, "invalid_case_source", "source eval case does not belong to source eval report")
 	default:
 		writeError(w, http.StatusInternalServerError, "case_source_lookup_failed", err.Error())
 	}
@@ -681,6 +718,7 @@ func newCaseResponse(item casesvc.Case, notes ...[]casesvc.Note) caseResponse {
 		SourceTaskID:       item.SourceTaskID,
 		SourceReportID:     item.SourceReportID,
 		SourceEvalReportID: item.SourceEvalReportID,
+		SourceEvalCaseID:   item.SourceEvalCaseID,
 		CompareOrigin:      newCaseCompareOriginResponse(item.CompareOrigin),
 		CreatedBy:          item.CreatedBy,
 		AssignedTo:         item.AssignedTo,
@@ -697,6 +735,16 @@ func newCaseResponse(item casesvc.Case, notes ...[]casesvc.Note) caseResponse {
 	}
 
 	return resp
+}
+
+func evalReportContainsBadCase(evalCaseID string, item evalsvc.EvalReport) bool {
+	for _, badCase := range item.BadCases {
+		if badCase.EvalCaseID == evalCaseID {
+			return true
+		}
+	}
+
+	return false
 }
 
 func newCaseCompareOriginModel(req *caseCompareOriginRequest) casesvc.CompareOrigin {

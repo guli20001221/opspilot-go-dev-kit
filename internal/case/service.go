@@ -56,6 +56,7 @@ func (s *Service) CreateCase(ctx context.Context, input CreateInput) (Case, erro
 		SourceTaskID:       input.SourceTaskID,
 		SourceReportID:     input.SourceReportID,
 		SourceEvalReportID: input.SourceEvalReportID,
+		SourceEvalCaseID:   input.SourceEvalCaseID,
 		CompareOrigin:      input.CompareOrigin,
 		CreatedBy:          fallbackString(input.CreatedBy, "operator"),
 		CreatedAt:          now,
@@ -73,6 +74,25 @@ func (s *Service) GetCase(ctx context.Context, caseID string) (Case, error) {
 // ListCases returns operator-facing case rows for the provided filter.
 func (s *Service) ListCases(ctx context.Context, filter ListFilter) (ListPage, error) {
 	return s.store.List(ctx, filter)
+}
+
+// FindOpenCaseBySourceEvalCase returns the newest open case for one source eval case when it exists.
+func (s *Service) FindOpenCaseBySourceEvalCase(ctx context.Context, tenantID string, sourceEvalCaseID string) (Case, bool, error) {
+	page, err := s.store.List(ctx, ListFilter{
+		TenantID:             tenantID,
+		Status:               StatusOpen,
+		ExcludeCompareOrigin: true,
+		SourceEvalCaseID:     sourceEvalCaseID,
+		Limit:                1,
+	})
+	if err != nil {
+		return Case{}, false, err
+	}
+	if len(page.Cases) == 0 {
+		return Case{}, false, nil
+	}
+
+	return page.Cases[0], true, nil
 }
 
 // FindOpenCaseBySourceEvalReport returns the newest open case for one source eval report when it exists.

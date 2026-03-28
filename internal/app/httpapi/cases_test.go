@@ -91,11 +91,16 @@ func TestCreateAndGetCaseEndpoint(t *testing.T) {
 }
 
 func TestCreateAndGetCaseEndpointWithEvalReportSource(t *testing.T) {
-	reportService, evalReportID := buildEvalReportFixture(t, "tenant-eval-case-source", "failed", "failure detail")
 	caseService := casesvc.NewService()
+	evalCaseService := evalsvc.NewService(caseService, nil)
+	datasetService := evalsvc.NewDatasetService(evalCaseService)
+	runService := evalsvc.NewRunService(datasetService)
+	reportService := evalsvc.NewEvalReportServiceWithDependencies(nil, runService)
+	evalReportID := materializeEvalRunReport(t, "tenant-eval-case-source", evalsvc.RunStatusFailed, "failure detail", caseService, evalCaseService, datasetService, runService, reportService, "Dataset Eval Source", "Source Eval Source")
 
 	server := httptest.NewServer(NewHandlerWithDependencies(Dependencies{
 		Cases:       caseService,
+		EvalCases:   evalCaseService,
 		EvalReports: reportService,
 	}))
 	defer server.Close()
@@ -135,6 +140,66 @@ func TestCreateAndGetCaseEndpointWithEvalReportSource(t *testing.T) {
 	}
 	if got.SourceEvalReportID != evalReportID {
 		t.Fatalf("SourceEvalReportID = %q, want %q", got.SourceEvalReportID, evalReportID)
+	}
+}
+
+func TestCreateAndGetCaseEndpointWithEvalCaseSource(t *testing.T) {
+	caseService := casesvc.NewService()
+	evalCaseService := evalsvc.NewService(caseService, nil)
+	datasetService := evalsvc.NewDatasetService(evalCaseService)
+	runService := evalsvc.NewRunService(datasetService)
+	reportService := evalsvc.NewEvalReportServiceWithDependencies(nil, runService)
+	evalReportID := materializeEvalRunReport(t, "tenant-eval-case-source-detail", evalsvc.RunStatusFailed, "failure detail", caseService, evalCaseService, datasetService, runService, reportService, "Dataset Eval Case Source", "Source Eval Case Source")
+	reportItem, err := reportService.GetEvalReport(context.Background(), evalReportID)
+	if err != nil {
+		t.Fatalf("GetEvalReport() error = %v", err)
+	}
+	if len(reportItem.BadCases) == 0 {
+		t.Fatal("BadCases = 0, want at least one")
+	}
+	evalCaseID := reportItem.BadCases[0].EvalCaseID
+
+	server := httptest.NewServer(NewHandlerWithDependencies(Dependencies{
+		Cases:       caseService,
+		EvalCases:   evalCaseService,
+		EvalReports: reportService,
+	}))
+	defer server.Close()
+
+	body := bytes.NewBufferString(`{"tenant_id":"tenant-eval-case-source-detail","title":"Investigate precise regression","summary":"Follow up one bad eval case","source_eval_report_id":"` + evalReportID + `","source_eval_case_id":"` + evalCaseID + `","created_by":"operator-eval"}`)
+	resp, err := http.Post(server.URL+"/api/v1/cases", "application/json", body)
+	if err != nil {
+		t.Fatalf("Post() error = %v", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusCreated {
+		t.Fatalf("StatusCode = %d, want %d", resp.StatusCode, http.StatusCreated)
+	}
+
+	var created caseResponse
+	if err := json.NewDecoder(resp.Body).Decode(&created); err != nil {
+		t.Fatalf("Decode(created) error = %v", err)
+	}
+	if created.SourceEvalCaseID != evalCaseID {
+		t.Fatalf("SourceEvalCaseID = %q, want %q", created.SourceEvalCaseID, evalCaseID)
+	}
+
+	getResp, err := http.Get(server.URL + "/api/v1/cases/" + created.CaseID + "?tenant_id=tenant-eval-case-source-detail")
+	if err != nil {
+		t.Fatalf("Get() error = %v", err)
+	}
+	defer getResp.Body.Close()
+	if getResp.StatusCode != http.StatusOK {
+		t.Fatalf("StatusCode = %d, want %d", getResp.StatusCode, http.StatusOK)
+	}
+
+	var got caseResponse
+	if err := json.NewDecoder(getResp.Body).Decode(&got); err != nil {
+		t.Fatalf("Decode(get) error = %v", err)
+	}
+	if got.SourceEvalCaseID != evalCaseID {
+		t.Fatalf("Get().SourceEvalCaseID = %q, want %q", got.SourceEvalCaseID, evalCaseID)
 	}
 }
 
@@ -192,6 +257,209 @@ func TestCreateCaseEndpointReusesOpenEvalReportFollowUp(t *testing.T) {
 	}
 	if len(page.Cases) != 1 {
 		t.Fatalf("len(ListCases().Cases) = %d, want %d", len(page.Cases), 1)
+	}
+}
+
+func TestCreateCaseEndpointReusesOpenEvalCaseFollowUp(t *testing.T) {
+	caseService := casesvc.NewService()
+	evalCaseService := evalsvc.NewService(caseService, nil)
+	datasetService := evalsvc.NewDatasetService(evalCaseService)
+	runService := evalsvc.NewRunService(datasetService)
+	reportService := evalsvc.NewEvalReportServiceWithDependencies(nil, runService)
+	evalReportID := materializeEvalRunReport(t, "tenant-eval-case-reuse-detail", evalsvc.RunStatusFailed, "failure detail", caseService, evalCaseService, datasetService, runService, reportService, "Dataset Eval Reuse Detail", "Source Eval Reuse Detail")
+	reportItem, err := reportService.GetEvalReport(context.Background(), evalReportID)
+	if err != nil {
+		t.Fatalf("GetEvalReport() error = %v", err)
+	}
+	evalCaseID := reportItem.BadCases[0].EvalCaseID
+
+	existing, err := caseService.CreateCase(context.Background(), casesvc.CreateInput{
+		TenantID:           "tenant-eval-case-reuse-detail",
+		Title:              "Existing eval-case follow-up",
+		Summary:            "Existing follow-up summary",
+		SourceEvalReportID: evalReportID,
+		SourceEvalCaseID:   evalCaseID,
+		CreatedBy:          "operator-existing",
+	})
+	if err != nil {
+		t.Fatalf("CreateCase(existing) error = %v", err)
+	}
+
+	server := httptest.NewServer(NewHandlerWithDependencies(Dependencies{
+		Cases:       caseService,
+		EvalCases:   evalCaseService,
+		EvalReports: reportService,
+	}))
+	defer server.Close()
+
+	body := bytes.NewBufferString(`{"tenant_id":"tenant-eval-case-reuse-detail","title":"Investigate one bad case","summary":"Follow up exact bad case","source_eval_report_id":"` + evalReportID + `","source_eval_case_id":"` + evalCaseID + `","created_by":"operator-eval"}`)
+	resp, err := http.Post(server.URL+"/api/v1/cases", "application/json", body)
+	if err != nil {
+		t.Fatalf("Post() error = %v", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("StatusCode = %d, want %d", resp.StatusCode, http.StatusOK)
+	}
+
+	var got caseResponse
+	if err := json.NewDecoder(resp.Body).Decode(&got); err != nil {
+		t.Fatalf("Decode() error = %v", err)
+	}
+	if got.CaseID != existing.ID {
+		t.Fatalf("CaseID = %q, want %q", got.CaseID, existing.ID)
+	}
+	if got.SourceEvalCaseID != evalCaseID {
+		t.Fatalf("SourceEvalCaseID = %q, want %q", got.SourceEvalCaseID, evalCaseID)
+	}
+}
+
+func TestCreateCaseEndpointDoesNotReuseGenericEvalReportCaseForEvalCaseFollowUp(t *testing.T) {
+	caseService := casesvc.NewService()
+	evalCaseService := evalsvc.NewService(caseService, nil)
+	datasetService := evalsvc.NewDatasetService(evalCaseService)
+	runService := evalsvc.NewRunService(datasetService)
+	reportService := evalsvc.NewEvalReportServiceWithDependencies(nil, runService)
+	evalReportID := materializeEvalRunReport(t, "tenant-eval-case-specific", evalsvc.RunStatusFailed, "failure detail", caseService, evalCaseService, datasetService, runService, reportService, "Dataset Eval Specific", "Source Eval Specific")
+	reportItem, err := reportService.GetEvalReport(context.Background(), evalReportID)
+	if err != nil {
+		t.Fatalf("GetEvalReport() error = %v", err)
+	}
+	evalCaseID := reportItem.BadCases[0].EvalCaseID
+
+	generic, err := caseService.CreateCase(context.Background(), casesvc.CreateInput{
+		TenantID:           "tenant-eval-case-specific",
+		Title:              "Generic eval-report follow-up",
+		Summary:            "Existing report-level follow-up summary",
+		SourceEvalReportID: evalReportID,
+		CreatedBy:          "operator-existing",
+	})
+	if err != nil {
+		t.Fatalf("CreateCase(generic) error = %v", err)
+	}
+
+	server := httptest.NewServer(NewHandlerWithDependencies(Dependencies{
+		Cases:       caseService,
+		EvalCases:   evalCaseService,
+		EvalReports: reportService,
+	}))
+	defer server.Close()
+
+	body := bytes.NewBufferString(`{"tenant_id":"tenant-eval-case-specific","title":"Investigate one bad case","summary":"Follow up exact bad case","source_eval_report_id":"` + evalReportID + `","source_eval_case_id":"` + evalCaseID + `","created_by":"operator-eval"}`)
+	resp, err := http.Post(server.URL+"/api/v1/cases", "application/json", body)
+	if err != nil {
+		t.Fatalf("Post() error = %v", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusCreated {
+		t.Fatalf("StatusCode = %d, want %d", resp.StatusCode, http.StatusCreated)
+	}
+
+	var got caseResponse
+	if err := json.NewDecoder(resp.Body).Decode(&got); err != nil {
+		t.Fatalf("Decode() error = %v", err)
+	}
+	if got.CaseID == generic.ID {
+		t.Fatalf("CaseID = %q, want a new eval-case-backed follow-up distinct from %q", got.CaseID, generic.ID)
+	}
+	if got.SourceEvalCaseID != evalCaseID {
+		t.Fatalf("SourceEvalCaseID = %q, want %q", got.SourceEvalCaseID, evalCaseID)
+	}
+}
+
+func TestCreateCaseEndpointDoesNotReuseCompareOriginEvalCaseForPlainEvalCaseFollowUp(t *testing.T) {
+	caseService := casesvc.NewService()
+	evalCaseService := evalsvc.NewService(caseService, nil)
+	datasetService := evalsvc.NewDatasetService(evalCaseService)
+	runService := evalsvc.NewRunService(datasetService)
+	reportService := evalsvc.NewEvalReportServiceWithDependencies(nil, runService)
+	leftEvalReportID := materializeEvalRunReport(t, "tenant-eval-case-compare-specific", evalsvc.RunStatusSucceeded, "left detail", caseService, evalCaseService, datasetService, runService, reportService, "Dataset Compare Specific Left", "Source Left")
+	rightEvalReportID := materializeEvalRunReport(t, "tenant-eval-case-compare-specific", evalsvc.RunStatusFailed, "right detail", caseService, evalCaseService, datasetService, runService, reportService, "Dataset Compare Specific Right", "Source Right")
+	rightReport, err := reportService.GetEvalReport(context.Background(), rightEvalReportID)
+	if err != nil {
+		t.Fatalf("GetEvalReport() error = %v", err)
+	}
+	evalCaseID := rightReport.BadCases[0].EvalCaseID
+
+	compareCase, err := caseService.CreateCase(context.Background(), casesvc.CreateInput{
+		TenantID:           "tenant-eval-case-compare-specific",
+		Title:              "Compare eval-case follow-up",
+		Summary:            "Compare-derived case should not satisfy plain eval-case dedupe",
+		SourceEvalReportID: rightEvalReportID,
+		SourceEvalCaseID:   evalCaseID,
+		CompareOrigin: casesvc.CompareOrigin{
+			LeftEvalReportID:  leftEvalReportID,
+			RightEvalReportID: rightEvalReportID,
+			SelectedSide:      "right",
+		},
+		CreatedBy: "operator-compare",
+	})
+	if err != nil {
+		t.Fatalf("CreateCase(compareCase) error = %v", err)
+	}
+
+	server := httptest.NewServer(NewHandlerWithDependencies(Dependencies{
+		Cases:       caseService,
+		EvalCases:   evalCaseService,
+		EvalReports: reportService,
+	}))
+	defer server.Close()
+
+	body := bytes.NewBufferString(`{"tenant_id":"tenant-eval-case-compare-specific","title":"Plain eval-case follow-up","summary":"Create plain eval-case follow-up","source_eval_report_id":"` + rightEvalReportID + `","source_eval_case_id":"` + evalCaseID + `","created_by":"operator-plain"}`)
+	resp, err := http.Post(server.URL+"/api/v1/cases", "application/json", body)
+	if err != nil {
+		t.Fatalf("Post() error = %v", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusCreated {
+		t.Fatalf("StatusCode = %d, want %d", resp.StatusCode, http.StatusCreated)
+	}
+
+	var created caseResponse
+	if err := json.NewDecoder(resp.Body).Decode(&created); err != nil {
+		t.Fatalf("Decode() error = %v", err)
+	}
+	if created.CaseID == compareCase.ID {
+		t.Fatalf("CaseID = %q, want a new plain eval-case-backed follow-up distinct from compare-origin case %q", created.CaseID, compareCase.ID)
+	}
+	if created.CompareOrigin != nil {
+		t.Fatal("CreateCase() reused compare-origin case, want plain eval-case follow-up")
+	}
+}
+
+func TestCreateCaseEndpointRejectsEvalCaseOutsideEvalReport(t *testing.T) {
+	caseService := casesvc.NewService()
+	evalCaseService := evalsvc.NewService(caseService, nil)
+	datasetService := evalsvc.NewDatasetService(evalCaseService)
+	runService := evalsvc.NewRunService(datasetService)
+	reportService := evalsvc.NewEvalReportServiceWithDependencies(nil, runService)
+	leftEvalReportID := materializeEvalRunReport(t, "tenant-eval-case-mismatch", evalsvc.RunStatusSucceeded, "left detail", caseService, evalCaseService, datasetService, runService, reportService, "Dataset Mismatch Left", "Source Mismatch Left")
+	rightEvalReportID := materializeEvalRunReport(t, "tenant-eval-case-mismatch", evalsvc.RunStatusFailed, "right detail", caseService, evalCaseService, datasetService, runService, reportService, "Dataset Mismatch Right", "Source Mismatch Right")
+	rightReport, err := reportService.GetEvalReport(context.Background(), rightEvalReportID)
+	if err != nil {
+		t.Fatalf("GetEvalReport(right) error = %v", err)
+	}
+	evalCaseID := rightReport.BadCases[0].EvalCaseID
+
+	server := httptest.NewServer(NewHandlerWithDependencies(Dependencies{
+		Cases:       caseService,
+		EvalCases:   evalCaseService,
+		EvalReports: reportService,
+	}))
+	defer server.Close()
+
+	body := bytes.NewBufferString(`{"tenant_id":"tenant-eval-case-mismatch","title":"Invalid precise follow-up","summary":"This bad case does not belong to the selected report","source_eval_report_id":"` + leftEvalReportID + `","source_eval_case_id":"` + evalCaseID + `","created_by":"operator-eval"}`)
+	resp, err := http.Post(server.URL+"/api/v1/cases", "application/json", body)
+	if err != nil {
+		t.Fatalf("Post() error = %v", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusConflict {
+		t.Fatalf("StatusCode = %d, want %d", resp.StatusCode, http.StatusConflict)
 	}
 }
 
@@ -404,8 +672,8 @@ func TestCreateCaseRejectsCompareOriginMixedWithTaskOrReportSources(t *testing.T
 	if got.Code != "invalid_case" {
 		t.Fatalf("Code = %q, want %q", got.Code, "invalid_case")
 	}
-	if got.Message != "compare_origin cannot be combined with source_task_id or source_report_id" {
-		t.Fatalf("Message = %q, want %q", got.Message, "compare_origin cannot be combined with source_task_id or source_report_id")
+	if got.Message != "compare_origin cannot be combined with source_task_id, source_report_id, or source_eval_case_id" {
+		t.Fatalf("Message = %q, want %q", got.Message, "compare_origin cannot be combined with source_task_id, source_report_id, or source_eval_case_id")
 	}
 }
 
