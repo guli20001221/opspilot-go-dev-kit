@@ -128,6 +128,7 @@ Provide a practical operator UI for evaluation and runtime analysis while keepin
 97. When operators need unresolved bad-case pressure before opening eval-report detail, prefer durable list fields such as `bad_case_without_open_follow_up_count` and a canonical list filter like `bad_case_needs_follow_up=true` over inferring that queue from already-loaded report detail in the browser.
 98. When operators compare two eval reports and need to know which side still has uncovered bad cases, prefer carrying `bad_case_without_open_follow_up_count` on the canonical compare contract and hand off into the existing unresolved-report view rather than inventing a compare-only unresolved queue.
 99. When an eval-report or bad-case handoff already has open canonical follow-up, prefer switching the primary page action to open the existing case or queue before attempting another `Create case` write, so reuse is visible in the operator flow rather than only after the POST response.
+100. When an eval-case handoff already has open canonical follow-up, prefer switching the primary `/admin/evals` action to open the existing case or queue before attempting another `Create case` write, so reuse is visible in the operator flow rather than only after the POST response.
 
 ## Output contract
 When you finish, always report:

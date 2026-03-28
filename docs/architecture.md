@@ -104,6 +104,7 @@ The current HTTP layer also exposes the same PostgreSQL-backed workflow records 
 - the same `/admin/evals` page now also surfaces canonical eval-case follow-up summary and handoff links into the latest follow-up case or the full follow-up slice, instead of re-deriving that state in the browser
 - the same `/admin/evals` page now also exposes a `Needs follow-up` quick view backed by that canonical eval-case filter, turning follow-up pressure into a real operator lane
 - the same `/admin/evals` page now also supports direct case creation from one durable eval case, reusing `POST /api/v1/cases` with standalone `source_eval_case_id` and handing off into `/admin/cases`
+- when that eval-case follow-up already has open work, the same `/admin/evals` primary action now flips to `Open existing case` or `Open existing queue`, so reuse is visible in the operator flow before any write is attempted
 - `/admin/eval-datasets` now exposes the first dataset-focused operator lane, keeping dataset list rows lightweight while reusing canonical dataset detail and source-lineage handoff paths
 - `POST /api/v1/eval-datasets/{dataset_id}/publish` now turns a durable draft into an immutable published baseline, recording `published_by` and `published_at` so later regression work can target stable dataset state instead of a moving draft
 - `internal/eval` now also holds the first durable eval-run kickoff model, which snapshots published dataset metadata into a queued run row before judge execution is connected

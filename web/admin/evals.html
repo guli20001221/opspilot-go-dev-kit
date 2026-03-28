@@ -397,6 +397,7 @@
       copyEvalSummaryButton.hidden = false;
       copyEvalLinkButton.hidden = false;
       createCaseButton.hidden = false;
+      createCaseButton.disabled = false;
       datasetNameInput.hidden = false;
       createDatasetButton.hidden = false;
       datasetTargetIDInput.hidden = false;
@@ -404,10 +405,14 @@
       if (currentDatasetDetail && currentDatasetDetail.dataset_id) {
         datasetTargetIDInput.value = currentDatasetDetail.dataset_id;
       }
-      evalDetailStatusNote.textContent = "Current eval case is ready for operator handoff.";
+      const hasOpenFollowUp = Number(item.open_follow_up_case_count || 0) > 0;
       const caseURL = `${caseEndpointBase}${encodeURIComponent(item.source_case_id)}?tenant_id=${encodeURIComponent(item.tenant_id)}`;
       const latestFollowUpCaseURL = item.latest_follow_up_case_id ? `/admin/cases?tenant_id=${encodeURIComponent(item.tenant_id)}&case_id=${encodeURIComponent(item.latest_follow_up_case_id)}` : "";
       const followUpSliceURL = `/admin/cases?tenant_id=${encodeURIComponent(item.tenant_id)}&source_eval_case_id=${encodeURIComponent(item.eval_case_id)}&limit=10`;
+      createCaseButton.dataset.action = hasOpenFollowUp ? "open-existing" : "create";
+      createCaseButton.dataset.targetHref = hasOpenFollowUp ? (latestFollowUpCaseURL || followUpSliceURL) : "";
+      createCaseButton.textContent = hasOpenFollowUp ? (latestFollowUpCaseURL ? "Open existing case" : "Open existing queue") : "Create case";
+      evalDetailStatusNote.textContent = hasOpenFollowUp ? "This eval case already has open follow-up work; reuse the canonical case before creating another." : "Current eval case is ready for operator handoff.";
       const reportURL = item.source_report_id ? `${reportEndpointBase}${encodeURIComponent(item.source_report_id)}` : "";
       const taskURL = item.source_task_id ? `${taskEndpointBase}${encodeURIComponent(item.source_task_id)}` : "";
       const traceURL = item.source_case_id ? `/admin/trace-detail?case_id=${encodeURIComponent(item.source_case_id)}` : "/admin/trace-detail";
@@ -739,7 +744,13 @@
     nextEvalButton.addEventListener("click", () => navigateVisible(1));
     copyEvalSummaryButton.addEventListener("click", () => copyEvalSummary());
     copyEvalLinkButton.addEventListener("click", () => copyEvalLink());
-    createCaseButton.addEventListener("click", () => createCaseFromEval());
+    createCaseButton.addEventListener("click", () => {
+      if (createCaseButton.dataset.action === "open-existing" && createCaseButton.dataset.targetHref) {
+        window.location.assign(createCaseButton.dataset.targetHref);
+        return;
+      }
+      createCaseFromEval();
+    });
     createDatasetButton.addEventListener("click", () => createDatasetDraft());
     addToDatasetButton.addEventListener("click", () => addToDatasetDraft());
     quickViewButtons.forEach((button) => button.addEventListener("click", () => applyQuickView(button.dataset.quickView)));

@@ -137,6 +137,7 @@ Current Milestone 1 slice:
 - the same `/admin/evals` page now also surfaces eval-case follow-up counts plus `Open latest follow-up case` and `Open follow-up slice`, so regression triage can jump straight into durable operator work
 - the same `/admin/evals` page now also adds a `Needs follow-up` quick view backed by the canonical `needs_follow_up=true` filter, so follow-up pressure becomes an actual queue instead of a read-only counter
 - the same `/admin/evals` page now also supports `Create case`, reusing `POST /api/v1/cases` with standalone `source_eval_case_id` so operators can open or reuse precise follow-up directly from the canonical eval queue
+- when that eval-case follow-up already has open work, the same `/admin/evals` primary action now renders as `Open existing case` or `Open existing queue`, so reuse is visible before another write is attempted
 - `/admin/eval-datasets` now exposes the first dataset-focused operator page, backed by the canonical eval-dataset list/detail contracts instead of frontend-only saved views
 - the same `/admin/eval-datasets` page now also supports `Publish dataset`, and published datasets render as immutable read-only baselines instead of mutable drafts
 - the same `/admin/eval-datasets` page now also supports `Run dataset`, handing a published baseline straight into the shared `/admin/eval-runs` lane

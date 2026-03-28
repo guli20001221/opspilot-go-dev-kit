@@ -190,6 +190,7 @@ The current chat stream implementation is a Milestone 1 skeleton:
 - use `Open latest follow-up case` on `/admin/evals` when the selected durable eval case already has linked operator work, and use `Open follow-up slice` when you want the full `/admin/cases?source_eval_case_id=...` queue
 - use the `Needs follow-up` quick view on `/admin/evals` when you want the unresolved-follow-up slice without manually entering `needs_follow_up=true`
 - use `Create case` on `/admin/evals` when the selected durable eval case needs precise follow-up and you want the canonical case lifecycle to open or reuse that work directly from the eval lane
+- when that eval-case already has open follow-up work, the same primary action will render as `Open existing case` or `Open existing queue`, so you can jump straight into the canonical follow-up instead of posting again
 - open `http://localhost:18080/admin/eval-datasets` when you want the first dataset-focused operator page, including dataset membership detail plus eval/case/task/report/version/trace handoff links
 - use `Publish dataset` on `/admin/eval-datasets` when you want to freeze the selected draft and make the page read-only for that baseline
 - use `Run dataset` on `/admin/eval-datasets` when you want to create a durable queued eval run from the selected published baseline and land on the matching `/admin/eval-runs` detail

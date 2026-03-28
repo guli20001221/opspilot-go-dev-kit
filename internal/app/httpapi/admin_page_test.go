@@ -309,6 +309,9 @@ func TestAdminEvalsPageRendersHTML(t *testing.T) {
 	if !strings.Contains(body, "Create case") {
 		t.Fatal("eval case handoff missing from eval page HTML")
 	}
+	if !strings.Contains(body, "Open existing case") {
+		t.Fatal("existing eval case reuse action missing from eval page HTML")
+	}
 	if !strings.Contains(body, "Add to dataset") {
 		t.Fatal("dataset append action missing from eval page HTML")
 	}
@@ -374,6 +377,118 @@ func TestAdminEvalsPageRejectsUnknownSubpath(t *testing.T) {
 
 	if resp.StatusCode != http.StatusNotFound {
 		t.Fatalf("StatusCode = %d, want %d", resp.StatusCode, http.StatusNotFound)
+	}
+}
+
+func TestAdminEvalsPageRuntimeSmoke(t *testing.T) {
+	caseService := casesvc.NewService()
+	evalCaseService := evalsvc.NewService(caseService, nil)
+
+	sourceCase, err := caseService.CreateCase(context.Background(), casesvc.CreateInput{
+		TenantID:       "tenant-eval-page-smoke",
+		Title:          "Eval source case",
+		Summary:        "Eval source summary",
+		SourceTaskID:   "task-eval-page-smoke",
+		SourceReportID: "report-eval-page-smoke",
+		CreatedBy:      "operator-eval-page",
+	})
+	if err != nil {
+		t.Fatalf("CreateCase(sourceCase) error = %v", err)
+	}
+	evalCase, _, err := evalCaseService.PromoteCase(context.Background(), evalsvc.CreateInput{
+		TenantID:     sourceCase.TenantID,
+		SourceCaseID: sourceCase.ID,
+		OperatorNote: "promote for eval page smoke",
+		CreatedBy:    "operator-eval-page",
+	})
+	if err != nil {
+		t.Fatalf("PromoteCase() error = %v", err)
+	}
+	openFollowUp, err := caseService.CreateCase(context.Background(), casesvc.CreateInput{
+		TenantID:         sourceCase.TenantID,
+		Title:            "Open eval follow-up",
+		Summary:          "Open eval follow-up summary",
+		SourceEvalCaseID: evalCase.ID,
+		CreatedBy:        "operator-eval-page",
+	})
+	if err != nil {
+		t.Fatalf("CreateCase(openFollowUp) error = %v", err)
+	}
+
+	server := httptest.NewServer(NewHandlerWithDependencies(Dependencies{
+		Cases:     caseService,
+		EvalCases: evalCaseService,
+	}))
+	defer server.Close()
+
+	nodePathRoot, err := npmGlobalRoot()
+	if err != nil {
+		t.Skipf("skipping playwright runtime smoke: %v", err)
+	}
+
+	const script = `
+const { chromium } = require("playwright");
+const baseURL = process.argv[2];
+const tenantID = process.argv[3];
+const evalCaseID = process.argv[4];
+const latestFollowUpID = process.argv[5];
+
+async function main() {
+  const browser = await chromium.launch({ headless: true });
+  const page = await browser.newPage();
+  await page.goto(baseURL + "/admin/evals?tenant_id=" + encodeURIComponent(tenantID) + "&limit=10");
+  await page.waitForSelector("#evalRows tr");
+  const followUpSummary = (await page.textContent("#evalRows tr td:nth-child(4)")).trim();
+  if (!followUpSummary.includes("1 cases / 1 open")) {
+    throw new Error("follow-up summary missing from eval row: " + followUpSummary);
+  }
+  const primaryAction = (await page.textContent("#createCaseButton")).trim();
+  if (primaryAction !== "Open existing case") {
+    throw new Error("primary eval case action did not switch to existing case reuse: " + primaryAction);
+  }
+  const actionMode = await page.getAttribute("#createCaseButton", "data-action");
+  if (actionMode !== "open-existing") {
+    throw new Error("eval case action mode missing reuse state: " + actionMode);
+  }
+  const targetHref = await page.getAttribute("#createCaseButton", "data-target-href");
+  if (!targetHref || !targetHref.includes("case_id=" + encodeURIComponent(latestFollowUpID))) {
+    throw new Error("eval case reuse target missing canonical case handoff");
+  }
+  const latestFollowUpHref = await page.getAttribute("a[href*='case_id=" + encodeURIComponent(latestFollowUpID) + "']", "href");
+  if (!latestFollowUpHref || !latestFollowUpHref.includes("/admin/cases?")) {
+    throw new Error("latest follow-up handoff missing from eval detail");
+  }
+  const detailText = (await page.textContent("#evalDetail")).trim();
+  if (!detailText.includes(evalCaseID) || !detailText.includes("Follow-up cases")) {
+    throw new Error("eval detail did not materialize expected content");
+  }
+  const statusText = (await page.textContent("#evalDetailStatusNote")).trim();
+  if (!statusText.includes("already has open follow-up work")) {
+    throw new Error("eval detail status note did not explain case reuse");
+  }
+  await browser.close();
+}
+
+main().catch((error) => {
+  console.error(error);
+  process.exitCode = 1;
+});
+`
+
+	tempDir := t.TempDir()
+	scriptPath := filepath.Join(tempDir, "admin-evals-smoke.js")
+	if err := os.WriteFile(scriptPath, []byte(script), 0o600); err != nil {
+		t.Fatalf("WriteFile(scriptPath) error = %v", err)
+	}
+
+	cmd := exec.Command("node", scriptPath, server.URL, sourceCase.TenantID, evalCase.ID, openFollowUp.ID)
+	cmd.Env = append(os.Environ(), "NODE_PATH="+nodePathRoot)
+	output, err := cmd.CombinedOutput()
+	if err != nil {
+		if strings.Contains(string(output), "Executable doesn't exist") {
+			t.Skipf("skipping playwright runtime smoke: %s", strings.TrimSpace(string(output)))
+		}
+		t.Fatalf("admin evals runtime smoke failed: %v\n%s", err, output)
 	}
 }
 
