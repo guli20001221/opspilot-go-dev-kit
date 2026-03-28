@@ -746,6 +746,9 @@
           <td>
             <div class="actions" style="margin-top: 0;">
               <button class="ghost" type="button" data-case-id="${escapeHTML(item.case_id)}">Inspect</button>
+              ${item.status === "open" && !item.assigned_to ? `
+                <button class="ghost" type="button" data-case-assign-id="${escapeHTML(item.case_id)}">Assign to me</button>
+              ` : ""}
               ${item.compare_origin && item.compare_origin.left_eval_report_id && item.compare_origin.right_eval_report_id ? `
                 <a class="button-link ghost" data-case-compare-link="${escapeHTML(item.case_id)}" href="/admin/eval-report-compare?tenant_id=${encodeURIComponent(item.tenant_id)}&left_report_id=${encodeURIComponent(item.compare_origin.left_eval_report_id)}&right_report_id=${encodeURIComponent(item.compare_origin.right_eval_report_id)}">Open compare</a>
               ` : ""}
@@ -1207,6 +1210,11 @@
     });
 
     caseRows.addEventListener("click", (event) => {
+      const assignButton = event.target.closest("[data-case-assign-id]");
+      if (assignButton) {
+        assignCaseByID(assignButton.dataset.caseAssignId, caseActorInput.value.trim() || "cases-operator", "Assigned case to me.");
+        return;
+      }
       const button = event.target.closest("[data-case-id]");
       if (!button) return;
       loadCaseDetail(button.dataset.caseId);
@@ -1290,8 +1298,8 @@
       }
     });
 
-    assignCaseButton.addEventListener("click", async () => {
-      if (!currentCaseID) return;
+    async function assignCaseByID(caseID, assignedTo, successMessage) {
+      if (!caseID) return;
       const tenantID = form.elements.namedItem("tenant_id").value.trim();
       if (!tenantID) {
         setDetailStatus("Tenant scope is required before assigning a case.", true);
@@ -1301,26 +1309,32 @@
       assignCaseButton.disabled = true;
       setDetailStatus("Assigning case...");
       try {
-        const response = await fetch(`${detailEndpointBase}${encodeURIComponent(currentCaseID)}${assignActionSuffix}?tenant_id=${encodeURIComponent(tenantID)}`, {
+        const response = await fetch(`${detailEndpointBase}${encodeURIComponent(caseID)}${assignActionSuffix}?tenant_id=${encodeURIComponent(tenantID)}`, {
           method: "POST",
           headers: {
             "Accept": "application/json",
             "Content-Type": "application/json"
           },
           body: JSON.stringify({
-            assigned_to: caseAssigneeInput.value.trim()
+            assigned_to: assignedTo
           })
         });
         const payload = await response.json().catch(() => ({}));
         if (!response.ok) {
           throw new Error(payload.message || `Assign case failed: ${response.statusText}`);
         }
-        setDetailStatus(`Case assigned to ${payload.assigned_to || caseAssigneeInput.value.trim()}.`);
-        await loadCases(currentCaseID);
+        setDetailStatus(successMessage || `Case assigned to ${payload.assigned_to || assignedTo}.`);
+        caseAssigneeInput.value = payload.assigned_to || assignedTo;
+        await loadCases(caseID);
       } catch (error) {
         assignCaseButton.disabled = false;
         setDetailStatus(error.message || "Unable to assign case.", true);
       }
+    }
+
+    assignCaseButton.addEventListener("click", async () => {
+      if (!currentCaseID) return;
+      await assignCaseByID(currentCaseID, caseAssigneeInput.value.trim(), `Case assigned to ${caseAssigneeInput.value.trim()}.`);
     });
 
     addCaseNoteButton.addEventListener("click", async () => {

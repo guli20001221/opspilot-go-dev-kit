@@ -111,6 +111,7 @@ Provide a practical operator UI for evaluation and runtime analysis while keepin
 83. When a case originates from an eval-report comparison, prefer persisting explicit compare provenance on the canonical case contract and hand back into `/admin/eval-report-compare` from that stored lineage instead of reconstructing compare context from summary text.
 84. When operators need to triage compare-derived cases as a queue, prefer a canonical case-list filter such as `compare_origin_only=true` plus a quick-view preset on `/admin/cases` over client-side provenance filtering.
 85. When compare-derived cases are already visible in the canonical case queue, prefer a row-level handoff back into `/admin/eval-report-compare` from stored compare provenance instead of forcing a detail-pane round trip first.
+86. When operators need to claim work from an existing case queue, prefer row-level actions that reuse the canonical case assign endpoint over requiring a detail-pane round trip for simple ownership changes.
 
 ## Output contract
 When you finish, always report:

@@ -1253,6 +1253,9 @@ func TestAdminCasesPageRendersHTML(t *testing.T) {
 	if !strings.Contains(body, "Assign case") {
 		t.Fatal("assign case action missing from cases page HTML")
 	}
+	if !strings.Contains(body, "Assign to me") {
+		t.Fatal("row-level assign-to-me action missing from cases page HTML")
+	}
 	if !strings.Contains(body, "Add note") {
 		t.Fatal("add note action missing from cases page HTML")
 	}
@@ -1424,6 +1427,17 @@ const compareRightReportID = process.argv[11];
   if (!rowCompareHref || !rowCompareHref.includes("left_report_id=" + encodeURIComponent(reportID)) || !rowCompareHref.includes("right_report_id=" + encodeURIComponent(compareRightReportID))) {
     throw new Error("row-level compare handoff drifted");
   }
+  await page.fill("#caseActor", "queue-owner");
+  await page.click('[data-case-assign-id="' + linkedCaseID + '"]');
+  await page.waitForFunction(
+    (caseID) => {
+      const row = document.querySelector('[data-case-row="' + caseID + '"]');
+      return row && row.textContent && row.textContent.includes("queue-owner");
+    },
+    linkedCaseID
+  );
+  const assignedDetail = await page.textContent("#caseDetail");
+  if (!assignedDetail.includes("queue-owner")) throw new Error("row-level assign did not refresh detail ownership");
   await page.click("#compareFollowUpsQuickView");
   await page.waitForFunction(() => document.querySelector("#visibleCount")?.textContent?.trim() === "1");
   const compareVisibleCount = await page.textContent("#visibleCount");

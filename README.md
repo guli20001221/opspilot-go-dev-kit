@@ -153,6 +153,7 @@ Current Milestone 1 slice:
 - compare-created cases now also persist explicit left/right eval-report lineage plus the selected side, so `/admin/cases` can show canonical compare provenance and hand operators back into the exact `/admin/eval-report-compare` slice instead of reconstructing it from summary text
 - `GET /api/v1/cases` now also supports `compare_origin_only=true`, and `/admin/cases` reuses it for a `Compare follow-ups` quick view so compare-derived regression cases can be triaged as one canonical queue
 - the same compare-follow-up queue on `/admin/cases` now also exposes a row-level `Open compare` handoff, so operators can jump straight back into the exact eval-report comparison without opening detail first
+- the same `/admin/cases` compare-follow-up queue now also supports row-level `Assign to me`, reusing the canonical case assign endpoint so an operator can claim a compare-derived regression without opening detail first
 - the same `/admin/eval-runs` lane now shows live lifecycle fields such as `started_at`, `finished_at`, and `error_reason`, so operators can watch queued run kickoffs turn into terminal records before judge wiring exists
 - that same `/admin/eval-runs` lane now exposes `Retry run` for failed runs, reusing the canonical retry endpoint instead of inventing an admin-only mutation path
 - that same `/admin/eval-runs` lane now renders a durable run timeline, so operators can still inspect prior `failed` and `retried` history after the top-level fields have been cleared by retry
