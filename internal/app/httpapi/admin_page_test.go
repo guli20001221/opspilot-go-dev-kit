@@ -1281,6 +1281,14 @@ async function assertCasePayload(page, apiBaseURL, caseID, tenantID, expectedRep
   if (!compareQueueHref || !compareQueueHref.includes("/admin/cases?") || !compareQueueHref.includes("source_eval_report_id=" + encodeURIComponent(reportID)) || !compareQueueHref.includes("compare_origin_only=true") || !compareQueueHref.includes("status=open")) {
     throw new Error("compare queue handoff missing from list row");
   }
+  const rowPrimaryActionText = (await page.textContent("#reportRows tr td:nth-child(7) a")).trim();
+  if (rowPrimaryActionText !== "Open existing case") {
+    throw new Error("row-level primary report action did not render backend-owned reuse label: " + rowPrimaryActionText);
+  }
+  const rowPrimaryActionHref = await page.getAttribute("#reportRows tr td:nth-child(7) a", "href");
+  if (!rowPrimaryActionHref || !rowPrimaryActionHref.includes("/admin/cases?") || !rowPrimaryActionHref.includes("case_id=")) {
+    throw new Error("row-level primary report action missing canonical case handoff");
+  }
   const detailLatestCaseHref = await page.getAttribute("#openLatestCaseLink", "href");
   if (!detailLatestCaseHref || !detailLatestCaseHref.includes("/admin/cases?") || !detailLatestCaseHref.includes("case_id=")) {
     throw new Error("latest case handoff link missing from detail pane");

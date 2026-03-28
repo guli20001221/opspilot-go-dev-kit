@@ -165,6 +165,7 @@ Current Milestone 1 slice:
 - that same canonical eval-report detail now also carries `bad_case_count`, so report-level handoff and summaries stay faithful even when the visible `bad_cases` drill-down is filtered
 - the same canonical `GET /api/v1/eval-reports` list now also carries `bad_case_without_open_follow_up_count`, so unresolved bad-case pressure is visible before opening report detail
 - that same eval-report list now also supports `bad_case_needs_follow_up=true|false`, and `/admin/eval-reports` uses it for an `Unresolved bad cases` quick view instead of inferring that queue from already-loaded detail
+- `/admin/eval-reports` list rows now also use the canonical `preferred_follow_up_action` to render a row-level `Create case` or `Open existing case/queue`, so operators can act on durable follow-up directly from the list without opening detail first
 - `GET /api/v1/eval-report-compare` now exposes a narrow read-only compare contract over two durable eval reports, so score deltas, metadata drift, and bad-case overlap stay on the backend instead of turning into browser-only diff logic
 - `/admin/eval-report-compare` now exposes the first eval-report comparison page, handing off into eval runs and version detail from that same canonical compare contract
 - the same `/admin/eval-report-compare` page now also supports `Create case from left` and `Create case from right`, reusing `POST /api/v1/cases` and deep-linking straight into `/admin/cases` for regression follow-up while preserving the selected side as `source_eval_report_id`
