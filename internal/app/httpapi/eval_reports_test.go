@@ -226,6 +226,62 @@ func TestGetEvalReportIncludesBadCaseFollowUpCaseSummary(t *testing.T) {
 	}
 }
 
+func TestGetEvalReportIncludesCompareFollowUpSummary(t *testing.T) {
+	caseService := casesvc.NewService()
+	evalCaseService := evalsvc.NewService(caseService, nil)
+	datasetService := evalsvc.NewDatasetService(evalCaseService)
+	runService := evalsvc.NewRunService(datasetService)
+	reportService := evalsvc.NewEvalReportServiceWithDependencies(nil, runService)
+	leftReportID := materializeEvalRunReport(t, "tenant-eval-report-compare-detail", evalsvc.RunStatusSucceeded, "success detail", caseService, evalCaseService, datasetService, runService, reportService, "Dataset Compare Detail A", "Source Compare Detail A")
+	rightReportID := materializeEvalRunReport(t, "tenant-eval-report-compare-detail", evalsvc.RunStatusFailed, "failure detail", caseService, evalCaseService, datasetService, runService, reportService, "Dataset Compare Detail B", "Source Compare Detail B")
+
+	compareCase, err := caseService.CreateCase(context.Background(), casesvc.CreateInput{
+		TenantID:           "tenant-eval-report-compare-detail",
+		Title:              "Left compare detail follow-up",
+		Summary:            "left compare detail summary",
+		SourceEvalReportID: leftReportID,
+		CompareOrigin: casesvc.CompareOrigin{
+			LeftEvalReportID:  leftReportID,
+			RightEvalReportID: rightReportID,
+			SelectedSide:      "left",
+		},
+		CreatedBy: "operator-compare",
+	})
+	if err != nil {
+		t.Fatalf("CreateCase(compareCase) error = %v", err)
+	}
+
+	server := httptest.NewServer(NewHandlerWithDependencies(Dependencies{
+		Cases:       caseService,
+		EvalReports: reportService,
+	}))
+	defer server.Close()
+
+	resp, err := http.Get(server.URL + "/api/v1/eval-reports/" + leftReportID + "?tenant_id=tenant-eval-report-compare-detail")
+	if err != nil {
+		t.Fatalf("Get() error = %v", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("StatusCode = %d, want %d", resp.StatusCode, http.StatusOK)
+	}
+
+	var got evalReportResponse
+	if err := json.NewDecoder(resp.Body).Decode(&got); err != nil {
+		t.Fatalf("Decode() error = %v", err)
+	}
+	if got.CompareFollowUpCaseCount != 1 || got.OpenCompareFollowUpCaseCount != 1 {
+		t.Fatalf("compare follow-up counts = %#v, want count=1 open=1", got)
+	}
+	if got.LatestCompareFollowUpCaseID != compareCase.ID {
+		t.Fatalf("LatestCompareFollowUpCaseID = %q, want %q", got.LatestCompareFollowUpCaseID, compareCase.ID)
+	}
+	if got.LatestCompareFollowUpCaseStatus != casesvc.StatusOpen {
+		t.Fatalf("LatestCompareFollowUpCaseStatus = %q, want %q", got.LatestCompareFollowUpCaseStatus, casesvc.StatusOpen)
+	}
+}
+
 func TestGetEvalReportSupportsBadCaseNeedsFollowUpFilter(t *testing.T) {
 	caseService := casesvc.NewService()
 	evalCaseService := evalsvc.NewService(caseService, nil)
@@ -830,6 +886,75 @@ func TestListEvalReportsIncludesFollowUpCaseSummary(t *testing.T) {
 	}
 	if got.BadCaseWithoutOpenFollowUpCount != 1 {
 		t.Fatalf("BadCaseWithoutOpenFollowUpCount = %d, want 1", got.BadCaseWithoutOpenFollowUpCount)
+	}
+}
+
+func TestListEvalReportsIncludesCompareFollowUpSummary(t *testing.T) {
+	caseService := casesvc.NewService()
+	evalCaseService := evalsvc.NewService(caseService, nil)
+	datasetService := evalsvc.NewDatasetService(evalCaseService)
+	runService := evalsvc.NewRunService(datasetService)
+	reportService := evalsvc.NewEvalReportServiceWithDependencies(nil, runService)
+	leftReportID := materializeEvalRunReport(t, "tenant-eval-report-compare-list", evalsvc.RunStatusSucceeded, "success detail", caseService, evalCaseService, datasetService, runService, reportService, "Dataset Compare List A", "Source Compare List A")
+	rightReportID := materializeEvalRunReport(t, "tenant-eval-report-compare-list", evalsvc.RunStatusFailed, "failure detail", caseService, evalCaseService, datasetService, runService, reportService, "Dataset Compare List B", "Source Compare List B")
+
+	compareCase, err := caseService.CreateCase(context.Background(), casesvc.CreateInput{
+		TenantID:           "tenant-eval-report-compare-list",
+		Title:              "Left compare list follow-up",
+		Summary:            "left compare list summary",
+		SourceEvalReportID: leftReportID,
+		CompareOrigin: casesvc.CompareOrigin{
+			LeftEvalReportID:  leftReportID,
+			RightEvalReportID: rightReportID,
+			SelectedSide:      "left",
+		},
+		CreatedBy: "operator-compare",
+	})
+	if err != nil {
+		t.Fatalf("CreateCase(compareCase) error = %v", err)
+	}
+
+	server := httptest.NewServer(NewHandlerWithDependencies(Dependencies{
+		Cases:       caseService,
+		EvalReports: reportService,
+	}))
+	defer server.Close()
+
+	resp, err := http.Get(server.URL + "/api/v1/eval-reports?tenant_id=tenant-eval-report-compare-list&status=ready&limit=10")
+	if err != nil {
+		t.Fatalf("Get() error = %v", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("StatusCode = %d, want %d", resp.StatusCode, http.StatusOK)
+	}
+
+	var page listEvalReportsResponse
+	if err := json.NewDecoder(resp.Body).Decode(&page); err != nil {
+		t.Fatalf("Decode() error = %v", err)
+	}
+	if len(page.Reports) != 2 {
+		t.Fatalf("len(page.Reports) = %d, want 2", len(page.Reports))
+	}
+	var leftFound bool
+	for _, got := range page.Reports {
+		if got.ReportID != leftReportID {
+			continue
+		}
+		leftFound = true
+		if got.CompareFollowUpCaseCount != 1 || got.OpenCompareFollowUpCaseCount != 1 {
+			t.Fatalf("compare follow-up counts = %#v, want count=1 open=1", got)
+		}
+		if got.LatestCompareFollowUpCaseID != compareCase.ID {
+			t.Fatalf("LatestCompareFollowUpCaseID = %q, want %q", got.LatestCompareFollowUpCaseID, compareCase.ID)
+		}
+		if got.LatestCompareFollowUpCaseStatus != casesvc.StatusOpen {
+			t.Fatalf("LatestCompareFollowUpCaseStatus = %q, want %q", got.LatestCompareFollowUpCaseStatus, casesvc.StatusOpen)
+		}
+	}
+	if !leftFound {
+		t.Fatalf("left report %q not found in list response: %#v", leftReportID, page.Reports)
 	}
 }
 

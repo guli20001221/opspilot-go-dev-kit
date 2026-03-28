@@ -220,13 +220,36 @@
       };
     }
 
-    function setCreateButtonsDisabled(disabled, activeSide) {
-      const leftText = disabled && activeSide === "left" ? "Creating left..." : "Create case from left";
-      const rightText = disabled && activeSide === "right" ? "Creating right..." : "Create case from right";
+    function compareQueueHref(item) {
+      return `/admin/cases?tenant_id=${encodeURIComponent(item.tenant_id)}&source_eval_report_id=${encodeURIComponent(item.report_id)}&compare_origin_only=true&status=open`;
+    }
+
+    function sidePrimaryAction(side) {
+      if (!currentComparison) {
+        return { mode: "create", text: `Create case from ${side}` };
+      }
+      const item = side === "left" ? currentComparison.left : currentComparison.right;
+      if ((item.open_compare_follow_up_case_count || 0) > 0) {
+        return {
+          mode: "open-queue",
+          text: `Open ${side} compare queue`,
+          href: compareQueueHref(item)
+        };
+      }
+      return { mode: "create", text: `Create case from ${side}` };
+    }
+
+    function syncPrimaryActionButtons(disabled, activeSide) {
+      const leftAction = sidePrimaryAction("left");
+      const rightAction = sidePrimaryAction("right");
+      createLeftCaseButton.dataset.mode = leftAction.mode;
+      createRightCaseButton.dataset.mode = rightAction.mode;
+      createLeftCaseButton.dataset.href = leftAction.href || "";
+      createRightCaseButton.dataset.href = rightAction.href || "";
       createLeftCaseButton.disabled = disabled;
       createRightCaseButton.disabled = disabled;
-      createLeftCaseButton.textContent = leftText;
-      createRightCaseButton.textContent = rightText;
+      createLeftCaseButton.textContent = disabled && activeSide === "left" && leftAction.mode === "create" ? "Creating left..." : leftAction.text;
+      createRightCaseButton.textContent = disabled && activeSide === "right" && rightAction.mode === "create" ? "Creating right..." : rightAction.text;
     }
 
     function renderComparison(payload) {
@@ -235,8 +258,12 @@
       compareContent.hidden = false;
       createLeftCaseButton.hidden = false;
       createRightCaseButton.hidden = false;
-      setCreateButtonsDisabled(false);
-      compareActionStatus.textContent = "Create a durable case when this comparison represents a regression that needs operator follow-up.";
+      syncPrimaryActionButtons(false);
+      if ((payload.left.open_compare_follow_up_case_count || 0) > 0 || (payload.right.open_compare_follow_up_case_count || 0) > 0) {
+        compareActionStatus.textContent = "Open the existing compare queue when follow-up is already in progress; create a new case only when that side has no open compare-origin follow-up.";
+      } else {
+        compareActionStatus.textContent = "Create a durable case when this comparison represents a regression that needs operator follow-up.";
+      }
 
       sameDataset.textContent = payload.summary.same_dataset ? "Yes" : "No";
       sameRunStatus.textContent = payload.summary.same_run_status ? "Yes" : "No";
@@ -252,7 +279,7 @@
       rightLinkedCasesLink.href = `/admin/cases?tenant_id=${encodeURIComponent(payload.right.tenant_id)}&source_eval_report_id=${encodeURIComponent(payload.right.report_id)}`;
       if ((payload.left.compare_follow_up_case_count || 0) > 0) {
         leftCompareCasesLink.hidden = false;
-        leftCompareCasesLink.href = `/admin/cases?tenant_id=${encodeURIComponent(payload.left.tenant_id)}&source_eval_report_id=${encodeURIComponent(payload.left.report_id)}&compare_origin_only=true&status=open`;
+        leftCompareCasesLink.href = compareQueueHref(payload.left);
       } else {
         leftCompareCasesLink.hidden = true;
         leftCompareCasesLink.href = "#";
@@ -287,7 +314,7 @@
       }
       if ((payload.right.compare_follow_up_case_count || 0) > 0) {
         rightCompareCasesLink.hidden = false;
-        rightCompareCasesLink.href = `/admin/cases?tenant_id=${encodeURIComponent(payload.right.tenant_id)}&source_eval_report_id=${encodeURIComponent(payload.right.report_id)}&compare_origin_only=true&status=open`;
+        rightCompareCasesLink.href = compareQueueHref(payload.right);
       } else {
         rightCompareCasesLink.hidden = true;
         rightCompareCasesLink.href = "#";
@@ -329,7 +356,7 @@
       }
 
       const payload = buildCasePayloadFromComparison(currentComparison, side);
-      setCreateButtonsDisabled(true, side);
+      syncPrimaryActionButtons(true, side);
       compareActionStatus.textContent = `Creating a ${side}-side case from ${payload.source_eval_report_id}...`;
 
       try {
@@ -359,8 +386,21 @@
       } catch (error) {
         compareActionStatus.textContent = `Create case failed: ${error.message || "unknown error"}`;
       } finally {
-        setCreateButtonsDisabled(false);
+        syncPrimaryActionButtons(false);
       }
+    }
+
+    function handlePrimaryAction(side) {
+      if (!currentComparison) {
+        compareActionStatus.textContent = "Create case is unavailable until a durable comparison has been loaded.";
+        return;
+      }
+      const button = side === "left" ? createLeftCaseButton : createRightCaseButton;
+      if (button.dataset.mode === "open-queue" && button.dataset.href) {
+        window.location.href = button.dataset.href;
+        return;
+      }
+      createCaseFromComparison(side);
     }
 
     async function loadComparison() {
@@ -369,7 +409,7 @@
       currentComparison = null;
       createLeftCaseButton.hidden = true;
       createRightCaseButton.hidden = true;
-      setCreateButtonsDisabled(false);
+      syncPrimaryActionButtons(false);
       compareActionStatus.textContent = "Create a durable case when this comparison represents a regression that needs operator follow-up.";
 
       if (!params.get("tenant_id") || !params.get("left_report_id") || !params.get("right_report_id")) {
@@ -416,8 +456,8 @@
       form.reset();
       loadComparison();
     });
-    createLeftCaseButton.addEventListener("click", () => createCaseFromComparison("left"));
-    createRightCaseButton.addEventListener("click", () => createCaseFromComparison("right"));
+    createLeftCaseButton.addEventListener("click", () => handlePrimaryAction("left"));
+    createRightCaseButton.addEventListener("click", () => handlePrimaryAction("right"));
 
     populateFiltersFromURL();
     loadComparison();

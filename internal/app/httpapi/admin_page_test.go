@@ -723,6 +723,8 @@ func TestAdminEvalReportComparePageRuntimeSmoke(t *testing.T) {
 	reportService := evalsvc.NewEvalReportServiceWithDependencies(nil, runService)
 	leftReportID := materializeEvalRunReport(t, "tenant-eval-compare-admin-smoke", evalsvc.RunStatusSucceeded, "success detail", caseService, evalCaseService, datasetService, runService, reportService, "Dataset Compare A", "Source Left")
 	rightReportID := materializeEvalRunReport(t, "tenant-eval-compare-admin-smoke", evalsvc.RunStatusFailed, "failure detail", caseService, evalCaseService, datasetService, runService, reportService, "Dataset Compare B", "Source Right")
+	createOnlyLeftReportID := materializeEvalRunReport(t, "tenant-eval-compare-admin-create", evalsvc.RunStatusSucceeded, "create success detail", caseService, evalCaseService, datasetService, runService, reportService, "Dataset Compare Create A", "Source Create Left")
+	createOnlyRightReportID := materializeEvalRunReport(t, "tenant-eval-compare-admin-create", evalsvc.RunStatusFailed, "create failure detail", caseService, evalCaseService, datasetService, runService, reportService, "Dataset Compare Create B", "Source Create Right")
 	leftCase, err := caseService.CreateCase(context.Background(), casesvc.CreateInput{
 		TenantID:           "tenant-eval-compare-admin-smoke",
 		Title:              "Left compare follow-up",
@@ -774,6 +776,9 @@ const leftReportID = process.argv[4];
 const rightReportID = process.argv[5];
 const leftCaseID = process.argv[6];
 const rightCaseID = process.argv[7];
+const createOnlyTenantID = process.argv[8];
+const createOnlyLeftReportID = process.argv[9];
+const createOnlyRightReportID = process.argv[10];
 
 async function assertCaseSource(page, apiBaseURL, caseID, tenantID, expectedReportID) {
   await page.goto(apiBaseURL + "/api/v1/cases/" + encodeURIComponent(caseID) + "?tenant_id=" + encodeURIComponent(tenantID));
@@ -810,6 +815,10 @@ async function assertCaseSource(page, apiBaseURL, caseID, tenantID, expectedRepo
   if (!leftCompareCasesHref || !leftCompareCasesHref.includes("/admin/cases?") || !leftCompareCasesHref.includes("source_eval_report_id=" + encodeURIComponent(leftReportID)) || !leftCompareCasesHref.includes("compare_origin_only=true") || !leftCompareCasesHref.includes("status=open")) {
     throw new Error("left compare-follow-ups handoff missing canonical compare queue filter");
   }
+  const leftPrimaryText = (await page.textContent("#createLeftCaseButton")).trim();
+  if (leftPrimaryText !== "Open left compare queue") {
+    throw new Error("left primary action should switch to compare queue when open compare follow-up exists");
+  }
   const leftBadCaseNeedsFollowUpVisible = await page.isVisible("#leftBadCaseNeedsFollowUpLink");
   if (leftBadCaseNeedsFollowUpVisible) {
     throw new Error("left unresolved bad-case handoff should stay hidden when there are no uncovered bad cases");
@@ -825,6 +834,10 @@ async function assertCaseSource(page, apiBaseURL, caseID, tenantID, expectedRepo
   const rightCompareCasesHref = await page.getAttribute("#rightCompareCasesLink", "href");
   if (!rightCompareCasesHref || !rightCompareCasesHref.includes("/admin/cases?") || !rightCompareCasesHref.includes("source_eval_report_id=" + encodeURIComponent(rightReportID)) || !rightCompareCasesHref.includes("compare_origin_only=true") || !rightCompareCasesHref.includes("status=open")) {
     throw new Error("right compare-follow-ups handoff missing canonical compare queue filter");
+  }
+  const rightPrimaryText = (await page.textContent("#createRightCaseButton")).trim();
+  if (rightPrimaryText !== "Open right compare queue") {
+    throw new Error("right primary action should switch to compare queue when open compare follow-up exists");
   }
   const rightBadCaseNeedsFollowUpHref = await page.getAttribute("#rightBadCaseNeedsFollowUpLink", "href");
   if (!rightBadCaseNeedsFollowUpHref || !rightBadCaseNeedsFollowUpHref.includes("/admin/eval-reports?") || !rightBadCaseNeedsFollowUpHref.includes("bad_case_needs_follow_up=true") || !rightBadCaseNeedsFollowUpHref.includes("report_id=" + encodeURIComponent(rightReportID))) {
@@ -849,17 +862,51 @@ async function assertCaseSource(page, apiBaseURL, caseID, tenantID, expectedRepo
   }
   await page.click("#createLeftCaseButton");
   await page.waitForURL(/\/admin\/cases\?/);
+  const leftQueueURL = new URL(page.url());
+  if (leftQueueURL.searchParams.get("source_eval_report_id") !== leftReportID) {
+    throw new Error("left compare queue handoff missing source_eval_report_id");
+  }
+  if (leftQueueURL.searchParams.get("tenant_id") !== tenantID) {
+    throw new Error("left compare queue handoff missing tenant_id");
+  }
+  if (leftQueueURL.searchParams.get("compare_origin_only") !== "true" || leftQueueURL.searchParams.get("status") !== "open") {
+    throw new Error("left compare queue handoff missing canonical compare queue filters");
+  }
+
+  await page.goto(baseURL + "/admin/eval-report-compare?tenant_id=" + encodeURIComponent(tenantID) + "&left_report_id=" + encodeURIComponent(leftReportID) + "&right_report_id=" + encodeURIComponent(rightReportID));
+  await page.waitForSelector("text=Comparison summary");
+  await page.click("#createRightCaseButton");
+  await page.waitForURL(/\/admin\/cases\?/);
+  const rightQueueURL = new URL(page.url());
+  if (rightQueueURL.searchParams.get("source_eval_report_id") !== rightReportID) {
+    throw new Error("right compare queue handoff missing source_eval_report_id");
+  }
+  if (rightQueueURL.searchParams.get("tenant_id") !== tenantID) {
+    throw new Error("right compare queue handoff missing tenant_id");
+  }
+  if (rightQueueURL.searchParams.get("compare_origin_only") !== "true" || rightQueueURL.searchParams.get("status") !== "open") {
+    throw new Error("right compare queue handoff missing canonical compare queue filters");
+  }
+
+  await page.goto(baseURL + "/admin/eval-report-compare?tenant_id=" + encodeURIComponent(createOnlyTenantID) + "&left_report_id=" + encodeURIComponent(createOnlyLeftReportID) + "&right_report_id=" + encodeURIComponent(createOnlyRightReportID));
+  await page.waitForSelector("text=Comparison summary");
+  const createOnlyLeftText = (await page.textContent("#createLeftCaseButton")).trim();
+  if (createOnlyLeftText !== "Create case from left") {
+    throw new Error("left primary action should stay on create when no open compare follow-up exists");
+  }
+  await page.click("#createLeftCaseButton");
+  await page.waitForURL(/\/admin\/cases\?/);
   const createdLeftURL = new URL(page.url());
   const leftCreatedCaseID = createdLeftURL.searchParams.get("case_id");
   if (!leftCreatedCaseID) {
     throw new Error("left compare-to-case handoff missing case_id");
   }
-  if (createdLeftURL.searchParams.get("tenant_id") !== tenantID) {
+  if (createdLeftURL.searchParams.get("tenant_id") !== createOnlyTenantID) {
     throw new Error("left compare-to-case handoff missing tenant_id");
   }
-  await assertCaseSource(page, baseURL, leftCreatedCaseID, tenantID, leftReportID);
+  await assertCaseSource(page, baseURL, leftCreatedCaseID, createOnlyTenantID, createOnlyLeftReportID);
 
-  await page.goto(baseURL + "/admin/eval-report-compare?tenant_id=" + encodeURIComponent(tenantID) + "&left_report_id=" + encodeURIComponent(leftReportID) + "&right_report_id=" + encodeURIComponent(rightReportID));
+  await page.goto(baseURL + "/admin/eval-report-compare?tenant_id=" + encodeURIComponent(createOnlyTenantID) + "&left_report_id=" + encodeURIComponent(createOnlyLeftReportID) + "&right_report_id=" + encodeURIComponent(createOnlyRightReportID));
   await page.waitForSelector("text=Comparison summary");
   await page.click("#createRightCaseButton");
   await page.waitForURL(/\/admin\/cases\?/);
@@ -868,10 +915,10 @@ async function assertCaseSource(page, apiBaseURL, caseID, tenantID, expectedRepo
   if (!rightCreatedCaseID) {
     throw new Error("right compare-to-case handoff missing case_id");
   }
-  if (createdRightURL.searchParams.get("tenant_id") !== tenantID) {
+  if (createdRightURL.searchParams.get("tenant_id") !== createOnlyTenantID) {
     throw new Error("right compare-to-case handoff missing tenant_id");
   }
-  await assertCaseSource(page, baseURL, rightCreatedCaseID, tenantID, rightReportID);
+  await assertCaseSource(page, baseURL, rightCreatedCaseID, createOnlyTenantID, createOnlyRightReportID);
 
   await page.goto(baseURL + "/admin/eval-report-compare?tenant_id=" + encodeURIComponent(tenantID) + "&left_report_id=" + encodeURIComponent(leftReportID) + "&right_report_id=missing-report");
   await page.waitForSelector("text=Eval report comparison request failed: 404 Not Found");
@@ -885,7 +932,7 @@ async function assertCaseSource(page, apiBaseURL, caseID, tenantID, expectedRepo
 		t.Fatalf("WriteFile(scriptPath) error = %v", err)
 	}
 
-	cmd := exec.Command("node", scriptPath, server.URL, "tenant-eval-compare-admin-smoke", leftReportID, rightReportID, leftCase.ID, rightCase.ID)
+	cmd := exec.Command("node", scriptPath, server.URL, "tenant-eval-compare-admin-smoke", leftReportID, rightReportID, leftCase.ID, rightCase.ID, "tenant-eval-compare-admin-create", createOnlyLeftReportID, createOnlyRightReportID)
 	cmd.Env = append(os.Environ(), "NODE_PATH="+nodePathRoot)
 	output, err := cmd.CombinedOutput()
 	if err != nil {

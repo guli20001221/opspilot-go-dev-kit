@@ -53,6 +53,10 @@ type evalReportResponse struct {
 	OpenFollowUpCaseCount           int                         `json:"open_follow_up_case_count"`
 	LatestFollowUpCaseID            string                      `json:"latest_follow_up_case_id,omitempty"`
 	LatestFollowUpCaseStatus        string                      `json:"latest_follow_up_case_status,omitempty"`
+	CompareFollowUpCaseCount        int                         `json:"compare_follow_up_case_count"`
+	OpenCompareFollowUpCaseCount    int                         `json:"open_compare_follow_up_case_count"`
+	LatestCompareFollowUpCaseID     string                      `json:"latest_compare_follow_up_case_id,omitempty"`
+	LatestCompareFollowUpCaseStatus string                      `json:"latest_compare_follow_up_case_status,omitempty"`
 	Metadata                        json.RawMessage             `json:"metadata,omitempty"`
 	BadCases                        []evalReportBadCaseResponse `json:"bad_cases,omitempty"`
 	CreatedAt                       string                      `json:"created_at"`
@@ -278,6 +282,11 @@ func (a *appHandler) handleEvalReportByID(w http.ResponseWriter, r *http.Request
 		writeError(w, http.StatusInternalServerError, "eval_report_follow_up_summary_failed", err.Error())
 		return
 	}
+	compareFollowUpSummaries, err := a.cases.SummarizeCompareOriginBySourceEvalReportIDs(r.Context(), tenantID, []string{reportID})
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "eval_report_follow_up_summary_failed", err.Error())
+		return
+	}
 
 	badCaseFollowUpSummaries, err := a.evalCaseFollowUpSummaries(r.Context(), tenantID, item.BadCases)
 	if err != nil {
@@ -290,7 +299,7 @@ func (a *appHandler) handleEvalReportByID(w http.ResponseWriter, r *http.Request
 		item.BadCases = filterEvalReportBadCasesByNeedsFollowUp(item.BadCases, badCaseFollowUpSummaries, *badCaseNeedsFollowUp)
 	}
 
-	writeJSON(w, http.StatusOK, newEvalReportResponse(item, true, followUpSummaries[reportID], badCaseFollowUpSummaries, originalBadCaseCount, badCaseWithoutOpenFollowUpCount))
+	writeJSON(w, http.StatusOK, newEvalReportResponse(item, true, followUpSummaries[reportID], compareFollowUpSummaries[reportID], badCaseFollowUpSummaries, originalBadCaseCount, badCaseWithoutOpenFollowUpCount))
 }
 
 func parseEvalReportListFilter(r *http.Request) (evalsvc.EvalReportListFilter, error) {
@@ -432,8 +441,13 @@ func (a *appHandler) buildEvalReportListResponse(ctx context.Context, tenantID s
 	}
 	var err error
 	followUpSummaries := map[string]casesvc.EvalReportFollowUpSummary{}
+	compareFollowUpSummaries := map[string]casesvc.EvalReportCompareFollowUpSummary{}
 	if a.cases != nil && len(reportIDs) > 0 {
 		followUpSummaries, err = a.cases.SummarizeBySourceEvalReportIDs(ctx, tenantID, reportIDs)
+		if err != nil {
+			return listEvalReportsResponse{}, fmt.Errorf("%w: %v", errEvalReportFollowUpSummaryFailed, err)
+		}
+		compareFollowUpSummaries, err = a.cases.SummarizeCompareOriginBySourceEvalReportIDs(ctx, tenantID, reportIDs)
 		if err != nil {
 			return listEvalReportsResponse{}, fmt.Errorf("%w: %v", errEvalReportFollowUpSummaryFailed, err)
 		}
@@ -444,7 +458,8 @@ func (a *appHandler) buildEvalReportListResponse(ctx context.Context, tenantID s
 	}
 	for _, item := range page.Reports {
 		summary := followUpSummaries[item.ID]
-		resp.Reports = append(resp.Reports, newEvalReportResponse(item, false, summary, nil, len(item.BadCases), badCaseWithoutOpenFollowUpCounts[item.ID]))
+		compareSummary := compareFollowUpSummaries[item.ID]
+		resp.Reports = append(resp.Reports, newEvalReportResponse(item, false, summary, compareSummary, nil, len(item.BadCases), badCaseWithoutOpenFollowUpCounts[item.ID]))
 	}
 	return resp, nil
 }
@@ -523,7 +538,7 @@ func filterEvalReportBadCasesByNeedsFollowUp(badCases []evalsvc.EvalReportBadCas
 	return filtered
 }
 
-func newEvalReportResponse(item evalsvc.EvalReport, includeHeavy bool, followUpSummary casesvc.EvalReportFollowUpSummary, badCaseSummaries map[string]casesvc.EvalCaseFollowUpSummary, badCaseCount int, badCaseWithoutOpenFollowUpCount int) evalReportResponse {
+func newEvalReportResponse(item evalsvc.EvalReport, includeHeavy bool, followUpSummary casesvc.EvalReportFollowUpSummary, compareFollowUpSummary casesvc.EvalReportCompareFollowUpSummary, badCaseSummaries map[string]casesvc.EvalCaseFollowUpSummary, badCaseCount int, badCaseWithoutOpenFollowUpCount int) evalReportResponse {
 	if badCaseCount < 0 {
 		badCaseCount = len(item.BadCases)
 	}
@@ -549,6 +564,10 @@ func newEvalReportResponse(item evalsvc.EvalReport, includeHeavy bool, followUpS
 		OpenFollowUpCaseCount:           followUpSummary.OpenFollowUpCaseCount,
 		LatestFollowUpCaseID:            followUpSummary.LatestFollowUpCaseID,
 		LatestFollowUpCaseStatus:        followUpSummary.LatestFollowUpCaseStatus,
+		CompareFollowUpCaseCount:        compareFollowUpSummary.CompareFollowUpCaseCount,
+		OpenCompareFollowUpCaseCount:    compareFollowUpSummary.OpenCompareFollowUpCaseCount,
+		LatestCompareFollowUpCaseID:     compareFollowUpSummary.LatestCompareFollowUpCaseID,
+		LatestCompareFollowUpCaseStatus: compareFollowUpSummary.LatestCompareFollowUpCaseStatus,
 		CreatedAt:                       item.CreatedAt.Format(time.RFC3339Nano),
 		UpdatedAt:                       item.UpdatedAt.Format(time.RFC3339Nano),
 		ReadyAt:                         item.ReadyAt.Format(time.RFC3339Nano),

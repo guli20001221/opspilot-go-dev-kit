@@ -135,6 +135,7 @@ When you finish, always report:
 - when operators need to triage compare-derived cases as a queue, prefer a canonical case-list filter such as `compare_origin_only=true` plus a quick-view preset on `/admin/cases` over client-side provenance filtering
 - when compare-derived cases are already visible in the canonical case queue, prefer a row-level handoff back into `/admin/eval-report-compare` from stored compare provenance instead of forcing a detail-pane round trip first
 - when `/admin/eval-report-compare` needs to expose compare-origin follow-up work, prefer backend-owned per-side compare queue summary plus direct handoff into `/admin/cases?compare_origin_only=true&status=open` over browser-side heuristics
+- when a compare side already has open compare-origin follow-up, prefer switching the primary page action to that canonical compare queue instead of continuing to surface blind duplicate case creation on the compare page
 - when operators need to claim work from an existing case queue, prefer row-level actions that reuse the canonical case assign endpoint over requiring a detail-pane round trip for simple ownership changes
 - when operators need to resolve work from an existing open case queue, prefer row-level actions that reuse the canonical case close endpoint over requiring a detail-pane round trip for simple queue removal
 - when operators need to recover work from an existing closed case queue, prefer row-level actions that reuse the canonical case reopen endpoint over requiring a detail-pane round trip for simple queue return
