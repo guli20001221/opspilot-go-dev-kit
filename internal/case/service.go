@@ -104,6 +104,7 @@ func (s *Service) FindOpenCaseBySourceEvalReport(ctx context.Context, tenantID s
 		TenantID:             tenantID,
 		Status:               StatusOpen,
 		ExcludeCompareOrigin: true,
+		PlainEvalReportOnly:  true,
 		SourceEvalReportID:   sourceEvalReportID,
 		Limit:                1,
 	})

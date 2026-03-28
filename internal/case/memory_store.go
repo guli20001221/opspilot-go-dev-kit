@@ -77,6 +77,9 @@ func (s *memoryStore) List(_ context.Context, filter ListFilter) (ListPage, erro
 		if filter.ExcludeCompareOrigin && item.CompareOrigin.SelectedSide != "" {
 			continue
 		}
+		if filter.PlainEvalReportOnly && item.SourceEvalCaseID != "" {
+			continue
+		}
 		if filter.SourceTaskID != "" && item.SourceTaskID != filter.SourceTaskID {
 			continue
 		}

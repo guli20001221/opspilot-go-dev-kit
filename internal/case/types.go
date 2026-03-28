@@ -83,6 +83,7 @@ type ListFilter struct {
 	EvalBackedOnly       bool
 	CompareOriginOnly    bool
 	ExcludeCompareOrigin bool
+	PlainEvalReportOnly  bool
 	SourceTaskID         string
 	SourceReportID       string
 	SourceEvalReportID   string

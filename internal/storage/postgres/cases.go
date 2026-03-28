@@ -195,12 +195,13 @@ WHERE ($1 = '' OR tenant_id = $1)
   AND (NOT $5::boolean OR source_eval_report_id IS NOT NULL)
   AND (NOT $6::boolean OR compare_selected_side <> '')
   AND (NOT $7::boolean OR compare_selected_side = '')
-  AND ($8 = '' OR source_task_id = $8)
-  AND ($9 = '' OR source_report_id = $9)
-  AND ($10 = '' OR source_eval_report_id = $10)
-  AND ($11 = '' OR source_eval_case_id = $11)
+  AND (NOT $8::boolean OR COALESCE(source_eval_case_id, '') = '')
+  AND ($9 = '' OR source_task_id = $9)
+  AND ($10 = '' OR source_report_id = $10)
+  AND ($11 = '' OR source_eval_report_id = $11)
+  AND ($12 = '' OR source_eval_case_id = $12)
 ORDER BY updated_at DESC, created_at DESC, id DESC
-LIMIT $12 OFFSET $13`
+LIMIT $13 OFFSET $14`
 
 	rows, err := s.pool.Query(
 		ctx,
@@ -212,6 +213,7 @@ LIMIT $12 OFFSET $13`
 		filter.EvalBackedOnly,
 		filter.CompareOriginOnly,
 		filter.ExcludeCompareOrigin,
+		filter.PlainEvalReportOnly,
 		filter.SourceTaskID,
 		filter.SourceReportID,
 		filter.SourceEvalReportID,

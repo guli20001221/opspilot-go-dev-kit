@@ -486,6 +486,73 @@ func TestCreateCaseEndpointDoesNotReuseGenericEvalReportCaseForEvalCaseFollowUp(
 	}
 }
 
+func TestCreateCaseEndpointDoesNotReuseEvalCaseSpecificCaseForPlainEvalReportFollowUp(t *testing.T) {
+	caseService := casesvc.NewService()
+	evalCaseService := evalsvc.NewService(caseService, nil)
+	datasetService := evalsvc.NewDatasetService(evalCaseService)
+	runService := evalsvc.NewRunService(datasetService)
+	reportService := evalsvc.NewEvalReportServiceWithDependencies(nil, runService)
+	evalReportID := materializeEvalRunReport(t, "tenant-eval-report-plain-dedupe", evalsvc.RunStatusFailed, "failure detail", caseService, evalCaseService, datasetService, runService, reportService, "Dataset Eval Report Plain", "Source Eval Report Plain")
+	reportItem, err := reportService.GetEvalReport(context.Background(), evalReportID)
+	if err != nil {
+		t.Fatalf("GetEvalReport() error = %v", err)
+	}
+	evalCaseID := reportItem.BadCases[0].EvalCaseID
+
+	badCase, err := caseService.CreateCase(context.Background(), casesvc.CreateInput{
+		TenantID:           "tenant-eval-report-plain-dedupe",
+		Title:              "Existing bad-case follow-up",
+		Summary:            "Existing case should not satisfy plain report dedupe",
+		SourceEvalReportID: evalReportID,
+		SourceEvalCaseID:   evalCaseID,
+		CreatedBy:          "operator-existing",
+	})
+	if err != nil {
+		t.Fatalf("CreateCase(badCase) error = %v", err)
+	}
+
+	server := httptest.NewServer(NewHandlerWithDependencies(Dependencies{
+		Cases:       caseService,
+		EvalReports: reportService,
+	}))
+	defer server.Close()
+
+	body := bytes.NewBufferString(`{"tenant_id":"tenant-eval-report-plain-dedupe","title":"Investigate report-level regression","summary":"Create plain report follow-up","source_eval_report_id":"` + evalReportID + `","created_by":"operator-report"}`)
+	resp, err := http.Post(server.URL+"/api/v1/cases", "application/json", body)
+	if err != nil {
+		t.Fatalf("Post() error = %v", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusCreated {
+		t.Fatalf("StatusCode = %d, want %d", resp.StatusCode, http.StatusCreated)
+	}
+
+	var created caseResponse
+	if err := json.NewDecoder(resp.Body).Decode(&created); err != nil {
+		t.Fatalf("Decode() error = %v", err)
+	}
+	if created.CaseID == badCase.ID {
+		t.Fatal("CreateCase() reused eval-case-specific case, want plain report follow-up")
+	}
+	if created.SourceEvalCaseID != "" {
+		t.Fatalf("SourceEvalCaseID = %q, want empty", created.SourceEvalCaseID)
+	}
+
+	page, err := caseService.ListCases(context.Background(), casesvc.ListFilter{
+		TenantID:           "tenant-eval-report-plain-dedupe",
+		Status:             casesvc.StatusOpen,
+		SourceEvalReportID: evalReportID,
+		Limit:              10,
+	})
+	if err != nil {
+		t.Fatalf("ListCases() error = %v", err)
+	}
+	if len(page.Cases) != 2 {
+		t.Fatalf("len(ListCases().Cases) = %d, want %d", len(page.Cases), 2)
+	}
+}
+
 func TestCreateCaseEndpointDoesNotReuseCompareOriginEvalCaseForPlainEvalCaseFollowUp(t *testing.T) {
 	caseService := casesvc.NewService()
 	evalCaseService := evalsvc.NewService(caseService, nil)

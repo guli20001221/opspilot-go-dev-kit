@@ -561,6 +561,73 @@ func TestCaseStoreListSupportsEvalReportFilters(t *testing.T) {
 	}
 }
 
+func TestCaseStoreListSupportsPlainEvalReportOnlyFilter(t *testing.T) {
+	dsn := os.Getenv("OPSPILOT_TEST_POSTGRES_DSN")
+	if dsn == "" {
+		t.Skip("OPSPILOT_TEST_POSTGRES_DSN not set")
+	}
+
+	ctx := context.Background()
+	pool, err := OpenPool(ctx, dsn)
+	if err != nil {
+		t.Fatalf("OpenPool() error = %v", err)
+	}
+	defer pool.Close()
+
+	applyMigration(t, ctx, pool)
+	if _, err := pool.Exec(ctx, "TRUNCATE case_notes, cases, eval_reports, eval_cases, reports, workflow_task_events, workflow_tasks RESTART IDENTITY CASCADE"); err != nil {
+		t.Fatalf("TRUNCATE lineage tables error = %v", err)
+	}
+
+	store := NewCaseStore(pool)
+	now := time.Unix(1700002090, 0).UTC()
+	for _, item := range []casesvc.Case{
+		{
+			ID:                 "case-plain-report-1",
+			TenantID:           "tenant-1",
+			Status:             casesvc.StatusOpen,
+			Title:              "Plain report follow-up",
+			SourceEvalReportID: "eval-report-plain-1",
+			CreatedBy:          "operator-1",
+			CreatedAt:          now,
+			UpdatedAt:          now,
+		},
+		{
+			ID:                 "case-bad-case-1",
+			TenantID:           "tenant-1",
+			Status:             casesvc.StatusOpen,
+			Title:              "Bad-case follow-up",
+			SourceEvalReportID: "eval-report-plain-1",
+			SourceEvalCaseID:   "eval-case-plain-1",
+			CreatedBy:          "operator-1",
+			CreatedAt:          now.Add(time.Second),
+			UpdatedAt:          now.Add(time.Second),
+		},
+	} {
+		if _, err := store.Save(ctx, item); err != nil {
+			t.Fatalf("Save(%s) error = %v", item.ID, err)
+		}
+	}
+
+	page, err := store.List(ctx, casesvc.ListFilter{
+		TenantID:             "tenant-1",
+		Status:               casesvc.StatusOpen,
+		ExcludeCompareOrigin: true,
+		PlainEvalReportOnly:  true,
+		SourceEvalReportID:   "eval-report-plain-1",
+		Limit:                10,
+	})
+	if err != nil {
+		t.Fatalf("List() error = %v", err)
+	}
+	if len(page.Cases) != 1 {
+		t.Fatalf("len(List().Cases) = %d, want %d", len(page.Cases), 1)
+	}
+	if page.Cases[0].ID != "case-plain-report-1" {
+		t.Fatalf("List().Cases[0].ID = %q, want %q", page.Cases[0].ID, "case-plain-report-1")
+	}
+}
+
 func TestCaseStorePersistsClosedBy(t *testing.T) {
 	dsn := os.Getenv("OPSPILOT_TEST_POSTGRES_DSN")
 	if dsn == "" {

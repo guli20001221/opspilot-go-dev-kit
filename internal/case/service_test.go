@@ -845,6 +845,45 @@ func TestServiceFindOpenCaseBySourceEvalReportIgnoresCompareOriginCases(t *testi
 	}
 }
 
+func TestServiceFindOpenCaseBySourceEvalReportIgnoresEvalCaseSpecificCases(t *testing.T) {
+	svc := NewService()
+
+	badCase, err := svc.CreateCase(context.Background(), CreateInput{
+		TenantID:           "tenant-1",
+		Title:              "Bad-case follow-up",
+		SourceEvalReportID: "eval-report-1",
+		SourceEvalCaseID:   "eval-case-1",
+		CreatedBy:          "operator-bad-case",
+	})
+	if err != nil {
+		t.Fatalf("CreateCase(badCase) error = %v", err)
+	}
+
+	plainCase, err := svc.CreateCase(context.Background(), CreateInput{
+		TenantID:           "tenant-1",
+		Title:              "Plain report follow-up",
+		SourceEvalReportID: "eval-report-1",
+		CreatedBy:          "operator-report",
+	})
+	if err != nil {
+		t.Fatalf("CreateCase(plainCase) error = %v", err)
+	}
+
+	got, ok, err := svc.FindOpenCaseBySourceEvalReport(context.Background(), "tenant-1", "eval-report-1")
+	if err != nil {
+		t.Fatalf("FindOpenCaseBySourceEvalReport() error = %v", err)
+	}
+	if !ok {
+		t.Fatal("FindOpenCaseBySourceEvalReport() ok = false, want true")
+	}
+	if got.ID != plainCase.ID {
+		t.Fatalf("FindOpenCaseBySourceEvalReport().ID = %q, want %q", got.ID, plainCase.ID)
+	}
+	if got.ID == badCase.ID {
+		t.Fatal("FindOpenCaseBySourceEvalReport() reused eval-case-specific case, want plain report follow-up")
+	}
+}
+
 func TestServiceFindOpenCaseBySourceEvalCase(t *testing.T) {
 	svc := NewService()
 
