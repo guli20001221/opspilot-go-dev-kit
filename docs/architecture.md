@@ -102,6 +102,7 @@ The current HTTP layer also exposes the same PostgreSQL-backed workflow records 
 - `POST /api/v1/eval-datasets/{dataset_id}/items` now exposes the first incremental dataset-curation contract, so operators can grow a draft dataset over time instead of recreating it per eval case
 - the same `/admin/evals` page now also supports `Add to dataset`, reusing the canonical append-membership contract instead of inventing an eval-page-only saved-view mutation
 - the same `/admin/evals` page now also surfaces canonical eval-case follow-up summary and handoff links into the latest follow-up case or the full follow-up slice, instead of re-deriving that state in the browser
+- the same `/admin/evals` list rows now also expose `Open latest case` and `Open queue`, so existing eval follow-up can be claimed from the visible queue without a detail-pane round trip
 - the same `/admin/evals` page now also exposes a `Needs follow-up` quick view backed by that canonical eval-case filter, turning follow-up pressure into a real operator lane
 - the same `/admin/evals` page now also supports direct case creation from one durable eval case, reusing `POST /api/v1/cases` with standalone `source_eval_case_id` and handing off into `/admin/cases`
 - when that eval-case follow-up already has open work, the same `/admin/evals` primary action now flips to `Open existing case` or `Open existing queue`, so reuse is visible in the operator flow before any write is attempted

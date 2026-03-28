@@ -333,6 +333,9 @@ func TestAdminEvalsPageRendersHTML(t *testing.T) {
 	if !strings.Contains(body, "Open latest follow-up case") {
 		t.Fatal("latest follow-up case handoff missing from eval page HTML")
 	}
+	if !strings.Contains(body, "Open queue") {
+		t.Fatal("row-level eval queue handoff missing from eval page HTML")
+	}
 	if !strings.Contains(body, "Needs follow-up") {
 		t.Fatal("needs follow-up quick view missing from eval page HTML")
 	}
@@ -441,6 +444,20 @@ async function main() {
   const followUpSummary = (await page.textContent("#evalRows tr td:nth-child(4)")).trim();
   if (!followUpSummary.includes("1 cases / 1 open")) {
     throw new Error("follow-up summary missing from eval row: " + followUpSummary);
+  }
+  if (!followUpSummary.includes("Open latest case") || !followUpSummary.includes("Open queue")) {
+    throw new Error("row-level follow-up handoff missing from eval row: " + followUpSummary);
+  }
+  const rowLatestCaseHref = await page.getAttribute("#evalRows tr td:nth-child(4) a[href*='case_id=']", "href");
+  if (!rowLatestCaseHref || !rowLatestCaseHref.includes("case_id=" + encodeURIComponent(latestFollowUpID))) {
+    throw new Error("row-level latest follow-up case handoff missing");
+  }
+  const rowQueueHref = await page.locator("#evalRows tr td:nth-child(4) a").evaluateAll((elements) => {
+    const match = elements.find((element) => element.textContent && element.textContent.includes("Open queue"));
+    return match ? match.getAttribute("href") : "";
+  });
+  if (!rowQueueHref || !rowQueueHref.includes("source_eval_case_id=" + encodeURIComponent(evalCaseID))) {
+    throw new Error("row-level eval queue handoff missing");
   }
   const primaryAction = (await page.textContent("#createCaseButton")).trim();
   if (primaryAction !== "Open existing case") {

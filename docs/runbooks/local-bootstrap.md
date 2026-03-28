@@ -188,6 +188,7 @@ The current chat stream implementation is a Milestone 1 skeleton:
 - use `Create dataset draft` on `/admin/evals` when you want to seed a canonical dataset draft directly from the currently selected durable eval case
 - use `Add to dataset` on `/admin/evals` when you want to append the currently selected durable eval case into an existing dataset draft by ID
 - use `Open latest follow-up case` on `/admin/evals` when the selected durable eval case already has linked operator work, and use `Open follow-up slice` when you want the full `/admin/cases?source_eval_case_id=...` queue
+- use `Open latest case` or `Open queue` straight from the `/admin/evals` list row when you do not need the full detail pane before jumping into follow-up work
 - use the `Needs follow-up` quick view on `/admin/evals` when you want the unresolved-follow-up slice without manually entering `needs_follow_up=true`
 - use `Create case` on `/admin/evals` when the selected durable eval case needs precise follow-up and you want the canonical case lifecycle to open or reuse that work directly from the eval lane
 - when that eval-case already has open follow-up work, the same primary action will render as `Open existing case` or `Open existing queue`, so you can jump straight into the canonical follow-up instead of posting again

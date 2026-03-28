@@ -135,6 +135,7 @@ Current Milestone 1 slice:
 - the same `/admin/evals` page now also supports `Create dataset draft`, which turns the selected durable eval case into a canonical dataset draft and hands off into both dataset detail and the shared dataset lane
 - the same `/admin/evals` page now also supports `Add to dataset`, so operators can append the selected eval case into an existing draft dataset by stable dataset ID
 - the same `/admin/evals` page now also surfaces eval-case follow-up counts plus `Open latest follow-up case` and `Open follow-up slice`, so regression triage can jump straight into durable operator work
+- the same `/admin/evals` list rows now also expose `Open latest case` and `Open queue`, so operators can jump into existing eval follow-up directly from the visible queue without opening detail first
 - the same `/admin/evals` page now also adds a `Needs follow-up` quick view backed by the canonical `needs_follow_up=true` filter, so follow-up pressure becomes an actual queue instead of a read-only counter
 - the same `/admin/evals` page now also supports `Create case`, reusing `POST /api/v1/cases` with standalone `source_eval_case_id` so operators can open or reuse precise follow-up directly from the canonical eval queue
 - when that eval-case follow-up already has open work, the same `/admin/evals` primary action now renders as `Open existing case` or `Open existing queue`, so reuse is visible before another write is attempted

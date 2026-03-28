@@ -362,7 +362,11 @@
           </td>
           <td>${escapeHTML(item.source_case_id)}</td>
           <td>${escapeHTML(item.version_id || "none")}</td>
-          <td>${escapeHTML(followUpLabel(item))}</td>
+          <td>
+            <strong>${escapeHTML(followUpLabel(item))}</strong>
+            ${item.latest_follow_up_case_id ? `<br><a class="button-link ghost" href="/admin/cases?tenant_id=${encodeURIComponent(item.tenant_id)}&case_id=${encodeURIComponent(item.latest_follow_up_case_id)}">Open latest case</a>` : ""}
+            <br><a class="button-link ghost" href="/admin/cases?tenant_id=${encodeURIComponent(item.tenant_id)}&source_eval_case_id=${encodeURIComponent(item.eval_case_id)}&limit=10">Open queue</a>
+          </td>
           <td>${escapeHTML(fmtDate(item.created_at))}</td>
           <td><button class="ghost" type="button" data-eval-id="${escapeHTML(item.eval_case_id)}">Inspect</button></td>
         </tr>
