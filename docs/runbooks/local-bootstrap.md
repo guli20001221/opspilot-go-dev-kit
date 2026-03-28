@@ -169,6 +169,7 @@ The current chat stream implementation is a Milestone 1 skeleton:
 - use `Open left unresolved bad cases` / `Open right unresolved bad cases` on `/admin/eval-report-compare` when you want to jump straight into that side's canonical unresolved bad-case report view
 - use `Open left linked cases` / `Open right linked cases` on `/admin/eval-report-compare` when you need the full canonical case slice for one side's `source_eval_report_id`, not just the latest linked case
 - use `Open left compare follow-ups` / `Open right compare follow-ups` on `/admin/eval-report-compare` when you need the open compare-origin case queue for one side's report instead of the broader source-eval-report case slice
+- if an operator repeats the same compare-side handoff into `POST /api/v1/cases`, the backend now reuses the open compare-origin case for that exact left/right/selected-side lineage instead of creating a duplicate
 - when `/admin/eval-report-compare` shows `Open left compare queue` or `Open right compare queue`, treat that as the primary operator action for sides that already have open compare-origin follow-up; create a new case only when that side has no open compare queue yet
 - use `Open linked cases` on `/admin/eval-reports` when you want to jump from one durable eval report straight into the canonical `/admin/cases?source_eval_report_id=<report_id>` slice
 - use `Create case` on `/admin/eval-reports` when the selected durable eval report needs operator follow-up and you want to jump straight into the newly created canonical case

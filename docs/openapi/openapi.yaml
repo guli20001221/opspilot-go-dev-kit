@@ -856,6 +856,7 @@ paths:
         The current slice keeps cases as operator-managed read models without workflow automation.
         When `source_eval_case_id` is provided, the API reuses the newest open follow-up case for the same `tenant_id + source_eval_case_id` instead of creating a duplicate.
         When `source_eval_report_id` is provided without `source_eval_case_id` or `compare_origin`, the API reuses the newest open follow-up case for the same `tenant_id + source_eval_report_id` instead of creating a duplicate.
+        When `compare_origin` is provided, the API reuses the newest open compare-derived follow-up case for the same `tenant_id + source_eval_report_id + compare_origin(left/right/selected_side)` instead of creating a duplicate.
       operationId: createCase
       requestBody:
         required: true
@@ -865,7 +866,7 @@ paths:
               $ref: '#/components/schemas/CreateCaseRequest'
       responses:
         '200':
-          description: Existing open follow-up case reused for the same tenant-scoped eval report lineage.
+          description: Existing open follow-up case reused for the same tenant-scoped eval lineage, including exact compare-origin lineage when provided.
           content:
             application/json:
               schema:

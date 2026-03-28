@@ -123,6 +123,36 @@ func (s *memoryStore) List(_ context.Context, filter ListFilter) (ListPage, erro
 	return page, nil
 }
 
+func (s *memoryStore) FindOpenByCompareOrigin(_ context.Context, tenantID string, sourceEvalReportID string, compareOrigin CompareOrigin) (Case, bool, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	var latest Case
+	found := false
+	for _, item := range s.records {
+		if item.TenantID != tenantID || item.Status != StatusOpen || item.SourceEvalReportID != sourceEvalReportID {
+			continue
+		}
+		if item.CompareOrigin.LeftEvalReportID != compareOrigin.LeftEvalReportID ||
+			item.CompareOrigin.RightEvalReportID != compareOrigin.RightEvalReportID ||
+			item.CompareOrigin.SelectedSide != compareOrigin.SelectedSide {
+			continue
+		}
+		if !found ||
+			item.UpdatedAt.After(latest.UpdatedAt) ||
+			(item.UpdatedAt.Equal(latest.UpdatedAt) && item.CreatedAt.After(latest.CreatedAt)) ||
+			(item.UpdatedAt.Equal(latest.UpdatedAt) && item.CreatedAt.Equal(latest.CreatedAt) && item.ID > latest.ID) {
+			latest = item
+			found = true
+		}
+	}
+	if !found {
+		return Case{}, false, nil
+	}
+
+	return latest, true, nil
+}
+
 func (s *memoryStore) SummarizeBySourceEvalReportIDs(_ context.Context, tenantID string, reportIDs []string) (map[string]EvalReportFollowUpSummary, error) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()

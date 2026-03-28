@@ -96,3 +96,4 @@ When you finish, always report:
 - no report that only shows aggregate pass rate without bad-case evidence
 - no hand-wavy claims of quality improvement without comparison data
 - when eval-report comparison needs compare-origin follow-up pressure, prefer backend-owned per-side compare queue summary and handoff into canonical case filters instead of reconstructing compare-derived work in the browser
+- when compare-created follow-up is retriggered for the same side of the same comparison, prefer backend deduplication on exact compare lineage instead of relying on the page to suppress duplicate operator clicks

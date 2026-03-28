@@ -580,7 +580,7 @@ func TestCreateCaseEndpointRejectsEvalCaseOutsideEvalReport(t *testing.T) {
 	}
 }
 
-func TestCreateCaseEndpointAllowsCompareOriginFollowUpsToRemainDistinct(t *testing.T) {
+func TestCreateCaseEndpointReusesOpenCompareOriginFollowUp(t *testing.T) {
 	caseService := casesvc.NewService()
 	evalCaseService := evalsvc.NewService(caseService, nil)
 	datasetService := evalsvc.NewDatasetService(evalCaseService)
@@ -614,6 +614,54 @@ func TestCreateCaseEndpointAllowsCompareOriginFollowUpsToRemainDistinct(t *testi
 		t.Fatalf("Post(second) error = %v", err)
 	}
 	defer secondResp.Body.Close()
+	if secondResp.StatusCode != http.StatusOK {
+		t.Fatalf("second StatusCode = %d, want %d", secondResp.StatusCode, http.StatusOK)
+	}
+	var second caseResponse
+	if err := json.NewDecoder(secondResp.Body).Decode(&second); err != nil {
+		t.Fatalf("Decode(second) error = %v", err)
+	}
+	if second.CaseID != first.CaseID {
+		t.Fatalf("compare-origin case creation returned %q, want reused case %q", second.CaseID, first.CaseID)
+	}
+}
+
+func TestCreateCaseEndpointKeepsDistinctCompareOriginFollowUpsForDifferentComparisons(t *testing.T) {
+	caseService := casesvc.NewService()
+	evalCaseService := evalsvc.NewService(caseService, nil)
+	datasetService := evalsvc.NewDatasetService(evalCaseService)
+	runService := evalsvc.NewRunService(datasetService)
+	reportService := evalsvc.NewEvalReportServiceWithDependencies(nil, runService)
+	leftEvalReportID := materializeEvalRunReport(t, "tenant-eval-case-compare-distinct", evalsvc.RunStatusSucceeded, "left detail", caseService, evalCaseService, datasetService, runService, reportService, "Dataset Compare Left", "Source Left")
+	altLeftEvalReportID := materializeEvalRunReport(t, "tenant-eval-case-compare-distinct", evalsvc.RunStatusSucceeded, "alt left detail", caseService, evalCaseService, datasetService, runService, reportService, "Dataset Compare Alt Left", "Source Alt Left")
+	rightEvalReportID := materializeEvalRunReport(t, "tenant-eval-case-compare-distinct", evalsvc.RunStatusFailed, "right detail", caseService, evalCaseService, datasetService, runService, reportService, "Dataset Compare Right", "Source Right")
+
+	server := httptest.NewServer(NewHandlerWithDependencies(Dependencies{
+		Cases:       caseService,
+		EvalReports: reportService,
+	}))
+	defer server.Close()
+
+	firstBody := `{"tenant_id":"tenant-eval-case-compare-distinct","title":"Investigate compare regression","summary":"Follow up selected compare side","source_eval_report_id":"` + rightEvalReportID + `","compare_origin":{"left_eval_report_id":"` + leftEvalReportID + `","right_eval_report_id":"` + rightEvalReportID + `","selected_side":"right"},"created_by":"operator-eval"}`
+	firstResp, err := http.Post(server.URL+"/api/v1/cases", "application/json", bytes.NewBufferString(firstBody))
+	if err != nil {
+		t.Fatalf("Post(first) error = %v", err)
+	}
+	defer firstResp.Body.Close()
+	if firstResp.StatusCode != http.StatusCreated {
+		t.Fatalf("first StatusCode = %d, want %d", firstResp.StatusCode, http.StatusCreated)
+	}
+	var first caseResponse
+	if err := json.NewDecoder(firstResp.Body).Decode(&first); err != nil {
+		t.Fatalf("Decode(first) error = %v", err)
+	}
+
+	secondBody := `{"tenant_id":"tenant-eval-case-compare-distinct","title":"Investigate different compare regression","summary":"Follow up a different comparison","source_eval_report_id":"` + rightEvalReportID + `","compare_origin":{"left_eval_report_id":"` + altLeftEvalReportID + `","right_eval_report_id":"` + rightEvalReportID + `","selected_side":"right"},"created_by":"operator-eval"}`
+	secondResp, err := http.Post(server.URL+"/api/v1/cases", "application/json", bytes.NewBufferString(secondBody))
+	if err != nil {
+		t.Fatalf("Post(second) error = %v", err)
+	}
+	defer secondResp.Body.Close()
 	if secondResp.StatusCode != http.StatusCreated {
 		t.Fatalf("second StatusCode = %d, want %d", secondResp.StatusCode, http.StatusCreated)
 	}
@@ -622,7 +670,7 @@ func TestCreateCaseEndpointAllowsCompareOriginFollowUpsToRemainDistinct(t *testi
 		t.Fatalf("Decode(second) error = %v", err)
 	}
 	if second.CaseID == first.CaseID {
-		t.Fatal("compare-origin case creation reused existing case, want distinct follow-up case")
+		t.Fatal("different compare-origin lineage reused the first case, want a distinct compare-derived follow-up")
 	}
 }
 
@@ -2044,6 +2092,10 @@ func (s *staleAssignStore) Get(_ context.Context, caseID string) (casesvc.Case, 
 
 func (s *staleAssignStore) List(_ context.Context, _ casesvc.ListFilter) (casesvc.ListPage, error) {
 	return casesvc.ListPage{Cases: []casesvc.Case{s.item}}, nil
+}
+
+func (s *staleAssignStore) FindOpenByCompareOrigin(_ context.Context, _ string, _ string, _ casesvc.CompareOrigin) (casesvc.Case, bool, error) {
+	return casesvc.Case{}, false, nil
 }
 
 func (s *staleAssignStore) SummarizeBySourceEvalReportIDs(_ context.Context, _ string, reportIDs []string) (map[string]casesvc.EvalReportFollowUpSummary, error) {

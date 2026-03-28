@@ -16,6 +16,7 @@ type Store interface {
 	Save(ctx context.Context, item Case) (Case, error)
 	Get(ctx context.Context, caseID string) (Case, error)
 	List(ctx context.Context, filter ListFilter) (ListPage, error)
+	FindOpenByCompareOrigin(ctx context.Context, tenantID string, sourceEvalReportID string, compareOrigin CompareOrigin) (Case, bool, error)
 	SummarizeBySourceEvalReportIDs(ctx context.Context, tenantID string, reportIDs []string) (map[string]EvalReportFollowUpSummary, error)
 	SummarizeCompareOriginBySourceEvalReportIDs(ctx context.Context, tenantID string, reportIDs []string) (map[string]EvalReportCompareFollowUpSummary, error)
 	SummarizeBySourceEvalCaseIDs(ctx context.Context, tenantID string, evalCaseIDs []string) (map[string]EvalCaseFollowUpSummary, error)
@@ -114,6 +115,11 @@ func (s *Service) FindOpenCaseBySourceEvalReport(ctx context.Context, tenantID s
 	}
 
 	return page.Cases[0], true, nil
+}
+
+// FindOpenCaseByCompareOrigin returns the newest open compare-derived case for one exact compare lineage when it exists.
+func (s *Service) FindOpenCaseByCompareOrigin(ctx context.Context, tenantID string, sourceEvalReportID string, compareOrigin CompareOrigin) (Case, bool, error) {
+	return s.store.FindOpenByCompareOrigin(ctx, tenantID, sourceEvalReportID, compareOrigin)
 }
 
 // SummarizeBySourceEvalReportIDs returns follow-up case aggregates for source eval reports.

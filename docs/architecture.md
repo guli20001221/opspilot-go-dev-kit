@@ -152,6 +152,7 @@ The current HTTP layer also exposes the same PostgreSQL-backed workflow records 
 - `GET /api/v1/eval-reports` and `GET /api/v1/eval-reports/{report_id}` now expose that durable aggregated eval-report artifact directly, with a lightweight list contract and heavier single-report drill-down
 - `GET /api/v1/eval-report-compare` now exposes a narrow read-only compare contract over two durable eval reports, carrying top-line metric deltas, metadata drift, and bad-case overlap for operator review
 - the same compare contract now also carries compare-derived follow-up queue summary per side, so compare pages can hand operators into the canonical compare-origin case lane without browser-side inference
+- canonical case creation now deduplicates exact compare-origin lineage on the backend, so repeated compare handoff for the same left/right/selected-side follows the existing open case instead of creating duplicate regression work
 - canonical eval-run reads now also attach a lightweight `result_summary` on terminal runs, letting list and detail consumers scan placeholder pass/fail totals without moving the heavier `item_results` payload onto create/list/retry responses
 - the same case page now also shows and appends recent notes, so operator handoff context lives on the case instead of being implied by task/report provenance
 - the same case page now defaults into an open-case queue view, adds `My open cases` and `Unassigned` shortcuts, and computes age/staleness from canonical `updated_at`

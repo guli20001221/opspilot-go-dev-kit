@@ -252,6 +252,50 @@ LIMIT $12 OFFSET $13`
 	return page, nil
 }
 
+// FindOpenByCompareOrigin returns the newest open compare-derived case for one exact compare lineage.
+func (s *CaseStore) FindOpenByCompareOrigin(ctx context.Context, tenantID string, sourceEvalReportID string, compareOrigin casesvc.CompareOrigin) (casesvc.Case, bool, error) {
+	const query = `
+SELECT
+    id,
+    tenant_id,
+    status,
+    title,
+    summary,
+    COALESCE(source_task_id, ''),
+    COALESCE(source_report_id, ''),
+    COALESCE(source_eval_report_id, ''),
+    COALESCE(source_eval_case_id, ''),
+    COALESCE(compare_left_eval_report_id, ''),
+    COALESCE(compare_right_eval_report_id, ''),
+    compare_selected_side,
+    created_by,
+    assigned_to,
+    assigned_at,
+    closed_by,
+    created_at,
+    updated_at
+FROM cases
+WHERE tenant_id = $1
+  AND status = $2
+  AND source_eval_report_id = $3
+  AND compare_left_eval_report_id = $4
+  AND compare_right_eval_report_id = $5
+  AND compare_selected_side = $6
+ORDER BY updated_at DESC, created_at DESC, id DESC
+LIMIT 1`
+
+	row := s.pool.QueryRow(ctx, query, tenantID, casesvc.StatusOpen, sourceEvalReportID, compareOrigin.LeftEvalReportID, compareOrigin.RightEvalReportID, compareOrigin.SelectedSide)
+	item, err := scanCase(row)
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return casesvc.Case{}, false, nil
+		}
+		return casesvc.Case{}, false, fmt.Errorf("find open compare-origin case: %w", err)
+	}
+
+	return item, true, nil
+}
+
 // SummarizeBySourceEvalReportIDs aggregates follow-up case status by source eval report.
 func (s *CaseStore) SummarizeBySourceEvalReportIDs(ctx context.Context, tenantID string, reportIDs []string) (map[string]casesvc.EvalReportFollowUpSummary, error) {
 	summaries := make(map[string]casesvc.EvalReportFollowUpSummary, len(reportIDs))

@@ -164,6 +164,7 @@ Current Milestone 1 slice:
 - the same canonical eval-report compare contract now also carries `bad_case_without_open_follow_up_count` per side, so compare can show which report still has uncovered bad cases without opening detail elsewhere
 - `/admin/eval-report-compare` now also hands each side directly into `/admin/eval-reports?bad_case_needs_follow_up=true&report_id=...`, so operators can jump from compare into that side's unresolved bad-case report view
 - that same compare contract now also exposes compare-derived follow-up counts and latest compare-follow-up status per side, so `/admin/eval-report-compare` can hand operators straight into the canonical compare-origin case queue for either report
+- `POST /api/v1/cases` now also deduplicates exact compare-origin follow-up requests, so repeating the same left/right/selected-side handoff reuses the open compare-derived case instead of silently spawning duplicates
 - `/admin/eval-report-compare` now also switches its primary side action from `Create case` to `Open ... compare queue` whenever that side already has open compare-origin follow-up, which reduces accidental duplicate regression cases without adding a second queue contract
 - durable cases now also carry `source_eval_report_id`, so eval-report regressions can survive compare-page handoff as canonical backend lineage instead of living only in summary text
 - durable cases now also carry `source_eval_case_id`, so bad-case-specific eval follow-up can point back to one canonical eval case instead of only to the broader eval report
