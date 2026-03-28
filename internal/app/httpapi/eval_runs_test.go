@@ -137,6 +137,12 @@ func TestCreateAndGetEvalRunEndpoint(t *testing.T) {
 	if got.Items[0].SourceCaseID != sourceCase.ID {
 		t.Fatalf("Items[0].SourceCaseID = %q, want %q", got.Items[0].SourceCaseID, sourceCase.ID)
 	}
+	if got.Items[0].PreferredFollowUpAction.Mode != "create" {
+		t.Fatalf("Items[0].PreferredFollowUpAction.Mode = %q, want %q", got.Items[0].PreferredFollowUpAction.Mode, "create")
+	}
+	if got.Items[0].PreferredFollowUpAction.SourceEvalCaseID != evalCase.ID {
+		t.Fatalf("Items[0].PreferredFollowUpAction.SourceEvalCaseID = %q, want %q", got.Items[0].PreferredFollowUpAction.SourceEvalCaseID, evalCase.ID)
+	}
 }
 
 func TestCreateEvalRunEndpointRejectsDraftDataset(t *testing.T) {
@@ -379,6 +385,234 @@ func TestListEvalRunsEndpointReturnsResultSummaryForTerminalRuns(t *testing.T) {
 	}
 }
 
+func TestListEvalRunsEndpointIncludesFollowUpSummary(t *testing.T) {
+	ctx := context.Background()
+	caseService := casesvc.NewService()
+	evalCaseService := evalsvc.NewService(caseService, nil)
+	datasetService := evalsvc.NewDatasetService(evalCaseService)
+	runService := evalsvc.NewRunService(datasetService)
+
+	makeFailedRun := func(title string, withOpenFollowUp bool) evalsvc.EvalRun {
+		t.Helper()
+		sourceCase, err := caseService.CreateCase(ctx, casesvc.CreateInput{
+			TenantID: "tenant-run",
+			Title:    title,
+		})
+		if err != nil {
+			t.Fatalf("CreateCase(%q) error = %v", title, err)
+		}
+		evalCase, _, err := evalCaseService.PromoteCase(ctx, evalsvc.CreateInput{
+			TenantID:     "tenant-run",
+			SourceCaseID: sourceCase.ID,
+		})
+		if err != nil {
+			t.Fatalf("PromoteCase(%q) error = %v", title, err)
+		}
+		dataset, err := datasetService.CreateDataset(ctx, evalsvc.CreateDatasetInput{
+			TenantID:    "tenant-run",
+			Name:        title + " dataset",
+			EvalCaseIDs: []string{evalCase.ID},
+		})
+		if err != nil {
+			t.Fatalf("CreateDataset(%q) error = %v", title, err)
+		}
+		if _, err := datasetService.PublishDataset(ctx, dataset.ID, evalsvc.PublishDatasetInput{
+			TenantID: "tenant-run",
+		}); err != nil {
+			t.Fatalf("PublishDataset(%q) error = %v", title, err)
+		}
+		run, err := runService.CreateRun(ctx, evalsvc.CreateRunInput{
+			TenantID:  "tenant-run",
+			DatasetID: dataset.ID,
+		})
+		if err != nil {
+			t.Fatalf("CreateRun(%q) error = %v", title, err)
+		}
+		if _, err := runService.ClaimQueuedRuns(ctx, 10); err != nil {
+			t.Fatalf("ClaimQueuedRuns(%q) error = %v", title, err)
+		}
+		if _, err := runService.MarkRunFailed(ctx, run.ID, "fault injection: eval run failed"); err != nil {
+			t.Fatalf("MarkRunFailed(%q) error = %v", title, err)
+		}
+		if withOpenFollowUp {
+			if _, err := caseService.CreateCase(ctx, casesvc.CreateInput{
+				TenantID:         "tenant-run",
+				Title:            "Follow-up for " + title,
+				Summary:          "Existing open follow-up",
+				SourceEvalCaseID: evalCase.ID,
+				CreatedBy:        "operator-run",
+			}); err != nil {
+				t.Fatalf("CreateCase(follow-up %q) error = %v", title, err)
+			}
+		}
+		return run
+	}
+
+	uncoveredRun := makeFailedRun("Needs follow-up", false)
+	coveredRun := makeFailedRun("Already covered", true)
+
+	server := httptest.NewServer(NewHandlerWithDependencies(Dependencies{
+		Cases:        caseService,
+		EvalCases:    evalCaseService,
+		EvalDatasets: datasetService,
+		EvalRuns:     runService,
+	}))
+	defer server.Close()
+
+	resp, err := http.Get(server.URL + "/api/v1/eval-runs?tenant_id=tenant-run&status=failed&limit=10")
+	if err != nil {
+		t.Fatalf("Get() error = %v", err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("StatusCode = %d, want %d", resp.StatusCode, http.StatusOK)
+	}
+
+	var page listEvalRunsResponse
+	if err := json.NewDecoder(resp.Body).Decode(&page); err != nil {
+		t.Fatalf("Decode(page) error = %v", err)
+	}
+	if len(page.Runs) != 2 {
+		t.Fatalf("len(page.Runs) = %d, want 2", len(page.Runs))
+	}
+
+	byID := make(map[string]evalRunResponse, len(page.Runs))
+	for _, run := range page.Runs {
+		byID[run.RunID] = run
+	}
+	if got := byID[uncoveredRun.ID].ItemWithoutOpenFollowUpCount; got != 1 {
+		t.Fatalf("uncovered ItemWithoutOpenFollowUpCount = %d, want 1", got)
+	}
+	if !byID[uncoveredRun.ID].NeedsFollowUp {
+		t.Fatal("uncovered NeedsFollowUp = false, want true")
+	}
+	if got := byID[coveredRun.ID].ItemWithoutOpenFollowUpCount; got != 0 {
+		t.Fatalf("covered ItemWithoutOpenFollowUpCount = %d, want 0", got)
+	}
+	if byID[coveredRun.ID].NeedsFollowUp {
+		t.Fatal("covered NeedsFollowUp = true, want false")
+	}
+}
+
+func TestListEvalRunsEndpointSupportsNeedsFollowUpFilter(t *testing.T) {
+	ctx := context.Background()
+	caseService := casesvc.NewService()
+	evalCaseService := evalsvc.NewService(caseService, nil)
+	datasetService := evalsvc.NewDatasetService(evalCaseService)
+	runService := evalsvc.NewRunService(datasetService)
+
+	makeFailedRun := func(title string, withOpenFollowUp bool) evalsvc.EvalRun {
+		t.Helper()
+		sourceCase, err := caseService.CreateCase(ctx, casesvc.CreateInput{
+			TenantID: "tenant-run",
+			Title:    title,
+		})
+		if err != nil {
+			t.Fatalf("CreateCase(%q) error = %v", title, err)
+		}
+		evalCase, _, err := evalCaseService.PromoteCase(ctx, evalsvc.CreateInput{
+			TenantID:     "tenant-run",
+			SourceCaseID: sourceCase.ID,
+		})
+		if err != nil {
+			t.Fatalf("PromoteCase(%q) error = %v", title, err)
+		}
+		dataset, err := datasetService.CreateDataset(ctx, evalsvc.CreateDatasetInput{
+			TenantID:    "tenant-run",
+			Name:        title + " dataset",
+			EvalCaseIDs: []string{evalCase.ID},
+		})
+		if err != nil {
+			t.Fatalf("CreateDataset(%q) error = %v", title, err)
+		}
+		if _, err := datasetService.PublishDataset(ctx, dataset.ID, evalsvc.PublishDatasetInput{
+			TenantID: "tenant-run",
+		}); err != nil {
+			t.Fatalf("PublishDataset(%q) error = %v", title, err)
+		}
+		run, err := runService.CreateRun(ctx, evalsvc.CreateRunInput{
+			TenantID:  "tenant-run",
+			DatasetID: dataset.ID,
+		})
+		if err != nil {
+			t.Fatalf("CreateRun(%q) error = %v", title, err)
+		}
+		if _, err := runService.ClaimQueuedRuns(ctx, 10); err != nil {
+			t.Fatalf("ClaimQueuedRuns(%q) error = %v", title, err)
+		}
+		if _, err := runService.MarkRunFailed(ctx, run.ID, "fault injection: eval run failed"); err != nil {
+			t.Fatalf("MarkRunFailed(%q) error = %v", title, err)
+		}
+		if withOpenFollowUp {
+			if _, err := caseService.CreateCase(ctx, casesvc.CreateInput{
+				TenantID:         "tenant-run",
+				Title:            "Follow-up for " + title,
+				Summary:          "Existing open follow-up",
+				SourceEvalCaseID: evalCase.ID,
+				CreatedBy:        "operator-run",
+			}); err != nil {
+				t.Fatalf("CreateCase(follow-up %q) error = %v", title, err)
+			}
+		}
+		return run
+	}
+
+	uncoveredRun := makeFailedRun("Needs follow-up", false)
+	coveredRun := makeFailedRun("Already covered", true)
+
+	server := httptest.NewServer(NewHandlerWithDependencies(Dependencies{
+		Cases:        caseService,
+		EvalCases:    evalCaseService,
+		EvalDatasets: datasetService,
+		EvalRuns:     runService,
+	}))
+	defer server.Close()
+
+	assertRunFilter := func(rawValue string, wantRunID string) {
+		t.Helper()
+		resp, err := http.Get(server.URL + "/api/v1/eval-runs?tenant_id=tenant-run&status=failed&needs_follow_up=" + rawValue + "&limit=10")
+		if err != nil {
+			t.Fatalf("Get(%s) error = %v", rawValue, err)
+		}
+		defer resp.Body.Close()
+		if resp.StatusCode != http.StatusOK {
+			t.Fatalf("StatusCode(%s) = %d, want %d", rawValue, resp.StatusCode, http.StatusOK)
+		}
+		var page listEvalRunsResponse
+		if err := json.NewDecoder(resp.Body).Decode(&page); err != nil {
+			t.Fatalf("Decode(%s) error = %v", rawValue, err)
+		}
+		if len(page.Runs) != 1 {
+			t.Fatalf("len(page.Runs) for %s = %d, want 1", rawValue, len(page.Runs))
+		}
+		if page.Runs[0].RunID != wantRunID {
+			t.Fatalf("page.Runs[0].RunID for %s = %q, want %q", rawValue, page.Runs[0].RunID, wantRunID)
+		}
+	}
+
+	assertRunFilter("true", uncoveredRun.ID)
+	assertRunFilter("false", coveredRun.ID)
+}
+
+func TestListEvalRunsEndpointRejectsInvalidNeedsFollowUp(t *testing.T) {
+	server := httptest.NewServer(NewHandlerWithDependencies(Dependencies{
+		Cases:        casesvc.NewService(),
+		EvalCases:    evalsvc.NewService(casesvc.NewService(), nil),
+		EvalDatasets: evalsvc.NewDatasetService(evalsvc.NewService(casesvc.NewService(), nil)),
+		EvalRuns:     evalsvc.NewRunService(evalsvc.NewDatasetService(evalsvc.NewService(casesvc.NewService(), nil))),
+	}))
+	defer server.Close()
+
+	resp, err := http.Get(server.URL + "/api/v1/eval-runs?tenant_id=tenant-run&needs_follow_up=bogus")
+	if err != nil {
+		t.Fatalf("Get() error = %v", err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusBadRequest {
+		t.Fatalf("StatusCode = %d, want %d", resp.StatusCode, http.StatusBadRequest)
+	}
+}
+
 func TestGetEvalRunEndpointRejectsWrongTenant(t *testing.T) {
 	ctx := context.Background()
 	caseService := casesvc.NewService()
@@ -560,6 +794,12 @@ func TestGetEvalRunEndpointReturnsUpdatedStatusFields(t *testing.T) {
 	if got.Items[0].EvalCaseID != evalCase.ID {
 		t.Fatalf("Items[0].EvalCaseID = %q, want %q", got.Items[0].EvalCaseID, evalCase.ID)
 	}
+	if got.Items[0].PreferredFollowUpAction.Mode != "create" {
+		t.Fatalf("Items[0].PreferredFollowUpAction.Mode = %q, want %q", got.Items[0].PreferredFollowUpAction.Mode, "create")
+	}
+	if got.Items[0].PreferredFollowUpAction.SourceEvalCaseID != evalCase.ID {
+		t.Fatalf("Items[0].PreferredFollowUpAction.SourceEvalCaseID = %q, want %q", got.Items[0].PreferredFollowUpAction.SourceEvalCaseID, evalCase.ID)
+	}
 	if len(got.ItemResults) != 1 {
 		t.Fatalf("len(ItemResults) = %d, want 1 on detail response", len(got.ItemResults))
 	}
@@ -580,6 +820,12 @@ func TestGetEvalRunEndpointReturnsUpdatedStatusFields(t *testing.T) {
 	}
 	if got.ItemResults[0].Verdict != "fail" {
 		t.Fatalf("ItemResults[0].Verdict = %q, want %q", got.ItemResults[0].Verdict, "fail")
+	}
+	if got.ItemResults[0].PreferredFollowUpAction.Mode != "create" {
+		t.Fatalf("ItemResults[0].PreferredFollowUpAction.Mode = %q, want %q", got.ItemResults[0].PreferredFollowUpAction.Mode, "create")
+	}
+	if got.ItemResults[0].PreferredFollowUpAction.SourceEvalCaseID != evalCase.ID {
+		t.Fatalf("ItemResults[0].PreferredFollowUpAction.SourceEvalCaseID = %q, want %q", got.ItemResults[0].PreferredFollowUpAction.SourceEvalCaseID, evalCase.ID)
 	}
 	if got.ItemResults[0].Score != 0 {
 		t.Fatalf("ItemResults[0].Score = %v, want 0", got.ItemResults[0].Score)
@@ -606,6 +852,106 @@ func TestGetEvalRunEndpointReturnsUpdatedStatusFields(t *testing.T) {
 		if _, ok := itemResultRaw[field]; !ok {
 			t.Fatalf("detail item result missing raw %q field: %#v", field, itemResultRaw)
 		}
+	}
+}
+
+func TestGetEvalRunEndpointIncludesFollowUpReuseActions(t *testing.T) {
+	ctx := context.Background()
+	caseService := casesvc.NewService()
+	evalCaseService := evalsvc.NewService(caseService, nil)
+	datasetService := evalsvc.NewDatasetService(evalCaseService)
+	runService := evalsvc.NewRunService(datasetService)
+
+	sourceCase, err := caseService.CreateCase(ctx, casesvc.CreateInput{
+		TenantID: "tenant-run",
+		Title:    "Run source",
+	})
+	if err != nil {
+		t.Fatalf("CreateCase() error = %v", err)
+	}
+	evalCase, _, err := evalCaseService.PromoteCase(ctx, evalsvc.CreateInput{
+		TenantID:     "tenant-run",
+		SourceCaseID: sourceCase.ID,
+	})
+	if err != nil {
+		t.Fatalf("PromoteCase() error = %v", err)
+	}
+	dataset, err := datasetService.CreateDataset(ctx, evalsvc.CreateDatasetInput{
+		TenantID:    "tenant-run",
+		Name:        "Published baseline",
+		EvalCaseIDs: []string{evalCase.ID},
+	})
+	if err != nil {
+		t.Fatalf("CreateDataset() error = %v", err)
+	}
+	if _, err := datasetService.PublishDataset(ctx, dataset.ID, evalsvc.PublishDatasetInput{
+		TenantID: "tenant-run",
+	}); err != nil {
+		t.Fatalf("PublishDataset() error = %v", err)
+	}
+
+	run, err := runService.CreateRun(ctx, evalsvc.CreateRunInput{
+		TenantID:  "tenant-run",
+		DatasetID: dataset.ID,
+	})
+	if err != nil {
+		t.Fatalf("CreateRun() error = %v", err)
+	}
+	if _, err := runService.ClaimQueuedRuns(ctx, 10); err != nil {
+		t.Fatalf("ClaimQueuedRuns() error = %v", err)
+	}
+	if _, err := runService.MarkRunFailed(ctx, run.ID, "fault injection: eval run failed"); err != nil {
+		t.Fatalf("MarkRunFailed() error = %v", err)
+	}
+	followUpCase, err := caseService.CreateCase(ctx, casesvc.CreateInput{
+		TenantID:         "tenant-run",
+		Title:            "Eval follow-up",
+		Summary:          "Existing eval follow-up",
+		SourceEvalCaseID: evalCase.ID,
+		CreatedBy:        "operator-run",
+	})
+	if err != nil {
+		t.Fatalf("CreateCase(followUpCase) error = %v", err)
+	}
+
+	server := httptest.NewServer(NewHandlerWithDependencies(Dependencies{
+		Cases:        caseService,
+		EvalCases:    evalCaseService,
+		EvalDatasets: datasetService,
+		EvalRuns:     runService,
+	}))
+	defer server.Close()
+
+	resp, err := http.Get(server.URL + "/api/v1/eval-runs/" + run.ID + "?tenant_id=tenant-run")
+	if err != nil {
+		t.Fatalf("Get() error = %v", err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("StatusCode = %d, want %d", resp.StatusCode, http.StatusOK)
+	}
+
+	var got evalRunResponse
+	if err := json.NewDecoder(resp.Body).Decode(&got); err != nil {
+		t.Fatalf("Decode() error = %v", err)
+	}
+	if got.Items[0].LatestFollowUpCaseID != followUpCase.ID {
+		t.Fatalf("Items[0].LatestFollowUpCaseID = %q, want %q", got.Items[0].LatestFollowUpCaseID, followUpCase.ID)
+	}
+	if got.Items[0].PreferredFollowUpAction.Mode != "open_existing_case" {
+		t.Fatalf("Items[0].PreferredFollowUpAction.Mode = %q, want %q", got.Items[0].PreferredFollowUpAction.Mode, "open_existing_case")
+	}
+	if got.Items[0].PreferredFollowUpAction.CaseID != followUpCase.ID {
+		t.Fatalf("Items[0].PreferredFollowUpAction.CaseID = %q, want %q", got.Items[0].PreferredFollowUpAction.CaseID, followUpCase.ID)
+	}
+	if got.ItemResults[0].LatestFollowUpCaseID != followUpCase.ID {
+		t.Fatalf("ItemResults[0].LatestFollowUpCaseID = %q, want %q", got.ItemResults[0].LatestFollowUpCaseID, followUpCase.ID)
+	}
+	if got.ItemResults[0].PreferredFollowUpAction.Mode != "open_existing_case" {
+		t.Fatalf("ItemResults[0].PreferredFollowUpAction.Mode = %q, want %q", got.ItemResults[0].PreferredFollowUpAction.Mode, "open_existing_case")
+	}
+	if got.ItemResults[0].PreferredFollowUpAction.CaseID != followUpCase.ID {
+		t.Fatalf("ItemResults[0].PreferredFollowUpAction.CaseID = %q, want %q", got.ItemResults[0].PreferredFollowUpAction.CaseID, followUpCase.ID)
 	}
 }
 

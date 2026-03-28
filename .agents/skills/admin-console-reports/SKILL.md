@@ -95,6 +95,7 @@ Provide a practical operator UI for evaluation and runtime analysis while keepin
 67. Before judge scoring exists, render durable placeholder `item_results` on `/admin/eval-runs` detail from the canonical run endpoint instead of inventing frontend-only per-item status summaries.
 68. Once placeholder eval-run `item_results` exist, prefer showing a lightweight terminal `result_summary` in `/admin/eval-runs` list rows before expanding the heavier detail payload.
 69. When placeholder eval-run `item_results` become structured, surface verdict, score, and judge version in `/admin/eval-runs` detail without adding admin-only eval APIs.
+70. Once eval-run detail carries typed follow-up action fields per eval case, drive failed-item create-versus-reuse case handoff directly from the canonical run contract instead of bouncing operators back through `/admin/evals`.
 70. Once durable eval-report list and detail contracts exist, prefer a shared `/admin/eval-reports` lane backed directly by those canonical reads instead of reconstructing aggregated report artifacts from eval-run detail in the browser.
 71. Once durable eval reports need side-by-side review, prefer a narrow canonical compare contract plus `/admin/eval-report-compare` over diffing two full report payloads ad hoc inside the eval-report lane.
 72. Once a durable eval-report compare lane exists, prefer wiring explicit side-specific `Create case` actions from that page to the canonical `POST /api/v1/cases` contract with `source_eval_report_id` set to the chosen regression report on the left or right, then deep-link into `/admin/cases`, instead of inventing an admin-only regression backlog.
@@ -162,3 +163,4 @@ When you finish, always report:
 - do not move domain logic into the UI for speed
 - do not hide failure reasons behind generic toasts only
 - do not build polished dashboards before core operator workflows work
+- once canonical eval-run list rows expose unresolved follow-up pressure, prefer driving `/admin/eval-runs` queue presets from those backend-owned fields over inferring missing follow-up state in the browser

@@ -3,11 +3,13 @@ package httpapi
 import (
 	"encoding/json"
 	"errors"
+	"fmt"
 	"net/http"
 	"strconv"
 	"strings"
 	"time"
 
+	casesvc "opspilot-go/internal/case"
 	evalsvc "opspilot-go/internal/eval"
 )
 
@@ -18,22 +20,24 @@ type createEvalRunRequest struct {
 }
 
 type evalRunResponse struct {
-	RunID            string                        `json:"run_id"`
-	TenantID         string                        `json:"tenant_id"`
-	DatasetID        string                        `json:"dataset_id"`
-	DatasetName      string                        `json:"dataset_name"`
-	DatasetItemCount int                           `json:"dataset_item_count"`
-	ResultSummary    *evalRunResultSummaryResponse `json:"result_summary,omitempty"`
-	Status           string                        `json:"status"`
-	CreatedBy        string                        `json:"created_by"`
-	ErrorReason      string                        `json:"error_reason,omitempty"`
-	CreatedAt        string                        `json:"created_at"`
-	UpdatedAt        string                        `json:"updated_at"`
-	StartedAt        string                        `json:"started_at,omitempty"`
-	FinishedAt       string                        `json:"finished_at,omitempty"`
-	Events           []evalRunEventResponse        `json:"events,omitempty"`
-	Items            []evalRunItemResponse         `json:"items,omitempty"`
-	ItemResults      []evalRunItemResultResponse   `json:"item_results,omitempty"`
+	RunID                        string                        `json:"run_id"`
+	TenantID                     string                        `json:"tenant_id"`
+	DatasetID                    string                        `json:"dataset_id"`
+	DatasetName                  string                        `json:"dataset_name"`
+	DatasetItemCount             int                           `json:"dataset_item_count"`
+	ResultSummary                *evalRunResultSummaryResponse `json:"result_summary,omitempty"`
+	ItemWithoutOpenFollowUpCount int                           `json:"item_without_open_follow_up_count"`
+	NeedsFollowUp                bool                          `json:"needs_follow_up"`
+	Status                       string                        `json:"status"`
+	CreatedBy                    string                        `json:"created_by"`
+	ErrorReason                  string                        `json:"error_reason,omitempty"`
+	CreatedAt                    string                        `json:"created_at"`
+	UpdatedAt                    string                        `json:"updated_at"`
+	StartedAt                    string                        `json:"started_at,omitempty"`
+	FinishedAt                   string                        `json:"finished_at,omitempty"`
+	Events                       []evalRunEventResponse        `json:"events,omitempty"`
+	Items                        []evalRunItemResponse         `json:"items,omitempty"`
+	ItemResults                  []evalRunItemResultResponse   `json:"item_results,omitempty"`
 }
 
 type listEvalRunsResponse struct {
@@ -51,24 +55,28 @@ type evalRunEventResponse struct {
 }
 
 type evalRunItemResponse struct {
-	EvalCaseID     string `json:"eval_case_id"`
-	Title          string `json:"title"`
-	SourceCaseID   string `json:"source_case_id"`
-	SourceTaskID   string `json:"source_task_id,omitempty"`
-	SourceReportID string `json:"source_report_id,omitempty"`
-	TraceID        string `json:"trace_id"`
-	VersionID      string `json:"version_id,omitempty"`
+	EvalCaseID              string                         `json:"eval_case_id"`
+	Title                   string                         `json:"title"`
+	SourceCaseID            string                         `json:"source_case_id"`
+	SourceTaskID            string                         `json:"source_task_id,omitempty"`
+	SourceReportID          string                         `json:"source_report_id,omitempty"`
+	LatestFollowUpCaseID    string                         `json:"latest_follow_up_case_id,omitempty"`
+	PreferredFollowUpAction evalCaseFollowUpActionResponse `json:"preferred_follow_up_action"`
+	TraceID                 string                         `json:"trace_id"`
+	VersionID               string                         `json:"version_id,omitempty"`
 }
 
 type evalRunItemResultResponse struct {
-	EvalCaseID   string          `json:"eval_case_id"`
-	Status       string          `json:"status"`
-	Verdict      string          `json:"verdict"`
-	Detail       string          `json:"detail,omitempty"`
-	Score        float64         `json:"score"`
-	JudgeVersion string          `json:"judge_version"`
-	JudgeOutput  json.RawMessage `json:"judge_output"`
-	UpdatedAt    string          `json:"updated_at"`
+	EvalCaseID              string                         `json:"eval_case_id"`
+	Status                  string                         `json:"status"`
+	Verdict                 string                         `json:"verdict"`
+	Detail                  string                         `json:"detail,omitempty"`
+	Score                   float64                        `json:"score"`
+	JudgeVersion            string                         `json:"judge_version"`
+	JudgeOutput             json.RawMessage                `json:"judge_output"`
+	LatestFollowUpCaseID    string                         `json:"latest_follow_up_case_id,omitempty"`
+	PreferredFollowUpAction evalCaseFollowUpActionResponse `json:"preferred_follow_up_action"`
+	UpdatedAt               string                         `json:"updated_at"`
 }
 
 type evalRunResultSummaryResponse struct {
@@ -163,7 +171,7 @@ func (a *appHandler) handleRetryEvalRun(w http.ResponseWriter, r *http.Request, 
 		return
 	}
 
-	writeJSON(w, http.StatusOK, newEvalRunResponse(retried, nil, nil, nil))
+	writeJSON(w, http.StatusOK, newEvalRunResponse(retried, nil, nil, nil, nil, 0))
 }
 
 func (a *appHandler) handleCreateEvalRun(w http.ResponseWriter, r *http.Request) {
@@ -196,37 +204,26 @@ func (a *appHandler) handleCreateEvalRun(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	writeJSON(w, http.StatusCreated, newEvalRunResponse(item, nil, nil, nil))
+	writeJSON(w, http.StatusCreated, newEvalRunResponse(item, nil, nil, nil, nil, 0))
 }
 
 func (a *appHandler) handleListEvalRuns(w http.ResponseWriter, r *http.Request) {
-	filter, err := parseEvalRunListFilter(r)
+	filter, needsFollowUp, err := parseEvalRunListFilter(r)
 	if err != nil {
 		writeError(w, http.StatusBadRequest, "invalid_query", err.Error())
 		return
 	}
 
-	page, err := a.evalRuns.ListRuns(r.Context(), filter)
+	resp, err := a.listEvalRunsResponse(r, filter, needsFollowUp)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "eval_run_list_failed", err.Error())
 		return
 	}
 
-	resp := listEvalRunsResponse{
-		Runs:    make([]evalRunResponse, 0, len(page.Runs)),
-		HasMore: page.HasMore,
-	}
-	if page.HasMore {
-		resp.NextOffset = &page.NextOffset
-	}
-	for _, item := range page.Runs {
-		resp.Runs = append(resp.Runs, newEvalRunResponse(item, nil, nil, nil))
-	}
-
 	writeJSON(w, http.StatusOK, resp)
 }
 
-func parseEvalRunListFilter(r *http.Request) (evalsvc.RunListFilter, error) {
+func parseEvalRunListFilter(r *http.Request) (evalsvc.RunListFilter, *bool, error) {
 	filter := evalsvc.RunListFilter{
 		TenantID:  strings.TrimSpace(r.URL.Query().Get("tenant_id")),
 		DatasetID: strings.TrimSpace(r.URL.Query().Get("dataset_id")),
@@ -234,40 +231,55 @@ func parseEvalRunListFilter(r *http.Request) (evalsvc.RunListFilter, error) {
 		Limit:     20,
 	}
 	if filter.TenantID == "" {
-		return evalsvc.RunListFilter{}, errors.New("tenant_id is required")
+		return evalsvc.RunListFilter{}, nil, errors.New("tenant_id is required")
 	}
 	if filter.Status != "" && filter.Status != evalsvc.RunStatusQueued && filter.Status != evalsvc.RunStatusRunning && filter.Status != evalsvc.RunStatusSucceeded && filter.Status != evalsvc.RunStatusFailed {
-		return evalsvc.RunListFilter{}, errors.New("status must be queued, running, succeeded, or failed")
+		return evalsvc.RunListFilter{}, nil, errors.New("status must be queued, running, succeeded, or failed")
 	}
 	if rawLimit := strings.TrimSpace(r.URL.Query().Get("limit")); rawLimit != "" {
 		limit, err := strconv.Atoi(rawLimit)
 		if err != nil || limit <= 0 {
-			return evalsvc.RunListFilter{}, errors.New("limit must be a positive integer")
+			return evalsvc.RunListFilter{}, nil, errors.New("limit must be a positive integer")
 		}
 		filter.Limit = limit
 	}
 	if rawOffset := strings.TrimSpace(r.URL.Query().Get("offset")); rawOffset != "" {
 		offset, err := strconv.Atoi(rawOffset)
 		if err != nil || offset < 0 {
-			return evalsvc.RunListFilter{}, errors.New("offset must be a non-negative integer")
+			return evalsvc.RunListFilter{}, nil, errors.New("offset must be a non-negative integer")
 		}
 		filter.Offset = offset
 	}
-	return filter, nil
+	var needsFollowUp *bool
+	if rawNeedsFollowUp := strings.TrimSpace(r.URL.Query().Get("needs_follow_up")); rawNeedsFollowUp != "" {
+		switch rawNeedsFollowUp {
+		case "true":
+			value := true
+			needsFollowUp = &value
+		case "false":
+			value := false
+			needsFollowUp = &value
+		default:
+			return evalsvc.RunListFilter{}, nil, errors.New("needs_follow_up must be true or false")
+		}
+	}
+	return filter, needsFollowUp, nil
 }
 
-func newEvalRunResponse(item evalsvc.EvalRun, events []evalsvc.EvalRunEvent, items []evalsvc.EvalRunItem, results []evalsvc.EvalRunItemResult) evalRunResponse {
+func newEvalRunResponse(item evalsvc.EvalRun, events []evalsvc.EvalRunEvent, items []evalsvc.EvalRunItem, results []evalsvc.EvalRunItemResult, followUpSummaries map[string]casesvc.EvalCaseFollowUpSummary, itemWithoutOpenFollowUpCount int) evalRunResponse {
 	resp := evalRunResponse{
-		RunID:            item.ID,
-		TenantID:         item.TenantID,
-		DatasetID:        item.DatasetID,
-		DatasetName:      item.DatasetName,
-		DatasetItemCount: item.DatasetItemCount,
-		Status:           item.Status,
-		CreatedBy:        item.CreatedBy,
-		ErrorReason:      item.ErrorReason,
-		CreatedAt:        item.CreatedAt.Format(time.RFC3339Nano),
-		UpdatedAt:        item.UpdatedAt.Format(time.RFC3339Nano),
+		RunID:                        item.ID,
+		TenantID:                     item.TenantID,
+		DatasetID:                    item.DatasetID,
+		DatasetName:                  item.DatasetName,
+		DatasetItemCount:             item.DatasetItemCount,
+		ItemWithoutOpenFollowUpCount: itemWithoutOpenFollowUpCount,
+		NeedsFollowUp:                itemWithoutOpenFollowUpCount > 0,
+		Status:                       item.Status,
+		CreatedBy:                    item.CreatedBy,
+		ErrorReason:                  item.ErrorReason,
+		CreatedAt:                    item.CreatedAt.Format(time.RFC3339Nano),
+		UpdatedAt:                    item.UpdatedAt.Format(time.RFC3339Nano),
 	}
 	if item.ResultSummary != nil {
 		resp.ResultSummary = &evalRunResultSummaryResponse{
@@ -299,33 +311,174 @@ func newEvalRunResponse(item evalsvc.EvalRun, events []evalsvc.EvalRunEvent, ite
 	if len(items) > 0 {
 		resp.Items = make([]evalRunItemResponse, 0, len(items))
 		for _, item := range items {
+			summary := followUpSummaries[item.EvalCaseID]
 			resp.Items = append(resp.Items, evalRunItemResponse{
-				EvalCaseID:     item.EvalCaseID,
-				Title:          item.Title,
-				SourceCaseID:   item.SourceCaseID,
-				SourceTaskID:   item.SourceTaskID,
-				SourceReportID: item.SourceReportID,
-				TraceID:        item.TraceID,
-				VersionID:      item.VersionID,
+				EvalCaseID:              item.EvalCaseID,
+				Title:                   item.Title,
+				SourceCaseID:            item.SourceCaseID,
+				SourceTaskID:            item.SourceTaskID,
+				SourceReportID:          item.SourceReportID,
+				LatestFollowUpCaseID:    summary.LatestFollowUpCaseID,
+				PreferredFollowUpAction: newEvalCaseFollowUpActionResponseFromSummary(item.EvalCaseID, summary.OpenFollowUpCaseCount, summary.LatestFollowUpCaseID),
+				TraceID:                 item.TraceID,
+				VersionID:               item.VersionID,
 			})
 		}
 	}
 	if len(results) > 0 {
 		resp.ItemResults = make([]evalRunItemResultResponse, 0, len(results))
 		for _, result := range results {
+			summary := followUpSummaries[result.EvalCaseID]
 			resp.ItemResults = append(resp.ItemResults, evalRunItemResultResponse{
-				EvalCaseID:   result.EvalCaseID,
-				Status:       result.Status,
-				Verdict:      result.Verdict,
-				Detail:       result.Detail,
-				Score:        result.Score,
-				JudgeVersion: result.JudgeVersion,
-				JudgeOutput:  result.JudgeOutput,
-				UpdatedAt:    result.UpdatedAt.Format(time.RFC3339Nano),
+				EvalCaseID:              result.EvalCaseID,
+				Status:                  result.Status,
+				Verdict:                 result.Verdict,
+				Detail:                  result.Detail,
+				Score:                   result.Score,
+				JudgeVersion:            result.JudgeVersion,
+				JudgeOutput:             result.JudgeOutput,
+				LatestFollowUpCaseID:    summary.LatestFollowUpCaseID,
+				PreferredFollowUpAction: newEvalCaseFollowUpActionResponseFromSummary(result.EvalCaseID, summary.OpenFollowUpCaseCount, summary.LatestFollowUpCaseID),
+				UpdatedAt:               result.UpdatedAt.Format(time.RFC3339Nano),
 			})
 		}
 	}
 	return resp
+}
+
+func (a *appHandler) listEvalRunsResponse(r *http.Request, filter evalsvc.RunListFilter, needsFollowUp *bool) (listEvalRunsResponse, error) {
+	if needsFollowUp == nil {
+		page, err := a.evalRuns.ListRuns(r.Context(), filter)
+		if err != nil {
+			return listEvalRunsResponse{}, err
+		}
+		rows, err := a.buildEvalRunListRows(r, page.Runs)
+		if err != nil {
+			return listEvalRunsResponse{}, err
+		}
+		resp := listEvalRunsResponse{
+			Runs:    rows,
+			HasMore: page.HasMore,
+		}
+		if page.HasMore {
+			resp.NextOffset = &page.NextOffset
+		}
+		return resp, nil
+	}
+
+	scanFilter := filter
+	scanFilter.Offset = 0
+	if scanFilter.Limit < 50 {
+		scanFilter.Limit = 50
+	}
+	matchedOffset := 0
+	collected := make([]evalRunResponse, 0, filter.Limit+1)
+	hasMore := false
+
+	for {
+		page, err := a.evalRuns.ListRuns(r.Context(), scanFilter)
+		if err != nil {
+			return listEvalRunsResponse{}, err
+		}
+		if len(page.Runs) == 0 {
+			break
+		}
+		rows, err := a.buildEvalRunListRows(r, page.Runs)
+		if err != nil {
+			return listEvalRunsResponse{}, err
+		}
+		for _, row := range rows {
+			if row.NeedsFollowUp != *needsFollowUp {
+				continue
+			}
+			if matchedOffset < filter.Offset {
+				matchedOffset++
+				continue
+			}
+			collected = append(collected, row)
+			if len(collected) > filter.Limit {
+				hasMore = true
+				break
+			}
+		}
+		if hasMore || !page.HasMore {
+			break
+		}
+		scanFilter.Offset = page.NextOffset
+	}
+
+	resp := listEvalRunsResponse{
+		Runs:    collected,
+		HasMore: hasMore,
+	}
+	if len(resp.Runs) > filter.Limit {
+		resp.Runs = resp.Runs[:filter.Limit]
+	}
+	if hasMore {
+		nextOffset := filter.Offset + filter.Limit
+		resp.NextOffset = &nextOffset
+	}
+	return resp, nil
+}
+
+func (a *appHandler) buildEvalRunListRows(r *http.Request, items []evalsvc.EvalRun) ([]evalRunResponse, error) {
+	rows := make([]evalRunResponse, 0, len(items))
+	for _, item := range items {
+		summary, err := a.evalRunFollowUpSummary(r, item.ID, item.TenantID)
+		if err != nil {
+			return nil, err
+		}
+		rows = append(rows, newEvalRunResponse(item, nil, nil, nil, nil, summary.ItemWithoutOpenFollowUpCount))
+	}
+	return rows, nil
+}
+
+type evalRunFollowUpSummary struct {
+	PerEvalCaseSummary           map[string]casesvc.EvalCaseFollowUpSummary
+	ItemWithoutOpenFollowUpCount int
+}
+
+func (a *appHandler) evalRunFollowUpSummary(r *http.Request, runID string, tenantID string) (evalRunFollowUpSummary, error) {
+	summary := evalRunFollowUpSummary{
+		PerEvalCaseSummary: make(map[string]casesvc.EvalCaseFollowUpSummary),
+	}
+	if a.cases == nil {
+		return summary, nil
+	}
+
+	detail, err := a.evalRuns.GetRunDetail(r.Context(), runID)
+	if err != nil {
+		return evalRunFollowUpSummary{}, err
+	}
+	evalCaseIDs := make([]string, 0, len(detail.ItemResults))
+	seen := make(map[string]struct{}, len(detail.ItemResults))
+	for _, result := range detail.ItemResults {
+		if result.Status != evalsvc.RunItemResultFailed || result.EvalCaseID == "" {
+			continue
+		}
+		if _, ok := seen[result.EvalCaseID]; ok {
+			continue
+		}
+		seen[result.EvalCaseID] = struct{}{}
+		evalCaseIDs = append(evalCaseIDs, result.EvalCaseID)
+	}
+	if len(evalCaseIDs) == 0 {
+		return summary, nil
+	}
+
+	summary.PerEvalCaseSummary, err = a.cases.SummarizeBySourceEvalCaseIDs(r.Context(), tenantID, evalCaseIDs)
+	if err != nil {
+		return evalRunFollowUpSummary{}, fmt.Errorf("summarize eval-run follow-up cases: %w", err)
+	}
+	for _, result := range detail.ItemResults {
+		if result.Status != evalsvc.RunItemResultFailed || result.EvalCaseID == "" {
+			continue
+		}
+		if summary.PerEvalCaseSummary[result.EvalCaseID].OpenFollowUpCaseCount <= 0 {
+			summary.ItemWithoutOpenFollowUpCount++
+		}
+	}
+	return summary, nil
 }
 
 func (a *appHandler) writeEvalRunDetailResponse(w http.ResponseWriter, r *http.Request, runID string, tenantID string, statusCode int) {
@@ -344,7 +497,40 @@ func (a *appHandler) writeEvalRunDetailResponse(w http.ResponseWriter, r *http.R
 		return
 	}
 
-	writeJSON(w, statusCode, newEvalRunResponse(item, detail.Events, detail.Items, detail.ItemResults))
+	followUpSummaries := map[string]casesvc.EvalCaseFollowUpSummary{}
+	if a.cases != nil {
+		evalCaseIDs := make([]string, 0, len(detail.Items))
+		seen := make(map[string]struct{}, len(detail.Items))
+		for _, runItem := range detail.Items {
+			if runItem.EvalCaseID == "" {
+				continue
+			}
+			if _, ok := seen[runItem.EvalCaseID]; ok {
+				continue
+			}
+			seen[runItem.EvalCaseID] = struct{}{}
+			evalCaseIDs = append(evalCaseIDs, runItem.EvalCaseID)
+		}
+		if len(evalCaseIDs) > 0 {
+			followUpSummaries, err = a.cases.SummarizeBySourceEvalCaseIDs(r.Context(), tenantID, evalCaseIDs)
+			if err != nil {
+				writeError(w, http.StatusInternalServerError, "eval_run_follow_up_summary_failed", err.Error())
+				return
+			}
+		}
+	}
+
+	itemWithoutOpenFollowUpCount := 0
+	for _, result := range detail.ItemResults {
+		if result.Status != evalsvc.RunItemResultFailed || result.EvalCaseID == "" {
+			continue
+		}
+		if followUpSummaries[result.EvalCaseID].OpenFollowUpCaseCount <= 0 {
+			itemWithoutOpenFollowUpCount++
+		}
+	}
+
+	writeJSON(w, statusCode, newEvalRunResponse(item, detail.Events, detail.Items, detail.ItemResults, followUpSummaries, itemWithoutOpenFollowUpCount))
 }
 
 func parseEvalRunPath(path string) (runID string, action string, ok bool) {

@@ -1701,6 +1701,11 @@ paths:
               - running
               - succeeded
               - failed
+        - name: needs_follow_up
+          in: query
+          required: false
+          schema:
+            type: boolean
         - name: limit
           in: query
           required: false
@@ -3040,6 +3045,8 @@ components:
         - dataset_id
         - dataset_name
         - dataset_item_count
+        - item_without_open_follow_up_count
+        - needs_follow_up
         - status
         - created_by
         - created_at
@@ -3061,6 +3068,13 @@ components:
             Optional terminal-only summary derived from durable per-item results.
             Omitted when no run-item results have been recorded yet.
           $ref: '#/components/schemas/EvalRunResultSummary'
+        item_without_open_follow_up_count:
+          type: integer
+          minimum: 0
+          description: Failed item results in this run that still lack an open follow-up case.
+        needs_follow_up:
+          type: boolean
+          description: Whether this run still has at least one failed item without an open follow-up case.
         status:
           type: string
           enum:
@@ -3178,6 +3192,7 @@ components:
         - eval_case_id
         - title
         - source_case_id
+        - preferred_follow_up_action
         - trace_id
       properties:
         eval_case_id:
@@ -3190,6 +3205,10 @@ components:
           type: string
         source_report_id:
           type: string
+        latest_follow_up_case_id:
+          type: string
+        preferred_follow_up_action:
+          $ref: '#/components/schemas/EvalCaseFollowUpAction'
         trace_id:
           type: string
         version_id:
@@ -3203,6 +3222,7 @@ components:
         - score
         - judge_version
         - judge_output
+        - preferred_follow_up_action
         - updated_at
       properties:
         eval_case_id:
@@ -3228,6 +3248,10 @@ components:
         judge_output:
           description: Raw structured output from the current eval judge implementation.
           type: object
+        latest_follow_up_case_id:
+          type: string
+        preferred_follow_up_action:
+          $ref: '#/components/schemas/EvalCaseFollowUpAction'
         updated_at:
           type: string
           format: date-time

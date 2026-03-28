@@ -632,6 +632,15 @@ func TestAdminEvalRunsPageRendersHTML(t *testing.T) {
 	if !strings.Contains(body, "Run Detail") {
 		t.Fatal("run detail section missing from eval runs page HTML")
 	}
+	if !strings.Contains(body, "Needs follow-up") {
+		t.Fatal("needs-follow-up quick view missing from eval runs page HTML")
+	}
+	if !strings.Contains(body, "needs_follow_up") {
+		t.Fatal("needs_follow_up filter missing from eval runs page HTML")
+	}
+	if !strings.Contains(body, "Unresolved failed items") {
+		t.Fatal("unresolved failed-item summary missing from eval runs page HTML")
+	}
 	if !strings.Contains(body, "Copy run summary") {
 		t.Fatal("run summary handoff missing from eval runs page HTML")
 	}
@@ -652,6 +661,15 @@ func TestAdminEvalRunsPageRendersHTML(t *testing.T) {
 	}
 	if !strings.Contains(body, "Open dataset lane") {
 		t.Fatal("dataset lane handoff missing from eval runs page HTML")
+	}
+	if !strings.Contains(body, "Create case from result") {
+		t.Fatal("result-level create-case action missing from eval runs page HTML")
+	}
+	if !strings.Contains(body, "Open existing case") {
+		t.Fatal("canonical follow-up reuse action missing from eval runs page HTML")
+	}
+	if !strings.Contains(body, "Open follow-up slice") {
+		t.Fatal("eval run follow-up slice handoff missing from eval runs page HTML")
 	}
 }
 

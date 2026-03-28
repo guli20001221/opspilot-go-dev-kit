@@ -182,16 +182,20 @@ func newEvalCaseResponse(item evalsvc.EvalCase) evalCaseResponse {
 }
 
 func newEvalCaseFollowUpActionResponse(item evalsvc.EvalCase) evalCaseFollowUpActionResponse {
+	return newEvalCaseFollowUpActionResponseFromSummary(item.ID, item.OpenFollowUpCaseCount, item.LatestFollowUpCaseID)
+}
+
+func newEvalCaseFollowUpActionResponseFromSummary(evalCaseID string, openFollowUpCaseCount int, latestFollowUpCaseID string) evalCaseFollowUpActionResponse {
 	action := evalCaseFollowUpActionResponse{
 		Mode:             "create",
-		SourceEvalCaseID: item.ID,
+		SourceEvalCaseID: evalCaseID,
 	}
-	if item.OpenFollowUpCaseCount <= 0 {
+	if openFollowUpCaseCount <= 0 {
 		return action
 	}
-	if item.LatestFollowUpCaseID != "" {
+	if latestFollowUpCaseID != "" {
 		action.Mode = "open_existing_case"
-		action.CaseID = item.LatestFollowUpCaseID
+		action.CaseID = latestFollowUpCaseID
 		return action
 	}
 	action.Mode = "open_existing_queue"
