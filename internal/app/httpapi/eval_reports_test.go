@@ -56,6 +56,12 @@ func TestGetEvalReportReturnsMaterializedDetail(t *testing.T) {
 	if len(got.BadCases) == 0 {
 		t.Fatal("BadCases is empty")
 	}
+	if got.BadCases[0].PreferredFollowUpAction.Mode != "create" {
+		t.Fatalf("BadCases[0].PreferredFollowUpAction.Mode = %q, want %q", got.BadCases[0].PreferredFollowUpAction.Mode, "create")
+	}
+	if got.BadCases[0].PreferredFollowUpAction.SourceEvalCaseID != got.BadCases[0].EvalCaseID {
+		t.Fatalf("BadCases[0].PreferredFollowUpAction.SourceEvalCaseID = %q, want %q", got.BadCases[0].PreferredFollowUpAction.SourceEvalCaseID, got.BadCases[0].EvalCaseID)
+	}
 	if got.BadCaseCount != 1 {
 		t.Fatalf("BadCaseCount = %d, want 1", got.BadCaseCount)
 	}
@@ -238,6 +244,15 @@ func TestGetEvalReportIncludesBadCaseFollowUpCaseSummary(t *testing.T) {
 	}
 	if badCase.LatestFollowUpCaseStatus != casesvc.StatusOpen {
 		t.Fatalf("BadCases[0].LatestFollowUpCaseStatus = %q, want %q", badCase.LatestFollowUpCaseStatus, casesvc.StatusOpen)
+	}
+	if badCase.PreferredFollowUpAction.Mode != "open_existing_case" {
+		t.Fatalf("BadCases[0].PreferredFollowUpAction.Mode = %q, want %q", badCase.PreferredFollowUpAction.Mode, "open_existing_case")
+	}
+	if badCase.PreferredFollowUpAction.CaseID != openCase.ID {
+		t.Fatalf("BadCases[0].PreferredFollowUpAction.CaseID = %q, want %q", badCase.PreferredFollowUpAction.CaseID, openCase.ID)
+	}
+	if badCase.PreferredFollowUpAction.SourceEvalCaseID != evalCaseID {
+		t.Fatalf("BadCases[0].PreferredFollowUpAction.SourceEvalCaseID = %q, want %q", badCase.PreferredFollowUpAction.SourceEvalCaseID, evalCaseID)
 	}
 }
 

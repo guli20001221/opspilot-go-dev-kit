@@ -3473,6 +3473,7 @@ components:
         - score
         - follow_up_case_count
         - open_follow_up_case_count
+        - preferred_follow_up_action
       properties:
         eval_case_id:
           type: string
@@ -3511,6 +3512,8 @@ components:
           enum:
             - open
             - closed
+        preferred_follow_up_action:
+          $ref: '#/components/schemas/EvalCaseFollowUpAction'
     ListEvalRunsResponse:
       type: object
       required:

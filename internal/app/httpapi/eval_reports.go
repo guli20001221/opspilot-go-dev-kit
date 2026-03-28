@@ -15,20 +15,21 @@ import (
 )
 
 type evalReportBadCaseResponse struct {
-	EvalCaseID               string  `json:"eval_case_id"`
-	Title                    string  `json:"title"`
-	SourceCaseID             string  `json:"source_case_id"`
-	SourceTaskID             string  `json:"source_task_id,omitempty"`
-	SourceReportID           string  `json:"source_report_id,omitempty"`
-	TraceID                  string  `json:"trace_id,omitempty"`
-	VersionID                string  `json:"version_id,omitempty"`
-	Verdict                  string  `json:"verdict"`
-	Detail                   string  `json:"detail,omitempty"`
-	Score                    float64 `json:"score"`
-	FollowUpCaseCount        int     `json:"follow_up_case_count"`
-	OpenFollowUpCaseCount    int     `json:"open_follow_up_case_count"`
-	LatestFollowUpCaseID     string  `json:"latest_follow_up_case_id,omitempty"`
-	LatestFollowUpCaseStatus string  `json:"latest_follow_up_case_status,omitempty"`
+	EvalCaseID               string                         `json:"eval_case_id"`
+	Title                    string                         `json:"title"`
+	SourceCaseID             string                         `json:"source_case_id"`
+	SourceTaskID             string                         `json:"source_task_id,omitempty"`
+	SourceReportID           string                         `json:"source_report_id,omitempty"`
+	TraceID                  string                         `json:"trace_id,omitempty"`
+	VersionID                string                         `json:"version_id,omitempty"`
+	Verdict                  string                         `json:"verdict"`
+	Detail                   string                         `json:"detail,omitempty"`
+	Score                    float64                        `json:"score"`
+	FollowUpCaseCount        int                            `json:"follow_up_case_count"`
+	OpenFollowUpCaseCount    int                            `json:"open_follow_up_case_count"`
+	LatestFollowUpCaseID     string                         `json:"latest_follow_up_case_id,omitempty"`
+	LatestFollowUpCaseStatus string                         `json:"latest_follow_up_case_status,omitempty"`
+	PreferredFollowUpAction  evalCaseFollowUpActionResponse `json:"preferred_follow_up_action"`
 }
 
 type evalReportResponse struct {
@@ -607,6 +608,7 @@ func newEvalReportResponse(item evalsvc.EvalReport, includeHeavy bool, followUpS
 					OpenFollowUpCaseCount:    badCaseSummary.OpenFollowUpCaseCount,
 					LatestFollowUpCaseID:     badCaseSummary.LatestFollowUpCaseID,
 					LatestFollowUpCaseStatus: badCaseSummary.LatestFollowUpCaseStatus,
+					PreferredFollowUpAction:  newEvalReportBadCaseFollowUpActionResponse(badCase.EvalCaseID, badCaseSummary),
 				})
 			}
 		}
@@ -619,6 +621,23 @@ func newEvalReportFollowUpActionResponse(reportID string, followUpSummary casesv
 	action := evalReportFollowUpActionResponse{
 		Mode:               "create",
 		SourceEvalReportID: reportID,
+	}
+	if followUpSummary.OpenFollowUpCaseCount <= 0 {
+		return action
+	}
+	if followUpSummary.LatestFollowUpCaseID != "" {
+		action.Mode = "open_existing_case"
+		action.CaseID = followUpSummary.LatestFollowUpCaseID
+		return action
+	}
+	action.Mode = "open_existing_queue"
+	return action
+}
+
+func newEvalReportBadCaseFollowUpActionResponse(evalCaseID string, followUpSummary casesvc.EvalCaseFollowUpSummary) evalCaseFollowUpActionResponse {
+	action := evalCaseFollowUpActionResponse{
+		Mode:             "create",
+		SourceEvalCaseID: evalCaseID,
 	}
 	if followUpSummary.OpenFollowUpCaseCount <= 0 {
 		return action
