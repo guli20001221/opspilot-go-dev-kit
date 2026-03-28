@@ -3582,6 +3582,10 @@ components:
         - average_score
         - bad_case_count
         - bad_case_without_open_follow_up_count
+        - follow_up_case_count
+        - open_follow_up_case_count
+        - compare_follow_up_case_count
+        - open_compare_follow_up_case_count
         - created_at
         - updated_at
         - ready_at
@@ -3644,6 +3648,19 @@ components:
         latest_follow_up_case_id:
           type: string
         latest_follow_up_case_status:
+          type: string
+          enum:
+            - open
+            - closed
+        compare_follow_up_case_count:
+          type: integer
+          minimum: 0
+        open_compare_follow_up_case_count:
+          type: integer
+          minimum: 0
+        latest_compare_follow_up_case_id:
+          type: string
+        latest_compare_follow_up_case_status:
           type: string
           enum:
             - open

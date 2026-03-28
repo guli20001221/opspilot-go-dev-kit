@@ -395,6 +395,10 @@ func TestCompareEvalReportsReturnsTypedSummary(t *testing.T) {
 			OpenFollowUpCaseCount           int     `json:"open_follow_up_case_count"`
 			LatestFollowUpCaseID            string  `json:"latest_follow_up_case_id"`
 			LatestFollowUpCaseStatus        string  `json:"latest_follow_up_case_status"`
+			CompareFollowUpCaseCount        int     `json:"compare_follow_up_case_count"`
+			OpenCompareFollowUpCaseCount    int     `json:"open_compare_follow_up_case_count"`
+			LatestCompareFollowUpCaseID     string  `json:"latest_compare_follow_up_case_id"`
+			LatestCompareFollowUpCaseStatus string  `json:"latest_compare_follow_up_case_status"`
 		} `json:"left"`
 		Right struct {
 			ReportID                        string  `json:"report_id"`
@@ -419,6 +423,10 @@ func TestCompareEvalReportsReturnsTypedSummary(t *testing.T) {
 			OpenFollowUpCaseCount           int     `json:"open_follow_up_case_count"`
 			LatestFollowUpCaseID            string  `json:"latest_follow_up_case_id"`
 			LatestFollowUpCaseStatus        string  `json:"latest_follow_up_case_status"`
+			CompareFollowUpCaseCount        int     `json:"compare_follow_up_case_count"`
+			OpenCompareFollowUpCaseCount    int     `json:"open_compare_follow_up_case_count"`
+			LatestCompareFollowUpCaseID     string  `json:"latest_compare_follow_up_case_id"`
+			LatestCompareFollowUpCaseStatus string  `json:"latest_compare_follow_up_case_status"`
 		} `json:"right"`
 		Summary struct {
 			SameTenant          bool    `json:"same_tenant"`
@@ -472,11 +480,17 @@ func TestCompareEvalReportsReturnsTypedSummary(t *testing.T) {
 	if got.Left.FollowUpCaseCount != 1 || got.Left.OpenFollowUpCaseCount != 1 || got.Left.LatestFollowUpCaseStatus != casesvc.StatusOpen {
 		t.Fatalf("Left follow-up summary = %#v, want count=1 open=1 status=open", got.Left)
 	}
+	if got.Left.CompareFollowUpCaseCount != 0 || got.Left.OpenCompareFollowUpCaseCount != 0 || got.Left.LatestCompareFollowUpCaseID != "" || got.Left.LatestCompareFollowUpCaseStatus != "" {
+		t.Fatalf("Left compare follow-up summary = %#v, want zero-value compare summary before compare-derived cases exist", got.Left)
+	}
 	if got.Right.LatestFollowUpCaseID != rightFollowUp.ID {
 		t.Fatalf("Right.LatestFollowUpCaseID = %q, want %q", got.Right.LatestFollowUpCaseID, rightFollowUp.ID)
 	}
 	if got.Right.FollowUpCaseCount != 1 || got.Right.OpenFollowUpCaseCount != 1 || got.Right.LatestFollowUpCaseStatus != casesvc.StatusOpen {
 		t.Fatalf("Right follow-up summary = %#v, want count=1 open=1 status=open", got.Right)
+	}
+	if got.Right.CompareFollowUpCaseCount != 0 || got.Right.OpenCompareFollowUpCaseCount != 0 || got.Right.LatestCompareFollowUpCaseID != "" || got.Right.LatestCompareFollowUpCaseStatus != "" {
+		t.Fatalf("Right compare follow-up summary = %#v, want zero-value compare summary before compare-derived cases exist", got.Right)
 	}
 	if !got.Summary.SameTenant {
 		t.Fatal("SameTenant = false, want true")
@@ -501,6 +515,87 @@ func TestCompareEvalReportsReturnsTypedSummary(t *testing.T) {
 	}
 	if got.Summary.BadCaseOverlapCount != 0 {
 		t.Fatalf("BadCaseOverlapCount = %d, want 0 for disjoint fixtures", got.Summary.BadCaseOverlapCount)
+	}
+}
+
+func TestCompareEvalReportsIncludesCompareFollowUpSummary(t *testing.T) {
+	caseService := casesvc.NewService()
+	evalCaseService := evalsvc.NewService(caseService, nil)
+	datasetService := evalsvc.NewDatasetService(evalCaseService)
+	runService := evalsvc.NewRunService(datasetService)
+	reportService := evalsvc.NewEvalReportServiceWithDependencies(nil, runService)
+	leftReportID := materializeEvalRunReport(t, "tenant-eval-report-compare-origin", evalsvc.RunStatusSucceeded, "success detail", caseService, evalCaseService, datasetService, runService, reportService, "Dataset Compare A", "Source Left")
+	rightReportID := materializeEvalRunReport(t, "tenant-eval-report-compare-origin", evalsvc.RunStatusFailed, "failure detail", caseService, evalCaseService, datasetService, runService, reportService, "Dataset Compare B", "Source Right")
+	leftCompareFollowUp, err := caseService.CreateCase(context.Background(), casesvc.CreateInput{
+		TenantID:           "tenant-eval-report-compare-origin",
+		Title:              "Left compare-derived follow-up",
+		Summary:            "left compare-derived summary",
+		SourceEvalReportID: leftReportID,
+		CompareOrigin: casesvc.CompareOrigin{
+			LeftEvalReportID:  leftReportID,
+			RightEvalReportID: rightReportID,
+			SelectedSide:      "left",
+		},
+		CreatedBy: "operator-left",
+	})
+	if err != nil {
+		t.Fatalf("CreateCase(leftCompareFollowUp) error = %v", err)
+	}
+	time.Sleep(2 * time.Millisecond)
+	rightCompareFollowUp, err := caseService.CreateCase(context.Background(), casesvc.CreateInput{
+		TenantID:           "tenant-eval-report-compare-origin",
+		Title:              "Right compare-derived follow-up",
+		Summary:            "right compare-derived summary",
+		SourceEvalReportID: rightReportID,
+		CompareOrigin: casesvc.CompareOrigin{
+			LeftEvalReportID:  leftReportID,
+			RightEvalReportID: rightReportID,
+			SelectedSide:      "right",
+		},
+		CreatedBy: "operator-right",
+	})
+	if err != nil {
+		t.Fatalf("CreateCase(rightCompareFollowUp) error = %v", err)
+	}
+
+	server := httptest.NewServer(NewHandlerWithDependencies(Dependencies{
+		Cases:       caseService,
+		EvalReports: reportService,
+	}))
+	defer server.Close()
+
+	resp, err := http.Get(server.URL + "/api/v1/eval-report-compare?tenant_id=tenant-eval-report-compare-origin&left_report_id=" + leftReportID + "&right_report_id=" + rightReportID)
+	if err != nil {
+		t.Fatalf("Get() error = %v", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("StatusCode = %d, want %d", resp.StatusCode, http.StatusOK)
+	}
+
+	var got struct {
+		Left struct {
+			CompareFollowUpCaseCount        int    `json:"compare_follow_up_case_count"`
+			OpenCompareFollowUpCaseCount    int    `json:"open_compare_follow_up_case_count"`
+			LatestCompareFollowUpCaseID     string `json:"latest_compare_follow_up_case_id"`
+			LatestCompareFollowUpCaseStatus string `json:"latest_compare_follow_up_case_status"`
+		} `json:"left"`
+		Right struct {
+			CompareFollowUpCaseCount        int    `json:"compare_follow_up_case_count"`
+			OpenCompareFollowUpCaseCount    int    `json:"open_compare_follow_up_case_count"`
+			LatestCompareFollowUpCaseID     string `json:"latest_compare_follow_up_case_id"`
+			LatestCompareFollowUpCaseStatus string `json:"latest_compare_follow_up_case_status"`
+		} `json:"right"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&got); err != nil {
+		t.Fatalf("Decode() error = %v", err)
+	}
+	if got.Left.CompareFollowUpCaseCount != 1 || got.Left.OpenCompareFollowUpCaseCount != 1 || got.Left.LatestCompareFollowUpCaseID != leftCompareFollowUp.ID || got.Left.LatestCompareFollowUpCaseStatus != casesvc.StatusOpen {
+		t.Fatalf("Left compare follow-up summary = %#v, want count=1 open=1 latest=%q status=%q", got.Left, leftCompareFollowUp.ID, casesvc.StatusOpen)
+	}
+	if got.Right.CompareFollowUpCaseCount != 1 || got.Right.OpenCompareFollowUpCaseCount != 1 || got.Right.LatestCompareFollowUpCaseID != rightCompareFollowUp.ID || got.Right.LatestCompareFollowUpCaseStatus != casesvc.StatusOpen {
+		t.Fatalf("Right compare follow-up summary = %#v, want count=1 open=1 latest=%q status=%q", got.Right, rightCompareFollowUp.ID, casesvc.StatusOpen)
 	}
 }
 

@@ -332,6 +332,87 @@ LEFT JOIN latest
 	return summaries, nil
 }
 
+// SummarizeCompareOriginBySourceEvalReportIDs aggregates compare-derived follow-up case status by source eval report.
+func (s *CaseStore) SummarizeCompareOriginBySourceEvalReportIDs(ctx context.Context, tenantID string, reportIDs []string) (map[string]casesvc.EvalReportCompareFollowUpSummary, error) {
+	summaries := make(map[string]casesvc.EvalReportCompareFollowUpSummary, len(reportIDs))
+	if tenantID == "" || len(reportIDs) == 0 {
+		return summaries, nil
+	}
+
+	const query = `
+WITH scoped AS (
+    SELECT
+        source_eval_report_id,
+        status,
+        updated_at,
+        created_at,
+        id
+    FROM cases
+    WHERE tenant_id = $1
+      AND source_eval_report_id = ANY($2)
+      AND compare_selected_side <> ''
+),
+counts AS (
+    SELECT
+        source_eval_report_id,
+        COUNT(*) AS compare_follow_up_case_count,
+        COUNT(*) FILTER (WHERE status = $3) AS open_compare_follow_up_case_count
+    FROM scoped
+    GROUP BY source_eval_report_id
+),
+latest AS (
+    SELECT DISTINCT ON (source_eval_report_id)
+        source_eval_report_id,
+        id,
+        status
+    FROM scoped
+    ORDER BY source_eval_report_id, updated_at DESC, created_at DESC, id DESC
+)
+SELECT
+    counts.source_eval_report_id,
+    counts.compare_follow_up_case_count,
+    counts.open_compare_follow_up_case_count,
+    COALESCE(latest.id, ''),
+    COALESCE(latest.status, '')
+FROM counts
+LEFT JOIN latest
+  ON latest.source_eval_report_id = counts.source_eval_report_id`
+
+	rows, err := s.pool.Query(ctx, query, tenantID, reportIDs, casesvc.StatusOpen)
+	if err != nil {
+		return nil, fmt.Errorf("summarize compare eval report follow-up cases: %w", err)
+	}
+	defer rows.Close()
+
+	for rows.Next() {
+		var summary casesvc.EvalReportCompareFollowUpSummary
+		if err := rows.Scan(
+			&summary.SourceEvalReportID,
+			&summary.CompareFollowUpCaseCount,
+			&summary.OpenCompareFollowUpCaseCount,
+			&summary.LatestCompareFollowUpCaseID,
+			&summary.LatestCompareFollowUpCaseStatus,
+		); err != nil {
+			return nil, fmt.Errorf("scan compare eval report follow-up summary: %w", err)
+		}
+		summaries[summary.SourceEvalReportID] = summary
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("iterate compare eval report follow-up summaries: %w", err)
+	}
+
+	for _, reportID := range reportIDs {
+		if reportID == "" {
+			continue
+		}
+		if _, ok := summaries[reportID]; !ok {
+			summaries[reportID] = casesvc.EvalReportCompareFollowUpSummary{SourceEvalReportID: reportID}
+		}
+	}
+
+	return summaries, nil
+}
+
 // SummarizeBySourceEvalCaseIDs aggregates follow-up case status by source eval case.
 func (s *CaseStore) SummarizeBySourceEvalCaseIDs(ctx context.Context, tenantID string, evalCaseIDs []string) (map[string]casesvc.EvalCaseFollowUpSummary, error) {
 	summaries := make(map[string]casesvc.EvalCaseFollowUpSummary, len(evalCaseIDs))

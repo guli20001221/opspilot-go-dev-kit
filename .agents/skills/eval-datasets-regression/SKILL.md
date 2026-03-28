@@ -95,3 +95,4 @@ When you finish, always report:
 - no prompt change without considering eval impact
 - no report that only shows aggregate pass rate without bad-case evidence
 - no hand-wavy claims of quality improvement without comparison data
+- when eval-report comparison needs compare-origin follow-up pressure, prefer backend-owned per-side compare queue summary and handoff into canonical case filters instead of reconstructing compare-derived work in the browser

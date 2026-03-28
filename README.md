@@ -163,6 +163,7 @@ Current Milestone 1 slice:
 - the same `/admin/eval-report-compare` page now also supports `Create case from left` and `Create case from right`, reusing `POST /api/v1/cases` and deep-linking straight into `/admin/cases` for regression follow-up while preserving the selected side as `source_eval_report_id`
 - the same canonical eval-report compare contract now also carries `bad_case_without_open_follow_up_count` per side, so compare can show which report still has uncovered bad cases without opening detail elsewhere
 - `/admin/eval-report-compare` now also hands each side directly into `/admin/eval-reports?bad_case_needs_follow_up=true&report_id=...`, so operators can jump from compare into that side's unresolved bad-case report view
+- that same compare contract now also exposes compare-derived follow-up counts and latest compare-follow-up status per side, so `/admin/eval-report-compare` can hand operators straight into the canonical compare-origin case queue for either report
 - durable cases now also carry `source_eval_report_id`, so eval-report regressions can survive compare-page handoff as canonical backend lineage instead of living only in summary text
 - durable cases now also carry `source_eval_case_id`, so bad-case-specific eval follow-up can point back to one canonical eval case instead of only to the broader eval report
 - `GET /api/v1/cases` now also supports `source_eval_report_id` and `eval_backed_only`, so operators can pull an eval-regression follow-up slice without parsing case summaries client-side

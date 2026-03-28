@@ -106,6 +106,10 @@ type evalReportComparisonItemResponse struct {
 	OpenFollowUpCaseCount           int     `json:"open_follow_up_case_count"`
 	LatestFollowUpCaseID            string  `json:"latest_follow_up_case_id,omitempty"`
 	LatestFollowUpCaseStatus        string  `json:"latest_follow_up_case_status,omitempty"`
+	CompareFollowUpCaseCount        int     `json:"compare_follow_up_case_count"`
+	OpenCompareFollowUpCaseCount    int     `json:"open_compare_follow_up_case_count"`
+	LatestCompareFollowUpCaseID     string  `json:"latest_compare_follow_up_case_id,omitempty"`
+	LatestCompareFollowUpCaseStatus string  `json:"latest_compare_follow_up_case_status,omitempty"`
 	CreatedAt                       string  `json:"created_at"`
 	UpdatedAt                       string  `json:"updated_at"`
 	ReadyAt                         string  `json:"ready_at"`
@@ -190,8 +194,14 @@ func (a *appHandler) handleEvalReportCompare(w http.ResponseWriter, r *http.Requ
 
 	followUpSummaries := map[string]casesvc.EvalReportFollowUpSummary{}
 	badCaseWithoutOpenFollowUpCounts := map[string]int{}
+	compareFollowUpSummaries := map[string]casesvc.EvalReportCompareFollowUpSummary{}
 	if a.cases != nil {
 		followUpSummaries, err = a.cases.SummarizeBySourceEvalReportIDs(r.Context(), tenantID, []string{comparison.Left.ID, comparison.Right.ID})
+		if err != nil {
+			writeError(w, http.StatusInternalServerError, "eval_report_follow_up_summary_failed", err.Error())
+			return
+		}
+		compareFollowUpSummaries, err = a.cases.SummarizeCompareOriginBySourceEvalReportIDs(r.Context(), tenantID, []string{comparison.Left.ID, comparison.Right.ID})
 		if err != nil {
 			writeError(w, http.StatusInternalServerError, "eval_report_follow_up_summary_failed", err.Error())
 			return
@@ -204,8 +214,8 @@ func (a *appHandler) handleEvalReportCompare(w http.ResponseWriter, r *http.Requ
 	}
 
 	writeJSON(w, http.StatusOK, evalReportComparisonResponse{
-		Left:  newEvalReportComparisonItemResponse(comparison.Left, followUpSummaries[comparison.Left.ID], badCaseWithoutOpenFollowUpCounts[comparison.Left.ID]),
-		Right: newEvalReportComparisonItemResponse(comparison.Right, followUpSummaries[comparison.Right.ID], badCaseWithoutOpenFollowUpCounts[comparison.Right.ID]),
+		Left:  newEvalReportComparisonItemResponse(comparison.Left, followUpSummaries[comparison.Left.ID], compareFollowUpSummaries[comparison.Left.ID], badCaseWithoutOpenFollowUpCounts[comparison.Left.ID]),
+		Right: newEvalReportComparisonItemResponse(comparison.Right, followUpSummaries[comparison.Right.ID], compareFollowUpSummaries[comparison.Right.ID], badCaseWithoutOpenFollowUpCounts[comparison.Right.ID]),
 		Summary: evalReportComparisonSummaryResponse{
 			SameTenant:           comparison.Summary.SameTenant,
 			SameDataset:          comparison.Summary.SameDataset,
@@ -572,7 +582,7 @@ func newEvalReportResponse(item evalsvc.EvalReport, includeHeavy bool, followUpS
 	return resp
 }
 
-func newEvalReportComparisonItemResponse(item evalsvc.EvalReport, followUpSummary casesvc.EvalReportFollowUpSummary, badCaseWithoutOpenFollowUpCount int) evalReportComparisonItemResponse {
+func newEvalReportComparisonItemResponse(item evalsvc.EvalReport, followUpSummary casesvc.EvalReportFollowUpSummary, compareFollowUpSummary casesvc.EvalReportCompareFollowUpSummary, badCaseWithoutOpenFollowUpCount int) evalReportComparisonItemResponse {
 	return evalReportComparisonItemResponse{
 		ReportID:                        item.ID,
 		TenantID:                        item.TenantID,
@@ -596,6 +606,10 @@ func newEvalReportComparisonItemResponse(item evalsvc.EvalReport, followUpSummar
 		OpenFollowUpCaseCount:           followUpSummary.OpenFollowUpCaseCount,
 		LatestFollowUpCaseID:            followUpSummary.LatestFollowUpCaseID,
 		LatestFollowUpCaseStatus:        followUpSummary.LatestFollowUpCaseStatus,
+		CompareFollowUpCaseCount:        compareFollowUpSummary.CompareFollowUpCaseCount,
+		OpenCompareFollowUpCaseCount:    compareFollowUpSummary.OpenCompareFollowUpCaseCount,
+		LatestCompareFollowUpCaseID:     compareFollowUpSummary.LatestCompareFollowUpCaseID,
+		LatestCompareFollowUpCaseStatus: compareFollowUpSummary.LatestCompareFollowUpCaseStatus,
 		CreatedAt:                       item.CreatedAt.Format(time.RFC3339Nano),
 		UpdatedAt:                       item.UpdatedAt.Format(time.RFC3339Nano),
 		ReadyAt:                         item.ReadyAt.Format(time.RFC3339Nano),

@@ -17,6 +17,7 @@ type Store interface {
 	Get(ctx context.Context, caseID string) (Case, error)
 	List(ctx context.Context, filter ListFilter) (ListPage, error)
 	SummarizeBySourceEvalReportIDs(ctx context.Context, tenantID string, reportIDs []string) (map[string]EvalReportFollowUpSummary, error)
+	SummarizeCompareOriginBySourceEvalReportIDs(ctx context.Context, tenantID string, reportIDs []string) (map[string]EvalReportCompareFollowUpSummary, error)
 	SummarizeBySourceEvalCaseIDs(ctx context.Context, tenantID string, evalCaseIDs []string) (map[string]EvalCaseFollowUpSummary, error)
 	AppendNote(ctx context.Context, note Note) (Note, error)
 	ListNotes(ctx context.Context, caseID string, limit int) ([]Note, error)
@@ -118,6 +119,11 @@ func (s *Service) FindOpenCaseBySourceEvalReport(ctx context.Context, tenantID s
 // SummarizeBySourceEvalReportIDs returns follow-up case aggregates for source eval reports.
 func (s *Service) SummarizeBySourceEvalReportIDs(ctx context.Context, tenantID string, reportIDs []string) (map[string]EvalReportFollowUpSummary, error) {
 	return s.store.SummarizeBySourceEvalReportIDs(ctx, tenantID, reportIDs)
+}
+
+// SummarizeCompareOriginBySourceEvalReportIDs returns compare-derived follow-up case aggregates for source eval reports.
+func (s *Service) SummarizeCompareOriginBySourceEvalReportIDs(ctx context.Context, tenantID string, reportIDs []string) (map[string]EvalReportCompareFollowUpSummary, error) {
+	return s.store.SummarizeCompareOriginBySourceEvalReportIDs(ctx, tenantID, reportIDs)
 }
 
 // SummarizeBySourceEvalCaseIDs returns follow-up case aggregates for source eval cases.

@@ -677,6 +677,9 @@ func TestAdminEvalReportComparePageRendersHTML(t *testing.T) {
 	if !strings.Contains(body, "Open left linked cases") {
 		t.Fatal("left linked-cases handoff missing from compare HTML")
 	}
+	if !strings.Contains(body, "Open left compare follow-ups") {
+		t.Fatal("left compare-follow-ups handoff missing from compare HTML")
+	}
 	if !strings.Contains(body, "Open right unresolved bad cases") {
 		t.Fatal("unresolved bad-case compare handoff missing from HTML")
 	}
@@ -688,6 +691,9 @@ func TestAdminEvalReportComparePageRendersHTML(t *testing.T) {
 	}
 	if !strings.Contains(body, "Open right linked cases") {
 		t.Fatal("right linked-cases handoff missing from compare HTML")
+	}
+	if !strings.Contains(body, "Open right compare follow-ups") {
+		t.Fatal("right compare-follow-ups handoff missing from compare HTML")
 	}
 	if !strings.Contains(body, "Follow-up") {
 		t.Fatal("follow-up summary missing from compare HTML")
@@ -722,7 +728,12 @@ func TestAdminEvalReportComparePageRuntimeSmoke(t *testing.T) {
 		Title:              "Left compare follow-up",
 		Summary:            "left compare summary",
 		SourceEvalReportID: leftReportID,
-		CreatedBy:          "operator-left",
+		CompareOrigin: casesvc.CompareOrigin{
+			LeftEvalReportID:  leftReportID,
+			RightEvalReportID: rightReportID,
+			SelectedSide:      "left",
+		},
+		CreatedBy: "operator-left",
 	})
 	if err != nil {
 		t.Fatalf("CreateCase(leftCase) error = %v", err)
@@ -732,7 +743,12 @@ func TestAdminEvalReportComparePageRuntimeSmoke(t *testing.T) {
 		Title:              "Right compare follow-up",
 		Summary:            "right compare summary",
 		SourceEvalReportID: rightReportID,
-		CreatedBy:          "operator-right",
+		CompareOrigin: casesvc.CompareOrigin{
+			LeftEvalReportID:  leftReportID,
+			RightEvalReportID: rightReportID,
+			SelectedSide:      "right",
+		},
+		CreatedBy: "operator-right",
 	})
 	if err != nil {
 		t.Fatalf("CreateCase(rightCase) error = %v", err)
@@ -790,6 +806,10 @@ async function assertCaseSource(page, apiBaseURL, caseID, tenantID, expectedRepo
   if (!leftLinkedCasesHref || !leftLinkedCasesHref.includes("/admin/cases?") || !leftLinkedCasesHref.includes("source_eval_report_id=" + encodeURIComponent(leftReportID))) {
     throw new Error("left linked-cases handoff missing selected source_eval_report_id");
   }
+  const leftCompareCasesHref = await page.getAttribute("#leftCompareCasesLink", "href");
+  if (!leftCompareCasesHref || !leftCompareCasesHref.includes("/admin/cases?") || !leftCompareCasesHref.includes("source_eval_report_id=" + encodeURIComponent(leftReportID)) || !leftCompareCasesHref.includes("compare_origin_only=true") || !leftCompareCasesHref.includes("status=open")) {
+    throw new Error("left compare-follow-ups handoff missing canonical compare queue filter");
+  }
   const leftBadCaseNeedsFollowUpVisible = await page.isVisible("#leftBadCaseNeedsFollowUpLink");
   if (leftBadCaseNeedsFollowUpVisible) {
     throw new Error("left unresolved bad-case handoff should stay hidden when there are no uncovered bad cases");
@@ -802,6 +822,10 @@ async function assertCaseSource(page, apiBaseURL, caseID, tenantID, expectedRepo
   if (!rightLinkedCasesHref || !rightLinkedCasesHref.includes("/admin/cases?") || !rightLinkedCasesHref.includes("source_eval_report_id=" + encodeURIComponent(rightReportID))) {
     throw new Error("right linked-cases handoff missing selected source_eval_report_id");
   }
+  const rightCompareCasesHref = await page.getAttribute("#rightCompareCasesLink", "href");
+  if (!rightCompareCasesHref || !rightCompareCasesHref.includes("/admin/cases?") || !rightCompareCasesHref.includes("source_eval_report_id=" + encodeURIComponent(rightReportID)) || !rightCompareCasesHref.includes("compare_origin_only=true") || !rightCompareCasesHref.includes("status=open")) {
+    throw new Error("right compare-follow-ups handoff missing canonical compare queue filter");
+  }
   const rightBadCaseNeedsFollowUpHref = await page.getAttribute("#rightBadCaseNeedsFollowUpLink", "href");
   if (!rightBadCaseNeedsFollowUpHref || !rightBadCaseNeedsFollowUpHref.includes("/admin/eval-reports?") || !rightBadCaseNeedsFollowUpHref.includes("bad_case_needs_follow_up=true") || !rightBadCaseNeedsFollowUpHref.includes("report_id=" + encodeURIComponent(rightReportID))) {
     throw new Error("right unresolved bad-case handoff missing canonical eval-report filter");
@@ -810,9 +834,15 @@ async function assertCaseSource(page, apiBaseURL, caseID, tenantID, expectedRepo
   if (!leftFollowUpText.includes("1 cases / 1 open")) {
     throw new Error("left follow-up summary missing from compare detail");
   }
+  if (!leftFollowUpText.includes("Compare follow-up") || !leftFollowUpText.includes("1 cases / 1 open")) {
+    throw new Error("left compare-derived summary missing from compare detail");
+  }
   const rightFollowUpText = (await page.textContent("#rightReportDetail")).trim();
   if (!rightFollowUpText.includes("1 cases / 1 open")) {
     throw new Error("right follow-up summary missing from compare detail");
+  }
+  if (!rightFollowUpText.includes("Compare follow-up") || !rightFollowUpText.includes("1 cases / 1 open")) {
+    throw new Error("right compare-derived summary missing from compare detail");
   }
   if (!rightFollowUpText.includes("1 uncovered")) {
     throw new Error("right uncovered bad-case summary missing from compare detail");

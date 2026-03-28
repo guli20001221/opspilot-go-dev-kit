@@ -107,6 +107,15 @@ type EvalReportFollowUpSummary struct {
 	LatestFollowUpCaseStatus string
 }
 
+// EvalReportCompareFollowUpSummary aggregates compare-derived case state for one source eval report.
+type EvalReportCompareFollowUpSummary struct {
+	SourceEvalReportID              string
+	CompareFollowUpCaseCount        int
+	OpenCompareFollowUpCaseCount    int
+	LatestCompareFollowUpCaseID     string
+	LatestCompareFollowUpCaseStatus string
+}
+
 // EvalCaseFollowUpSummary aggregates case follow-up state for one source eval case.
 type EvalCaseFollowUpSummary struct {
 	SourceEvalCaseID         string

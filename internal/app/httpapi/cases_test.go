@@ -2062,6 +2062,14 @@ func (s *staleAssignStore) SummarizeBySourceEvalCaseIDs(_ context.Context, _ str
 	return summaries, nil
 }
 
+func (s *staleAssignStore) SummarizeCompareOriginBySourceEvalReportIDs(_ context.Context, _ string, reportIDs []string) (map[string]casesvc.EvalReportCompareFollowUpSummary, error) {
+	summaries := make(map[string]casesvc.EvalReportCompareFollowUpSummary, len(reportIDs))
+	for _, reportID := range reportIDs {
+		summaries[reportID] = casesvc.EvalReportCompareFollowUpSummary{SourceEvalReportID: reportID}
+	}
+	return summaries, nil
+}
+
 func (s *staleAssignStore) AppendNote(_ context.Context, note casesvc.Note) (casesvc.Note, error) {
 	return note, nil
 }

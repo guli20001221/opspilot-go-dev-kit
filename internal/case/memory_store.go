@@ -176,6 +176,62 @@ func (s *memoryStore) SummarizeBySourceEvalReportIDs(_ context.Context, tenantID
 	return summaries, nil
 }
 
+func (s *memoryStore) SummarizeCompareOriginBySourceEvalReportIDs(_ context.Context, tenantID string, reportIDs []string) (map[string]EvalReportCompareFollowUpSummary, error) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	if len(reportIDs) == 0 {
+		return map[string]EvalReportCompareFollowUpSummary{}, nil
+	}
+
+	allowed := make(map[string]struct{}, len(reportIDs))
+	for _, reportID := range reportIDs {
+		if reportID == "" {
+			continue
+		}
+		allowed[reportID] = struct{}{}
+	}
+
+	summaries := make(map[string]EvalReportCompareFollowUpSummary, len(allowed))
+	latestCases := make(map[string]Case, len(allowed))
+	for _, item := range s.records {
+		if item.TenantID != tenantID || item.SourceEvalReportID == "" {
+			continue
+		}
+		if item.CompareOrigin.LeftEvalReportID == "" || item.CompareOrigin.RightEvalReportID == "" || item.CompareOrigin.SelectedSide == "" {
+			continue
+		}
+		if _, ok := allowed[item.SourceEvalReportID]; !ok {
+			continue
+		}
+
+		summary := summaries[item.SourceEvalReportID]
+		summary.SourceEvalReportID = item.SourceEvalReportID
+		summary.CompareFollowUpCaseCount++
+		if item.Status == StatusOpen {
+			summary.OpenCompareFollowUpCaseCount++
+		}
+		latest, ok := latestCases[item.SourceEvalReportID]
+		if !ok ||
+			item.UpdatedAt.After(latest.UpdatedAt) ||
+			(item.UpdatedAt.Equal(latest.UpdatedAt) && item.CreatedAt.After(latest.CreatedAt)) ||
+			(item.UpdatedAt.Equal(latest.UpdatedAt) && item.CreatedAt.Equal(latest.CreatedAt) && item.ID > latest.ID) {
+			latestCases[item.SourceEvalReportID] = item
+			summary.LatestCompareFollowUpCaseID = item.ID
+			summary.LatestCompareFollowUpCaseStatus = item.Status
+		}
+		summaries[item.SourceEvalReportID] = summary
+	}
+
+	for reportID := range allowed {
+		if _, ok := summaries[reportID]; !ok {
+			summaries[reportID] = EvalReportCompareFollowUpSummary{SourceEvalReportID: reportID}
+		}
+	}
+
+	return summaries, nil
+}
+
 func (s *memoryStore) SummarizeBySourceEvalCaseIDs(_ context.Context, tenantID string, evalCaseIDs []string) (map[string]EvalCaseFollowUpSummary, error) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
