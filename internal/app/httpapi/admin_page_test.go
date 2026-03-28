@@ -11,6 +11,7 @@ import (
 	"strconv"
 	"strings"
 	"testing"
+	"time"
 
 	casesvc "opspilot-go/internal/case"
 	evalsvc "opspilot-go/internal/eval"
@@ -586,6 +587,12 @@ func TestAdminEvalReportsPageRendersHTML(t *testing.T) {
 	if !strings.Contains(body, "Create case from bad case") {
 		t.Fatal("bad-case create-case action missing from eval reports page HTML")
 	}
+	if !strings.Contains(body, "Open latest bad-case case") {
+		t.Fatal("bad-case latest case handoff missing from eval reports page HTML")
+	}
+	if !strings.Contains(body, "Open bad-case follow-up slice") {
+		t.Fatal("bad-case follow-up slice handoff missing from eval reports page HTML")
+	}
 	if !strings.Contains(body, "Linked cases") {
 		t.Fatal("linked cases section missing from eval reports page HTML")
 	}
@@ -843,6 +850,14 @@ func TestAdminEvalReportsPageRuntimeSmoke(t *testing.T) {
 	reportService := evalsvc.NewEvalReportServiceWithDependencies(nil, runService)
 	reportID := materializeEvalRunReport(t, "tenant-eval-admin-smoke", evalsvc.RunStatusFailed, "failure detail", caseService, evalCaseService, datasetService, runService, reportService, "Dataset Follow-up", "Source Follow-up")
 	_ = materializeEvalRunReport(t, "tenant-eval-admin-smoke", evalsvc.RunStatusSucceeded, "success detail", caseService, evalCaseService, datasetService, runService, reportService, "Dataset No Follow-up", "Source No Follow-up")
+	reportItem, err := reportService.GetEvalReport(context.Background(), reportID)
+	if err != nil {
+		t.Fatalf("GetEvalReport() error = %v", err)
+	}
+	if len(reportItem.BadCases) == 0 {
+		t.Fatal("reportItem.BadCases is empty")
+	}
+	badCaseEvalCaseID := reportItem.BadCases[0].EvalCaseID
 
 	for i := 0; i < 6; i++ {
 		if _, err := caseService.CreateCase(context.Background(), casesvc.CreateInput{
@@ -877,6 +892,30 @@ func TestAdminEvalReportsPageRuntimeSmoke(t *testing.T) {
 	if _, err := caseService.CloseCase(context.Background(), closedFollowUp.ID, "operator-eval"); err != nil {
 		t.Fatalf("CloseCase() error = %v", err)
 	}
+	closedBadCaseFollowUp, err := caseService.CreateCase(context.Background(), casesvc.CreateInput{
+		TenantID:         "tenant-eval-admin-smoke",
+		Title:            "Closed bad-case follow-up",
+		Summary:          "Closed bad-case follow-up summary",
+		SourceEvalCaseID: badCaseEvalCaseID,
+		CreatedBy:        "operator-eval",
+	})
+	if err != nil {
+		t.Fatalf("CreateCase(closedBadCaseFollowUp) error = %v", err)
+	}
+	if _, err := caseService.CloseCase(context.Background(), closedBadCaseFollowUp.ID, "operator-eval"); err != nil {
+		t.Fatalf("CloseCase(closedBadCaseFollowUp) error = %v", err)
+	}
+	time.Sleep(2 * time.Millisecond)
+	openBadCaseFollowUp, err := caseService.CreateCase(context.Background(), casesvc.CreateInput{
+		TenantID:         "tenant-eval-admin-smoke",
+		Title:            "Open bad-case follow-up",
+		Summary:          "Open bad-case follow-up summary",
+		SourceEvalCaseID: badCaseEvalCaseID,
+		CreatedBy:        "operator-eval",
+	})
+	if err != nil {
+		t.Fatalf("CreateCase(openBadCaseFollowUp) error = %v", err)
+	}
 
 	server := httptest.NewServer(NewHandlerWithDependencies(Dependencies{
 		EvalReports: reportService,
@@ -895,6 +934,8 @@ const { chromium } = require("playwright");
 const baseURL = process.argv[2];
 const tenantID = process.argv[3];
 const reportID = process.argv[4];
+const badCaseEvalCaseID = process.argv[5];
+const latestBadCaseFollowUpID = process.argv[6];
 
 async function assertCasePayload(page, apiBaseURL, caseID, tenantID, expectedReportID, expectedEvalCaseID) {
   await page.goto(apiBaseURL + "/api/v1/cases/" + encodeURIComponent(caseID) + "?tenant_id=" + encodeURIComponent(tenantID));
@@ -1002,6 +1043,21 @@ async function assertCasePayload(page, apiBaseURL, caseID, tenantID, expectedRep
   if (!sourceEvalCaseID) {
     throw new Error("missing bad-case eval_case_id in detail action");
   }
+  if (sourceEvalCaseID !== badCaseEvalCaseID) {
+    throw new Error("unexpected bad-case eval_case_id: " + sourceEvalCaseID);
+  }
+  const badCaseSummaryText = await page.locator(".bad-case-item").first().textContent();
+  if (!badCaseSummaryText.includes("2 cases / 1 open")) {
+    throw new Error("bad-case follow-up summary missing from detail: " + badCaseSummaryText);
+  }
+  const latestBadCaseHref = await page.locator("text=Open latest bad-case case").first().getAttribute("href");
+  if (!latestBadCaseHref || !latestBadCaseHref.includes("case_id=" + encodeURIComponent(latestBadCaseFollowUpID))) {
+    throw new Error("bad-case latest case handoff missing canonical case_id");
+  }
+  const badCaseSliceHref = await page.locator("text=Open bad-case follow-up slice").first().getAttribute("href");
+  if (!badCaseSliceHref || !badCaseSliceHref.includes("source_eval_case_id=" + encodeURIComponent(sourceEvalCaseID))) {
+    throw new Error("bad-case follow-up slice handoff missing source_eval_case_id");
+  }
   await badCaseButton.click();
   await page.waitForURL(/\/admin\/cases\?/);
   const createdBadCaseURL = new URL(page.url());
@@ -1027,7 +1083,7 @@ async function assertCasePayload(page, apiBaseURL, caseID, tenantID, expectedRep
 		t.Fatalf("WriteFile(scriptPath) error = %v", err)
 	}
 
-	cmd := exec.Command("node", scriptPath, server.URL, "tenant-eval-admin-smoke", reportID)
+	cmd := exec.Command("node", scriptPath, server.URL, "tenant-eval-admin-smoke", reportID, badCaseEvalCaseID, openBadCaseFollowUp.ID)
 	cmd.Env = append(os.Environ(), "NODE_PATH="+nodePathRoot)
 	output, err := cmd.CombinedOutput()
 	if err != nil {

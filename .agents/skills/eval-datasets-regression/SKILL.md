@@ -69,6 +69,7 @@ Turn prompt, routing, retrieval, and tool changes into measurable, repeatable qu
 37. Once canonical eval-case reads carry follow-up summary fields, prefer using those fields as the first eval-triage signal on `/admin/evals` before introducing any eval-only follow-up queue or duplicated case summary store.
 38. Once canonical eval-case reads expose `needs_follow_up`, prefer filtering unresolved follow-up through that backend-owned field before introducing any separate eval-follow-up queue contract.
 39. Once the canonical case contract accepts standalone `source_eval_case_id`, prefer creating or reusing precise follow-up directly from `/admin/evals` instead of routing every eval-case action through an eval-report-level case flow.
+40. Once canonical eval-report detail carries per-bad-case follow-up summary, prefer exposing those fields directly on bad-case drill-down surfaces so operators can reuse existing case lineage instead of opening duplicate follow-up from the same failing eval case.
 
 ## Output contract
 When you finish, always report:

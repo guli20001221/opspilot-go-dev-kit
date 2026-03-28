@@ -15,16 +15,20 @@ import (
 )
 
 type evalReportBadCaseResponse struct {
-	EvalCaseID     string  `json:"eval_case_id"`
-	Title          string  `json:"title"`
-	SourceCaseID   string  `json:"source_case_id"`
-	SourceTaskID   string  `json:"source_task_id,omitempty"`
-	SourceReportID string  `json:"source_report_id,omitempty"`
-	TraceID        string  `json:"trace_id,omitempty"`
-	VersionID      string  `json:"version_id,omitempty"`
-	Verdict        string  `json:"verdict"`
-	Detail         string  `json:"detail,omitempty"`
-	Score          float64 `json:"score"`
+	EvalCaseID               string  `json:"eval_case_id"`
+	Title                    string  `json:"title"`
+	SourceCaseID             string  `json:"source_case_id"`
+	SourceTaskID             string  `json:"source_task_id,omitempty"`
+	SourceReportID           string  `json:"source_report_id,omitempty"`
+	TraceID                  string  `json:"trace_id,omitempty"`
+	VersionID                string  `json:"version_id,omitempty"`
+	Verdict                  string  `json:"verdict"`
+	Detail                   string  `json:"detail,omitempty"`
+	Score                    float64 `json:"score"`
+	FollowUpCaseCount        int     `json:"follow_up_case_count"`
+	OpenFollowUpCaseCount    int     `json:"open_follow_up_case_count"`
+	LatestFollowUpCaseID     string  `json:"latest_follow_up_case_id,omitempty"`
+	LatestFollowUpCaseStatus string  `json:"latest_follow_up_case_status,omitempty"`
 }
 
 type evalReportResponse struct {
@@ -245,7 +249,13 @@ func (a *appHandler) handleEvalReportByID(w http.ResponseWriter, r *http.Request
 		return
 	}
 
-	writeJSON(w, http.StatusOK, newEvalReportResponse(item, true, followUpSummaries[reportID]))
+	badCaseFollowUpSummaries, err := a.evalCaseFollowUpSummaries(r.Context(), tenantID, item.BadCases)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "eval_case_follow_up_summary_failed", err.Error())
+		return
+	}
+
+	writeJSON(w, http.StatusOK, newEvalReportResponse(item, true, followUpSummaries[reportID], badCaseFollowUpSummaries))
 }
 
 func parseEvalReportListFilter(r *http.Request) (evalsvc.EvalReportListFilter, error) {
@@ -374,12 +384,36 @@ func (a *appHandler) buildEvalReportListResponse(ctx context.Context, tenantID s
 	}
 	for _, item := range page.Reports {
 		summary := followUpSummaries[item.ID]
-		resp.Reports = append(resp.Reports, newEvalReportResponse(item, false, summary))
+		resp.Reports = append(resp.Reports, newEvalReportResponse(item, false, summary, nil))
 	}
 	return resp, nil
 }
 
-func newEvalReportResponse(item evalsvc.EvalReport, includeHeavy bool, followUpSummary casesvc.EvalReportFollowUpSummary) evalReportResponse {
+func (a *appHandler) evalCaseFollowUpSummaries(ctx context.Context, tenantID string, badCases []evalsvc.EvalReportBadCase) (map[string]casesvc.EvalCaseFollowUpSummary, error) {
+	if len(badCases) == 0 {
+		return map[string]casesvc.EvalCaseFollowUpSummary{}, nil
+	}
+
+	evalCaseIDs := make([]string, 0, len(badCases))
+	seen := make(map[string]struct{}, len(badCases))
+	for _, badCase := range badCases {
+		if badCase.EvalCaseID == "" {
+			continue
+		}
+		if _, ok := seen[badCase.EvalCaseID]; ok {
+			continue
+		}
+		seen[badCase.EvalCaseID] = struct{}{}
+		evalCaseIDs = append(evalCaseIDs, badCase.EvalCaseID)
+	}
+	if len(evalCaseIDs) == 0 {
+		return map[string]casesvc.EvalCaseFollowUpSummary{}, nil
+	}
+
+	return a.cases.SummarizeBySourceEvalCaseIDs(ctx, tenantID, evalCaseIDs)
+}
+
+func newEvalReportResponse(item evalsvc.EvalReport, includeHeavy bool, followUpSummary casesvc.EvalReportFollowUpSummary, badCaseSummaries map[string]casesvc.EvalCaseFollowUpSummary) evalReportResponse {
 	resp := evalReportResponse{
 		ReportID:                 item.ID,
 		TenantID:                 item.TenantID,
@@ -409,17 +443,22 @@ func newEvalReportResponse(item evalsvc.EvalReport, includeHeavy bool, followUpS
 		if len(item.BadCases) > 0 {
 			resp.BadCases = make([]evalReportBadCaseResponse, 0, len(item.BadCases))
 			for _, badCase := range item.BadCases {
+				badCaseSummary := badCaseSummaries[badCase.EvalCaseID]
 				resp.BadCases = append(resp.BadCases, evalReportBadCaseResponse{
-					EvalCaseID:     badCase.EvalCaseID,
-					Title:          badCase.Title,
-					SourceCaseID:   badCase.SourceCaseID,
-					SourceTaskID:   badCase.SourceTaskID,
-					SourceReportID: badCase.SourceReportID,
-					TraceID:        badCase.TraceID,
-					VersionID:      badCase.VersionID,
-					Verdict:        badCase.Verdict,
-					Detail:         badCase.Detail,
-					Score:          badCase.Score,
+					EvalCaseID:               badCase.EvalCaseID,
+					Title:                    badCase.Title,
+					SourceCaseID:             badCase.SourceCaseID,
+					SourceTaskID:             badCase.SourceTaskID,
+					SourceReportID:           badCase.SourceReportID,
+					TraceID:                  badCase.TraceID,
+					VersionID:                badCase.VersionID,
+					Verdict:                  badCase.Verdict,
+					Detail:                   badCase.Detail,
+					Score:                    badCase.Score,
+					FollowUpCaseCount:        badCaseSummary.FollowUpCaseCount,
+					OpenFollowUpCaseCount:    badCaseSummary.OpenFollowUpCaseCount,
+					LatestFollowUpCaseID:     badCaseSummary.LatestFollowUpCaseID,
+					LatestFollowUpCaseStatus: badCaseSummary.LatestFollowUpCaseStatus,
 				})
 			}
 		}

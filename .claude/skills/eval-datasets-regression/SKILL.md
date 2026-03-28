@@ -91,3 +91,4 @@ When you finish, always report:
 - no prompt change without considering eval impact
 - no report that only shows aggregate pass rate without bad-case evidence
 - no hand-wavy claims of quality improvement without comparison data
+- once canonical eval-report detail carries per-bad-case follow-up summary, prefer exposing those fields directly on bad-case drill-down surfaces so operators can reuse existing case lineage instead of opening duplicate follow-up from the same failing eval case

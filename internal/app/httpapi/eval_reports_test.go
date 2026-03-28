@@ -131,6 +131,92 @@ func TestGetEvalReportIncludesFollowUpCaseSummary(t *testing.T) {
 	}
 }
 
+func TestGetEvalReportIncludesBadCaseFollowUpCaseSummary(t *testing.T) {
+	caseService := casesvc.NewService()
+	evalCaseService := evalsvc.NewService(caseService, nil)
+	datasetService := evalsvc.NewDatasetService(evalCaseService)
+	runService := evalsvc.NewRunService(datasetService)
+	reportService := evalsvc.NewEvalReportServiceWithDependencies(nil, runService)
+	reportID := materializeEvalRunReport(t, "tenant-eval-report-badcase-followup", evalsvc.RunStatusFailed, "failure detail", caseService, evalCaseService, datasetService, runService, reportService, "Dataset Bad Case Followup", "Source Bad Case Followup")
+
+	report, err := reportService.GetEvalReport(context.Background(), reportID)
+	if err != nil {
+		t.Fatalf("GetEvalReport() error = %v", err)
+	}
+	if len(report.BadCases) != 1 {
+		t.Fatalf("len(report.BadCases) = %d, want 1", len(report.BadCases))
+	}
+	evalCaseID := report.BadCases[0].EvalCaseID
+
+	closedCase, err := caseService.CreateCase(context.Background(), casesvc.CreateInput{
+		TenantID:         "tenant-eval-report-badcase-followup",
+		Title:            "Closed eval-case follow-up",
+		Summary:          "closed summary",
+		SourceEvalCaseID: evalCaseID,
+		CreatedBy:        "operator-followup",
+	})
+	if err != nil {
+		t.Fatalf("CreateCase(closed) error = %v", err)
+	}
+	if _, err := caseService.CloseCase(context.Background(), closedCase.ID, "operator-followup"); err != nil {
+		t.Fatalf("CloseCase() error = %v", err)
+	}
+	time.Sleep(2 * time.Millisecond)
+	openCase, err := caseService.CreateCase(context.Background(), casesvc.CreateInput{
+		TenantID:         "tenant-eval-report-badcase-followup",
+		Title:            "Open eval-case follow-up",
+		Summary:          "open summary",
+		SourceEvalCaseID: evalCaseID,
+		CreatedBy:        "operator-followup",
+	})
+	if err != nil {
+		t.Fatalf("CreateCase(open) error = %v", err)
+	}
+	if _, err := caseService.AssignCase(context.Background(), openCase, "operator-followup"); err != nil {
+		t.Fatalf("AssignCase(open) error = %v", err)
+	}
+
+	server := httptest.NewServer(NewHandlerWithDependencies(Dependencies{
+		Cases:       caseService,
+		EvalReports: reportService,
+	}))
+	defer server.Close()
+
+	resp, err := http.Get(server.URL + "/api/v1/eval-reports/" + reportID + "?tenant_id=tenant-eval-report-badcase-followup")
+	if err != nil {
+		t.Fatalf("Get() error = %v", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("StatusCode = %d, want %d", resp.StatusCode, http.StatusOK)
+	}
+
+	var got evalReportResponse
+	if err := json.NewDecoder(resp.Body).Decode(&got); err != nil {
+		t.Fatalf("Decode() error = %v", err)
+	}
+	if len(got.BadCases) != 1 {
+		t.Fatalf("len(got.BadCases) = %d, want 1", len(got.BadCases))
+	}
+	badCase := got.BadCases[0]
+	if badCase.EvalCaseID != evalCaseID {
+		t.Fatalf("BadCases[0].EvalCaseID = %q, want %q", badCase.EvalCaseID, evalCaseID)
+	}
+	if badCase.FollowUpCaseCount != 2 {
+		t.Fatalf("BadCases[0].FollowUpCaseCount = %d, want 2", badCase.FollowUpCaseCount)
+	}
+	if badCase.OpenFollowUpCaseCount != 1 {
+		t.Fatalf("BadCases[0].OpenFollowUpCaseCount = %d, want 1", badCase.OpenFollowUpCaseCount)
+	}
+	if badCase.LatestFollowUpCaseID != openCase.ID {
+		t.Fatalf("BadCases[0].LatestFollowUpCaseID = %q, want %q", badCase.LatestFollowUpCaseID, openCase.ID)
+	}
+	if badCase.LatestFollowUpCaseStatus != casesvc.StatusOpen {
+		t.Fatalf("BadCases[0].LatestFollowUpCaseStatus = %q, want %q", badCase.LatestFollowUpCaseStatus, casesvc.StatusOpen)
+	}
+}
+
 func TestCompareEvalReportsReturnsTypedSummary(t *testing.T) {
 	caseService := casesvc.NewService()
 	evalCaseService := evalsvc.NewService(caseService, nil)
