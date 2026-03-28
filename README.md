@@ -142,6 +142,7 @@ Current Milestone 1 slice:
 - `/admin/eval-reports` detail now surfaces that same `latest_follow_up_case_id` as a direct handoff action, so operators can jump into the freshest follow-up case from both list and detail
 - `/admin/eval-report-compare` now reuses the same canonical `latest_follow_up_case_id` on both sides, so operators can see whether either report already has active follow-up before creating a new case
 - `/admin/eval-report-compare` now also shows per-side follow-up counts and latest follow-up status, so operators can judge existing triage pressure before opening or creating cases
+- `/admin/eval-report-compare` now also hands each side directly into `/admin/cases?source_eval_report_id=...`, so operators can inspect the full existing follow-up slice before opening another case
 - the same `/admin/eval-reports` page now also shows linked durable follow-up cases for the selected eval report by reusing the canonical case list filter `source_eval_report_id`
 - `GET /api/v1/eval-report-compare` now exposes a narrow read-only compare contract over two durable eval reports, so score deltas, metadata drift, and bad-case overlap stay on the backend instead of turning into browser-only diff logic
 - `/admin/eval-report-compare` now exposes the first eval-report comparison page, handing off into eval runs and version detail from that same canonical compare contract

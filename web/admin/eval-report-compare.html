@@ -59,9 +59,10 @@
           <div class="compare-grid">
             <section class="detail-card">
               <h3 style="margin-top:0;">Left report</h3>
-              <div class="detail-grid" id="leftReportDetail"></div>
+                <div class="detail-grid" id="leftReportDetail"></div>
                 <div class="actions" style="margin-top:14px;">
                   <a class="button-link ghost" id="leftLatestCaseLink" href="#" hidden>Open left latest case</a>
+                  <a class="button-link ghost" id="leftLinkedCasesLink" href="#">Open left linked cases</a>
                   <a class="button-link ghost" id="leftReportAPILink" href="#" target="_blank" rel="noreferrer">Open left eval report API</a>
                   <a class="button-link ghost" id="leftRunLaneLink" href="#">Open left eval run lane</a>
                   <a class="button-link ghost" id="leftVersionLink" href="#" hidden>Open left version detail</a>
@@ -69,9 +70,10 @@
             </section>
             <section class="detail-card">
               <h3 style="margin-top:0;">Right report</h3>
-              <div class="detail-grid" id="rightReportDetail"></div>
+                <div class="detail-grid" id="rightReportDetail"></div>
                 <div class="actions" style="margin-top:14px;">
                   <a class="button-link ghost" id="rightLatestCaseLink" href="#" hidden>Open right latest case</a>
+                  <a class="button-link ghost" id="rightLinkedCasesLink" href="#">Open right linked cases</a>
                   <a class="button-link ghost" id="rightReportAPILink" href="#" target="_blank" rel="noreferrer">Open right eval report API</a>
                   <a class="button-link ghost" id="rightRunLaneLink" href="#">Open right eval run lane</a>
                   <a class="button-link ghost" id="rightVersionLink" href="#" hidden>Open right version detail</a>
@@ -115,6 +117,8 @@
     const rightReportAPILink = document.getElementById("rightReportAPILink");
     const leftLatestCaseLink = document.getElementById("leftLatestCaseLink");
     const rightLatestCaseLink = document.getElementById("rightLatestCaseLink");
+    const leftLinkedCasesLink = document.getElementById("leftLinkedCasesLink");
+    const rightLinkedCasesLink = document.getElementById("rightLinkedCasesLink");
     const leftRunLaneLink = document.getElementById("leftRunLaneLink");
     const rightRunLaneLink = document.getElementById("rightRunLaneLink");
     const leftVersionLink = document.getElementById("leftVersionLink");
@@ -231,6 +235,8 @@
 
       leftReportAPILink.href = `${detailEndpointBase}${encodeURIComponent(payload.left.report_id)}?tenant_id=${encodeURIComponent(payload.left.tenant_id)}`;
       rightReportAPILink.href = `${detailEndpointBase}${encodeURIComponent(payload.right.report_id)}?tenant_id=${encodeURIComponent(payload.right.tenant_id)}`;
+      leftLinkedCasesLink.href = `/admin/cases?tenant_id=${encodeURIComponent(payload.left.tenant_id)}&source_eval_report_id=${encodeURIComponent(payload.left.report_id)}`;
+      rightLinkedCasesLink.href = `/admin/cases?tenant_id=${encodeURIComponent(payload.right.tenant_id)}&source_eval_report_id=${encodeURIComponent(payload.right.report_id)}`;
       if (payload.left.latest_follow_up_case_id) {
         leftLatestCaseLink.hidden = false;
         leftLatestCaseLink.href = `/admin/cases?tenant_id=${encodeURIComponent(payload.left.tenant_id)}&case_id=${encodeURIComponent(payload.left.latest_follow_up_case_id)}`;

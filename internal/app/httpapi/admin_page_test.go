@@ -631,11 +631,17 @@ func TestAdminEvalReportComparePageRendersHTML(t *testing.T) {
 	if !strings.Contains(body, "Open left latest case") {
 		t.Fatal("left latest-case handoff missing from compare HTML")
 	}
+	if !strings.Contains(body, "Open left linked cases") {
+		t.Fatal("left linked-cases handoff missing from compare HTML")
+	}
 	if !strings.Contains(body, "Open right eval report API") {
 		t.Fatal("right eval report api handoff missing from compare HTML")
 	}
 	if !strings.Contains(body, "Open right latest case") {
 		t.Fatal("right latest-case handoff missing from compare HTML")
+	}
+	if !strings.Contains(body, "Open right linked cases") {
+		t.Fatal("right linked-cases handoff missing from compare HTML")
 	}
 	if !strings.Contains(body, "Follow-up") {
 		t.Fatal("follow-up summary missing from compare HTML")
@@ -734,10 +740,18 @@ async function assertCaseSource(page, apiBaseURL, caseID, tenantID, expectedRepo
   if (!leftCaseHref || !leftCaseHref.includes("case_id=" + encodeURIComponent(leftCaseID))) {
     throw new Error("left latest-case handoff missing selected case");
   }
+  const leftLinkedCasesHref = await page.getAttribute("#leftLinkedCasesLink", "href");
+  if (!leftLinkedCasesHref || !leftLinkedCasesHref.includes("/admin/cases?") || !leftLinkedCasesHref.includes("source_eval_report_id=" + encodeURIComponent(leftReportID))) {
+    throw new Error("left linked-cases handoff missing selected source_eval_report_id");
+  }
 	const rightCaseHref = await page.getAttribute("#rightLatestCaseLink", "href");
 	if (!rightCaseHref || !rightCaseHref.includes("case_id=" + encodeURIComponent(rightCaseID))) {
 		throw new Error("right latest-case handoff missing selected case");
 	}
+  const rightLinkedCasesHref = await page.getAttribute("#rightLinkedCasesLink", "href");
+  if (!rightLinkedCasesHref || !rightLinkedCasesHref.includes("/admin/cases?") || !rightLinkedCasesHref.includes("source_eval_report_id=" + encodeURIComponent(rightReportID))) {
+    throw new Error("right linked-cases handoff missing selected source_eval_report_id");
+  }
   const leftFollowUpText = (await page.textContent("#leftReportDetail")).trim();
   if (!leftFollowUpText.includes("1 cases / 1 open")) {
     throw new Error("left follow-up summary missing from compare detail");
