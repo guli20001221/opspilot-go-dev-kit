@@ -226,24 +226,31 @@
 
     function sidePrimaryAction(side) {
       if (!currentComparison) {
-        return { mode: "create", text: `Create case from ${side}` };
+        return { mode: "invalid", text: `Follow-up action unavailable`, href: "", valid: false };
       }
       const item = side === "left" ? currentComparison.left : currentComparison.right;
       const preferred = item && item.preferred_compare_follow_up_action;
-      if (preferred && typeof preferred.mode === "string" && preferred.mode !== "") {
-        if (preferred.mode === "open_existing_queue") {
-          return {
-            mode: "open-queue",
-            text: `Open ${side} compare queue`,
-            href: compareQueueHref({
-              tenant_id: item.tenant_id,
-              report_id: preferred.source_eval_report_id || item.report_id
-            })
-          };
-        }
-        return { mode: "create", text: `Create case from ${side}` };
+      if (!preferred || typeof preferred.mode !== "string" || preferred.mode === "") {
+        return { mode: "invalid", text: "Follow-up action unavailable", href: "", valid: false };
       }
-      return { mode: "create", text: `Create case from ${side}` };
+      if (preferred.mode === "open_existing_queue") {
+        if (!preferred.source_eval_report_id) {
+          return { mode: "invalid", text: "Follow-up action unavailable", href: "", valid: false };
+        }
+        return {
+          mode: "open-queue",
+          text: `Open ${side} compare queue`,
+          href: compareQueueHref({
+            tenant_id: item.tenant_id,
+            report_id: preferred.source_eval_report_id
+          }),
+          valid: true
+        };
+      }
+      if (preferred.mode === "create") {
+        return { mode: "create", text: `Create case from ${side}`, href: "", valid: true };
+      }
+      return { mode: "invalid", text: "Follow-up action unavailable", href: "", valid: false };
     }
 
     function syncPrimaryActionButtons(disabled, activeSide) {
@@ -253,8 +260,8 @@
       createRightCaseButton.dataset.mode = rightAction.mode;
       createLeftCaseButton.dataset.href = leftAction.href || "";
       createRightCaseButton.dataset.href = rightAction.href || "";
-      createLeftCaseButton.disabled = disabled;
-      createRightCaseButton.disabled = disabled;
+      createLeftCaseButton.disabled = disabled || !leftAction.valid;
+      createRightCaseButton.disabled = disabled || !rightAction.valid;
       createLeftCaseButton.textContent = disabled && activeSide === "left" && leftAction.mode === "create" ? "Creating left..." : leftAction.text;
       createRightCaseButton.textContent = disabled && activeSide === "right" && rightAction.mode === "create" ? "Creating right..." : rightAction.text;
     }
@@ -266,7 +273,11 @@
       createLeftCaseButton.hidden = false;
       createRightCaseButton.hidden = false;
       syncPrimaryActionButtons(false);
-      if ((payload.left.open_compare_follow_up_case_count || 0) > 0 || (payload.right.open_compare_follow_up_case_count || 0) > 0) {
+      const leftAction = sidePrimaryAction("left");
+      const rightAction = sidePrimaryAction("right");
+      if (!leftAction.valid || !rightAction.valid) {
+        compareActionStatus.textContent = "This comparison is missing a canonical preferred_compare_follow_up_action; fix the backend contract before handoff.";
+      } else if (leftAction.mode === "open-queue" || rightAction.mode === "open-queue") {
         compareActionStatus.textContent = "Open the existing compare queue when follow-up is already in progress; create a new case only when that side has no open compare-origin follow-up.";
       } else {
         compareActionStatus.textContent = "Create a durable case when this comparison represents a regression that needs operator follow-up.";
@@ -284,9 +295,9 @@
       rightReportAPILink.href = `${detailEndpointBase}${encodeURIComponent(payload.right.report_id)}?tenant_id=${encodeURIComponent(payload.right.tenant_id)}`;
       leftLinkedCasesLink.href = `/admin/cases?tenant_id=${encodeURIComponent(payload.left.tenant_id)}&source_eval_report_id=${encodeURIComponent(payload.left.report_id)}`;
       rightLinkedCasesLink.href = `/admin/cases?tenant_id=${encodeURIComponent(payload.right.tenant_id)}&source_eval_report_id=${encodeURIComponent(payload.right.report_id)}`;
-      if ((payload.left.compare_follow_up_case_count || 0) > 0) {
+      if (leftAction.mode === "open-queue" && leftAction.href) {
         leftCompareCasesLink.hidden = false;
-        leftCompareCasesLink.href = compareQueueHref(payload.left);
+        leftCompareCasesLink.href = leftAction.href;
       } else {
         leftCompareCasesLink.hidden = true;
         leftCompareCasesLink.href = "#";
@@ -319,9 +330,9 @@
         rightBadCaseNeedsFollowUpLink.hidden = true;
         rightBadCaseNeedsFollowUpLink.href = "#";
       }
-      if ((payload.right.compare_follow_up_case_count || 0) > 0) {
+      if (rightAction.mode === "open-queue" && rightAction.href) {
         rightCompareCasesLink.hidden = false;
-        rightCompareCasesLink.href = compareQueueHref(payload.right);
+        rightCompareCasesLink.href = rightAction.href;
       } else {
         rightCompareCasesLink.hidden = true;
         rightCompareCasesLink.href = "#";
@@ -403,6 +414,10 @@
         return;
       }
       const button = side === "left" ? createLeftCaseButton : createRightCaseButton;
+      if (button.dataset.mode === "invalid") {
+        compareActionStatus.textContent = "This comparison is missing a canonical preferred_compare_follow_up_action.";
+        return;
+      }
       if (button.dataset.mode === "open-queue" && button.dataset.href) {
         window.location.href = button.dataset.href;
         return;
