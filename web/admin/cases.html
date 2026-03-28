@@ -749,6 +749,9 @@
               ${item.status === "open" && !item.assigned_to ? `
                 <button class="ghost" type="button" data-case-assign-id="${escapeHTML(item.case_id)}">Assign to me</button>
               ` : ""}
+              ${item.status === "open" ? `
+                <button class="ghost" type="button" data-case-close-id="${escapeHTML(item.case_id)}">Close from queue</button>
+              ` : ""}
               ${item.compare_origin && item.compare_origin.left_eval_report_id && item.compare_origin.right_eval_report_id ? `
                 <a class="button-link ghost" data-case-compare-link="${escapeHTML(item.case_id)}" href="/admin/eval-report-compare?tenant_id=${encodeURIComponent(item.tenant_id)}&left_report_id=${encodeURIComponent(item.compare_origin.left_eval_report_id)}&right_report_id=${encodeURIComponent(item.compare_origin.right_eval_report_id)}">Open compare</a>
               ` : ""}
@@ -1210,6 +1213,11 @@
     });
 
     caseRows.addEventListener("click", (event) => {
+      const closeButton = event.target.closest("[data-case-close-id]");
+      if (closeButton) {
+        closeCaseByID(closeButton.dataset.caseCloseId, caseActorInput.value.trim() || "cases-operator", "Closed case from queue.");
+        return;
+      }
       const assignButton = event.target.closest("[data-case-assign-id]");
       if (assignButton) {
         assignCaseByID(assignButton.dataset.caseAssignId, caseActorInput.value.trim() || "cases-operator", "Assigned case to me.");
@@ -1230,8 +1238,8 @@
       loadCases("");
     });
 
-    closeCaseButton.addEventListener("click", async () => {
-      if (!currentCaseID) return;
+    async function closeCaseByID(caseID, closedBy, successMessage) {
+      if (!caseID) return;
       const tenantID = form.elements.namedItem("tenant_id").value.trim();
       if (!tenantID) {
         setDetailStatus("Tenant scope is required before closing a case.", true);
@@ -1241,26 +1249,31 @@
       closeCaseButton.disabled = true;
       setDetailStatus("Closing case...");
       try {
-        const response = await fetch(`${detailEndpointBase}${encodeURIComponent(currentCaseID)}${closeActionSuffix}?tenant_id=${encodeURIComponent(tenantID)}`, {
+        const response = await fetch(`${detailEndpointBase}${encodeURIComponent(caseID)}${closeActionSuffix}?tenant_id=${encodeURIComponent(tenantID)}`, {
           method: "POST",
           headers: {
             "Accept": "application/json",
             "Content-Type": "application/json"
           },
           body: JSON.stringify({
-            closed_by: caseActorInput.value.trim() || "cases-operator"
+            closed_by: closedBy
           })
         });
         const payload = await response.json().catch(() => ({}));
         if (!response.ok) {
           throw new Error(payload.message || `Close case failed: ${response.statusText}`);
         }
-        setDetailStatus(`Case closed by ${payload.closed_by || (caseActorInput.value.trim() || "cases-operator")}.`);
-        await loadCases(currentCaseID);
+        setDetailStatus(successMessage || `Case closed by ${payload.closed_by || closedBy}.`);
+        await loadCases(caseID === currentCaseID ? currentCaseID : "");
       } catch (error) {
         closeCaseButton.disabled = false;
         setDetailStatus(error.message || "Unable to close case.", true);
       }
+    }
+
+    closeCaseButton.addEventListener("click", async () => {
+      if (!currentCaseID) return;
+      await closeCaseByID(currentCaseID, caseActorInput.value.trim() || "cases-operator", `Case closed by ${caseActorInput.value.trim() || "cases-operator"}.`);
     });
 
     reopenCaseButton.addEventListener("click", async () => {

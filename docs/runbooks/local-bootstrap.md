@@ -194,6 +194,7 @@ The current chat stream implementation is a Milestone 1 skeleton:
 - use the `Compare follow-ups` quick view on `/admin/cases` when you want the durable queue of compare-derived regression cases without hand-composing `compare_origin_only=true`
 - use the row-level `Open compare` action inside that `/admin/cases` compare queue when you need to jump straight back to the exact eval-report comparison for one case without opening detail first
 - use the row-level `Assign to me` action in that same compare-follow-up queue when you want to claim an unassigned regression case without opening detail first
+- use the row-level `Close from queue` action in that same compare-follow-up queue when a resolved regression should immediately leave the open compare slice
 - successful `report_generation` tasks now finalize the durable report row and task `succeeded` transition together, so `ready_at` and report `metadata.audit_ref` line up with the final task state
 - the local Compose app services now start from dedicated runtime images, which removes the previous startup dependence on downloading Go modules inside the running container
 - the last successful `audit_event.detail` now carries an execution summary, such as which ticket comment was created

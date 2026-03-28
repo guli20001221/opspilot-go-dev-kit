@@ -1256,6 +1256,9 @@ func TestAdminCasesPageRendersHTML(t *testing.T) {
 	if !strings.Contains(body, "Assign to me") {
 		t.Fatal("row-level assign-to-me action missing from cases page HTML")
 	}
+	if !strings.Contains(body, "Close from queue") {
+		t.Fatal("row-level close-from-queue action missing from cases page HTML")
+	}
 	if !strings.Contains(body, "Add note") {
 		t.Fatal("add note action missing from cases page HTML")
 	}
@@ -1448,6 +1451,12 @@ const compareRightReportID = process.argv[11];
   }
   const compareOnlyStatus = await page.$eval("#status", (node) => node.value);
   if (compareOnlyStatus !== "open") throw new Error("compare quick view drifted open status");
+  await page.click('[data-case-close-id="' + linkedCaseID + '"]');
+  await page.waitForFunction(() => document.querySelector("#visibleCount")?.textContent?.trim() === "0");
+  const closedVisibleCount = await page.textContent("#visibleCount");
+  if (closedVisibleCount.trim() !== "0") throw new Error("row-level close did not remove case from open compare queue");
+  const queueText = await page.textContent("#caseListState");
+  if (!queueText.includes("No cases matched the current slice.")) throw new Error("closed compare queue did not enter empty state");
 
   await page.goto(baseURL + "/admin/cases?tenant_id=" + encodeURIComponent(tenantID) + "&limit=10&case_id=" + encodeURIComponent(missingCaseID));
   await page.waitForSelector("text=Source eval report summary");
