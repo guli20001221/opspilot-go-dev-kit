@@ -305,6 +305,9 @@ func TestAdminEvalsPageRendersHTML(t *testing.T) {
 	if !strings.Contains(body, "Create dataset draft") {
 		t.Fatal("dataset draft action missing from eval page HTML")
 	}
+	if !strings.Contains(body, "Create case") {
+		t.Fatal("eval case handoff missing from eval page HTML")
+	}
 	if !strings.Contains(body, "Add to dataset") {
 		t.Fatal("dataset append action missing from eval page HTML")
 	}

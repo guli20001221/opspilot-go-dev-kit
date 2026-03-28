@@ -142,3 +142,4 @@ When you finish, always report:
 - when one bad case inside an eval report needs distinct operator follow-up, prefer reusing `POST /api/v1/cases` with both `source_eval_report_id` and `source_eval_case_id` over collapsing the action back into a report-level follow-up
 - once canonical eval-case reads carry follow-up summary fields, prefer wiring `/admin/evals` handoff through `latest_follow_up_case_id` and `/admin/cases?source_eval_case_id=...` instead of issuing browser-side case lookups per eval row
 - once canonical eval-case reads expose `needs_follow_up`, prefer a quick-view preset on `/admin/evals` that writes back into that filter over building a second eval-only follow-up queue
+- once the canonical case contract accepts standalone `source_eval_case_id`, prefer wiring `Create case` directly from `/admin/evals` instead of forcing operators to detour through the eval-report lane

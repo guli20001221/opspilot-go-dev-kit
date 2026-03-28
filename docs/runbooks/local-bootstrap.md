@@ -125,6 +125,7 @@ The current chat stream implementation is a Milestone 1 skeleton:
 - if a legacy successful report task has no durable report row yet, `/admin/reports` now falls back to task provenance and keeps the detail panel readable instead of failing the inspect flow
 - use `GET /api/v1/reports/report-<task_id>` when you need the canonical report read model behind a successful report task, without parsing task audit history yourself
 - use `POST /api/v1/cases` when you need a durable operator follow-up object that can point at a source task, a source report, or both
+- that same canonical case contract now also accepts standalone `source_eval_case_id`, so one durable eval case can open or reuse precise follow-up work without a matching `source_eval_report_id`
 - use `GET /api/v1/cases` when you need to inspect the current durable case slice for a tenant, status, or source linkage
 - use `GET /api/v1/cases/{case_id}` when you need the canonical case record for that follow-up object
 - use `POST /api/v1/cases/{case_id}/close?tenant_id=<tenant>` when you need to close an open follow-up object and capture who closed it
@@ -175,6 +176,7 @@ The current chat stream implementation is a Milestone 1 skeleton:
 - use `Add to dataset` on `/admin/evals` when you want to append the currently selected durable eval case into an existing dataset draft by ID
 - use `Open latest follow-up case` on `/admin/evals` when the selected durable eval case already has linked operator work, and use `Open follow-up slice` when you want the full `/admin/cases?source_eval_case_id=...` queue
 - use the `Needs follow-up` quick view on `/admin/evals` when you want the unresolved-follow-up slice without manually entering `needs_follow_up=true`
+- use `Create case` on `/admin/evals` when the selected durable eval case needs precise follow-up and you want the canonical case lifecycle to open or reuse that work directly from the eval lane
 - open `http://localhost:18080/admin/eval-datasets` when you want the first dataset-focused operator page, including dataset membership detail plus eval/case/task/report/version/trace handoff links
 - use `Publish dataset` on `/admin/eval-datasets` when you want to freeze the selected draft and make the page read-only for that baseline
 - use `Run dataset` on `/admin/eval-datasets` when you want to create a durable queued eval run from the selected published baseline and land on the matching `/admin/eval-runs` detail

@@ -544,8 +544,6 @@ func validateCreateCaseRequest(req createCaseRequest) error {
 		return errors.New("tenant_id is required")
 	case req.Title == "":
 		return errors.New("title is required")
-	case req.SourceEvalCaseID != "" && req.SourceEvalReportID == "":
-		return errors.New("source_eval_case_id requires source_eval_report_id")
 	case req.CompareOrigin != nil:
 		if req.CompareOrigin.LeftEvalReportID == "" || req.CompareOrigin.RightEvalReportID == "" {
 			return errors.New("compare_origin.left_eval_report_id and compare_origin.right_eval_report_id are required")

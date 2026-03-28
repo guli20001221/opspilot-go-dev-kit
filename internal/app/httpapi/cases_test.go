@@ -203,6 +203,123 @@ func TestCreateAndGetCaseEndpointWithEvalCaseSource(t *testing.T) {
 	}
 }
 
+func TestCreateAndGetCaseEndpointWithStandaloneEvalCaseSource(t *testing.T) {
+	caseService := casesvc.NewService()
+	evalCaseService := evalsvc.NewService(caseService, nil)
+
+	sourceCase, err := caseService.CreateCase(context.Background(), casesvc.CreateInput{
+		TenantID: "tenant-eval-case-standalone",
+		Title:    "Source eval case only",
+		Summary:  "Promote this one bad case",
+	})
+	if err != nil {
+		t.Fatalf("CreateCase(sourceCase) error = %v", err)
+	}
+	evalCase, _, err := evalCaseService.PromoteCase(context.Background(), evalsvc.CreateInput{
+		TenantID:     "tenant-eval-case-standalone",
+		SourceCaseID: sourceCase.ID,
+	})
+	if err != nil {
+		t.Fatalf("PromoteCase() error = %v", err)
+	}
+
+	server := httptest.NewServer(NewHandlerWithDependencies(Dependencies{
+		Cases:     caseService,
+		EvalCases: evalCaseService,
+	}))
+	defer server.Close()
+
+	body := bytes.NewBufferString(`{"tenant_id":"tenant-eval-case-standalone","title":"Investigate standalone eval case","summary":"Follow up directly from eval lane","source_eval_case_id":"` + evalCase.ID + `","created_by":"operator-eval"}`)
+	resp, err := http.Post(server.URL+"/api/v1/cases", "application/json", body)
+	if err != nil {
+		t.Fatalf("Post() error = %v", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusCreated {
+		t.Fatalf("StatusCode = %d, want %d", resp.StatusCode, http.StatusCreated)
+	}
+
+	var created caseResponse
+	if err := json.NewDecoder(resp.Body).Decode(&created); err != nil {
+		t.Fatalf("Decode(created) error = %v", err)
+	}
+	if created.SourceEvalCaseID != evalCase.ID {
+		t.Fatalf("SourceEvalCaseID = %q, want %q", created.SourceEvalCaseID, evalCase.ID)
+	}
+	if created.SourceEvalReportID != "" {
+		t.Fatalf("SourceEvalReportID = %q, want empty", created.SourceEvalReportID)
+	}
+
+	getResp, err := http.Get(server.URL + "/api/v1/cases/" + created.CaseID + "?tenant_id=tenant-eval-case-standalone")
+	if err != nil {
+		t.Fatalf("Get() error = %v", err)
+	}
+	defer getResp.Body.Close()
+	if getResp.StatusCode != http.StatusOK {
+		t.Fatalf("StatusCode = %d, want %d", getResp.StatusCode, http.StatusOK)
+	}
+}
+
+func TestCreateCaseEndpointReusesOpenStandaloneEvalCaseFollowUp(t *testing.T) {
+	caseService := casesvc.NewService()
+	evalCaseService := evalsvc.NewService(caseService, nil)
+
+	sourceCase, err := caseService.CreateCase(context.Background(), casesvc.CreateInput{
+		TenantID: "tenant-eval-case-standalone-reuse",
+		Title:    "Source eval case reuse",
+	})
+	if err != nil {
+		t.Fatalf("CreateCase(sourceCase) error = %v", err)
+	}
+	evalCase, _, err := evalCaseService.PromoteCase(context.Background(), evalsvc.CreateInput{
+		TenantID:     "tenant-eval-case-standalone-reuse",
+		SourceCaseID: sourceCase.ID,
+	})
+	if err != nil {
+		t.Fatalf("PromoteCase() error = %v", err)
+	}
+
+	existing, err := caseService.CreateCase(context.Background(), casesvc.CreateInput{
+		TenantID:         "tenant-eval-case-standalone-reuse",
+		Title:            "Existing standalone eval follow-up",
+		Summary:          "Existing follow-up summary",
+		SourceEvalCaseID: evalCase.ID,
+		CreatedBy:        "operator-existing",
+	})
+	if err != nil {
+		t.Fatalf("CreateCase(existing) error = %v", err)
+	}
+
+	server := httptest.NewServer(NewHandlerWithDependencies(Dependencies{
+		Cases:     caseService,
+		EvalCases: evalCaseService,
+	}))
+	defer server.Close()
+
+	body := bytes.NewBufferString(`{"tenant_id":"tenant-eval-case-standalone-reuse","title":"Investigate standalone eval case","summary":"Follow up directly from eval lane","source_eval_case_id":"` + evalCase.ID + `","created_by":"operator-eval"}`)
+	resp, err := http.Post(server.URL+"/api/v1/cases", "application/json", body)
+	if err != nil {
+		t.Fatalf("Post() error = %v", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("StatusCode = %d, want %d", resp.StatusCode, http.StatusOK)
+	}
+
+	var got caseResponse
+	if err := json.NewDecoder(resp.Body).Decode(&got); err != nil {
+		t.Fatalf("Decode() error = %v", err)
+	}
+	if got.CaseID != existing.ID {
+		t.Fatalf("CaseID = %q, want %q", got.CaseID, existing.ID)
+	}
+	if got.SourceEvalCaseID != evalCase.ID {
+		t.Fatalf("SourceEvalCaseID = %q, want %q", got.SourceEvalCaseID, evalCase.ID)
+	}
+}
+
 func TestCreateCaseEndpointReusesOpenEvalReportFollowUp(t *testing.T) {
 	reportService, evalReportID := buildEvalReportFixture(t, "tenant-eval-case-reuse", "failed", "failure detail")
 	caseService := casesvc.NewService()

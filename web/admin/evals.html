@@ -198,6 +198,7 @@
         <button class="ghost" type="button" id="nextEvalButton" hidden>Next visible</button>
         <button class="ghost" type="button" id="copyEvalSummaryButton" hidden>Copy eval summary</button>
         <button class="ghost" type="button" id="copyEvalLinkButton" hidden>Copy eval link</button>
+        <button class="ghost" type="button" id="createCaseButton" hidden>Create case</button>
         <input id="datasetNameInput" type="text" value="" aria-label="Dataset draft name" placeholder="Optional dataset draft name" style="min-width: 260px; border: 1px solid var(--line); border-radius: 999px; padding: 10px 14px; background: rgba(255, 255, 255, 0.92); color: var(--ink);" hidden>
         <button class="ghost" type="button" id="createDatasetButton" hidden>Create dataset draft</button>
         <input id="datasetTargetIDInput" type="text" value="" aria-label="Target dataset ID" placeholder="Existing dataset ID for append" style="min-width: 260px; border: 1px solid var(--line); border-radius: 999px; padding: 10px 14px; background: rgba(255, 255, 255, 0.92); color: var(--ink);" hidden>
@@ -227,6 +228,7 @@
     const nextEvalButton = document.getElementById("nextEvalButton");
     const copyEvalSummaryButton = document.getElementById("copyEvalSummaryButton");
     const copyEvalLinkButton = document.getElementById("copyEvalLinkButton");
+    const createCaseButton = document.getElementById("createCaseButton");
     const datasetNameInput = document.getElementById("datasetNameInput");
     const createDatasetButton = document.getElementById("createDatasetButton");
     const datasetTargetIDInput = document.getElementById("datasetTargetIDInput");
@@ -394,6 +396,7 @@
       syncURL(item.eval_case_id);
       copyEvalSummaryButton.hidden = false;
       copyEvalLinkButton.hidden = false;
+      createCaseButton.hidden = false;
       datasetNameInput.hidden = false;
       createDatasetButton.hidden = false;
       datasetTargetIDInput.hidden = false;
@@ -458,6 +461,7 @@
         currentDatasetDetail = null;
         copyEvalSummaryButton.hidden = true;
         copyEvalLinkButton.hidden = true;
+        createCaseButton.hidden = true;
         datasetNameInput.hidden = true;
         createDatasetButton.hidden = true;
         datasetTargetIDInput.hidden = true;
@@ -486,6 +490,7 @@
         currentDatasetDetail = null;
         copyEvalSummaryButton.hidden = true;
         copyEvalLinkButton.hidden = true;
+        createCaseButton.hidden = true;
         datasetNameInput.hidden = true;
         createDatasetButton.hidden = true;
         datasetTargetIDInput.hidden = true;
@@ -632,6 +637,42 @@
       }
     }
 
+    async function createCaseFromEval() {
+      if (!currentEvalDetail) return;
+
+      const original = createCaseButton.textContent;
+      createCaseButton.disabled = true;
+      createCaseButton.textContent = "Creating...";
+      evalDetailStatusNote.textContent = `Creating case from ${currentEvalDetail.eval_case_id}...`;
+      try {
+        const response = await fetch("/api/v1/cases", {
+          method: "POST",
+          headers: {
+            "Accept": "application/json",
+            "Content-Type": "application/json"
+          },
+          body: JSON.stringify({
+            tenant_id: currentEvalDetail.tenant_id,
+            title: currentEvalDetail.title || `Follow-up for ${currentEvalDetail.eval_case_id}`,
+            summary: currentEvalDetail.summary || `Follow up durable eval case ${currentEvalDetail.eval_case_id}`,
+            source_eval_case_id: currentEvalDetail.eval_case_id,
+            created_by: "evals-operator"
+          })
+        });
+        const created = await response.json().catch(() => ({}));
+        if (!response.ok) {
+          throw new Error(created.message || `Case creation failed: ${response.statusText}`);
+        }
+        const caseURL = `/admin/cases?tenant_id=${encodeURIComponent(currentEvalDetail.tenant_id)}&case_id=${encodeURIComponent(created.case_id)}`;
+        window.location.assign(caseURL);
+      } catch (error) {
+        evalDetailStatusNote.textContent = error.message || "Unable to create eval-backed case.";
+      } finally {
+        createCaseButton.disabled = false;
+        createCaseButton.textContent = original;
+      }
+    }
+
     async function addToDatasetDraft() {
       if (!currentEvalDetail) return;
       const targetDatasetID = datasetTargetIDInput.value.trim();
@@ -698,6 +739,7 @@
     nextEvalButton.addEventListener("click", () => navigateVisible(1));
     copyEvalSummaryButton.addEventListener("click", () => copyEvalSummary());
     copyEvalLinkButton.addEventListener("click", () => copyEvalLink());
+    createCaseButton.addEventListener("click", () => createCaseFromEval());
     createDatasetButton.addEventListener("click", () => createDatasetDraft());
     addToDatasetButton.addEventListener("click", () => addToDatasetDraft());
     quickViewButtons.forEach((button) => button.addEventListener("click", () => applyQuickView(button.dataset.quickView)));
