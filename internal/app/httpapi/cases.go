@@ -16,31 +16,33 @@ import (
 )
 
 type createCaseRequest struct {
-	TenantID           string `json:"tenant_id"`
-	Title              string `json:"title"`
-	Summary            string `json:"summary"`
-	SourceTaskID       string `json:"source_task_id,omitempty"`
-	SourceReportID     string `json:"source_report_id,omitempty"`
-	SourceEvalReportID string `json:"source_eval_report_id,omitempty"`
-	CreatedBy          string `json:"created_by,omitempty"`
+	TenantID           string                    `json:"tenant_id"`
+	Title              string                    `json:"title"`
+	Summary            string                    `json:"summary"`
+	SourceTaskID       string                    `json:"source_task_id,omitempty"`
+	SourceReportID     string                    `json:"source_report_id,omitempty"`
+	SourceEvalReportID string                    `json:"source_eval_report_id,omitempty"`
+	CompareOrigin      *caseCompareOriginRequest `json:"compare_origin,omitempty"`
+	CreatedBy          string                    `json:"created_by,omitempty"`
 }
 
 type caseResponse struct {
-	CaseID             string             `json:"case_id"`
-	TenantID           string             `json:"tenant_id"`
-	Status             string             `json:"status"`
-	Title              string             `json:"title"`
-	Summary            string             `json:"summary"`
-	SourceTaskID       string             `json:"source_task_id,omitempty"`
-	SourceReportID     string             `json:"source_report_id,omitempty"`
-	SourceEvalReportID string             `json:"source_eval_report_id,omitempty"`
-	CreatedBy          string             `json:"created_by"`
-	AssignedTo         string             `json:"assigned_to,omitempty"`
-	AssignedAt         string             `json:"assigned_at,omitempty"`
-	ClosedBy           string             `json:"closed_by,omitempty"`
-	Notes              []caseNoteResponse `json:"notes,omitempty"`
-	CreatedAt          string             `json:"created_at"`
-	UpdatedAt          string             `json:"updated_at"`
+	CaseID             string                     `json:"case_id"`
+	TenantID           string                     `json:"tenant_id"`
+	Status             string                     `json:"status"`
+	Title              string                     `json:"title"`
+	Summary            string                     `json:"summary"`
+	SourceTaskID       string                     `json:"source_task_id,omitempty"`
+	SourceReportID     string                     `json:"source_report_id,omitempty"`
+	SourceEvalReportID string                     `json:"source_eval_report_id,omitempty"`
+	CompareOrigin      *caseCompareOriginResponse `json:"compare_origin,omitempty"`
+	CreatedBy          string                     `json:"created_by"`
+	AssignedTo         string                     `json:"assigned_to,omitempty"`
+	AssignedAt         string                     `json:"assigned_at,omitempty"`
+	ClosedBy           string                     `json:"closed_by,omitempty"`
+	Notes              []caseNoteResponse         `json:"notes,omitempty"`
+	CreatedAt          string                     `json:"created_at"`
+	UpdatedAt          string                     `json:"updated_at"`
 }
 
 type caseNoteResponse struct {
@@ -73,6 +75,18 @@ type reopenCaseRequest struct {
 type createCaseNoteRequest struct {
 	Body      string `json:"body"`
 	CreatedBy string `json:"created_by,omitempty"`
+}
+
+type caseCompareOriginRequest struct {
+	LeftEvalReportID  string `json:"left_eval_report_id"`
+	RightEvalReportID string `json:"right_eval_report_id"`
+	SelectedSide      string `json:"selected_side"`
+}
+
+type caseCompareOriginResponse struct {
+	LeftEvalReportID  string `json:"left_eval_report_id"`
+	RightEvalReportID string `json:"right_eval_report_id"`
+	SelectedSide      string `json:"selected_side"`
 }
 
 func (a *appHandler) handleCases(w http.ResponseWriter, r *http.Request) {
@@ -114,6 +128,7 @@ func (a *appHandler) handleCreateCase(w http.ResponseWriter, r *http.Request) {
 		SourceTaskID:       req.SourceTaskID,
 		SourceReportID:     req.SourceReportID,
 		SourceEvalReportID: req.SourceEvalReportID,
+		CompareOrigin:      newCaseCompareOriginModel(req.CompareOrigin),
 		CreatedBy:          req.CreatedBy,
 	})
 	if err != nil {
@@ -440,6 +455,24 @@ func validateCreateCaseRequest(req createCaseRequest) error {
 		return errors.New("tenant_id is required")
 	case req.Title == "":
 		return errors.New("title is required")
+	case req.CompareOrigin != nil:
+		if req.CompareOrigin.LeftEvalReportID == "" || req.CompareOrigin.RightEvalReportID == "" {
+			return errors.New("compare_origin.left_eval_report_id and compare_origin.right_eval_report_id are required")
+		}
+		if req.SourceTaskID != "" || req.SourceReportID != "" {
+			return errors.New("compare_origin cannot be combined with source_task_id or source_report_id")
+		}
+		if req.CompareOrigin.SelectedSide != "left" && req.CompareOrigin.SelectedSide != "right" {
+			return errors.New("compare_origin.selected_side must be left or right")
+		}
+		expectedSourceEvalReportID := req.CompareOrigin.LeftEvalReportID
+		if req.CompareOrigin.SelectedSide == "right" {
+			expectedSourceEvalReportID = req.CompareOrigin.RightEvalReportID
+		}
+		if req.SourceEvalReportID != expectedSourceEvalReportID {
+			return errors.New("source_eval_report_id must match compare_origin.selected_side")
+		}
+		return nil
 	default:
 		return nil
 	}
@@ -523,6 +556,17 @@ func (a *appHandler) validateCaseSources(r *http.Request, req createCaseRequest)
 			return report.Report{}, errInvalidCaseSource
 		}
 	}
+	if req.CompareOrigin != nil {
+		for _, reportID := range []string{req.CompareOrigin.LeftEvalReportID, req.CompareOrigin.RightEvalReportID} {
+			item, err := a.evalReports.GetEvalReport(r.Context(), reportID)
+			if err != nil {
+				return report.Report{}, err
+			}
+			if item.TenantID != req.TenantID {
+				return report.Report{}, errInvalidCaseSource
+			}
+		}
+	}
 
 	return report.Report{}, nil
 }
@@ -554,6 +598,7 @@ func newCaseResponse(item casesvc.Case, notes ...[]casesvc.Note) caseResponse {
 		SourceTaskID:       item.SourceTaskID,
 		SourceReportID:     item.SourceReportID,
 		SourceEvalReportID: item.SourceEvalReportID,
+		CompareOrigin:      newCaseCompareOriginResponse(item.CompareOrigin),
 		CreatedBy:          item.CreatedBy,
 		AssignedTo:         item.AssignedTo,
 		AssignedAt:         formatOptionalTime(item.AssignedAt),
@@ -569,6 +614,30 @@ func newCaseResponse(item casesvc.Case, notes ...[]casesvc.Note) caseResponse {
 	}
 
 	return resp
+}
+
+func newCaseCompareOriginModel(req *caseCompareOriginRequest) casesvc.CompareOrigin {
+	if req == nil {
+		return casesvc.CompareOrigin{}
+	}
+
+	return casesvc.CompareOrigin{
+		LeftEvalReportID:  req.LeftEvalReportID,
+		RightEvalReportID: req.RightEvalReportID,
+		SelectedSide:      req.SelectedSide,
+	}
+}
+
+func newCaseCompareOriginResponse(item casesvc.CompareOrigin) *caseCompareOriginResponse {
+	if item.LeftEvalReportID == "" && item.RightEvalReportID == "" && item.SelectedSide == "" {
+		return nil
+	}
+
+	return &caseCompareOriginResponse{
+		LeftEvalReportID:  item.LeftEvalReportID,
+		RightEvalReportID: item.RightEvalReportID,
+		SelectedSide:      item.SelectedSide,
+	}
 }
 
 func newCaseNoteResponse(note casesvc.Note) caseNoteResponse {

@@ -1304,6 +1304,9 @@ func TestAdminCasesPageRendersHTML(t *testing.T) {
 	if !strings.Contains(body, "Source eval report summary") {
 		t.Fatal("source eval report summary section missing from cases page HTML")
 	}
+	if !strings.Contains(body, "Compare origin") {
+		t.Fatal("compare origin section missing from cases page HTML")
+	}
 	if !strings.Contains(body, "Copy case link") {
 		t.Fatal("case link handoff missing from cases page HTML")
 	}
@@ -1313,6 +1316,9 @@ func TestAdminCasesPageRendersHTML(t *testing.T) {
 	if !strings.Contains(body, "/admin/trace-detail") {
 		t.Fatal("trace detail handoff missing from cases page HTML")
 	}
+	if !strings.Contains(body, "Open compare origin") {
+		t.Fatal("compare origin handoff missing from cases page HTML")
+	}
 	if !strings.Contains(body, "<option value=\"closed\">Closed</option>") {
 		t.Fatal("closed status filter missing from cases page HTML")
 	}
@@ -1320,6 +1326,7 @@ func TestAdminCasesPageRendersHTML(t *testing.T) {
 
 func TestAdminCasesPageRuntimeSmoke(t *testing.T) {
 	reportService, reportID := buildEvalReportFixture(t, "tenant-case-admin-smoke", evalsvc.RunStatusFailed, "failure detail")
+	compareRightReportID := "eval-report-compare-other"
 	ctx := context.Background()
 	reportItem, err := reportService.GetEvalReport(ctx, reportID)
 	if err != nil {
@@ -1332,7 +1339,12 @@ func TestAdminCasesPageRuntimeSmoke(t *testing.T) {
 		Title:              "Investigate eval regression",
 		Summary:            "Follow up eval-linked operator case",
 		SourceEvalReportID: reportID,
-		CreatedBy:          "operator-case",
+		CompareOrigin: casesvc.CompareOrigin{
+			LeftEvalReportID:  reportID,
+			RightEvalReportID: compareRightReportID,
+			SelectedSide:      "left",
+		},
+		CreatedBy: "operator-case",
 	})
 	if err != nil {
 		t.Fatalf("CreateCase(linked) error = %v", err)
@@ -1371,6 +1383,7 @@ const datasetID = process.argv[7];
 const runStatus = process.argv[8];
 const summary = process.argv[9];
 const badCaseCount = process.argv[10];
+const compareRightReportID = process.argv[11];
 
 (async () => {
   const browser = await chromium.launch({ headless: true });
@@ -1389,9 +1402,17 @@ const badCaseCount = process.argv[10];
   if (!detailText.includes(runStatus)) throw new Error("missing run_status in source eval report summary");
   if (!detailText.includes(summary)) throw new Error("missing eval report summary text");
   if (!detailText.includes(badCaseCount)) throw new Error("missing bad case count");
+  const caseDetailText = await page.textContent("#caseDetail");
+  if (!caseDetailText.includes("Compare origin")) throw new Error("missing compare origin section");
+  if (!caseDetailText.includes(reportID)) throw new Error("missing compare left report id");
+  if (!caseDetailText.includes(compareRightReportID)) throw new Error("missing compare right report id");
   const evalLaneHref = await page.getAttribute("#openEvalReportsLink", "href");
   if (!evalLaneHref || !evalLaneHref.includes("report_id=" + encodeURIComponent(reportID))) {
     throw new Error("eval report lane handoff missing report_id");
+  }
+  const compareHref = await page.getAttribute("#openEvalCompareLink", "href");
+  if (!compareHref || !compareHref.includes("left_report_id=" + encodeURIComponent(reportID)) || !compareHref.includes("right_report_id=" + encodeURIComponent(compareRightReportID))) {
+    throw new Error("compare origin handoff drifted");
   }
 
   await page.goto(baseURL + "/admin/cases?tenant_id=" + encodeURIComponent(tenantID) + "&limit=10&case_id=" + encodeURIComponent(missingCaseID));
@@ -1434,6 +1455,7 @@ const badCaseCount = process.argv[10];
 		reportItem.RunStatus,
 		reportItem.Summary,
 		strconv.Itoa(len(reportItem.BadCases)),
+		compareRightReportID,
 	)
 	cmd.Env = append(os.Environ(), "NODE_PATH="+nodePathRoot)
 	output, err := cmd.CombinedOutput()

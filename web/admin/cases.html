@@ -431,6 +431,7 @@
         <a class="button-link ghost" id="openReportsLink" href="#" hidden>Open source report in Reports</a>
         <a class="button-link ghost" id="openEvalReportLink" href="#" hidden>Open source eval report</a>
         <a class="button-link ghost" id="openEvalReportsLink" href="#" hidden>Open source eval report in Eval Reports</a>
+        <a class="button-link ghost" id="openEvalCompareLink" href="#" hidden>Open compare origin</a>
       </div>
       <p class="panel-copy" id="detailStatusNote" style="margin-top: 12px;">Select a case to manage its lifecycle and hand off its linked sources.</p>
       <div id="caseDetail" class="empty">No case selected yet.</div>
@@ -485,6 +486,7 @@
     const openReportsLink = document.getElementById("openReportsLink");
     const openEvalReportLink = document.getElementById("openEvalReportLink");
     const openEvalReportsLink = document.getElementById("openEvalReportsLink");
+    const openEvalCompareLink = document.getElementById("openEvalCompareLink");
 
     let currentCases = [];
     let currentCaseID = "";
@@ -520,6 +522,9 @@
     }
 
     function provenanceLabel(item) {
+      if (item.compare_origin && item.compare_origin.left_eval_report_id && item.compare_origin.right_eval_report_id) {
+        return "Compare-derived";
+      }
       if (item.source_eval_report_id) {
         return "Eval report-backed";
       }
@@ -607,10 +612,39 @@
         `source_task_id: ${item.source_task_id || "none"}`,
         `source_report_id: ${item.source_report_id || "none"}`,
         `source_eval_report_id: ${item.source_eval_report_id || "none"}`,
+        `compare_left_eval_report_id: ${item.compare_origin ? item.compare_origin.left_eval_report_id || "none" : "none"}`,
+        `compare_right_eval_report_id: ${item.compare_origin ? item.compare_origin.right_eval_report_id || "none" : "none"}`,
+        `compare_selected_side: ${item.compare_origin ? item.compare_origin.selected_side || "none" : "none"}`,
         `created_by: ${item.created_by}`,
         `closed_by: ${item.closed_by || "not_closed"}`
       ];
       return lines.join("\n");
+    }
+
+    function renderCompareOrigin(item) {
+      if (!item.compare_origin || (!item.compare_origin.left_eval_report_id && !item.compare_origin.right_eval_report_id)) {
+        return "";
+      }
+
+      return `
+        <div class="detail-card" style="grid-column: 1 / -1;">
+          <h3 style="margin-top: 0;">Compare origin</h3>
+          <div class="detail-grid">
+            <dl class="detail-card">
+              <dt>Selected side</dt>
+              <dd>${escapeHTML(item.compare_origin.selected_side || "Unknown")}</dd>
+            </dl>
+            <dl class="detail-card">
+              <dt>Left eval report</dt>
+              <dd>${escapeHTML(item.compare_origin.left_eval_report_id || "None")}</dd>
+            </dl>
+            <dl class="detail-card">
+              <dt>Right eval report</dt>
+              <dd>${escapeHTML(item.compare_origin.right_eval_report_id || "None")}</dd>
+            </dl>
+          </div>
+        </div>
+      `;
     }
 
     function buildEvalCasePayload(item) {
@@ -750,6 +784,7 @@
         openReportsLink.hidden = !item.source_report_id || !item.source_task_id;
         openEvalReportLink.hidden = !item.source_eval_report_id;
         openEvalReportsLink.hidden = !item.source_eval_report_id;
+        openEvalCompareLink.hidden = !(item.compare_origin && item.compare_origin.left_eval_report_id && item.compare_origin.right_eval_report_id);
         if (item.source_task_id) {
           openTaskLink.href = `${taskEndpointBase}${encodeURIComponent(item.source_task_id)}`;
           openTaskBoardLink.href = `/admin/task-board?tenant_id=${encodeURIComponent(item.tenant_id)}&task_id=${encodeURIComponent(item.source_task_id)}`;
@@ -763,6 +798,9 @@
         if (item.source_eval_report_id) {
           openEvalReportLink.href = `${evalReportEndpointBase}${encodeURIComponent(item.source_eval_report_id)}?tenant_id=${encodeURIComponent(item.tenant_id)}`;
           openEvalReportsLink.href = `/admin/eval-reports?tenant_id=${encodeURIComponent(item.tenant_id)}&report_id=${encodeURIComponent(item.source_eval_report_id)}`;
+        }
+        if (item.compare_origin && item.compare_origin.left_eval_report_id && item.compare_origin.right_eval_report_id) {
+          openEvalCompareLink.href = `/admin/eval-report-compare?tenant_id=${encodeURIComponent(item.tenant_id)}&left_report_id=${encodeURIComponent(item.compare_origin.left_eval_report_id)}&right_report_id=${encodeURIComponent(item.compare_origin.right_eval_report_id)}`;
         }
       if (item.status === "closed") {
         setDetailStatus(`Case already closed${item.closed_by ? ` by ${item.closed_by}` : ""}. Reopen it to return the case to the open queue.`);
@@ -828,6 +866,7 @@
             <dt>Summary</dt>
             <dd>${escapeHTML(item.summary || "No summary provided.")}</dd>
           </dl>
+          ${renderCompareOrigin(item)}
           ${item.source_eval_report_id ? `
             <div class="detail-card" style="grid-column: 1 / -1;">
               <h3 style="margin-top: 0;">Source eval report summary</h3>
@@ -940,6 +979,7 @@
         openReportsLink.hidden = true;
         openEvalReportLink.hidden = true;
         openEvalReportsLink.hidden = true;
+        openEvalCompareLink.hidden = true;
         caseDetail.innerHTML = '<div class="empty">No case selected yet.</div>';
         syncSelectedRow();
         syncURL("");
@@ -967,6 +1007,7 @@
         openReportsLink.hidden = true;
         openEvalReportLink.hidden = true;
         openEvalReportsLink.hidden = true;
+        openEvalCompareLink.hidden = true;
         caseDetail.innerHTML = '<div class="empty">Enter a tenant before opening case detail.</div>';
         syncSelectedRow();
         syncURL("");
@@ -1008,6 +1049,7 @@
         openReportsLink.hidden = true;
         openEvalReportLink.hidden = true;
         openEvalReportsLink.hidden = true;
+        openEvalCompareLink.hidden = true;
         setDetailStatus(error.message || "Unable to load case detail.", true);
         caseDetail.innerHTML = `<div class="empty">${escapeHTML(error.message || "Unable to load case detail.")}</div>`;
       }
@@ -1074,6 +1116,7 @@
         openReportsLink.hidden = true;
         openEvalReportLink.hidden = true;
         openEvalReportsLink.hidden = true;
+        openEvalCompareLink.hidden = true;
         setDetailStatus("Unable to refresh the current case slice.", true);
         caseDetail.innerHTML = '<div class="empty">Unable to load case detail because the case list request failed.</div>';
       }

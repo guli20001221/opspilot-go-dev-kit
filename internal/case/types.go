@@ -34,12 +34,20 @@ type Case struct {
 	SourceTaskID       string
 	SourceReportID     string
 	SourceEvalReportID string
+	CompareOrigin      CompareOrigin
 	CreatedBy          string
 	AssignedTo         string
 	AssignedAt         time.Time
 	ClosedBy           string
 	CreatedAt          time.Time
 	UpdatedAt          time.Time
+}
+
+// CompareOrigin captures structured lineage for cases created from an eval-report comparison.
+type CompareOrigin struct {
+	LeftEvalReportID  string
+	RightEvalReportID string
+	SelectedSide      string
 }
 
 // Note is an append-only operator note attached to a case.
@@ -60,6 +68,7 @@ type CreateInput struct {
 	SourceTaskID       string
 	SourceReportID     string
 	SourceEvalReportID string
+	CompareOrigin      CompareOrigin
 	CreatedBy          string
 }
 

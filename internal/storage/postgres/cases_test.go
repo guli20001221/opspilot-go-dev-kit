@@ -31,14 +31,20 @@ func TestCaseStoreRoundTrip(t *testing.T) {
 
 	store := NewCaseStore(pool)
 	want := casesvc.Case{
-		ID:             "case-roundtrip-1",
-		TenantID:       "tenant-1",
-		Status:         casesvc.StatusOpen,
-		Title:          "Review generated report",
-		Summary:        "Operator wants a durable follow-up case.",
-		SourceTaskID:   "task-source-1",
-		SourceReportID: "report-source-1",
-		CreatedBy:      "operator-1",
+		ID:                 "case-roundtrip-1",
+		TenantID:           "tenant-1",
+		Status:             casesvc.StatusOpen,
+		Title:              "Review generated report",
+		Summary:            "Operator wants a durable follow-up case.",
+		SourceTaskID:       "task-source-1",
+		SourceReportID:     "report-source-1",
+		SourceEvalReportID: "eval-report-roundtrip-1",
+		CompareOrigin: casesvc.CompareOrigin{
+			LeftEvalReportID:  "eval-report-roundtrip-1",
+			RightEvalReportID: "eval-report-roundtrip-2",
+			SelectedSide:      "left",
+		},
+		CreatedBy: "operator-1",
 	}
 
 	if _, err := pool.Exec(ctx, `
@@ -58,6 +64,24 @@ INSERT INTO reports (
     'report-source-1', 'tenant-1', 'task-source-1', 'workflow_summary', 'ready', 'Title', 'Summary', '', '{}'::jsonb, 'worker', NOW(), NOW()
 )`); err != nil {
 		t.Fatalf("insert report error = %v", err)
+	}
+	if _, err := pool.Exec(ctx, `
+INSERT INTO eval_reports (
+    id, tenant_id, run_id, dataset_id, dataset_name, run_status, status, summary,
+    total_items, recorded_results, passed_items, failed_items, missing_results,
+    average_score, judge_version, metadata_json, created_at, updated_at, ready_at
+) VALUES
+(
+    'eval-report-roundtrip-1', 'tenant-1', 'eval-run-roundtrip-1', 'dataset-roundtrip-1', 'Dataset Roundtrip',
+    'failed', 'ready', 'first compare side',
+    1, 1, 0, 1, 0, 0, 'judge-a', '{}'::jsonb, NOW(), NOW(), NOW()
+),
+(
+    'eval-report-roundtrip-2', 'tenant-1', 'eval-run-roundtrip-2', 'dataset-roundtrip-1', 'Dataset Roundtrip',
+    'succeeded', 'ready', 'second compare side',
+    1, 1, 1, 0, 0, 1, 'judge-a', '{}'::jsonb, NOW(), NOW(), NOW()
+)`); err != nil {
+		t.Fatalf("insert eval reports error = %v", err)
 	}
 
 	saved, err := store.Save(ctx, want)
@@ -80,6 +104,18 @@ INSERT INTO reports (
 	}
 	if got.SourceReportID != want.SourceReportID {
 		t.Fatalf("Get().SourceReportID = %q, want %q", got.SourceReportID, want.SourceReportID)
+	}
+	if got.SourceEvalReportID != want.SourceEvalReportID {
+		t.Fatalf("Get().SourceEvalReportID = %q, want %q", got.SourceEvalReportID, want.SourceEvalReportID)
+	}
+	if got.CompareOrigin.LeftEvalReportID != want.CompareOrigin.LeftEvalReportID {
+		t.Fatalf("Get().CompareOrigin.LeftEvalReportID = %q, want %q", got.CompareOrigin.LeftEvalReportID, want.CompareOrigin.LeftEvalReportID)
+	}
+	if got.CompareOrigin.RightEvalReportID != want.CompareOrigin.RightEvalReportID {
+		t.Fatalf("Get().CompareOrigin.RightEvalReportID = %q, want %q", got.CompareOrigin.RightEvalReportID, want.CompareOrigin.RightEvalReportID)
+	}
+	if got.CompareOrigin.SelectedSide != want.CompareOrigin.SelectedSide {
+		t.Fatalf("Get().CompareOrigin.SelectedSide = %q, want %q", got.CompareOrigin.SelectedSide, want.CompareOrigin.SelectedSide)
 	}
 }
 

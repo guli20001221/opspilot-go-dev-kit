@@ -2539,6 +2539,8 @@ components:
           type: string
         source_eval_report_id:
           type: string
+        compare_origin:
+          $ref: '#/components/schemas/CaseCompareOrigin'
         created_by:
           type: string
     CloseCaseRequest:
@@ -2686,6 +2688,8 @@ components:
           type: string
         source_eval_report_id:
           type: string
+        compare_origin:
+          $ref: '#/components/schemas/CaseCompareOrigin'
         created_by:
           type: string
         assigned_to:
@@ -2705,6 +2709,22 @@ components:
         updated_at:
           type: string
           format: date-time
+    CaseCompareOrigin:
+      type: object
+      required:
+        - left_eval_report_id
+        - right_eval_report_id
+        - selected_side
+      properties:
+        left_eval_report_id:
+          type: string
+        right_eval_report_id:
+          type: string
+        selected_side:
+          type: string
+          enum:
+            - left
+            - right
     CaseListResponse:
       type: object
       required:

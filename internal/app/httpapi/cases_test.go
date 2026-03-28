@@ -10,6 +10,7 @@ import (
 	"time"
 
 	casesvc "opspilot-go/internal/case"
+	evalsvc "opspilot-go/internal/eval"
 	"opspilot-go/internal/report"
 	"opspilot-go/internal/workflow"
 )
@@ -134,6 +135,111 @@ func TestCreateAndGetCaseEndpointWithEvalReportSource(t *testing.T) {
 	}
 	if got.SourceEvalReportID != evalReportID {
 		t.Fatalf("SourceEvalReportID = %q, want %q", got.SourceEvalReportID, evalReportID)
+	}
+}
+
+func TestCreateAndGetCaseEndpointWithCompareOrigin(t *testing.T) {
+	caseService := casesvc.NewService()
+	evalCaseService := evalsvc.NewService(caseService, nil)
+	datasetService := evalsvc.NewDatasetService(evalCaseService)
+	runService := evalsvc.NewRunService(datasetService)
+	reportService := evalsvc.NewEvalReportServiceWithDependencies(nil, runService)
+	leftEvalReportID := materializeEvalRunReport(t, "tenant-eval-case-compare", evalsvc.RunStatusSucceeded, "left detail", caseService, evalCaseService, datasetService, runService, reportService, "Dataset Compare Left", "Source Left")
+	rightEvalReportID := materializeEvalRunReport(t, "tenant-eval-case-compare", evalsvc.RunStatusFailed, "right detail", caseService, evalCaseService, datasetService, runService, reportService, "Dataset Compare Right", "Source Right")
+
+	server := httptest.NewServer(NewHandlerWithDependencies(Dependencies{
+		Cases:       caseService,
+		EvalReports: reportService,
+	}))
+	defer server.Close()
+
+	body := bytes.NewBufferString(`{"tenant_id":"tenant-eval-case-compare","title":"Investigate compare regression","summary":"Follow up selected compare side","source_eval_report_id":"` + rightEvalReportID + `","compare_origin":{"left_eval_report_id":"` + leftEvalReportID + `","right_eval_report_id":"` + rightEvalReportID + `","selected_side":"right"},"created_by":"operator-eval"}`)
+	resp, err := http.Post(server.URL+"/api/v1/cases", "application/json", body)
+	if err != nil {
+		t.Fatalf("Post() error = %v", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusCreated {
+		t.Fatalf("StatusCode = %d, want %d", resp.StatusCode, http.StatusCreated)
+	}
+
+	var created caseResponse
+	if err := json.NewDecoder(resp.Body).Decode(&created); err != nil {
+		t.Fatalf("Decode(created) error = %v", err)
+	}
+	if created.CompareOrigin == nil {
+		t.Fatal("CompareOrigin is nil")
+	}
+	if created.CompareOrigin.LeftEvalReportID != leftEvalReportID {
+		t.Fatalf("CompareOrigin.LeftEvalReportID = %q, want %q", created.CompareOrigin.LeftEvalReportID, leftEvalReportID)
+	}
+	if created.CompareOrigin.RightEvalReportID != rightEvalReportID {
+		t.Fatalf("CompareOrigin.RightEvalReportID = %q, want %q", created.CompareOrigin.RightEvalReportID, rightEvalReportID)
+	}
+	if created.CompareOrigin.SelectedSide != "right" {
+		t.Fatalf("CompareOrigin.SelectedSide = %q, want %q", created.CompareOrigin.SelectedSide, "right")
+	}
+
+	getResp, err := http.Get(server.URL + "/api/v1/cases/" + created.CaseID + "?tenant_id=tenant-eval-case-compare")
+	if err != nil {
+		t.Fatalf("Get() error = %v", err)
+	}
+	defer getResp.Body.Close()
+
+	var got caseResponse
+	if err := json.NewDecoder(getResp.Body).Decode(&got); err != nil {
+		t.Fatalf("Decode(get) error = %v", err)
+	}
+	if got.CompareOrigin == nil {
+		t.Fatal("Get().CompareOrigin is nil")
+	}
+	if got.CompareOrigin.LeftEvalReportID != leftEvalReportID {
+		t.Fatalf("Get().CompareOrigin.LeftEvalReportID = %q, want %q", got.CompareOrigin.LeftEvalReportID, leftEvalReportID)
+	}
+	if got.CompareOrigin.RightEvalReportID != rightEvalReportID {
+		t.Fatalf("Get().CompareOrigin.RightEvalReportID = %q, want %q", got.CompareOrigin.RightEvalReportID, rightEvalReportID)
+	}
+	if got.CompareOrigin.SelectedSide != "right" {
+		t.Fatalf("Get().CompareOrigin.SelectedSide = %q, want %q", got.CompareOrigin.SelectedSide, "right")
+	}
+}
+
+func TestCreateCaseRejectsCompareOriginMixedWithTaskOrReportSources(t *testing.T) {
+	caseService := casesvc.NewService()
+	evalCaseService := evalsvc.NewService(caseService, nil)
+	datasetService := evalsvc.NewDatasetService(evalCaseService)
+	runService := evalsvc.NewRunService(datasetService)
+	reportService := evalsvc.NewEvalReportServiceWithDependencies(nil, runService)
+	leftEvalReportID := materializeEvalRunReport(t, "tenant-eval-case-compare-mixed", evalsvc.RunStatusSucceeded, "left detail", caseService, evalCaseService, datasetService, runService, reportService, "Dataset Compare Mixed Left", "Source Left")
+	rightEvalReportID := materializeEvalRunReport(t, "tenant-eval-case-compare-mixed", evalsvc.RunStatusFailed, "right detail", caseService, evalCaseService, datasetService, runService, reportService, "Dataset Compare Mixed Right", "Source Right")
+
+	server := httptest.NewServer(NewHandlerWithDependencies(Dependencies{
+		Cases:       caseService,
+		EvalReports: reportService,
+	}))
+	defer server.Close()
+
+	body := bytes.NewBufferString(`{"tenant_id":"tenant-eval-case-compare-mixed","title":"Investigate compare regression","summary":"Follow up selected compare side","source_task_id":"task-mixed","source_eval_report_id":"` + rightEvalReportID + `","compare_origin":{"left_eval_report_id":"` + leftEvalReportID + `","right_eval_report_id":"` + rightEvalReportID + `","selected_side":"right"},"created_by":"operator-eval"}`)
+	resp, err := http.Post(server.URL+"/api/v1/cases", "application/json", body)
+	if err != nil {
+		t.Fatalf("Post() error = %v", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusBadRequest {
+		t.Fatalf("StatusCode = %d, want %d", resp.StatusCode, http.StatusBadRequest)
+	}
+
+	var got errorResponse
+	if err := json.NewDecoder(resp.Body).Decode(&got); err != nil {
+		t.Fatalf("Decode() error = %v", err)
+	}
+	if got.Code != "invalid_case" {
+		t.Fatalf("Code = %q, want %q", got.Code, "invalid_case")
+	}
+	if got.Message != "compare_origin cannot be combined with source_task_id or source_report_id" {
+		t.Fatalf("Message = %q, want %q", got.Message, "compare_origin cannot be combined with source_task_id or source_report_id")
 	}
 }
 

@@ -59,6 +59,39 @@ func TestServiceDefaultsCreatedBy(t *testing.T) {
 	}
 }
 
+func TestServiceCreateAndGetCasePreservesCompareOrigin(t *testing.T) {
+	svc := NewService()
+
+	created, err := svc.CreateCase(context.Background(), CreateInput{
+		TenantID:           "tenant-1",
+		Title:              "Compare-derived regression",
+		SourceEvalReportID: "eval-report-right",
+		CompareOrigin: CompareOrigin{
+			LeftEvalReportID:  "eval-report-left",
+			RightEvalReportID: "eval-report-right",
+			SelectedSide:      "right",
+		},
+		CreatedBy: "operator-1",
+	})
+	if err != nil {
+		t.Fatalf("CreateCase() error = %v", err)
+	}
+
+	got, err := svc.GetCase(context.Background(), created.ID)
+	if err != nil {
+		t.Fatalf("GetCase() error = %v", err)
+	}
+	if got.CompareOrigin.LeftEvalReportID != "eval-report-left" {
+		t.Fatalf("CompareOrigin.LeftEvalReportID = %q, want %q", got.CompareOrigin.LeftEvalReportID, "eval-report-left")
+	}
+	if got.CompareOrigin.RightEvalReportID != "eval-report-right" {
+		t.Fatalf("CompareOrigin.RightEvalReportID = %q, want %q", got.CompareOrigin.RightEvalReportID, "eval-report-right")
+	}
+	if got.CompareOrigin.SelectedSide != "right" {
+		t.Fatalf("CompareOrigin.SelectedSide = %q, want %q", got.CompareOrigin.SelectedSide, "right")
+	}
+}
+
 func TestServiceListCasesSupportsFilterAndOffset(t *testing.T) {
 	svc := NewService()
 

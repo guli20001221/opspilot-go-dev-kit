@@ -150,6 +150,7 @@ Current Milestone 1 slice:
 - durable cases now also carry `source_eval_report_id`, so eval-report regressions can survive compare-page handoff as canonical backend lineage instead of living only in summary text
 - `GET /api/v1/cases` now also supports `source_eval_report_id` and `eval_backed_only`, so operators can pull an eval-regression follow-up slice without parsing case summaries client-side
 - the same `/admin/cases` page now also reads the canonical `GET /api/v1/eval-reports/{report_id}` detail for `source_eval_report_id`, so eval-backed cases show dataset/run/bad-case context without inventing a second case-only report contract
+- compare-created cases now also persist explicit left/right eval-report lineage plus the selected side, so `/admin/cases` can show canonical compare provenance and hand operators back into the exact `/admin/eval-report-compare` slice instead of reconstructing it from summary text
 - the same `/admin/eval-runs` lane now shows live lifecycle fields such as `started_at`, `finished_at`, and `error_reason`, so operators can watch queued run kickoffs turn into terminal records before judge wiring exists
 - that same `/admin/eval-runs` lane now exposes `Retry run` for failed runs, reusing the canonical retry endpoint instead of inventing an admin-only mutation path
 - that same `/admin/eval-runs` lane now renders a durable run timeline, so operators can still inspect prior `failed` and `retried` history after the top-level fields have been cleared by retry

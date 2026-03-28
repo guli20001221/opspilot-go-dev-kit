@@ -130,3 +130,4 @@ When you finish, always report:
 - when a compare surface needs to show whether each side already has active follow-up, prefer extending the compare item payload with canonical linked IDs rather than adding one-off side queries from the browser
 - when operators must decide whether to create another case from a compare screen, prefer exposing the per-side follow-up summary already available from canonical case lineage rather than forcing a handoff first
 - when operators need the full follow-up slice for one compare side, prefer linking straight into the canonical `/admin/cases?source_eval_report_id=...` view for that side rather than inventing a compare-only case queue
+- when a case originates from an eval-report comparison, prefer persisting explicit compare provenance on the canonical case contract and hand back into `/admin/eval-report-compare` from that stored lineage instead of reconstructing compare context from summary text
