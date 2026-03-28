@@ -138,3 +138,4 @@ When you finish, always report:
 - when operators need to resolve work from an existing open case queue, prefer row-level actions that reuse the canonical case close endpoint over requiring a detail-pane round trip for simple queue removal
 - when operators need to recover work from an existing closed case queue, prefer row-level actions that reuse the canonical case reopen endpoint over requiring a detail-pane round trip for simple queue return
 - when operators need to release claimed work back into a shared open queue, prefer row-level or detail actions that reuse a canonical case unassign endpoint and append a durable case note over treating an empty assignee as a special assign payload
+- when an eval-report handoff already has an open canonical follow-up case, prefer reusing the newest open `tenant_id + source_eval_report_id` case from `POST /api/v1/cases` instead of creating duplicate regression work items from repeated operator clicks

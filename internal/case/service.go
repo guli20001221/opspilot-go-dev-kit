@@ -75,6 +75,25 @@ func (s *Service) ListCases(ctx context.Context, filter ListFilter) (ListPage, e
 	return s.store.List(ctx, filter)
 }
 
+// FindOpenCaseBySourceEvalReport returns the newest open case for one source eval report when it exists.
+func (s *Service) FindOpenCaseBySourceEvalReport(ctx context.Context, tenantID string, sourceEvalReportID string) (Case, bool, error) {
+	page, err := s.store.List(ctx, ListFilter{
+		TenantID:             tenantID,
+		Status:               StatusOpen,
+		ExcludeCompareOrigin: true,
+		SourceEvalReportID:   sourceEvalReportID,
+		Limit:                1,
+	})
+	if err != nil {
+		return Case{}, false, err
+	}
+	if len(page.Cases) == 0 {
+		return Case{}, false, nil
+	}
+
+	return page.Cases[0], true, nil
+}
+
 // SummarizeBySourceEvalReportIDs returns follow-up case aggregates for source eval reports.
 func (s *Service) SummarizeBySourceEvalReportIDs(ctx context.Context, tenantID string, reportIDs []string) (map[string]EvalReportFollowUpSummary, error) {
 	return s.store.SummarizeBySourceEvalReportIDs(ctx, tenantID, reportIDs)

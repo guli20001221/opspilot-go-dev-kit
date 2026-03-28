@@ -162,6 +162,7 @@ The current chat stream implementation is a Milestone 1 skeleton:
 - use `Open left linked cases` / `Open right linked cases` on `/admin/eval-report-compare` when you need the full canonical case slice for one side's `source_eval_report_id`, not just the latest linked case
 - use `Open linked cases` on `/admin/eval-reports` when you want to jump from one durable eval report straight into the canonical `/admin/cases?source_eval_report_id=<report_id>` slice
 - use `Create case` on `/admin/eval-reports` when the selected durable eval report needs operator follow-up and you want to jump straight into the newly created canonical case
+- that same eval-report `Create case` flow now reuses the newest open follow-up for the same `tenant_id + source_eval_report_id`, so repeated clicks land on the canonical open case instead of creating duplicates
 - use `GET /api/v1/eval-report-compare?tenant_id=<tenant>&left_report_id=<left>&right_report_id=<right>` when you need a canonical eval-report delta view with score change, metadata drift, and bad-case overlap
 - open `http://localhost:18080/admin/eval-report-compare` when you want the first eval-report comparison page, including handoff into eval runs, version detail, and side-specific case creation
 - terminal run reads now also expose `result_summary`, so `/api/v1/eval-runs` and `/admin/eval-runs` can show quick pass/fail totals without loading the full per-item payload first

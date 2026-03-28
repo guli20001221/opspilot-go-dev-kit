@@ -138,6 +138,172 @@ func TestCreateAndGetCaseEndpointWithEvalReportSource(t *testing.T) {
 	}
 }
 
+func TestCreateCaseEndpointReusesOpenEvalReportFollowUp(t *testing.T) {
+	reportService, evalReportID := buildEvalReportFixture(t, "tenant-eval-case-reuse", "failed", "failure detail")
+	caseService := casesvc.NewService()
+
+	existing, err := caseService.CreateCase(context.Background(), casesvc.CreateInput{
+		TenantID:           "tenant-eval-case-reuse",
+		Title:              "Existing eval follow-up",
+		Summary:            "Existing follow-up summary",
+		SourceEvalReportID: evalReportID,
+		CreatedBy:          "operator-existing",
+	})
+	if err != nil {
+		t.Fatalf("CreateCase(existing) error = %v", err)
+	}
+
+	server := httptest.NewServer(NewHandlerWithDependencies(Dependencies{
+		Cases:       caseService,
+		EvalReports: reportService,
+	}))
+	defer server.Close()
+
+	body := bytes.NewBufferString(`{"tenant_id":"tenant-eval-case-reuse","title":"Investigate regression","summary":"Follow up failing eval report","source_eval_report_id":"` + evalReportID + `","created_by":"operator-eval"}`)
+	resp, err := http.Post(server.URL+"/api/v1/cases", "application/json", body)
+	if err != nil {
+		t.Fatalf("Post() error = %v", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("StatusCode = %d, want %d", resp.StatusCode, http.StatusOK)
+	}
+
+	var got caseResponse
+	if err := json.NewDecoder(resp.Body).Decode(&got); err != nil {
+		t.Fatalf("Decode() error = %v", err)
+	}
+	if got.CaseID != existing.ID {
+		t.Fatalf("CaseID = %q, want %q", got.CaseID, existing.ID)
+	}
+	if got.SourceEvalReportID != evalReportID {
+		t.Fatalf("SourceEvalReportID = %q, want %q", got.SourceEvalReportID, evalReportID)
+	}
+
+	page, err := caseService.ListCases(context.Background(), casesvc.ListFilter{
+		TenantID:           "tenant-eval-case-reuse",
+		Status:             casesvc.StatusOpen,
+		SourceEvalReportID: evalReportID,
+		Limit:              10,
+	})
+	if err != nil {
+		t.Fatalf("ListCases() error = %v", err)
+	}
+	if len(page.Cases) != 1 {
+		t.Fatalf("len(ListCases().Cases) = %d, want %d", len(page.Cases), 1)
+	}
+}
+
+func TestCreateCaseEndpointAllowsCompareOriginFollowUpsToRemainDistinct(t *testing.T) {
+	caseService := casesvc.NewService()
+	evalCaseService := evalsvc.NewService(caseService, nil)
+	datasetService := evalsvc.NewDatasetService(evalCaseService)
+	runService := evalsvc.NewRunService(datasetService)
+	reportService := evalsvc.NewEvalReportServiceWithDependencies(nil, runService)
+	leftEvalReportID := materializeEvalRunReport(t, "tenant-eval-case-compare-distinct", evalsvc.RunStatusSucceeded, "left detail", caseService, evalCaseService, datasetService, runService, reportService, "Dataset Compare Left", "Source Left")
+	rightEvalReportID := materializeEvalRunReport(t, "tenant-eval-case-compare-distinct", evalsvc.RunStatusFailed, "right detail", caseService, evalCaseService, datasetService, runService, reportService, "Dataset Compare Right", "Source Right")
+
+	server := httptest.NewServer(NewHandlerWithDependencies(Dependencies{
+		Cases:       caseService,
+		EvalReports: reportService,
+	}))
+	defer server.Close()
+
+	body := `{"tenant_id":"tenant-eval-case-compare-distinct","title":"Investigate compare regression","summary":"Follow up selected compare side","source_eval_report_id":"` + rightEvalReportID + `","compare_origin":{"left_eval_report_id":"` + leftEvalReportID + `","right_eval_report_id":"` + rightEvalReportID + `","selected_side":"right"},"created_by":"operator-eval"}`
+	firstResp, err := http.Post(server.URL+"/api/v1/cases", "application/json", bytes.NewBufferString(body))
+	if err != nil {
+		t.Fatalf("Post(first) error = %v", err)
+	}
+	defer firstResp.Body.Close()
+	if firstResp.StatusCode != http.StatusCreated {
+		t.Fatalf("first StatusCode = %d, want %d", firstResp.StatusCode, http.StatusCreated)
+	}
+	var first caseResponse
+	if err := json.NewDecoder(firstResp.Body).Decode(&first); err != nil {
+		t.Fatalf("Decode(first) error = %v", err)
+	}
+
+	secondResp, err := http.Post(server.URL+"/api/v1/cases", "application/json", bytes.NewBufferString(body))
+	if err != nil {
+		t.Fatalf("Post(second) error = %v", err)
+	}
+	defer secondResp.Body.Close()
+	if secondResp.StatusCode != http.StatusCreated {
+		t.Fatalf("second StatusCode = %d, want %d", secondResp.StatusCode, http.StatusCreated)
+	}
+	var second caseResponse
+	if err := json.NewDecoder(secondResp.Body).Decode(&second); err != nil {
+		t.Fatalf("Decode(second) error = %v", err)
+	}
+	if second.CaseID == first.CaseID {
+		t.Fatal("compare-origin case creation reused existing case, want distinct follow-up case")
+	}
+}
+
+func TestCreateCaseEndpointDoesNotReuseCompareOriginCaseForPlainEvalFollowUp(t *testing.T) {
+	caseService := casesvc.NewService()
+	evalCaseService := evalsvc.NewService(caseService, nil)
+	datasetService := evalsvc.NewDatasetService(evalCaseService)
+	runService := evalsvc.NewRunService(datasetService)
+	reportService := evalsvc.NewEvalReportServiceWithDependencies(nil, runService)
+	leftEvalReportID := materializeEvalRunReport(t, "tenant-eval-case-mixed-dedupe", evalsvc.RunStatusSucceeded, "left detail", caseService, evalCaseService, datasetService, runService, reportService, "Dataset Mixed Left", "Source Left")
+	rightEvalReportID := materializeEvalRunReport(t, "tenant-eval-case-mixed-dedupe", evalsvc.RunStatusFailed, "right detail", caseService, evalCaseService, datasetService, runService, reportService, "Dataset Mixed Right", "Source Right")
+
+	if _, err := caseService.CreateCase(context.Background(), casesvc.CreateInput{
+		TenantID:           "tenant-eval-case-mixed-dedupe",
+		Title:              "Compare-origin follow-up",
+		Summary:            "Compare-origin case should not satisfy plain dedupe",
+		SourceEvalReportID: rightEvalReportID,
+		CompareOrigin: casesvc.CompareOrigin{
+			LeftEvalReportID:  leftEvalReportID,
+			RightEvalReportID: rightEvalReportID,
+			SelectedSide:      "right",
+		},
+		CreatedBy: "operator-compare",
+	}); err != nil {
+		t.Fatalf("CreateCase(compareOrigin) error = %v", err)
+	}
+
+	server := httptest.NewServer(NewHandlerWithDependencies(Dependencies{
+		Cases:       caseService,
+		EvalReports: reportService,
+	}))
+	defer server.Close()
+
+	body := bytes.NewBufferString(`{"tenant_id":"tenant-eval-case-mixed-dedupe","title":"Plain follow-up","summary":"Create plain eval-report follow-up","source_eval_report_id":"` + rightEvalReportID + `","created_by":"operator-plain"}`)
+	resp, err := http.Post(server.URL+"/api/v1/cases", "application/json", body)
+	if err != nil {
+		t.Fatalf("Post() error = %v", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusCreated {
+		t.Fatalf("StatusCode = %d, want %d", resp.StatusCode, http.StatusCreated)
+	}
+
+	var created caseResponse
+	if err := json.NewDecoder(resp.Body).Decode(&created); err != nil {
+		t.Fatalf("Decode() error = %v", err)
+	}
+	if created.CompareOrigin != nil {
+		t.Fatal("CreateCase() reused compare-origin case, want plain follow-up case")
+	}
+
+	page, err := caseService.ListCases(context.Background(), casesvc.ListFilter{
+		TenantID:           "tenant-eval-case-mixed-dedupe",
+		Status:             casesvc.StatusOpen,
+		SourceEvalReportID: rightEvalReportID,
+		Limit:              10,
+	})
+	if err != nil {
+		t.Fatalf("ListCases() error = %v", err)
+	}
+	if len(page.Cases) != 2 {
+		t.Fatalf("len(ListCases().Cases) = %d, want %d", len(page.Cases), 2)
+	}
+}
+
 func TestCreateAndGetCaseEndpointWithCompareOrigin(t *testing.T) {
 	caseService := casesvc.NewService()
 	evalCaseService := evalsvc.NewService(caseService, nil)

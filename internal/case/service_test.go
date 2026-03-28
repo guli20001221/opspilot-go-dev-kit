@@ -678,3 +678,89 @@ func TestServiceSummarizeBySourceEvalReportIDs(t *testing.T) {
 		t.Fatalf("empty.LatestFollowUpCaseStatus = %q, want empty", empty.LatestFollowUpCaseStatus)
 	}
 }
+
+func TestServiceFindOpenCaseBySourceEvalReport(t *testing.T) {
+	svc := NewService()
+
+	first, err := svc.CreateCase(context.Background(), CreateInput{
+		TenantID:           "tenant-1",
+		Title:              "Closed follow-up",
+		SourceEvalReportID: "eval-report-1",
+		CreatedBy:          "operator-1",
+	})
+	if err != nil {
+		t.Fatalf("CreateCase(first) error = %v", err)
+	}
+	if _, err := svc.CloseCase(context.Background(), first.ID, "operator-1"); err != nil {
+		t.Fatalf("CloseCase(first) error = %v", err)
+	}
+	second, err := svc.CreateCase(context.Background(), CreateInput{
+		TenantID:           "tenant-1",
+		Title:              "Open follow-up",
+		SourceEvalReportID: "eval-report-1",
+		CreatedBy:          "operator-2",
+	})
+	if err != nil {
+		t.Fatalf("CreateCase(second) error = %v", err)
+	}
+
+	got, ok, err := svc.FindOpenCaseBySourceEvalReport(context.Background(), "tenant-1", "eval-report-1")
+	if err != nil {
+		t.Fatalf("FindOpenCaseBySourceEvalReport() error = %v", err)
+	}
+	if !ok {
+		t.Fatal("FindOpenCaseBySourceEvalReport() ok = false, want true")
+	}
+	if got.ID != second.ID {
+		t.Fatalf("FindOpenCaseBySourceEvalReport().ID = %q, want %q", got.ID, second.ID)
+	}
+
+	if _, ok, err := svc.FindOpenCaseBySourceEvalReport(context.Background(), "tenant-1", "missing-report"); err != nil {
+		t.Fatalf("FindOpenCaseBySourceEvalReport(missing) error = %v", err)
+	} else if ok {
+		t.Fatal("FindOpenCaseBySourceEvalReport(missing) ok = true, want false")
+	}
+}
+
+func TestServiceFindOpenCaseBySourceEvalReportIgnoresCompareOriginCases(t *testing.T) {
+	svc := NewService()
+
+	compareCase, err := svc.CreateCase(context.Background(), CreateInput{
+		TenantID:           "tenant-1",
+		Title:              "Compare follow-up",
+		SourceEvalReportID: "eval-report-1",
+		CompareOrigin: CompareOrigin{
+			LeftEvalReportID:  "eval-report-left",
+			RightEvalReportID: "eval-report-1",
+			SelectedSide:      "right",
+		},
+		CreatedBy: "operator-compare",
+	})
+	if err != nil {
+		t.Fatalf("CreateCase(compareCase) error = %v", err)
+	}
+
+	plainCase, err := svc.CreateCase(context.Background(), CreateInput{
+		TenantID:           "tenant-1",
+		Title:              "Plain eval follow-up",
+		SourceEvalReportID: "eval-report-1",
+		CreatedBy:          "operator-plain",
+	})
+	if err != nil {
+		t.Fatalf("CreateCase(plainCase) error = %v", err)
+	}
+
+	got, ok, err := svc.FindOpenCaseBySourceEvalReport(context.Background(), "tenant-1", "eval-report-1")
+	if err != nil {
+		t.Fatalf("FindOpenCaseBySourceEvalReport() error = %v", err)
+	}
+	if !ok {
+		t.Fatal("FindOpenCaseBySourceEvalReport() ok = false, want true")
+	}
+	if got.ID != plainCase.ID {
+		t.Fatalf("FindOpenCaseBySourceEvalReport().ID = %q, want %q", got.ID, plainCase.ID)
+	}
+	if got.ID == compareCase.ID {
+		t.Fatal("FindOpenCaseBySourceEvalReport() reused compare-origin case, want plain follow-up")
+	}
+}

@@ -488,6 +488,19 @@ func TestCaseStoreListSupportsEvalReportFilters(t *testing.T) {
 	if comparePage.Cases[0].ID != "case-eval-filter-1" {
 		t.Fatalf("comparePage.Cases[0].ID = %q, want %q", comparePage.Cases[0].ID, "case-eval-filter-1")
 	}
+
+	plainEvalPage, err := store.List(ctx, casesvc.ListFilter{
+		TenantID:             "tenant-1",
+		SourceEvalReportID:   "eval-report-filter-1",
+		ExcludeCompareOrigin: true,
+		Limit:                10,
+	})
+	if err != nil {
+		t.Fatalf("List(plainEvalPage) error = %v", err)
+	}
+	if len(plainEvalPage.Cases) != 0 {
+		t.Fatalf("len(plainEvalPage.Cases) = %d, want %d", len(plainEvalPage.Cases), 0)
+	}
 }
 
 func TestCaseStorePersistsClosedBy(t *testing.T) {

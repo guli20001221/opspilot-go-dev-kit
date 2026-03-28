@@ -930,6 +930,14 @@ const reportID = process.argv[4];
   if (!linkedCasesHref || !linkedCasesHref.includes("source_eval_report_id=" + encodeURIComponent(reportID))) {
     throw new Error("linked cases handoff missing source_eval_report_id");
   }
+  const latestCaseHrefBeforeCreate = await page.getAttribute("#openLatestCaseLink", "href");
+  if (!latestCaseHrefBeforeCreate || !latestCaseHrefBeforeCreate.includes("case_id=")) {
+    throw new Error("latest case handoff missing before create");
+  }
+  const expectedExistingCaseID = new URL("http://local" + latestCaseHrefBeforeCreate).searchParams.get("case_id");
+  if (!expectedExistingCaseID) {
+    throw new Error("unable to parse existing case_id from latest case handoff");
+  }
   const urlAfterLoad = new URL(page.url());
   if (urlAfterLoad.searchParams.get("report_id") !== reportID) {
     throw new Error("selected report_id not synced into URL");
@@ -940,6 +948,9 @@ const reportID = process.argv[4];
   const createdCaseID = createdCaseURL.searchParams.get("case_id");
   if (!createdCaseID) {
     throw new Error("create-case handoff missing case_id");
+  }
+  if (createdCaseID !== expectedExistingCaseID) {
+    throw new Error("create-case did not reuse existing open follow-up case");
   }
   if (createdCaseURL.searchParams.get("tenant_id") !== tenantID) {
     throw new Error("create-case handoff missing tenant_id");
