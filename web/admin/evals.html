@@ -249,8 +249,6 @@
     }
 
     function preferredFollowUpAction(item) {
-      const fallbackQueueHref = `/admin/cases?tenant_id=${encodeURIComponent(item.tenant_id)}&source_eval_case_id=${encodeURIComponent(item.eval_case_id)}&limit=10`;
-      const fallbackCaseHref = item.latest_follow_up_case_id ? `/admin/cases?tenant_id=${encodeURIComponent(item.tenant_id)}&case_id=${encodeURIComponent(item.latest_follow_up_case_id)}` : "";
       const action = item && item.preferred_follow_up_action ? item.preferred_follow_up_action : null;
       if (action && action.mode) {
         if (action.mode === "open_existing_case" && action.case_id) {
@@ -262,12 +260,6 @@
         if (action.mode === "create") {
           return { mode: action.mode, targetHref: "", label: "Create case", hasReuse: false };
         }
-      }
-      if (Number(item.open_follow_up_case_count || 0) > 0) {
-        if (fallbackCaseHref) {
-          return { mode: "open_existing_case", targetHref: fallbackCaseHref, label: "Open existing case", hasReuse: true };
-        }
-        return { mode: "open_existing_queue", targetHref: fallbackQueueHref, label: "Open existing queue", hasReuse: true };
       }
       return { mode: "create", targetHref: "", label: "Create case", hasReuse: false };
     }
