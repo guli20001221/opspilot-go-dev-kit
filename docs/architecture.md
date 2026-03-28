@@ -93,6 +93,7 @@ The current HTTP layer also exposes the same PostgreSQL-backed workflow records 
 - `POST /api/v1/eval-cases` and `GET /api/v1/eval-cases/{eval_case_id}` now expose durable eval-case promotion derived from canonical case, task, report, trace, and version state
 - `GET /api/v1/eval-cases` now exposes the first tenant-scoped eval queue contract, so promoted coverage can be browsed as an operator lane instead of remaining write-only
 - the same canonical eval-case list/detail contract now also carries follow-up case summary fields and `latest_follow_up_case_id`, so eval triage can inspect linked operator work without an extra case query layer
+- the same canonical eval-case list now also supports `needs_follow_up=true|false`, so unresolved eval follow-up can be filtered on the backend instead of derived in the browser
 - the same `/admin/cases` page now also supports `Promote to eval`, keeping the operator action on the canonical case surface instead of introducing an admin-only eval write path
 - `/admin/evals` now exposes the first eval-focused operator lane, reusing durable eval-case list/detail reads and canonical handoff links into case/task/report/version/trace surfaces
 - `POST /api/v1/eval-datasets`, `GET /api/v1/eval-datasets`, and `GET /api/v1/eval-datasets/{dataset_id}` now expose the first durable dataset-draft contract plus its canonical lightweight browse surface
@@ -100,6 +101,7 @@ The current HTTP layer also exposes the same PostgreSQL-backed workflow records 
 - `POST /api/v1/eval-datasets/{dataset_id}/items` now exposes the first incremental dataset-curation contract, so operators can grow a draft dataset over time instead of recreating it per eval case
 - the same `/admin/evals` page now also supports `Add to dataset`, reusing the canonical append-membership contract instead of inventing an eval-page-only saved-view mutation
 - the same `/admin/evals` page now also surfaces canonical eval-case follow-up summary and handoff links into the latest follow-up case or the full follow-up slice, instead of re-deriving that state in the browser
+- the same `/admin/evals` page now also exposes a `Needs follow-up` quick view backed by that canonical eval-case filter, turning follow-up pressure into a real operator lane
 - `/admin/eval-datasets` now exposes the first dataset-focused operator lane, keeping dataset list rows lightweight while reusing canonical dataset detail and source-lineage handoff paths
 - `POST /api/v1/eval-datasets/{dataset_id}/publish` now turns a durable draft into an immutable published baseline, recording `published_by` and `published_at` so later regression work can target stable dataset state instead of a moving draft
 - `internal/eval` now also holds the first durable eval-run kickoff model, which snapshots published dataset metadata into a queued run row before judge execution is connected

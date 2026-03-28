@@ -67,6 +67,13 @@
       background: linear-gradient(135deg, var(--accent), var(--accent-2));
       box-shadow: 0 12px 24px rgba(29, 78, 216, 0.22);
     }
+    .quick-views { margin-top: 14px; display: flex; flex-wrap: wrap; gap: 10px; }
+    .quick-view-active {
+      color: #fff;
+      background: linear-gradient(135deg, var(--accent), var(--accent-2));
+      border-color: transparent;
+      box-shadow: 0 12px 24px rgba(29, 78, 216, 0.18);
+    }
     button:hover, a.link-chip:hover, a.button-link:hover { transform: translateY(-1px); }
     .layout { display: grid; gap: 18px; grid-template-columns: minmax(280px, 320px) minmax(0, 1fr); align-items: start; }
     .panel { border-radius: var(--radius-lg); padding: 20px; }
@@ -143,6 +150,7 @@
           <div class="field"><label for="source_task_id">Source Task</label><input id="source_task_id" name="source_task_id" type="text" placeholder="task-..."></div>
           <div class="field"><label for="source_report_id">Source Report</label><input id="source_report_id" name="source_report_id" type="text" placeholder="report-..."></div>
           <div class="field"><label for="version_id">Version</label><input id="version_id" name="version_id" type="text" placeholder="version-..."></div>
+          <div class="field"><label for="needs_follow_up">Needs Follow-up</label><select id="needs_follow_up" name="needs_follow_up" style="width: 100%; border: 1px solid var(--line); border-radius: var(--radius-sm); padding: 11px 12px; background: rgba(255, 255, 255, 0.94); color: var(--ink);"><option value="">Any</option><option value="true">Open follow-up only</option><option value="false">Clear only</option></select></div>
           <div class="field"><label for="limit">Page Size</label><input id="limit" name="limit" type="number" min="1" max="100" value="10"></div>
           <div class="field"><label for="offset">Offset</label><input id="offset" name="offset" type="number" min="0" value="0"></div>
           <div class="actions">
@@ -150,6 +158,10 @@
             <button class="ghost" type="button" id="resetFilters">Reset</button>
           </div>
         </form>
+        <div class="quick-views" aria-label="Eval quick views">
+          <button class="ghost" type="button" data-quick-view="all">All evals</button>
+          <button class="ghost" type="button" data-quick-view="needs-follow-up">Needs follow-up</button>
+        </div>
       </aside>
 
       <section class="panel">
@@ -220,6 +232,7 @@
     const datasetTargetIDInput = document.getElementById("datasetTargetIDInput");
     const addToDatasetButton = document.getElementById("addToDatasetButton");
     const evalDetailStatusNote = document.getElementById("evalDetailStatusNote");
+    const quickViewButtons = Array.from(document.querySelectorAll("[data-quick-view]"));
 
     let currentItems = [];
     let currentEvalID = "";
@@ -259,9 +272,14 @@
     function buildParams() {
       const params = new URLSearchParams();
       for (const name of ["tenant_id", "source_case_id", "source_task_id", "source_report_id", "version_id", "limit", "offset"]) {
+        if (name === "needs_follow_up") {
+          continue;
+        }
         const value = form.elements.namedItem(name).value.trim();
         if (value) params.set(name, value);
       }
+      const needsFollowUp = form.elements.namedItem("needs_follow_up").value.trim();
+      if (needsFollowUp) params.set("needs_follow_up", needsFollowUp);
       return params;
     }
 
@@ -276,7 +294,18 @@
       for (const name of ["tenant_id", "source_case_id", "source_task_id", "source_report_id", "version_id", "limit", "offset"]) {
         form.elements.namedItem(name).value = params.get(name) || (name === "limit" ? "10" : name === "offset" ? "0" : "");
       }
+      form.elements.namedItem("needs_follow_up").value = params.get("needs_follow_up") || "";
       return params.get("eval_case_id") || "";
+    }
+
+    function syncQuickViews() {
+      const currentNeedsFollowUp = form.elements.namedItem("needs_follow_up").value.trim();
+      for (const button of quickViewButtons) {
+        const mode = button.dataset.quickView;
+        const active = (mode === "all" && currentNeedsFollowUp === "") ||
+          (mode === "needs-follow-up" && currentNeedsFollowUp === "true");
+        button.classList.toggle("quick-view-active", active);
+      }
     }
 
     function renderSummary(items) {
@@ -496,6 +525,7 @@
         const page = await response.json();
         renderSummary(page.eval_cases || []);
         renderRows(page.eval_cases || []);
+        syncQuickViews();
         const visibleIDs = new Set((page.eval_cases || []).map((item) => item.eval_case_id));
         if (selectedEvalID && visibleIDs.has(selectedEvalID)) {
           await loadDetail(selectedEvalID);
@@ -513,6 +543,19 @@
         evalDetailStatusNote.textContent = "Unable to load eval detail because the eval lane request failed.";
         evalDetail.innerHTML = '<div class="empty">Unable to load eval detail because the eval lane request failed.</div>';
       }
+    }
+
+    function applyQuickView(mode) {
+      form.elements.namedItem("offset").value = "0";
+      switch (mode) {
+        case "needs-follow-up":
+          form.elements.namedItem("needs_follow_up").value = "true";
+          break;
+        default:
+          form.elements.namedItem("needs_follow_up").value = "";
+          break;
+      }
+      loadEvals(currentEvalID);
     }
 
     function navigateVisible(delta) {
@@ -637,7 +680,7 @@
     });
 
     resetFiltersButton.addEventListener("click", () => {
-      for (const name of ["tenant_id", "source_case_id", "source_task_id", "source_report_id", "version_id"]) {
+      for (const name of ["tenant_id", "source_case_id", "source_task_id", "source_report_id", "version_id", "needs_follow_up"]) {
         form.elements.namedItem(name).value = "";
       }
       form.elements.namedItem("limit").value = "10";
@@ -657,6 +700,7 @@
     copyEvalLinkButton.addEventListener("click", () => copyEvalLink());
     createDatasetButton.addEventListener("click", () => createDatasetDraft());
     addToDatasetButton.addEventListener("click", () => addToDatasetDraft());
+    quickViewButtons.forEach((button) => button.addEventListener("click", () => applyQuickView(button.dataset.quickView)));
 
     const initialEvalID = populateFiltersFromURL();
     loadEvals(initialEvalID);

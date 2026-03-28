@@ -366,6 +366,114 @@ func TestListEvalCasesEndpointSupportsFiltersAndPagination(t *testing.T) {
 	}
 }
 
+func TestListEvalCasesEndpointSupportsNeedsFollowUpFilter(t *testing.T) {
+	ctx := context.Background()
+	caseService := casesvc.NewService()
+	evalService := evalsvc.NewService(caseService, nil)
+
+	sourceOpen, err := caseService.CreateCase(ctx, casesvc.CreateInput{
+		TenantID: "tenant-needs-follow-up",
+		Title:    "Open follow-up source",
+	})
+	if err != nil {
+		t.Fatalf("CreateCase(sourceOpen) error = %v", err)
+	}
+	evalOpen, _, err := evalService.PromoteCase(ctx, evalsvc.CreateInput{
+		TenantID:     "tenant-needs-follow-up",
+		SourceCaseID: sourceOpen.ID,
+	})
+	if err != nil {
+		t.Fatalf("PromoteCase(evalOpen) error = %v", err)
+	}
+	if _, err := caseService.CreateCase(ctx, casesvc.CreateInput{
+		TenantID:           "tenant-needs-follow-up",
+		Title:              "Open linked case",
+		SourceEvalCaseID:   evalOpen.ID,
+		SourceEvalReportID: "eval-report-open",
+	}); err != nil {
+		t.Fatalf("CreateCase(open linked case) error = %v", err)
+	}
+
+	sourceClosed, err := caseService.CreateCase(ctx, casesvc.CreateInput{
+		TenantID: "tenant-needs-follow-up",
+		Title:    "Closed follow-up source",
+	})
+	if err != nil {
+		t.Fatalf("CreateCase(sourceClosed) error = %v", err)
+	}
+	evalClosed, _, err := evalService.PromoteCase(ctx, evalsvc.CreateInput{
+		TenantID:     "tenant-needs-follow-up",
+		SourceCaseID: sourceClosed.ID,
+	})
+	if err != nil {
+		t.Fatalf("PromoteCase(evalClosed) error = %v", err)
+	}
+	linkedClosed, err := caseService.CreateCase(ctx, casesvc.CreateInput{
+		TenantID:           "tenant-needs-follow-up",
+		Title:              "Closed linked case",
+		SourceEvalCaseID:   evalClosed.ID,
+		SourceEvalReportID: "eval-report-closed",
+	})
+	if err != nil {
+		t.Fatalf("CreateCase(closed linked case) error = %v", err)
+	}
+	if _, err := caseService.CloseCase(ctx, linkedClosed.ID, "operator-close"); err != nil {
+		t.Fatalf("CloseCase() error = %v", err)
+	}
+
+	server := httptest.NewServer(NewHandlerWithDependencies(Dependencies{
+		Cases:     caseService,
+		EvalCases: evalService,
+	}))
+	defer server.Close()
+
+	openResp, err := http.Get(server.URL + "/api/v1/eval-cases?tenant_id=tenant-needs-follow-up&needs_follow_up=true&limit=10")
+	if err != nil {
+		t.Fatalf("Get(openResp) error = %v", err)
+	}
+	defer openResp.Body.Close()
+	if openResp.StatusCode != http.StatusOK {
+		t.Fatalf("openResp StatusCode = %d, want %d", openResp.StatusCode, http.StatusOK)
+	}
+	var openBody listEvalCasesResponse
+	if err := json.NewDecoder(openResp.Body).Decode(&openBody); err != nil {
+		t.Fatalf("Decode(openBody) error = %v", err)
+	}
+	if len(openBody.EvalCases) != 1 || openBody.EvalCases[0].EvalCaseID != evalOpen.ID {
+		t.Fatalf("openBody.EvalCases = %#v, want only %q", openBody.EvalCases, evalOpen.ID)
+	}
+
+	clearResp, err := http.Get(server.URL + "/api/v1/eval-cases?tenant_id=tenant-needs-follow-up&needs_follow_up=false&limit=10")
+	if err != nil {
+		t.Fatalf("Get(clearResp) error = %v", err)
+	}
+	defer clearResp.Body.Close()
+	if clearResp.StatusCode != http.StatusOK {
+		t.Fatalf("clearResp StatusCode = %d, want %d", clearResp.StatusCode, http.StatusOK)
+	}
+	var clearBody listEvalCasesResponse
+	if err := json.NewDecoder(clearResp.Body).Decode(&clearBody); err != nil {
+		t.Fatalf("Decode(clearBody) error = %v", err)
+	}
+	if len(clearBody.EvalCases) != 1 || clearBody.EvalCases[0].EvalCaseID != evalClosed.ID {
+		t.Fatalf("clearBody.EvalCases = %#v, want only %q", clearBody.EvalCases, evalClosed.ID)
+	}
+}
+
+func TestListEvalCasesEndpointRejectsInvalidNeedsFollowUp(t *testing.T) {
+	server := httptest.NewServer(NewHandler())
+	defer server.Close()
+
+	resp, err := http.Get(server.URL + "/api/v1/eval-cases?tenant_id=tenant-invalid&needs_follow_up=maybe")
+	if err != nil {
+		t.Fatalf("Get() error = %v", err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusBadRequest {
+		t.Fatalf("StatusCode = %d, want %d", resp.StatusCode, http.StatusBadRequest)
+	}
+}
+
 func TestEvalCaseEndpointsReturnFollowUpCaseSummary(t *testing.T) {
 	ctx := context.Background()
 	caseService := casesvc.NewService()

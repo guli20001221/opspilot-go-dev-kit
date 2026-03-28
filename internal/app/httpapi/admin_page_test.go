@@ -326,6 +326,12 @@ func TestAdminEvalsPageRendersHTML(t *testing.T) {
 	if !strings.Contains(body, "Open latest follow-up case") {
 		t.Fatal("latest follow-up case handoff missing from eval page HTML")
 	}
+	if !strings.Contains(body, "Needs follow-up") {
+		t.Fatal("needs follow-up quick view missing from eval page HTML")
+	}
+	if !strings.Contains(body, "needs_follow_up") {
+		t.Fatal("needs_follow_up filter missing from eval page HTML")
+	}
 	if !strings.Contains(body, "Open follow-up slice") {
 		t.Fatal("follow-up slice handoff missing from eval page HTML")
 	}

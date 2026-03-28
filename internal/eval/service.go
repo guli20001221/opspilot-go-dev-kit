@@ -151,6 +151,9 @@ func (s *Service) ListEvalCases(ctx context.Context, filter ListFilter) (ListPag
 	if filter.Limit <= 0 {
 		filter.Limit = 20
 	}
+	if filter.NeedsFollowUp != nil {
+		return s.listEvalCasesWithFollowUpFilter(ctx, filter)
+	}
 
 	page, err := s.store.List(ctx, filter)
 	if err != nil {
@@ -161,6 +164,63 @@ func (s *Service) ListEvalCases(ctx context.Context, filter ListFilter) (ListPag
 		return ListPage{}, err
 	}
 	return page, nil
+}
+
+func (s *Service) listEvalCasesWithFollowUpFilter(ctx context.Context, filter ListFilter) (ListPage, error) {
+	batchSize := filter.Limit
+	if batchSize < 20 {
+		batchSize = 20
+	}
+
+	baseFilter := filter
+	baseFilter.NeedsFollowUp = nil
+	baseFilter.Offset = 0
+	baseFilter.Limit = batchSize
+
+	page := ListPage{EvalCases: make([]EvalCase, 0, filter.Limit)}
+	matchedCount := 0
+	rawOffset := 0
+
+	for {
+		baseFilter.Offset = rawOffset
+		rawPage, err := s.store.List(ctx, baseFilter)
+		if err != nil {
+			return ListPage{}, err
+		}
+		if len(rawPage.EvalCases) == 0 {
+			return page, nil
+		}
+
+		enriched, err := s.applyFollowUpSummaries(ctx, rawPage.EvalCases)
+		if err != nil {
+			return ListPage{}, err
+		}
+
+		for _, item := range enriched {
+			hasOpenFollowUp := item.OpenFollowUpCaseCount > 0
+			if hasOpenFollowUp != *filter.NeedsFollowUp {
+				continue
+			}
+			if matchedCount < filter.Offset {
+				matchedCount++
+				continue
+			}
+			if len(page.EvalCases) < filter.Limit {
+				page.EvalCases = append(page.EvalCases, item)
+				matchedCount++
+				continue
+			}
+
+			page.HasMore = true
+			page.NextOffset = filter.Offset + len(page.EvalCases)
+			return page, nil
+		}
+
+		if !rawPage.HasMore {
+			return page, nil
+		}
+		rawOffset = rawPage.NextOffset
+	}
 }
 
 func (s *Service) applyFollowUpSummaries(ctx context.Context, items []EvalCase) ([]EvalCase, error) {

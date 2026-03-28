@@ -67,6 +67,7 @@ Turn prompt, routing, retrieval, and tool changes into measurable, repeatable qu
 35. When unresolved regressions need immediate operator handoff, prefer carrying `latest_follow_up_case_id` on eval-report list items so admin lanes can jump directly into the freshest linked case.
 36. When one bad case inside a durable eval report needs its own follow-up, prefer anchoring the canonical case to both `source_eval_report_id` and `source_eval_case_id` so precise bad-case triage remains distinct from report-level follow-up.
 37. Once canonical eval-case reads carry follow-up summary fields, prefer using those fields as the first eval-triage signal on `/admin/evals` before introducing any eval-only follow-up queue or duplicated case summary store.
+38. Once canonical eval-case reads expose `needs_follow_up`, prefer filtering unresolved follow-up through that backend-owned field before introducing any separate eval-follow-up queue contract.
 
 ## Output contract
 When you finish, always report:

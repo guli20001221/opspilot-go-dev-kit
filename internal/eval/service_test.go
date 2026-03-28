@@ -225,6 +225,194 @@ func TestServiceListEvalCasesIncludesFollowUpSummary(t *testing.T) {
 	}
 }
 
+func TestServiceListEvalCasesSupportsNeedsFollowUpFilter(t *testing.T) {
+	caseService := casesvc.NewService()
+	service := NewService(caseService, nil)
+
+	sourceWithoutFollowUp, err := caseService.CreateCase(context.Background(), casesvc.CreateInput{
+		TenantID: "tenant-filter",
+		Title:    "No follow-up",
+	})
+	if err != nil {
+		t.Fatalf("CreateCase(sourceWithoutFollowUp) error = %v", err)
+	}
+	evalWithoutFollowUp, _, err := service.PromoteCase(context.Background(), CreateInput{
+		TenantID:     "tenant-filter",
+		SourceCaseID: sourceWithoutFollowUp.ID,
+	})
+	if err != nil {
+		t.Fatalf("PromoteCase(evalWithoutFollowUp) error = %v", err)
+	}
+
+	sourceWithOpenFollowUp, err := caseService.CreateCase(context.Background(), casesvc.CreateInput{
+		TenantID: "tenant-filter",
+		Title:    "Open follow-up",
+	})
+	if err != nil {
+		t.Fatalf("CreateCase(sourceWithOpenFollowUp) error = %v", err)
+	}
+	evalWithOpenFollowUp, _, err := service.PromoteCase(context.Background(), CreateInput{
+		TenantID:     "tenant-filter",
+		SourceCaseID: sourceWithOpenFollowUp.ID,
+	})
+	if err != nil {
+		t.Fatalf("PromoteCase(evalWithOpenFollowUp) error = %v", err)
+	}
+	if _, err := caseService.CreateCase(context.Background(), casesvc.CreateInput{
+		TenantID:           "tenant-filter",
+		Title:              "Linked open follow-up",
+		SourceEvalCaseID:   evalWithOpenFollowUp.ID,
+		SourceEvalReportID: "eval-report-open",
+	}); err != nil {
+		t.Fatalf("CreateCase(open follow-up) error = %v", err)
+	}
+
+	sourceWithClosedFollowUp, err := caseService.CreateCase(context.Background(), casesvc.CreateInput{
+		TenantID: "tenant-filter",
+		Title:    "Closed follow-up",
+	})
+	if err != nil {
+		t.Fatalf("CreateCase(sourceWithClosedFollowUp) error = %v", err)
+	}
+	evalWithClosedFollowUp, _, err := service.PromoteCase(context.Background(), CreateInput{
+		TenantID:     "tenant-filter",
+		SourceCaseID: sourceWithClosedFollowUp.ID,
+	})
+	if err != nil {
+		t.Fatalf("PromoteCase(evalWithClosedFollowUp) error = %v", err)
+	}
+	closedFollowUp, err := caseService.CreateCase(context.Background(), casesvc.CreateInput{
+		TenantID:           "tenant-filter",
+		Title:              "Linked closed follow-up",
+		SourceEvalCaseID:   evalWithClosedFollowUp.ID,
+		SourceEvalReportID: "eval-report-closed",
+		CreatedBy:          "operator-1",
+	})
+	if err != nil {
+		t.Fatalf("CreateCase(closed follow-up) error = %v", err)
+	}
+	if _, err := caseService.CloseCase(context.Background(), closedFollowUp.ID, "operator-2"); err != nil {
+		t.Fatalf("CloseCase() error = %v", err)
+	}
+
+	trueValue := true
+	openOnly, err := service.ListEvalCases(context.Background(), ListFilter{
+		TenantID:      "tenant-filter",
+		NeedsFollowUp: &trueValue,
+		Limit:         10,
+	})
+	if err != nil {
+		t.Fatalf("ListEvalCases(openOnly) error = %v", err)
+	}
+	if len(openOnly.EvalCases) != 1 {
+		t.Fatalf("len(openOnly.EvalCases) = %d, want 1", len(openOnly.EvalCases))
+	}
+	if openOnly.EvalCases[0].ID != evalWithOpenFollowUp.ID {
+		t.Fatalf("openOnly.EvalCases[0].ID = %q, want %q", openOnly.EvalCases[0].ID, evalWithOpenFollowUp.ID)
+	}
+
+	falseValue := false
+	clearOnly, err := service.ListEvalCases(context.Background(), ListFilter{
+		TenantID:      "tenant-filter",
+		NeedsFollowUp: &falseValue,
+		Limit:         10,
+	})
+	if err != nil {
+		t.Fatalf("ListEvalCases(clearOnly) error = %v", err)
+	}
+	if len(clearOnly.EvalCases) != 2 {
+		t.Fatalf("len(clearOnly.EvalCases) = %d, want 2", len(clearOnly.EvalCases))
+	}
+	ids := []string{clearOnly.EvalCases[0].ID, clearOnly.EvalCases[1].ID}
+	if !(containsString(ids, evalWithoutFollowUp.ID) && containsString(ids, evalWithClosedFollowUp.ID)) {
+		t.Fatalf("clearOnly IDs = %#v, want %q and %q", ids, evalWithoutFollowUp.ID, evalWithClosedFollowUp.ID)
+	}
+}
+
+func TestServiceListEvalCasesNeedsFollowUpFilterPreservesPagination(t *testing.T) {
+	caseService := casesvc.NewService()
+	service := NewService(caseService, nil)
+
+	newEvalWithOpenFollowUp := func(title string, reportID string) EvalCase {
+		t.Helper()
+
+		sourceCase, err := caseService.CreateCase(context.Background(), casesvc.CreateInput{
+			TenantID: "tenant-follow-up-pagination",
+			Title:    title,
+		})
+		if err != nil {
+			t.Fatalf("CreateCase(%s) error = %v", title, err)
+		}
+		evalCase, _, err := service.PromoteCase(context.Background(), CreateInput{
+			TenantID:     "tenant-follow-up-pagination",
+			SourceCaseID: sourceCase.ID,
+		})
+		if err != nil {
+			t.Fatalf("PromoteCase(%s) error = %v", title, err)
+		}
+		if _, err := caseService.CreateCase(context.Background(), casesvc.CreateInput{
+			TenantID:           "tenant-follow-up-pagination",
+			Title:              title + " follow-up",
+			SourceEvalCaseID:   evalCase.ID,
+			SourceEvalReportID: reportID,
+		}); err != nil {
+			t.Fatalf("CreateCase(%s follow-up) error = %v", title, err)
+		}
+		return evalCase
+	}
+
+	first := newEvalWithOpenFollowUp("First open", "eval-report-open-1")
+	time.Sleep(2 * time.Millisecond)
+	second := newEvalWithOpenFollowUp("Second open", "eval-report-open-2")
+
+	trueValue := true
+	pageOne, err := service.ListEvalCases(context.Background(), ListFilter{
+		TenantID:      "tenant-follow-up-pagination",
+		NeedsFollowUp: &trueValue,
+		Limit:         1,
+	})
+	if err != nil {
+		t.Fatalf("ListEvalCases(pageOne) error = %v", err)
+	}
+	if len(pageOne.EvalCases) != 1 {
+		t.Fatalf("len(pageOne.EvalCases) = %d, want 1", len(pageOne.EvalCases))
+	}
+	if pageOne.EvalCases[0].ID != second.ID {
+		t.Fatalf("pageOne.EvalCases[0].ID = %q, want %q", pageOne.EvalCases[0].ID, second.ID)
+	}
+	if !pageOne.HasMore || pageOne.NextOffset != 1 {
+		t.Fatalf("pageOne pagination = %#v, want has_more with next_offset=1", pageOne)
+	}
+
+	pageTwo, err := service.ListEvalCases(context.Background(), ListFilter{
+		TenantID:      "tenant-follow-up-pagination",
+		NeedsFollowUp: &trueValue,
+		Limit:         1,
+		Offset:        1,
+	})
+	if err != nil {
+		t.Fatalf("ListEvalCases(pageTwo) error = %v", err)
+	}
+	if len(pageTwo.EvalCases) != 1 {
+		t.Fatalf("len(pageTwo.EvalCases) = %d, want 1", len(pageTwo.EvalCases))
+	}
+	if pageTwo.EvalCases[0].ID != first.ID {
+		t.Fatalf("pageTwo.EvalCases[0].ID = %q, want %q", pageTwo.EvalCases[0].ID, first.ID)
+	}
+	if pageTwo.HasMore {
+		t.Fatalf("pageTwo.HasMore = true, want false")
+	}
+}
+
+func containsString(values []string, want string) bool {
+	for _, value := range values {
+		if value == want {
+			return true
+		}
+	}
+	return false
+}
+
 func TestMemoryStoreListSupportsFiltersAndPagination(t *testing.T) {
 	store := newMemoryStore()
 	fixtures := []EvalCase{

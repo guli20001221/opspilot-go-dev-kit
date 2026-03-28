@@ -199,6 +199,13 @@ func parseEvalCaseListFilter(r *http.Request) (evalsvc.ListFilter, error) {
 		}
 		filter.Offset = offset
 	}
+	if rawNeedsFollowUp := strings.TrimSpace(r.URL.Query().Get("needs_follow_up")); rawNeedsFollowUp != "" {
+		needsFollowUp, err := strconv.ParseBool(rawNeedsFollowUp)
+		if err != nil {
+			return evalsvc.ListFilter{}, errors.New("needs_follow_up must be a boolean")
+		}
+		filter.NeedsFollowUp = &needsFollowUp
+	}
 
 	return filter, nil
 }

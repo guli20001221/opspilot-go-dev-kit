@@ -115,6 +115,7 @@ type ListFilter struct {
 	SourceTaskID   string
 	SourceReportID string
 	VersionID      string
+	NeedsFollowUp  *bool
 	Limit          int
 	Offset         int
 }
