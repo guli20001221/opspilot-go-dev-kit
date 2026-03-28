@@ -640,8 +640,11 @@ func TestAdminEvalReportComparePageRendersHTML(t *testing.T) {
 	if !strings.Contains(body, "Follow-up") {
 		t.Fatal("follow-up summary missing from compare HTML")
 	}
-	if !strings.Contains(body, "Create case") {
-		t.Fatal("case handoff action missing from compare HTML")
+	if !strings.Contains(body, "Create case from left") {
+		t.Fatal("left-side case handoff action missing from compare HTML")
+	}
+	if !strings.Contains(body, "Create case from right") {
+		t.Fatal("right-side case handoff action missing from compare HTML")
 	}
 	if !strings.Contains(body, "/admin/cases") {
 		t.Fatal("cases handoff missing from compare HTML")
@@ -704,6 +707,15 @@ const rightReportID = process.argv[5];
 const leftCaseID = process.argv[6];
 const rightCaseID = process.argv[7];
 
+async function assertCaseSource(page, apiBaseURL, caseID, tenantID, expectedReportID) {
+  await page.goto(apiBaseURL + "/api/v1/cases/" + encodeURIComponent(caseID) + "?tenant_id=" + encodeURIComponent(tenantID));
+  await page.waitForSelector("body");
+  const payload = JSON.parse(await page.textContent("body"));
+  if (payload.source_eval_report_id !== expectedReportID) {
+    throw new Error("unexpected source_eval_report_id for " + caseID + ": " + payload.source_eval_report_id);
+  }
+}
+
 (async () => {
   const browser = await chromium.launch({ headless: true });
   const page = await browser.newPage();
@@ -734,16 +746,32 @@ const rightCaseID = process.argv[7];
   if (!rightFollowUpText.includes("1 cases / 1 open")) {
     throw new Error("right follow-up summary missing from compare detail");
   }
-  await page.click("#createCaseButton");
+  await page.click("#createLeftCaseButton");
   await page.waitForURL(/\/admin\/cases\?/);
-  const createdURL = new URL(page.url());
-  const caseID = createdURL.searchParams.get("case_id");
-  if (!caseID) {
-    throw new Error("compare-to-case handoff missing case_id");
+  const createdLeftURL = new URL(page.url());
+  const leftCreatedCaseID = createdLeftURL.searchParams.get("case_id");
+  if (!leftCreatedCaseID) {
+    throw new Error("left compare-to-case handoff missing case_id");
   }
-  if (createdURL.searchParams.get("tenant_id") !== tenantID) {
-    throw new Error("compare-to-case handoff missing tenant_id");
+  if (createdLeftURL.searchParams.get("tenant_id") !== tenantID) {
+    throw new Error("left compare-to-case handoff missing tenant_id");
   }
+  await assertCaseSource(page, baseURL, leftCreatedCaseID, tenantID, leftReportID);
+
+  await page.goto(baseURL + "/admin/eval-report-compare?tenant_id=" + encodeURIComponent(tenantID) + "&left_report_id=" + encodeURIComponent(leftReportID) + "&right_report_id=" + encodeURIComponent(rightReportID));
+  await page.waitForSelector("text=Comparison summary");
+  await page.click("#createRightCaseButton");
+  await page.waitForURL(/\/admin\/cases\?/);
+  const createdRightURL = new URL(page.url());
+  const rightCreatedCaseID = createdRightURL.searchParams.get("case_id");
+  if (!rightCreatedCaseID) {
+    throw new Error("right compare-to-case handoff missing case_id");
+  }
+  if (createdRightURL.searchParams.get("tenant_id") !== tenantID) {
+    throw new Error("right compare-to-case handoff missing tenant_id");
+  }
+  await assertCaseSource(page, baseURL, rightCreatedCaseID, tenantID, rightReportID);
+
   await page.goto(baseURL + "/admin/eval-report-compare?tenant_id=" + encodeURIComponent(tenantID) + "&left_report_id=" + encodeURIComponent(leftReportID) + "&right_report_id=missing-report");
   await page.waitForSelector("text=Eval report comparison request failed: 404 Not Found");
   await browser.close();

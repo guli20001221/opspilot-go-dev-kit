@@ -112,7 +112,7 @@ The current HTTP layer also exposes the same PostgreSQL-backed workflow records 
 - that same compare contract now also carries per-side follow-up summary fields, keeping “is this already being worked?” on the same screen as the compare decision
 - the same eval-report lane now also reuses the canonical case list filter `source_eval_report_id`, so operators can see linked durable follow-up cases for the selected regression without a second backend surface
 - `/admin/eval-report-compare` is the first eval-report comparison lane, reusing a narrow canonical compare contract instead of diffing eval reports ad hoc in the browser
-- the same compare lane now also hands regression findings into the canonical case lifecycle by reusing `POST /api/v1/cases` and deep-linking to `/admin/cases`, instead of inventing an admin-only follow-up store
+- the same compare lane now also hands regression findings into the canonical case lifecycle by reusing side-specific `POST /api/v1/cases` actions and deep-linking to `/admin/cases`, instead of inventing an admin-only follow-up store
 - the durable case contract now also carries `source_eval_report_id`, so compare-created follow-up work keeps a canonical pointer back to the originating eval report and `/admin/cases` can hand operators back into the eval-report lane without parsing summary text
 - the canonical case list contract now also supports `source_eval_report_id` and `eval_backed_only`, so `/admin/cases` can expose a true eval-backed queue without front-end-only provenance filtering
 - the same `/admin/cases` detail pane now also reads source eval-report metadata from the canonical eval-report detail endpoint and degrades to surviving case provenance if that report row is missing

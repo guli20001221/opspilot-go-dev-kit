@@ -83,7 +83,8 @@
             <h3 style="margin-top:0;">Diff breakdown</h3>
             <div id="diffList" class="diff-list"></div>
             <div class="actions" style="margin-top:14px;">
-              <button class="primary" type="button" id="createCaseButton" hidden>Create case</button>
+              <button class="primary" type="button" id="createLeftCaseButton" hidden>Create case from left</button>
+              <button class="primary" type="button" id="createRightCaseButton" hidden>Create case from right</button>
               <a class="button-link ghost" href="/admin/cases" id="openCasesLink">Open Cases</a>
             </div>
             <div id="compareActionStatus" class="panel-copy" style="margin-top:12px;">Create a durable case when this comparison represents a regression that needs operator follow-up.</div>
@@ -119,7 +120,8 @@
     const leftVersionLink = document.getElementById("leftVersionLink");
     const rightVersionLink = document.getElementById("rightVersionLink");
     const diffList = document.getElementById("diffList");
-    const createCaseButton = document.getElementById("createCaseButton");
+    const createLeftCaseButton = document.getElementById("createLeftCaseButton");
+    const createRightCaseButton = document.getElementById("createRightCaseButton");
     const compareActionStatus = document.getElementById("compareActionStatus");
 
     let currentComparison = null;
@@ -176,15 +178,18 @@
       return `<div class="diff-item"><strong>${escapeHTML(label)}</strong><span class="pill ${changed ? "changed" : "same"}">${changed ? "Changed" : "Same"}${extra ? ` | ${escapeHTML(extra)}` : ""}</span></div>`;
     }
 
-    function buildCasePayloadFromComparison(payload) {
+    function buildCasePayloadFromComparison(payload, side) {
       const left = payload.left;
       const right = payload.right;
       const summary = payload.summary;
+      const target = side === "left" ? left : right;
+      const targetLabel = side === "left" ? "left" : "right";
       return {
-        tenant_id: right.tenant_id,
-        title: `Eval regression: ${right.report_id} vs ${left.report_id}`,
+        tenant_id: target.tenant_id,
+        title: `Eval regression (${targetLabel}): ${right.report_id} vs ${left.report_id}`,
         summary: [
           `Compare: ${right.report_id} vs ${left.report_id}`,
+          `Follow-up source: ${targetLabel} (${target.report_id})`,
           `Dataset: ${right.dataset_name} (${right.dataset_id}) vs ${left.dataset_name} (${left.dataset_id})`,
           `Run status: ${right.run_status} vs ${left.run_status}`,
           `Average score delta: ${summary.average_score_delta}`,
@@ -193,16 +198,27 @@
           `Bad-case count delta: ${summary.bad_case_count_delta}`,
           `Ready-at delta (s): ${summary.ready_at_delta_second}`
         ].join("\n"),
-        source_eval_report_id: right.report_id,
+        source_eval_report_id: target.report_id,
         created_by: "admin-eval-report-compare"
       };
+    }
+
+    function setCreateButtonsDisabled(disabled, activeSide) {
+      const leftText = disabled && activeSide === "left" ? "Creating left..." : "Create case from left";
+      const rightText = disabled && activeSide === "right" ? "Creating right..." : "Create case from right";
+      createLeftCaseButton.disabled = disabled;
+      createRightCaseButton.disabled = disabled;
+      createLeftCaseButton.textContent = leftText;
+      createRightCaseButton.textContent = rightText;
     }
 
     function renderComparison(payload) {
       currentComparison = payload;
       compareState.hidden = true;
       compareContent.hidden = false;
-      createCaseButton.hidden = false;
+      createLeftCaseButton.hidden = false;
+      createRightCaseButton.hidden = false;
+      setCreateButtonsDisabled(false);
       compareActionStatus.textContent = "Create a durable case when this comparison represents a regression that needs operator follow-up.";
 
       sameDataset.textContent = payload.summary.same_dataset ? "Yes" : "No";
@@ -259,17 +275,15 @@
       ].join("");
     }
 
-    async function createCaseFromComparison() {
+    async function createCaseFromComparison(side) {
       if (!currentComparison) {
         compareActionStatus.textContent = "Create case is unavailable until a durable comparison has been loaded.";
         return;
       }
 
-      const payload = buildCasePayloadFromComparison(currentComparison);
-      const originalText = createCaseButton.textContent;
-      createCaseButton.disabled = true;
-      createCaseButton.textContent = "Creating...";
-      compareActionStatus.textContent = `Creating a case from ${payload.source_eval_report_id}...`;
+      const payload = buildCasePayloadFromComparison(currentComparison, side);
+      setCreateButtonsDisabled(true, side);
+      compareActionStatus.textContent = `Creating a ${side}-side case from ${payload.source_eval_report_id}...`;
 
       try {
         const response = await fetch(caseEndpoint, {
@@ -298,8 +312,7 @@
       } catch (error) {
         compareActionStatus.textContent = `Create case failed: ${error.message || "unknown error"}`;
       } finally {
-        createCaseButton.disabled = false;
-        createCaseButton.textContent = originalText;
+        setCreateButtonsDisabled(false);
       }
     }
 
@@ -307,7 +320,9 @@
       const params = buildParams();
       syncURL();
       currentComparison = null;
-      createCaseButton.hidden = true;
+      createLeftCaseButton.hidden = true;
+      createRightCaseButton.hidden = true;
+      setCreateButtonsDisabled(false);
       compareActionStatus.textContent = "Create a durable case when this comparison represents a regression that needs operator follow-up.";
 
       if (!params.get("tenant_id") || !params.get("left_report_id") || !params.get("right_report_id")) {
@@ -354,7 +369,8 @@
       form.reset();
       loadComparison();
     });
-    createCaseButton.addEventListener("click", () => createCaseFromComparison());
+    createLeftCaseButton.addEventListener("click", () => createCaseFromComparison("left"));
+    createRightCaseButton.addEventListener("click", () => createCaseFromComparison("right"));
 
     populateFiltersFromURL();
     loadComparison();

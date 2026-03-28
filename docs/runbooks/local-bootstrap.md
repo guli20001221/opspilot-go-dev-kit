@@ -34,7 +34,7 @@ It does not yet wire real DB access from the app code or a real OpenTelemetry ex
 10. Open `http://localhost:18080/admin/task-board` to inspect the embedded operator page against the local admin read model.
 11. Open `http://localhost:18080/admin/reports` to inspect the first report-focused operator page against the same admin read model.
 12. Open `http://localhost:18080/admin/eval-reports` to inspect the first eval-report-focused operator page against the durable eval-report contract.
-13. Open `http://localhost:18080/admin/eval-report-compare` to compare two durable eval reports through the canonical compare contract.
+13. Open `http://localhost:18080/admin/eval-report-compare` to compare two durable eval reports through the canonical compare contract and create follow-up cases from either side when needed.
 
 Successful build artifacts are emitted under `bin/`.
 
@@ -161,7 +161,7 @@ The current chat stream implementation is a Milestone 1 skeleton:
 - check each compare card's follow-up summary on `/admin/eval-report-compare` when you need to know whether a side already has open regression work before creating another case
 - use `Open linked cases` on `/admin/eval-reports` when you want to jump from one durable eval report straight into the canonical `/admin/cases?source_eval_report_id=<report_id>` slice
 - use `GET /api/v1/eval-report-compare?tenant_id=<tenant>&left_report_id=<left>&right_report_id=<right>` when you need a canonical eval-report delta view with score change, metadata drift, and bad-case overlap
-- open `http://localhost:18080/admin/eval-report-compare` when you want the first eval-report comparison page, including handoff into eval runs and version detail
+- open `http://localhost:18080/admin/eval-report-compare` when you want the first eval-report comparison page, including handoff into eval runs, version detail, and side-specific case creation
 - terminal run reads now also expose `result_summary`, so `/api/v1/eval-runs` and `/admin/eval-runs` can show quick pass/fail totals without loading the full per-item payload first
 - open `http://localhost:18080/admin/cases` when you want the first case-focused operator page, including source task/report handoff links and the minimal `Close case` action
 - open `http://localhost:18080/admin/evals` when you want the first eval-focused operator page, including durable eval detail plus case/task/report/version/trace handoff links
@@ -186,7 +186,7 @@ The current chat stream implementation is a Milestone 1 skeleton:
 - use `Add note` on `/admin/cases` when you need to capture operator progress without mutating the case lifecycle
 - use `Promote to eval` on `/admin/cases` when you want to turn the current durable case into a durable eval artifact and then jump to the canonical eval-case API detail
 - use `Create case` on `/admin/task-board` or `/admin/reports` when you want to promote the currently selected task/report into a durable follow-up object without hand-building the `POST /api/v1/cases` payload
-- use `Create case` on `/admin/eval-report-compare` when a report-vs-report regression needs durable follow-up; the page reuses `POST /api/v1/cases`, anchors the new case to the right-side report, and then deep-links into `/admin/cases`
+- use `Create case from left` or `Create case from right` on `/admin/eval-report-compare` when a report-vs-report regression needs durable follow-up; the page reuses `POST /api/v1/cases`, anchors the new case to the selected side's report, and then deep-links into `/admin/cases`
 - compare-created cases now persist that lineage as `source_eval_report_id`, and `/admin/cases` exposes direct handoff links back into `/admin/eval-reports` and `/api/v1/eval-reports/{report_id}`
 - when a selected case carries `source_eval_report_id`, `/admin/cases` now also loads the canonical eval-report detail and shows dataset ID, run status, summary, and bad-case count inline; if that lookup fails, the case detail stays usable and keeps the existing handoff links
 - successful `report_generation` tasks now finalize the durable report row and task `succeeded` transition together, so `ready_at` and report `metadata.audit_ref` line up with the final task state

@@ -145,7 +145,7 @@ Current Milestone 1 slice:
 - the same `/admin/eval-reports` page now also shows linked durable follow-up cases for the selected eval report by reusing the canonical case list filter `source_eval_report_id`
 - `GET /api/v1/eval-report-compare` now exposes a narrow read-only compare contract over two durable eval reports, so score deltas, metadata drift, and bad-case overlap stay on the backend instead of turning into browser-only diff logic
 - `/admin/eval-report-compare` now exposes the first eval-report comparison page, handing off into eval runs and version detail from that same canonical compare contract
-- the same `/admin/eval-report-compare` page now also supports `Create case`, reusing `POST /api/v1/cases` and deep-linking straight into `/admin/cases` for regression follow-up
+- the same `/admin/eval-report-compare` page now also supports `Create case from left` and `Create case from right`, reusing `POST /api/v1/cases` and deep-linking straight into `/admin/cases` for regression follow-up while preserving the selected side as `source_eval_report_id`
 - durable cases now also carry `source_eval_report_id`, so eval-report regressions can survive compare-page handoff as canonical backend lineage instead of living only in summary text
 - `GET /api/v1/cases` now also supports `source_eval_report_id` and `eval_backed_only`, so operators can pull an eval-regression follow-up slice without parsing case summaries client-side
 - the same `/admin/cases` page now also reads the canonical `GET /api/v1/eval-reports/{report_id}` detail for `source_eval_report_id`, so eval-backed cases show dataset/run/bad-case context without inventing a second case-only report contract
