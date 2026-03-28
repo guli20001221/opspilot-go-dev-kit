@@ -440,6 +440,95 @@ func TestServiceAssignCaseRejectsStaleWrite(t *testing.T) {
 	}
 }
 
+func TestServiceUnassignCase(t *testing.T) {
+	svc := NewService()
+
+	created, err := svc.CreateCase(context.Background(), CreateInput{
+		TenantID: "tenant-1",
+		Title:    "Release me",
+	})
+	if err != nil {
+		t.Fatalf("CreateCase() error = %v", err)
+	}
+
+	assigned, err := svc.AssignCase(context.Background(), created, "owner-1")
+	if err != nil {
+		t.Fatalf("AssignCase() error = %v", err)
+	}
+
+	unassigned, err := svc.UnassignCase(context.Background(), assigned)
+	if err != nil {
+		t.Fatalf("UnassignCase() error = %v", err)
+	}
+	if unassigned.AssignedTo != "" {
+		t.Fatalf("UnassignCase().AssignedTo = %q, want empty", unassigned.AssignedTo)
+	}
+	if !unassigned.AssignedAt.IsZero() {
+		t.Fatal("UnassignCase().AssignedAt should be zero")
+	}
+}
+
+func TestServiceUnassignCaseRejectsClosedCase(t *testing.T) {
+	svc := NewService()
+
+	created, err := svc.CreateCase(context.Background(), CreateInput{
+		TenantID: "tenant-1",
+		Title:    "Closed before unassign",
+	})
+	if err != nil {
+		t.Fatalf("CreateCase() error = %v", err)
+	}
+	assigned, err := svc.AssignCase(context.Background(), created, "owner-1")
+	if err != nil {
+		t.Fatalf("AssignCase() error = %v", err)
+	}
+	if _, err := svc.CloseCase(context.Background(), assigned.ID, "operator-1"); err != nil {
+		t.Fatalf("CloseCase() error = %v", err)
+	}
+
+	if _, err := svc.UnassignCase(context.Background(), assigned); !errors.Is(err, ErrInvalidCaseState) {
+		t.Fatalf("UnassignCase() error = %v, want %v", err, ErrInvalidCaseState)
+	}
+}
+
+func TestServiceUnassignCaseRejectsAlreadyUnassignedCase(t *testing.T) {
+	svc := NewService()
+
+	created, err := svc.CreateCase(context.Background(), CreateInput{
+		TenantID: "tenant-1",
+		Title:    "Already unassigned",
+	})
+	if err != nil {
+		t.Fatalf("CreateCase() error = %v", err)
+	}
+
+	if _, err := svc.UnassignCase(context.Background(), created); !errors.Is(err, ErrInvalidCaseState) {
+		t.Fatalf("UnassignCase() error = %v, want %v", err, ErrInvalidCaseState)
+	}
+}
+
+func TestServiceUnassignCaseRejectsStaleWrite(t *testing.T) {
+	svc := NewService()
+
+	created, err := svc.CreateCase(context.Background(), CreateInput{
+		TenantID: "tenant-1",
+		Title:    "Stale unassign",
+	})
+	if err != nil {
+		t.Fatalf("CreateCase() error = %v", err)
+	}
+	assigned, err := svc.AssignCase(context.Background(), created, "owner-1")
+	if err != nil {
+		t.Fatalf("AssignCase() error = %v", err)
+	}
+	stale := assigned
+	stale.UpdatedAt = stale.UpdatedAt.Add(-time.Nanosecond)
+
+	if _, err := svc.UnassignCase(context.Background(), stale); !errors.Is(err, ErrCaseConflict) {
+		t.Fatalf("UnassignCase() error = %v, want %v", err, ErrCaseConflict)
+	}
+}
+
 func TestServiceAddAndListCaseNotes(t *testing.T) {
 	svc := NewService()
 

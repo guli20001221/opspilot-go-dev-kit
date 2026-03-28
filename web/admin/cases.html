@@ -416,6 +416,7 @@
         <input id="caseActor" type="text" value="cases-operator" aria-label="Case operator actor" style="min-width: 180px; border: 1px solid var(--line); border-radius: 999px; padding: 10px 14px; background: rgba(255, 255, 255, 0.92); color: var(--ink);">
         <input id="caseAssignee" type="text" value="cases-owner" aria-label="Case assignee" style="min-width: 180px; border: 1px solid var(--line); border-radius: 999px; padding: 10px 14px; background: rgba(255, 255, 255, 0.92); color: var(--ink);">
         <button class="primary" id="assignCaseButton" type="button">Assign case</button>
+        <button class="primary" id="unassignCaseButton" type="button" hidden>Return to queue</button>
         <textarea id="caseNoteBody" aria-label="Case note body" rows="2" placeholder="Add an append-only case note" style="min-width: min(420px, 100%); border: 1px solid var(--line); border-radius: 18px; padding: 12px 14px; background: rgba(255, 255, 255, 0.92); color: var(--ink); resize: vertical;"></textarea>
         <button class="primary" id="addCaseNoteButton" type="button">Add note</button>
         <input id="evalOperatorNote" type="text" value="" aria-label="Eval promotion note" placeholder="Optional note for eval promotion" style="min-width: 260px; border: 1px solid var(--line); border-radius: 999px; padding: 10px 14px; background: rgba(255, 255, 255, 0.92); color: var(--ink);">
@@ -447,6 +448,7 @@
     const closeActionSuffix = "/close";
     const reopenActionSuffix = "/reopen";
     const assignActionSuffix = "/assign";
+    const unassignActionSuffix = "/unassign";
     const taskEndpointBase = "/api/v1/tasks/";
     const reportEndpointBase = "/api/v1/reports/";
     const evalReportEndpointBase = "/api/v1/eval-reports/";
@@ -468,6 +470,7 @@
     const caseNoteBodyInput = document.getElementById("caseNoteBody");
     const evalOperatorNoteInput = document.getElementById("evalOperatorNote");
     const assignCaseButton = document.getElementById("assignCaseButton");
+    const unassignCaseButton = document.getElementById("unassignCaseButton");
     const addCaseNoteButton = document.getElementById("addCaseNoteButton");
     const promoteEvalCaseButton = document.getElementById("promoteEvalCaseButton");
     const closeCaseButton = document.getElementById("closeCaseButton");
@@ -749,6 +752,9 @@
               ${item.status === "open" && !item.assigned_to ? `
                 <button class="ghost" type="button" data-case-assign-id="${escapeHTML(item.case_id)}">Assign to me</button>
               ` : ""}
+              ${item.status === "open" && item.assigned_to ? `
+                <button class="ghost" type="button" data-case-unassign-id="${escapeHTML(item.case_id)}">Return to queue</button>
+              ` : ""}
               ${item.status === "open" ? `
                 <button class="ghost" type="button" data-case-close-id="${escapeHTML(item.case_id)}">Close from queue</button>
               ` : ""}
@@ -785,6 +791,8 @@
       syncURL(item.case_id);
       assignCaseButton.hidden = item.status !== "open";
       assignCaseButton.disabled = false;
+      unassignCaseButton.hidden = item.status !== "open" || !item.assigned_to;
+      unassignCaseButton.disabled = false;
       addCaseNoteButton.hidden = false;
       addCaseNoteButton.disabled = false;
       promoteEvalCaseButton.hidden = false;
@@ -988,6 +996,7 @@
         currentEvalCaseDetail = null;
         currentSourceEvalReportDetail = null;
         assignCaseButton.hidden = true;
+        unassignCaseButton.hidden = true;
         addCaseNoteButton.hidden = true;
         promoteEvalCaseButton.hidden = true;
         closeCaseButton.hidden = true;
@@ -1016,6 +1025,7 @@
         currentEvalCaseDetail = null;
         currentSourceEvalReportDetail = null;
         assignCaseButton.hidden = true;
+        unassignCaseButton.hidden = true;
         addCaseNoteButton.hidden = true;
         promoteEvalCaseButton.hidden = true;
         closeCaseButton.hidden = true;
@@ -1038,6 +1048,7 @@
       }
 
       assignCaseButton.hidden = true;
+      unassignCaseButton.hidden = true;
       addCaseNoteButton.hidden = true;
       closeCaseButton.hidden = true;
       reopenCaseButton.hidden = true;
@@ -1058,6 +1069,7 @@
         currentEvalCaseDetail = null;
         currentSourceEvalReportDetail = null;
         assignCaseButton.hidden = true;
+        unassignCaseButton.hidden = true;
         addCaseNoteButton.hidden = true;
         promoteEvalCaseButton.hidden = true;
         closeCaseButton.hidden = true;
@@ -1127,6 +1139,7 @@
         currentEvalCaseDetail = null;
         currentSourceEvalReportDetail = null;
         assignCaseButton.hidden = true;
+        unassignCaseButton.hidden = true;
         addCaseNoteButton.hidden = true;
         closeCaseButton.hidden = true;
         reopenCaseButton.hidden = true;
@@ -1224,6 +1237,11 @@
       const reopenButton = event.target.closest("[data-case-reopen-id]");
       if (reopenButton) {
         reopenCaseByID(reopenButton.dataset.caseReopenId, caseActorInput.value.trim() || "cases-operator", "Reopened case from queue.");
+        return;
+      }
+      const unassignButton = event.target.closest("[data-case-unassign-id]");
+      if (unassignButton) {
+        unassignCaseByID(unassignButton.dataset.caseUnassignId, "Returned case to queue.");
         return;
       }
       const assignButton = event.target.closest("[data-case-assign-id]");
@@ -1361,6 +1379,44 @@
     assignCaseButton.addEventListener("click", async () => {
       if (!currentCaseID) return;
       await assignCaseByID(currentCaseID, caseAssigneeInput.value.trim(), `Case assigned to ${caseAssigneeInput.value.trim()}.`);
+    });
+
+    async function unassignCaseByID(caseID, successMessage) {
+      if (!caseID) return;
+      const tenantID = form.elements.namedItem("tenant_id").value.trim();
+      if (!tenantID) {
+        setDetailStatus("Tenant scope is required before returning a case to the queue.", true);
+        return;
+      }
+
+      unassignCaseButton.disabled = true;
+      setDetailStatus("Returning case to queue...");
+      try {
+        const response = await fetch(`${detailEndpointBase}${encodeURIComponent(caseID)}${unassignActionSuffix}?tenant_id=${encodeURIComponent(tenantID)}`, {
+          method: "POST",
+          headers: {
+            "Accept": "application/json",
+            "Content-Type": "application/json"
+          },
+          body: JSON.stringify({
+            unassigned_by: caseActorInput.value.trim() || "cases-operator"
+          })
+        });
+        const payload = await response.json().catch(() => ({}));
+        if (!response.ok) {
+          throw new Error(payload.message || `Unassign case failed: ${response.statusText}`);
+        }
+        setDetailStatus(successMessage || "Case returned to queue.");
+        await loadCases(caseID);
+      } catch (error) {
+        unassignCaseButton.disabled = false;
+        setDetailStatus(error.message || "Unable to return case to queue.", true);
+      }
+    }
+
+    unassignCaseButton.addEventListener("click", async () => {
+      if (!currentCaseID) return;
+      await unassignCaseByID(currentCaseID, "Case returned to queue.");
     });
 
     addCaseNoteButton.addEventListener("click", async () => {

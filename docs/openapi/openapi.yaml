@@ -1101,6 +1101,52 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
+  /api/v1/cases/{case_id}/unassign:
+    post:
+      summary: Return an assigned durable operator case to the shared queue
+      operationId: unassignCase
+      parameters:
+        - name: case_id
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: tenant_id
+          in: query
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UnassignCaseRequest'
+      responses:
+        '200':
+          description: Case returned to queue
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Case'
+        '400':
+          description: Invalid tenant scope or JSON body
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Case not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '409':
+          description: Invalid case state or stale assignment write
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
   /api/v1/cases/{case_id}/notes:
     post:
       summary: Append an operator note to a durable case
@@ -2564,6 +2610,11 @@ components:
         - assigned_to
       properties:
         assigned_to:
+          type: string
+    UnassignCaseRequest:
+      type: object
+      properties:
+        unassigned_by:
           type: string
     CreateCaseNoteRequest:
       type: object

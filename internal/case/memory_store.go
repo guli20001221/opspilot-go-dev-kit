@@ -284,3 +284,29 @@ func (s *memoryStore) Assign(_ context.Context, caseID string, assignedTo string
 
 	return item, nil
 }
+
+func (s *memoryStore) Unassign(_ context.Context, caseID string, unassignedAt time.Time, expectedUpdatedAt time.Time) (Case, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	item, ok := s.records[caseID]
+	if !ok {
+		return Case{}, fmt.Errorf("%w: %s", ErrCaseNotFound, caseID)
+	}
+	if item.Status == StatusClosed {
+		return Case{}, ErrInvalidCaseState
+	}
+	if item.AssignedTo == "" {
+		return Case{}, ErrInvalidCaseState
+	}
+	if !item.UpdatedAt.Equal(expectedUpdatedAt) {
+		return Case{}, ErrCaseConflict
+	}
+
+	item.AssignedTo = ""
+	item.AssignedAt = time.Time{}
+	item.UpdatedAt = unassignedAt
+	s.records[caseID] = item
+
+	return item, nil
+}

@@ -20,6 +20,7 @@ type Store interface {
 	AppendNote(ctx context.Context, note Note) (Note, error)
 	ListNotes(ctx context.Context, caseID string, limit int) ([]Note, error)
 	Assign(ctx context.Context, caseID string, assignedTo string, assignedAt time.Time, expectedUpdatedAt time.Time) (Case, error)
+	Unassign(ctx context.Context, caseID string, unassignedAt time.Time, expectedUpdatedAt time.Time) (Case, error)
 	Close(ctx context.Context, caseID string, closedBy string, closedAt time.Time) (Case, error)
 	Reopen(ctx context.Context, caseID string, reopenedBy string, reopenedAt time.Time) (Case, error)
 }
@@ -101,6 +102,19 @@ func (s *Service) AssignCase(ctx context.Context, existing Case, assignedTo stri
 		ctx,
 		existing.ID,
 		fallbackString(strings.TrimSpace(assignedTo), "operator"),
+		time.Now().UTC(),
+		existing.UpdatedAt,
+	)
+}
+
+// UnassignCase returns an assigned open case back to the shared queue using optimistic concurrency.
+func (s *Service) UnassignCase(ctx context.Context, existing Case) (Case, error) {
+	if existing.Status != StatusOpen || strings.TrimSpace(existing.AssignedTo) == "" {
+		return Case{}, ErrInvalidCaseState
+	}
+	return s.store.Unassign(
+		ctx,
+		existing.ID,
 		time.Now().UTC(),
 		existing.UpdatedAt,
 	)

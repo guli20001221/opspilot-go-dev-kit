@@ -68,6 +68,10 @@ type assignCaseRequest struct {
 	AssignedTo string `json:"assigned_to,omitempty"`
 }
 
+type unassignCaseRequest struct {
+	UnassignedBy string `json:"unassigned_by,omitempty"`
+}
+
 type reopenCaseRequest struct {
 	ReopenedBy string `json:"reopened_by,omitempty"`
 }
@@ -181,6 +185,12 @@ func (a *appHandler) handleCaseByID(w http.ResponseWriter, r *http.Request) {
 		caseID := strings.TrimSuffix(path, "/assign")
 		caseID = strings.TrimSuffix(caseID, "/")
 		a.handleAssignCase(w, r, caseID)
+		return
+	}
+	if strings.HasSuffix(path, "/unassign") {
+		caseID := strings.TrimSuffix(path, "/unassign")
+		caseID = strings.TrimSuffix(caseID, "/")
+		a.handleUnassignCase(w, r, caseID)
 		return
 	}
 	if strings.HasSuffix(path, "/reopen") {
@@ -343,6 +353,61 @@ func (a *appHandler) handleAssignCase(w http.ResponseWriter, r *http.Request, ca
 	}
 
 	writeJSON(w, http.StatusOK, newCaseResponse(assigned))
+}
+
+func (a *appHandler) handleUnassignCase(w http.ResponseWriter, r *http.Request, caseID string) {
+	if r.Method != http.MethodPost {
+		writeError(w, http.StatusMethodNotAllowed, "method_not_allowed", "method not allowed")
+		return
+	}
+	if caseID == "" || strings.Contains(caseID, "/") {
+		writeError(w, http.StatusNotFound, "not_found", "not found")
+		return
+	}
+
+	tenantID := strings.TrimSpace(r.URL.Query().Get("tenant_id"))
+	if tenantID == "" {
+		writeError(w, http.StatusBadRequest, "invalid_query", "tenant_id is required")
+		return
+	}
+
+	item, err := a.cases.GetCase(r.Context(), caseID)
+	if err != nil {
+		if errors.Is(err, casesvc.ErrCaseNotFound) {
+			writeError(w, http.StatusNotFound, "case_not_found", "case not found")
+			return
+		}
+		writeError(w, http.StatusInternalServerError, "case_lookup_failed", err.Error())
+		return
+	}
+	if item.TenantID != tenantID {
+		writeError(w, http.StatusNotFound, "case_not_found", "case not found")
+		return
+	}
+
+	var req unassignCaseRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid_json", "invalid json body")
+		return
+	}
+
+	unassigned, err := a.cases.UnassignCase(r.Context(), item)
+	if err != nil {
+		switch {
+		case errors.Is(err, casesvc.ErrCaseNotFound):
+			writeError(w, http.StatusNotFound, "case_not_found", "case not found")
+		case errors.Is(err, casesvc.ErrCaseConflict):
+			writeError(w, http.StatusConflict, "case_conflict", "case assignment is stale; reload and retry")
+		case errors.Is(err, casesvc.ErrInvalidCaseState):
+			writeError(w, http.StatusConflict, "invalid_case_state", "case is not in a valid state for unassign")
+		default:
+			writeError(w, http.StatusInternalServerError, "case_unassign_failed", err.Error())
+		}
+		return
+	}
+
+	_ = req.UnassignedBy
+	writeJSON(w, http.StatusOK, newCaseResponse(unassigned))
 }
 
 func (a *appHandler) handleReopenCase(w http.ResponseWriter, r *http.Request, caseID string) {

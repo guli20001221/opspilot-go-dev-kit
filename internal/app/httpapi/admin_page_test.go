@@ -1256,6 +1256,9 @@ func TestAdminCasesPageRendersHTML(t *testing.T) {
 	if !strings.Contains(body, "Assign to me") {
 		t.Fatal("row-level assign-to-me action missing from cases page HTML")
 	}
+	if !strings.Contains(body, "Return to queue") {
+		t.Fatal("row-level return-to-queue action missing from cases page HTML")
+	}
 	if !strings.Contains(body, "Close from queue") {
 		t.Fatal("row-level close-from-queue action missing from cases page HTML")
 	}
@@ -1454,6 +1457,24 @@ const compareRightReportID = process.argv[11];
   }
   const compareOnlyStatus = await page.$eval("#status", (node) => node.value);
   if (compareOnlyStatus !== "open") throw new Error("compare quick view drifted open status");
+  await page.click('[data-case-unassign-id="' + linkedCaseID + '"]');
+  await page.waitForFunction(
+    (caseID) => {
+      const row = document.querySelector('[data-case-row="' + caseID + '"]');
+      return row && row.textContent && row.textContent.includes("Unassigned");
+    },
+    linkedCaseID
+  );
+  const unassignedDetail = await page.textContent("#caseDetail");
+  if (!unassignedDetail.includes("currently unassigned")) throw new Error("row-level unassign did not refresh detail state");
+  await page.click('[data-case-assign-id="' + linkedCaseID + '"]');
+  await page.waitForFunction(
+    (caseID) => {
+      const row = document.querySelector('[data-case-row="' + caseID + '"]');
+      return row && row.textContent && row.textContent.includes("queue-owner");
+    },
+    linkedCaseID
+  );
   await page.click('[data-case-close-id="' + linkedCaseID + '"]');
   await page.waitForFunction(() => document.querySelector("#visibleCount")?.textContent?.trim() === "0");
   const closedVisibleCount = await page.textContent("#visibleCount");

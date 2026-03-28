@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
+	"time"
 
 	casesvc "opspilot-go/internal/case"
 	evalsvc "opspilot-go/internal/eval"
@@ -81,14 +82,19 @@ func TestGetEvalReportIncludesFollowUpCaseSummary(t *testing.T) {
 	if _, err := caseService.CloseCase(context.Background(), closedCase.ID, "operator-followup"); err != nil {
 		t.Fatalf("CloseCase() error = %v", err)
 	}
-	if _, err := caseService.CreateCase(context.Background(), casesvc.CreateInput{
+	time.Sleep(2 * time.Millisecond)
+	openCase, err := caseService.CreateCase(context.Background(), casesvc.CreateInput{
 		TenantID:           "tenant-eval-report-detail-followup",
 		Title:              "Open follow-up",
 		Summary:            "open summary",
 		SourceEvalReportID: reportID,
 		CreatedBy:          "operator-followup",
-	}); err != nil {
+	})
+	if err != nil {
 		t.Fatalf("CreateCase(open) error = %v", err)
+	}
+	if _, err := caseService.AssignCase(context.Background(), openCase, "operator-followup"); err != nil {
+		t.Fatalf("AssignCase(open) error = %v", err)
 	}
 
 	server := httptest.NewServer(NewHandlerWithDependencies(Dependencies{
@@ -477,14 +483,19 @@ func TestListEvalReportsIncludesFollowUpCaseSummary(t *testing.T) {
 	if _, err := caseService.CloseCase(context.Background(), closedCase.ID, "operator-followup"); err != nil {
 		t.Fatalf("CloseCase() error = %v", err)
 	}
-	if _, err := caseService.CreateCase(context.Background(), casesvc.CreateInput{
+	time.Sleep(2 * time.Millisecond)
+	openCase, err := caseService.CreateCase(context.Background(), casesvc.CreateInput{
 		TenantID:           "tenant-eval-report-followup",
 		Title:              "Open follow-up",
 		Summary:            "open summary",
 		SourceEvalReportID: reportID,
 		CreatedBy:          "operator-followup",
-	}); err != nil {
+	})
+	if err != nil {
 		t.Fatalf("CreateCase(open) error = %v", err)
+	}
+	if _, err := caseService.AssignCase(context.Background(), openCase, "operator-followup"); err != nil {
+		t.Fatalf("AssignCase(open) error = %v", err)
 	}
 
 	server := httptest.NewServer(NewHandlerWithDependencies(Dependencies{

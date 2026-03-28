@@ -694,6 +694,95 @@ func TestCaseStoreAssignRejectsStaleWrite(t *testing.T) {
 	}
 }
 
+func TestCaseStoreUnassignRejectsStaleWrite(t *testing.T) {
+	dsn := os.Getenv("OPSPILOT_TEST_POSTGRES_DSN")
+	if dsn == "" {
+		t.Skip("OPSPILOT_TEST_POSTGRES_DSN not set")
+	}
+
+	ctx := context.Background()
+	pool, err := OpenPool(ctx, dsn)
+	if err != nil {
+		t.Fatalf("OpenPool() error = %v", err)
+	}
+	defer pool.Close()
+
+	applyMigration(t, ctx, pool)
+	if _, err := pool.Exec(ctx, "TRUNCATE cases, reports, workflow_task_events, workflow_tasks RESTART IDENTITY CASCADE"); err != nil {
+		t.Fatalf("TRUNCATE cases, reports, workflow_task_events, workflow_tasks error = %v", err)
+	}
+
+	store := NewCaseStore(pool)
+	now := time.Unix(1700002310, 0).UTC()
+	saved, err := store.Save(ctx, casesvc.Case{
+		ID:        "case-stale-unassign-1",
+		TenantID:  "tenant-1",
+		Status:    casesvc.StatusOpen,
+		Title:     "Stale unassign case",
+		CreatedBy: "operator-1",
+		CreatedAt: now,
+		UpdatedAt: now,
+	})
+	if err != nil {
+		t.Fatalf("Save() error = %v", err)
+	}
+	assigned, err := store.Assign(ctx, saved.ID, "owner-1", now.Add(time.Second), saved.UpdatedAt)
+	if err != nil {
+		t.Fatalf("Assign() error = %v", err)
+	}
+	if _, err := store.Unassign(ctx, saved.ID, now.Add(2*time.Second), saved.UpdatedAt); !errors.Is(err, casesvc.ErrCaseConflict) {
+		t.Fatalf("Unassign(stale) error = %v, want %v", err, casesvc.ErrCaseConflict)
+	}
+	unassigned, err := store.Unassign(ctx, saved.ID, now.Add(3*time.Second), assigned.UpdatedAt)
+	if err != nil {
+		t.Fatalf("Unassign() error = %v", err)
+	}
+	if unassigned.AssignedTo != "" {
+		t.Fatalf("Unassign().AssignedTo = %q, want empty", unassigned.AssignedTo)
+	}
+	if !unassigned.AssignedAt.IsZero() {
+		t.Fatal("Unassign().AssignedAt should be zero")
+	}
+}
+
+func TestCaseStoreUnassignRejectsAlreadyUnassignedCase(t *testing.T) {
+	dsn := os.Getenv("OPSPILOT_TEST_POSTGRES_DSN")
+	if dsn == "" {
+		t.Skip("OPSPILOT_TEST_POSTGRES_DSN not set")
+	}
+
+	ctx := context.Background()
+	pool, err := OpenPool(ctx, dsn)
+	if err != nil {
+		t.Fatalf("OpenPool() error = %v", err)
+	}
+	defer pool.Close()
+
+	applyMigration(t, ctx, pool)
+	if _, err := pool.Exec(ctx, "TRUNCATE case_notes, cases, reports, workflow_task_events, workflow_tasks RESTART IDENTITY CASCADE"); err != nil {
+		t.Fatalf("TRUNCATE case_notes, cases, reports, workflow_task_events, workflow_tasks error = %v", err)
+	}
+
+	store := NewCaseStore(pool)
+	now := time.Unix(1700002090, 0).UTC()
+	item, err := store.Save(ctx, casesvc.Case{
+		ID:        "case-unassign-open-1",
+		TenantID:  "tenant-1",
+		Status:    casesvc.StatusOpen,
+		Title:     "Already unassigned",
+		CreatedBy: "operator-1",
+		CreatedAt: now,
+		UpdatedAt: now,
+	})
+	if err != nil {
+		t.Fatalf("Save() error = %v", err)
+	}
+
+	if _, err := store.Unassign(ctx, item.ID, now.Add(time.Second), item.UpdatedAt); !errors.Is(err, casesvc.ErrInvalidCaseState) {
+		t.Fatalf("Unassign() error = %v, want %v", err, casesvc.ErrInvalidCaseState)
+	}
+}
+
 func TestCaseStoreAppendAndListNotes(t *testing.T) {
 	dsn := os.Getenv("OPSPILOT_TEST_POSTGRES_DSN")
 	if dsn == "" {

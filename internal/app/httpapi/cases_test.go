@@ -1075,6 +1075,118 @@ func TestAssignCaseEndpointRejectsClosedCase(t *testing.T) {
 	}
 }
 
+func TestUnassignCaseEndpoint(t *testing.T) {
+	caseService := casesvc.NewService()
+	created, err := caseService.CreateCase(context.Background(), casesvc.CreateInput{
+		TenantID: "tenant-1",
+		Title:    "Case to unassign",
+	})
+	if err != nil {
+		t.Fatalf("CreateCase() error = %v", err)
+	}
+	assigned, err := caseService.AssignCase(context.Background(), created, "owner-1")
+	if err != nil {
+		t.Fatalf("AssignCase() error = %v", err)
+	}
+
+	server := httptest.NewServer(NewHandlerWithDependencies(Dependencies{Cases: caseService}))
+	defer server.Close()
+
+	req, err := http.NewRequest(http.MethodPost, server.URL+"/api/v1/cases/"+assigned.ID+"/unassign?tenant_id=tenant-1", bytes.NewBufferString(`{"unassigned_by":"operator-2"}`))
+	if err != nil {
+		t.Fatalf("NewRequest() error = %v", err)
+	}
+	req.Header.Set("Content-Type", "application/json")
+
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatalf("Do() error = %v", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("StatusCode = %d, want %d", resp.StatusCode, http.StatusOK)
+	}
+
+	var got caseResponse
+	if err := json.NewDecoder(resp.Body).Decode(&got); err != nil {
+		t.Fatalf("Decode() error = %v", err)
+	}
+	if got.AssignedTo != "" {
+		t.Fatalf("AssignedTo = %q, want empty", got.AssignedTo)
+	}
+	if got.AssignedAt != "" {
+		t.Fatalf("AssignedAt = %q, want empty", got.AssignedAt)
+	}
+}
+
+func TestUnassignCaseEndpointRejectsClosedCase(t *testing.T) {
+	caseService := casesvc.NewService()
+	created, err := caseService.CreateCase(context.Background(), casesvc.CreateInput{
+		TenantID: "tenant-1",
+		Title:    "Closed before unassign",
+	})
+	if err != nil {
+		t.Fatalf("CreateCase() error = %v", err)
+	}
+	assigned, err := caseService.AssignCase(context.Background(), created, "owner-1")
+	if err != nil {
+		t.Fatalf("AssignCase() error = %v", err)
+	}
+	if _, err := caseService.CloseCase(context.Background(), assigned.ID, "operator-1"); err != nil {
+		t.Fatalf("CloseCase() error = %v", err)
+	}
+
+	server := httptest.NewServer(NewHandlerWithDependencies(Dependencies{Cases: caseService}))
+	defer server.Close()
+
+	req, err := http.NewRequest(http.MethodPost, server.URL+"/api/v1/cases/"+assigned.ID+"/unassign?tenant_id=tenant-1", bytes.NewBufferString(`{"unassigned_by":"operator-2"}`))
+	if err != nil {
+		t.Fatalf("NewRequest() error = %v", err)
+	}
+	req.Header.Set("Content-Type", "application/json")
+
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatalf("Do() error = %v", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusConflict {
+		t.Fatalf("StatusCode = %d, want %d", resp.StatusCode, http.StatusConflict)
+	}
+}
+
+func TestUnassignCaseEndpointRejectsAlreadyUnassignedCase(t *testing.T) {
+	caseService := casesvc.NewService()
+	created, err := caseService.CreateCase(context.Background(), casesvc.CreateInput{
+		TenantID: "tenant-1",
+		Title:    "Already unassigned",
+	})
+	if err != nil {
+		t.Fatalf("CreateCase() error = %v", err)
+	}
+
+	server := httptest.NewServer(NewHandlerWithDependencies(Dependencies{Cases: caseService}))
+	defer server.Close()
+
+	req, err := http.NewRequest(http.MethodPost, server.URL+"/api/v1/cases/"+created.ID+"/unassign?tenant_id=tenant-1", bytes.NewBufferString(`{"unassigned_by":"operator-2"}`))
+	if err != nil {
+		t.Fatalf("NewRequest() error = %v", err)
+	}
+	req.Header.Set("Content-Type", "application/json")
+
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatalf("Do() error = %v", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusConflict {
+		t.Fatalf("StatusCode = %d, want %d", resp.StatusCode, http.StatusConflict)
+	}
+}
+
 func TestReopenCaseEndpoint(t *testing.T) {
 	caseService := casesvc.NewService()
 	created, err := caseService.CreateCase(context.Background(), casesvc.CreateInput{
@@ -1182,6 +1294,50 @@ func TestAssignCaseEndpointRejectsStaleWrite(t *testing.T) {
 	defer server.Close()
 
 	req, err := http.NewRequest(http.MethodPost, server.URL+"/api/v1/cases/case-stale-1/assign?tenant_id=tenant-1", bytes.NewBufferString(`{"assigned_to":"owner-2"}`))
+	if err != nil {
+		t.Fatalf("NewRequest() error = %v", err)
+	}
+	req.Header.Set("Content-Type", "application/json")
+
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatalf("Do() error = %v", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusConflict {
+		t.Fatalf("StatusCode = %d, want %d", resp.StatusCode, http.StatusConflict)
+	}
+
+	var got errorResponse
+	if err := json.NewDecoder(resp.Body).Decode(&got); err != nil {
+		t.Fatalf("Decode() error = %v", err)
+	}
+	if got.Code != "case_conflict" {
+		t.Fatalf("Code = %q, want %q", got.Code, "case_conflict")
+	}
+}
+
+func TestUnassignCaseEndpointRejectsStaleWrite(t *testing.T) {
+	store := &staleAssignStore{
+		item: casesvc.Case{
+			ID:         "case-stale-unassign-1",
+			TenantID:   "tenant-1",
+			Status:     casesvc.StatusOpen,
+			Title:      "Stale unassign",
+			CreatedBy:  "operator-1",
+			AssignedTo: "owner-1",
+			AssignedAt: time.Unix(1700000000, 0).UTC(),
+			CreatedAt:  time.Unix(1700000000, 0).UTC(),
+			UpdatedAt:  time.Unix(1700000000, 0).UTC(),
+		},
+	}
+	server := httptest.NewServer(NewHandlerWithDependencies(Dependencies{
+		Cases: casesvc.NewServiceWithStore(store),
+	}))
+	defer server.Close()
+
+	req, err := http.NewRequest(http.MethodPost, server.URL+"/api/v1/cases/case-stale-unassign-1/unassign?tenant_id=tenant-1", bytes.NewBufferString(`{"unassigned_by":"operator-2"}`))
 	if err != nil {
 		t.Fatalf("NewRequest() error = %v", err)
 	}
@@ -1336,6 +1492,13 @@ func (s *staleAssignStore) ListNotes(_ context.Context, caseID string, limit int
 }
 
 func (s *staleAssignStore) Assign(_ context.Context, caseID string, assignedTo string, assignedAt time.Time, expectedUpdatedAt time.Time) (casesvc.Case, error) {
+	if s.item.ID != caseID {
+		return casesvc.Case{}, casesvc.ErrCaseNotFound
+	}
+	return casesvc.Case{}, casesvc.ErrCaseConflict
+}
+
+func (s *staleAssignStore) Unassign(_ context.Context, caseID string, unassignedAt time.Time, expectedUpdatedAt time.Time) (casesvc.Case, error) {
 	if s.item.ID != caseID {
 		return casesvc.Case{}, casesvc.ErrCaseNotFound
 	}

@@ -599,6 +599,62 @@ RETURNING
 	return casesvc.Case{}, err
 }
 
+// Unassign atomically returns an assigned open case to the shared queue using optimistic concurrency on updated_at.
+func (s *CaseStore) Unassign(ctx context.Context, caseID string, unassignedAt time.Time, expectedUpdatedAt time.Time) (casesvc.Case, error) {
+	const query = `
+UPDATE cases
+SET assigned_to = '',
+    assigned_at = NULL,
+    updated_at = $2
+WHERE id = $1
+  AND status = $3
+  AND assigned_to <> ''
+  AND updated_at = $4
+RETURNING
+    id,
+    tenant_id,
+    status,
+    title,
+    summary,
+    COALESCE(source_task_id, ''),
+    COALESCE(source_report_id, ''),
+    COALESCE(source_eval_report_id, ''),
+    COALESCE(compare_left_eval_report_id, ''),
+    COALESCE(compare_right_eval_report_id, ''),
+    compare_selected_side,
+    created_by,
+    assigned_to,
+    assigned_at,
+    closed_by,
+    created_at,
+    updated_at`
+
+	row := s.pool.QueryRow(ctx, query, caseID, unassignedAt, casesvc.StatusOpen, expectedUpdatedAt)
+	unassigned, err := scanCase(row)
+	if err == nil {
+		return unassigned, nil
+	}
+	if !errors.Is(err, casesvc.ErrCaseNotFound) {
+		return casesvc.Case{}, err
+	}
+
+	existing, getErr := s.Get(ctx, caseID)
+	if getErr != nil {
+		return casesvc.Case{}, getErr
+	}
+	if existing.Status == casesvc.StatusClosed {
+		return casesvc.Case{}, casesvc.ErrInvalidCaseState
+	}
+	if existing.AssignedTo == "" {
+		return casesvc.Case{}, casesvc.ErrInvalidCaseState
+	}
+	if !existing.UpdatedAt.Equal(expectedUpdatedAt) {
+		return casesvc.Case{}, casesvc.ErrCaseConflict
+	}
+
+	return casesvc.Case{}, err
+}
+
 func scanCase(row caseQuerierRow) (casesvc.Case, error) {
 	var item casesvc.Case
 	var assignedAt *time.Time
