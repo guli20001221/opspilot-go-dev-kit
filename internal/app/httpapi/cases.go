@@ -391,7 +391,7 @@ func (a *appHandler) handleUnassignCase(w http.ResponseWriter, r *http.Request, 
 		return
 	}
 
-	unassigned, err := a.cases.UnassignCase(r.Context(), item)
+	unassigned, err := a.cases.UnassignCase(r.Context(), item, req.UnassignedBy)
 	if err != nil {
 		switch {
 		case errors.Is(err, casesvc.ErrCaseNotFound):
@@ -406,7 +406,6 @@ func (a *appHandler) handleUnassignCase(w http.ResponseWriter, r *http.Request, 
 		return
 	}
 
-	_ = req.UnassignedBy
 	writeJSON(w, http.StatusOK, newCaseResponse(unassigned))
 }
 

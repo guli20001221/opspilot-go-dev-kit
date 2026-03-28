@@ -730,10 +730,10 @@ func TestCaseStoreUnassignRejectsStaleWrite(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Assign() error = %v", err)
 	}
-	if _, err := store.Unassign(ctx, saved.ID, now.Add(2*time.Second), saved.UpdatedAt); !errors.Is(err, casesvc.ErrCaseConflict) {
+	if _, err := store.Unassign(ctx, saved.ID, "operator-2", now.Add(2*time.Second), saved.UpdatedAt); !errors.Is(err, casesvc.ErrCaseConflict) {
 		t.Fatalf("Unassign(stale) error = %v, want %v", err, casesvc.ErrCaseConflict)
 	}
-	unassigned, err := store.Unassign(ctx, saved.ID, now.Add(3*time.Second), assigned.UpdatedAt)
+	unassigned, err := store.Unassign(ctx, saved.ID, "operator-2", now.Add(3*time.Second), assigned.UpdatedAt)
 	if err != nil {
 		t.Fatalf("Unassign() error = %v", err)
 	}
@@ -742,6 +742,20 @@ func TestCaseStoreUnassignRejectsStaleWrite(t *testing.T) {
 	}
 	if !unassigned.AssignedAt.IsZero() {
 		t.Fatal("Unassign().AssignedAt should be zero")
+	}
+
+	notes, err := store.ListNotes(ctx, saved.ID, 10)
+	if err != nil {
+		t.Fatalf("ListNotes() error = %v", err)
+	}
+	if len(notes) != 1 {
+		t.Fatalf("len(ListNotes()) = %d, want %d", len(notes), 1)
+	}
+	if notes[0].Body != "case returned to queue by operator-2" {
+		t.Fatalf("notes[0].Body = %q, want %q", notes[0].Body, "case returned to queue by operator-2")
+	}
+	if notes[0].CreatedBy != "operator-2" {
+		t.Fatalf("notes[0].CreatedBy = %q, want %q", notes[0].CreatedBy, "operator-2")
 	}
 }
 
@@ -778,7 +792,7 @@ func TestCaseStoreUnassignRejectsAlreadyUnassignedCase(t *testing.T) {
 		t.Fatalf("Save() error = %v", err)
 	}
 
-	if _, err := store.Unassign(ctx, item.ID, now.Add(time.Second), item.UpdatedAt); !errors.Is(err, casesvc.ErrInvalidCaseState) {
+	if _, err := store.Unassign(ctx, item.ID, "operator-2", now.Add(time.Second), item.UpdatedAt); !errors.Is(err, casesvc.ErrInvalidCaseState) {
 		t.Fatalf("Unassign() error = %v, want %v", err, casesvc.ErrInvalidCaseState)
 	}
 }

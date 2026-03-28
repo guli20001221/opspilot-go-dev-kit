@@ -600,7 +600,13 @@ RETURNING
 }
 
 // Unassign atomically returns an assigned open case to the shared queue using optimistic concurrency on updated_at.
-func (s *CaseStore) Unassign(ctx context.Context, caseID string, unassignedAt time.Time, expectedUpdatedAt time.Time) (casesvc.Case, error) {
+func (s *CaseStore) Unassign(ctx context.Context, caseID string, unassignedBy string, unassignedAt time.Time, expectedUpdatedAt time.Time) (casesvc.Case, error) {
+	tx, err := s.pool.Begin(ctx)
+	if err != nil {
+		return casesvc.Case{}, fmt.Errorf("begin case unassign tx: %w", err)
+	}
+	defer tx.Rollback(ctx)
+
 	const query = `
 UPDATE cases
 SET assigned_to = '',
@@ -629,9 +635,35 @@ RETURNING
     created_at,
     updated_at`
 
-	row := s.pool.QueryRow(ctx, query, caseID, unassignedAt, casesvc.StatusOpen, expectedUpdatedAt)
+	row := tx.QueryRow(ctx, query, caseID, unassignedAt, casesvc.StatusOpen, expectedUpdatedAt)
 	unassigned, err := scanCase(row)
 	if err == nil {
+		const noteQuery = `
+INSERT INTO case_notes (
+    id,
+    tenant_id,
+    case_id,
+    body,
+    created_by,
+    created_at
+) VALUES (
+    $1, $2, $3, $4, $5, $6
+)`
+		if _, execErr := tx.Exec(
+			ctx,
+			noteQuery,
+			fmt.Sprintf("case-note-%d-%s-unassign", unassignedAt.UnixNano(), caseID),
+			unassigned.TenantID,
+			unassigned.ID,
+			fmt.Sprintf("case returned to queue by %s", unassignedBy),
+			unassignedBy,
+			unassignedAt,
+		); execErr != nil {
+			return casesvc.Case{}, fmt.Errorf("insert unassign case note: %w", execErr)
+		}
+		if commitErr := tx.Commit(ctx); commitErr != nil {
+			return casesvc.Case{}, fmt.Errorf("commit case unassign tx: %w", commitErr)
+		}
 		return unassigned, nil
 	}
 	if !errors.Is(err, casesvc.ErrCaseNotFound) {

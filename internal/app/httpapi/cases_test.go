@@ -1118,6 +1118,26 @@ func TestUnassignCaseEndpoint(t *testing.T) {
 	if got.AssignedAt != "" {
 		t.Fatalf("AssignedAt = %q, want empty", got.AssignedAt)
 	}
+
+	getResp, err := http.Get(server.URL + "/api/v1/cases/" + assigned.ID + "?tenant_id=tenant-1")
+	if err != nil {
+		t.Fatalf("Get() error = %v", err)
+	}
+	defer getResp.Body.Close()
+
+	var reloaded caseResponse
+	if err := json.NewDecoder(getResp.Body).Decode(&reloaded); err != nil {
+		t.Fatalf("Decode(reloaded) error = %v", err)
+	}
+	if len(reloaded.Notes) != 1 {
+		t.Fatalf("len(reloaded.Notes) = %d, want %d", len(reloaded.Notes), 1)
+	}
+	if reloaded.Notes[0].Body != "case returned to queue by operator-2" {
+		t.Fatalf("reloaded.Notes[0].Body = %q, want %q", reloaded.Notes[0].Body, "case returned to queue by operator-2")
+	}
+	if reloaded.Notes[0].CreatedBy != "operator-2" {
+		t.Fatalf("reloaded.Notes[0].CreatedBy = %q, want %q", reloaded.Notes[0].CreatedBy, "operator-2")
+	}
 }
 
 func TestUnassignCaseEndpointRejectsClosedCase(t *testing.T) {
@@ -1498,7 +1518,7 @@ func (s *staleAssignStore) Assign(_ context.Context, caseID string, assignedTo s
 	return casesvc.Case{}, casesvc.ErrCaseConflict
 }
 
-func (s *staleAssignStore) Unassign(_ context.Context, caseID string, unassignedAt time.Time, expectedUpdatedAt time.Time) (casesvc.Case, error) {
+func (s *staleAssignStore) Unassign(_ context.Context, caseID string, unassignedBy string, unassignedAt time.Time, expectedUpdatedAt time.Time) (casesvc.Case, error) {
 	if s.item.ID != caseID {
 		return casesvc.Case{}, casesvc.ErrCaseNotFound
 	}

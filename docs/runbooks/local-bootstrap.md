@@ -196,7 +196,7 @@ The current chat stream implementation is a Milestone 1 skeleton:
 - use the row-level `Assign to me` action in that same compare-follow-up queue when you want to claim an unassigned regression case without opening detail first
 - use the row-level `Close from queue` action in that same compare-follow-up queue when a resolved regression should immediately leave the open compare slice
 - use the row-level `Reopen from queue` action on `/admin/cases?status=closed...` when closed follow-up work should return to the canonical open queue without a detail round trip
-- use `Return to queue` on `/admin/cases` when a claimed case should go back to the canonical unassigned lane without overloading the assign contract with an empty owner
+- use `Return to queue` on `/admin/cases` when a claimed case should go back to the canonical unassigned lane without overloading the assign contract with an empty owner; the action also appends a durable note recording who returned it
 - successful `report_generation` tasks now finalize the durable report row and task `succeeded` transition together, so `ready_at` and report `metadata.audit_ref` line up with the final task state
 - the local Compose app services now start from dedicated runtime images, which removes the previous startup dependence on downloading Go modules inside the running container
 - the last successful `audit_event.detail` now carries an execution summary, such as which ticket comment was created

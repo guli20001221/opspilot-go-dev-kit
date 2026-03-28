@@ -285,7 +285,7 @@ func (s *memoryStore) Assign(_ context.Context, caseID string, assignedTo string
 	return item, nil
 }
 
-func (s *memoryStore) Unassign(_ context.Context, caseID string, unassignedAt time.Time, expectedUpdatedAt time.Time) (Case, error) {
+func (s *memoryStore) Unassign(_ context.Context, caseID string, unassignedBy string, unassignedAt time.Time, expectedUpdatedAt time.Time) (Case, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
@@ -307,6 +307,14 @@ func (s *memoryStore) Unassign(_ context.Context, caseID string, unassignedAt ti
 	item.AssignedAt = time.Time{}
 	item.UpdatedAt = unassignedAt
 	s.records[caseID] = item
+	s.notes[caseID] = append(s.notes[caseID], Note{
+		ID:        newCaseNoteID(unassignedAt),
+		TenantID:  item.TenantID,
+		CaseID:    item.ID,
+		Body:      fmt.Sprintf("case returned to queue by %s", unassignedBy),
+		CreatedBy: unassignedBy,
+		CreatedAt: unassignedAt,
+	})
 
 	return item, nil
 }

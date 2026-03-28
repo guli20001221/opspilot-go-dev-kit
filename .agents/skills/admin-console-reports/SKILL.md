@@ -114,7 +114,7 @@ Provide a practical operator UI for evaluation and runtime analysis while keepin
 86. When operators need to claim work from an existing case queue, prefer row-level actions that reuse the canonical case assign endpoint over requiring a detail-pane round trip for simple ownership changes.
 87. When operators need to resolve work from an existing open case queue, prefer row-level actions that reuse the canonical case close endpoint over requiring a detail-pane round trip for simple queue removal.
 88. When operators need to recover work from an existing closed case queue, prefer row-level actions that reuse the canonical case reopen endpoint over requiring a detail-pane round trip for simple queue return.
-89. When operators need to release claimed work back into a shared open queue, prefer row-level or detail actions that reuse a canonical case unassign endpoint over treating an empty assignee as a special assign payload.
+89. When operators need to release claimed work back into a shared open queue, prefer row-level or detail actions that reuse a canonical case unassign endpoint and append a durable case note over treating an empty assignee as a special assign payload.
 
 ## Output contract
 When you finish, always report:

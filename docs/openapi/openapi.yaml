@@ -1104,6 +1104,9 @@ paths:
   /api/v1/cases/{case_id}/unassign:
     post:
       summary: Return an assigned durable operator case to the shared queue
+      description: |
+        Returns an open assigned case to the shared queue and appends a durable
+        operator note recording who performed the unassign action.
       operationId: unassignCase
       parameters:
         - name: case_id
@@ -2616,6 +2619,7 @@ components:
       properties:
         unassigned_by:
           type: string
+          description: Operator handle recorded into the append-only case note for this queue return action.
     CreateCaseNoteRequest:
       type: object
       required:

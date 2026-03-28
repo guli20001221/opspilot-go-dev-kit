@@ -122,7 +122,7 @@ The current HTTP layer also exposes the same PostgreSQL-backed workflow records 
 - when a case queue is already backed by the canonical case contract, prefer row-level claim actions that reuse `POST /api/v1/cases/{case_id}/assign` instead of forcing every claim through detail-only controls
 - when an operator queue is already filtered to open cases, prefer row-level resolution actions that reuse `POST /api/v1/cases/{case_id}/close` instead of forcing a detail-only close workflow
 - when a closed case is already visible in the canonical case queue, prefer row-level recovery actions that reuse `POST /api/v1/cases/{case_id}/reopen` instead of forcing a detail-only reopen workflow
-- when a claimed open case needs to return to the shared backlog, prefer row-level or detail actions that reuse `POST /api/v1/cases/{case_id}/unassign` instead of encoding release as an empty assign payload
+- when a claimed open case needs to return to the shared backlog, prefer row-level or detail actions that reuse `POST /api/v1/cases/{case_id}/unassign` and append a durable operator note instead of encoding release as an empty assign payload
 - the worker now also claims queued eval runs and advances them through `queued -> running -> succeeded|failed` with placeholder execution, persisting `started_at`, `finished_at`, and `error_reason` on the canonical run record
 - failed eval runs now have an explicit retry path on that same canonical record through `POST /api/v1/eval-runs/{run_id}/retry`, and the `/admin/eval-runs` lane reuses it directly for operator recovery
 - eval runs now also emit append-only `created`, `claimed`, `failed`, `retried`, and `succeeded` events on the same `run_id`, and detail reads surface that timeline while the list contract stays lightweight

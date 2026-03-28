@@ -456,7 +456,7 @@ func TestServiceUnassignCase(t *testing.T) {
 		t.Fatalf("AssignCase() error = %v", err)
 	}
 
-	unassigned, err := svc.UnassignCase(context.Background(), assigned)
+	unassigned, err := svc.UnassignCase(context.Background(), assigned, "operator-2")
 	if err != nil {
 		t.Fatalf("UnassignCase() error = %v", err)
 	}
@@ -465,6 +465,20 @@ func TestServiceUnassignCase(t *testing.T) {
 	}
 	if !unassigned.AssignedAt.IsZero() {
 		t.Fatal("UnassignCase().AssignedAt should be zero")
+	}
+
+	notes, err := svc.ListCaseNotes(context.Background(), assigned.ID, 10)
+	if err != nil {
+		t.Fatalf("ListCaseNotes() error = %v", err)
+	}
+	if len(notes) != 1 {
+		t.Fatalf("len(ListCaseNotes()) = %d, want %d", len(notes), 1)
+	}
+	if notes[0].Body != "case returned to queue by operator-2" {
+		t.Fatalf("notes[0].Body = %q, want %q", notes[0].Body, "case returned to queue by operator-2")
+	}
+	if notes[0].CreatedBy != "operator-2" {
+		t.Fatalf("notes[0].CreatedBy = %q, want %q", notes[0].CreatedBy, "operator-2")
 	}
 }
 
@@ -486,7 +500,7 @@ func TestServiceUnassignCaseRejectsClosedCase(t *testing.T) {
 		t.Fatalf("CloseCase() error = %v", err)
 	}
 
-	if _, err := svc.UnassignCase(context.Background(), assigned); !errors.Is(err, ErrInvalidCaseState) {
+	if _, err := svc.UnassignCase(context.Background(), assigned, "operator-2"); !errors.Is(err, ErrInvalidCaseState) {
 		t.Fatalf("UnassignCase() error = %v, want %v", err, ErrInvalidCaseState)
 	}
 }
@@ -502,7 +516,7 @@ func TestServiceUnassignCaseRejectsAlreadyUnassignedCase(t *testing.T) {
 		t.Fatalf("CreateCase() error = %v", err)
 	}
 
-	if _, err := svc.UnassignCase(context.Background(), created); !errors.Is(err, ErrInvalidCaseState) {
+	if _, err := svc.UnassignCase(context.Background(), created, "operator-2"); !errors.Is(err, ErrInvalidCaseState) {
 		t.Fatalf("UnassignCase() error = %v, want %v", err, ErrInvalidCaseState)
 	}
 }
@@ -524,7 +538,7 @@ func TestServiceUnassignCaseRejectsStaleWrite(t *testing.T) {
 	stale := assigned
 	stale.UpdatedAt = stale.UpdatedAt.Add(-time.Nanosecond)
 
-	if _, err := svc.UnassignCase(context.Background(), stale); !errors.Is(err, ErrCaseConflict) {
+	if _, err := svc.UnassignCase(context.Background(), stale, "operator-2"); !errors.Is(err, ErrCaseConflict) {
 		t.Fatalf("UnassignCase() error = %v, want %v", err, ErrCaseConflict)
 	}
 }
