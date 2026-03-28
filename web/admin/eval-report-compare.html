@@ -243,13 +243,6 @@
         }
         return { mode: "create", text: `Create case from ${side}` };
       }
-      if ((item.open_compare_follow_up_case_count || 0) > 0) {
-        return {
-          mode: "open-queue",
-          text: `Open ${side} compare queue`,
-          href: compareQueueHref(item)
-        };
-      }
       return { mode: "create", text: `Create case from ${side}` };
     }
 
