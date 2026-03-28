@@ -68,6 +68,12 @@ func TestGetEvalReportReturnsMaterializedDetail(t *testing.T) {
 	if got.PreferredCompareFollowUpAction.SourceEvalReportID != reportID {
 		t.Fatalf("PreferredCompareFollowUpAction.SourceEvalReportID = %q, want %q", got.PreferredCompareFollowUpAction.SourceEvalReportID, reportID)
 	}
+	if got.LinkedCaseSummary == nil {
+		t.Fatal("LinkedCaseSummary is nil")
+	}
+	if got.LinkedCaseSummary.TotalCaseCount != 0 || got.LinkedCaseSummary.OpenCaseCount != 0 {
+		t.Fatalf("LinkedCaseSummary = %#v, want zero-value summary", got.LinkedCaseSummary)
+	}
 	if got.BadCaseCount != 1 {
 		t.Fatalf("BadCaseCount = %d, want 1", got.BadCaseCount)
 	}
@@ -161,6 +167,24 @@ func TestGetEvalReportIncludesFollowUpCaseSummary(t *testing.T) {
 	}
 	if got.PreferredFollowUpAction.SourceEvalReportID != reportID {
 		t.Fatalf("PreferredFollowUpAction.SourceEvalReportID = %q, want %q", got.PreferredFollowUpAction.SourceEvalReportID, reportID)
+	}
+	if got.LinkedCaseSummary == nil {
+		t.Fatal("LinkedCaseSummary is nil")
+	}
+	if got.LinkedCaseSummary.TotalCaseCount != 2 {
+		t.Fatalf("LinkedCaseSummary.TotalCaseCount = %d, want 2", got.LinkedCaseSummary.TotalCaseCount)
+	}
+	if got.LinkedCaseSummary.OpenCaseCount != 1 {
+		t.Fatalf("LinkedCaseSummary.OpenCaseCount = %d, want 1", got.LinkedCaseSummary.OpenCaseCount)
+	}
+	if got.LinkedCaseSummary.LatestCaseID != openCase.ID {
+		t.Fatalf("LinkedCaseSummary.LatestCaseID = %q, want %q", got.LinkedCaseSummary.LatestCaseID, openCase.ID)
+	}
+	if got.LinkedCaseSummary.LatestCaseStatus != casesvc.StatusOpen {
+		t.Fatalf("LinkedCaseSummary.LatestCaseStatus = %q, want %q", got.LinkedCaseSummary.LatestCaseStatus, casesvc.StatusOpen)
+	}
+	if got.LinkedCaseSummary.LatestAssignedTo != "operator-followup" {
+		t.Fatalf("LinkedCaseSummary.LatestAssignedTo = %q, want %q", got.LinkedCaseSummary.LatestAssignedTo, "operator-followup")
 	}
 }
 

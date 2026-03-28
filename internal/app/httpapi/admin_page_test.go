@@ -993,7 +993,7 @@ async function assertCaseSource(page, apiBaseURL, caseID, tenantID, expectedRepo
     throw new Error("right primary action should switch to compare queue when open compare follow-up exists");
   }
   const rightBadCaseNeedsFollowUpHref = await page.getAttribute("#rightBadCaseNeedsFollowUpLink", "href");
-  if (!rightBadCaseNeedsFollowUpHref || !rightBadCaseNeedsFollowUpHref.includes("/admin/eval-reports?") || !rightBadCaseNeedsFollowUpHref.includes("bad_case_needs_follow_up=true") || !rightBadCaseNeedsFollowUpHref.includes("report_id=" + encodeURIComponent(rightReportID))) {
+  if (!rightBadCaseNeedsFollowUpHref || !rightBadCaseNeedsFollowUpHref.includes("/admin/eval-reports?") || !rightBadCaseNeedsFollowUpHref.includes("bad_case_needs_follow_up=true") || !rightBadCaseNeedsFollowUpHref.includes("report_id=" + encodeURIComponent(rightReportID)) || !rightBadCaseNeedsFollowUpHref.includes("selected_report_id=" + encodeURIComponent(rightReportID))) {
     throw new Error("right unresolved bad-case handoff missing canonical eval-report filter");
   }
   const leftFollowUpText = (await page.textContent("#leftReportDetail")).trim();
@@ -1479,7 +1479,7 @@ async function assertCasePayload(page, apiBaseURL, caseID, tenantID, expectedRep
   await page.click("#badCaseQuickViewNoFollowUp");
   await page.waitForFunction(() => {
     const params = new URL(window.location.href).searchParams;
-    return params.get("report_id") === reportNoReuseID && params.get("detail_bad_case_needs_follow_up") === "false";
+    return params.get("selected_report_id") === reportNoReuseID && params.get("report_id") === null && params.get("detail_bad_case_needs_follow_up") === "false";
   });
   const filteredReportCaseButton = page.locator("#createCaseButton");
   await filteredReportCaseButton.click();
@@ -1512,11 +1512,14 @@ async function assertCasePayload(page, apiBaseURL, caseID, tenantID, expectedRep
   }
   await assertCasePayload(page, baseURL, createdBadCaseID, tenantID, reportID, sourceEvalCaseID);
 
-  await page.goto(baseURL + "/admin/eval-reports?tenant_id=" + encodeURIComponent(tenantID) + "&limit=10&report_id=missing-report");
-  await page.waitForSelector("text=Unable to load the selected eval report detail.");
+  await page.goto(baseURL + "/admin/eval-reports?tenant_id=" + encodeURIComponent(tenantID) + "&limit=10&report_id=missing-report&selected_report_id=missing-report");
+  await page.waitForSelector("text=No durable eval reports matched the current slice.");
   const failedURL = new URL(page.url());
-  if (failedURL.searchParams.get("report_id")) {
-    throw new Error("stale report_id remained in URL after detail load failure");
+  if (failedURL.searchParams.get("report_id") !== "missing-report") {
+    throw new Error("canonical report_id filter was unexpectedly cleared after missing-report handoff");
+  }
+  if (failedURL.searchParams.get("selected_report_id")) {
+    throw new Error("stale selected_report_id remained in URL after missing-report handoff");
   }
   await browser.close();
 })().catch((error) => {

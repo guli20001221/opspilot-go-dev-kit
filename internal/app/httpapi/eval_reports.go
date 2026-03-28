@@ -60,6 +60,7 @@ type evalReportResponse struct {
 	LatestCompareFollowUpCaseID     string                               `json:"latest_compare_follow_up_case_id,omitempty"`
 	LatestCompareFollowUpCaseStatus string                               `json:"latest_compare_follow_up_case_status,omitempty"`
 	PreferredCompareFollowUpAction  evalReportCompareQueueActionResponse `json:"preferred_compare_follow_up_action"`
+	LinkedCaseSummary               *evalReportLinkedCaseSummaryResponse `json:"linked_case_summary,omitempty"`
 	Metadata                        json.RawMessage                      `json:"metadata,omitempty"`
 	BadCases                        []evalReportBadCaseResponse          `json:"bad_cases,omitempty"`
 	CreatedAt                       string                               `json:"created_at"`
@@ -76,6 +77,14 @@ type evalReportFollowUpActionResponse struct {
 type evalReportCompareQueueActionResponse struct {
 	Mode               string `json:"mode"`
 	SourceEvalReportID string `json:"source_eval_report_id,omitempty"`
+}
+
+type evalReportLinkedCaseSummaryResponse struct {
+	TotalCaseCount   int    `json:"total_case_count"`
+	OpenCaseCount    int    `json:"open_case_count"`
+	LatestCaseID     string `json:"latest_case_id,omitempty"`
+	LatestCaseStatus string `json:"latest_case_status,omitempty"`
+	LatestAssignedTo string `json:"latest_assigned_to,omitempty"`
 }
 
 type listEvalReportsResponse struct {
@@ -307,6 +316,11 @@ func (a *appHandler) handleEvalReportByID(w http.ResponseWriter, r *http.Request
 		writeError(w, http.StatusInternalServerError, "eval_report_follow_up_summary_failed", err.Error())
 		return
 	}
+	linkedCaseSummary, err := a.evalReportLinkedCaseSummary(r.Context(), tenantID, reportID, followUpSummaries[reportID])
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "eval_report_linked_case_summary_failed", err.Error())
+		return
+	}
 
 	badCaseFollowUpSummaries, err := a.evalCaseFollowUpSummaries(r.Context(), tenantID, item.BadCases)
 	if err != nil {
@@ -319,7 +333,7 @@ func (a *appHandler) handleEvalReportByID(w http.ResponseWriter, r *http.Request
 		item.BadCases = filterEvalReportBadCasesByNeedsFollowUp(item.BadCases, badCaseFollowUpSummaries, *badCaseNeedsFollowUp)
 	}
 
-	writeJSON(w, http.StatusOK, newEvalReportResponse(item, true, followUpSummaries[reportID], compareFollowUpSummaries[reportID], badCaseFollowUpSummaries, originalBadCaseCount, badCaseWithoutOpenFollowUpCount))
+	writeJSON(w, http.StatusOK, newEvalReportResponse(item, true, followUpSummaries[reportID], compareFollowUpSummaries[reportID], linkedCaseSummary, badCaseFollowUpSummaries, originalBadCaseCount, badCaseWithoutOpenFollowUpCount))
 }
 
 func parseEvalReportListFilter(r *http.Request) (evalsvc.EvalReportListFilter, error) {
@@ -480,9 +494,34 @@ func (a *appHandler) buildEvalReportListResponse(ctx context.Context, tenantID s
 	for _, item := range page.Reports {
 		summary := followUpSummaries[item.ID]
 		compareSummary := compareFollowUpSummaries[item.ID]
-		resp.Reports = append(resp.Reports, newEvalReportResponse(item, false, summary, compareSummary, nil, len(item.BadCases), badCaseWithoutOpenFollowUpCounts[item.ID]))
+		resp.Reports = append(resp.Reports, newEvalReportResponse(item, false, summary, compareSummary, nil, nil, len(item.BadCases), badCaseWithoutOpenFollowUpCounts[item.ID]))
 	}
 	return resp, nil
+}
+
+func (a *appHandler) evalReportLinkedCaseSummary(ctx context.Context, tenantID, reportID string, followUpSummary casesvc.EvalReportFollowUpSummary) (*evalReportLinkedCaseSummaryResponse, error) {
+	summary := &evalReportLinkedCaseSummaryResponse{
+		TotalCaseCount:   followUpSummary.FollowUpCaseCount,
+		OpenCaseCount:    followUpSummary.OpenFollowUpCaseCount,
+		LatestCaseID:     followUpSummary.LatestFollowUpCaseID,
+		LatestCaseStatus: followUpSummary.LatestFollowUpCaseStatus,
+	}
+	if a.cases == nil || tenantID == "" || followUpSummary.LatestFollowUpCaseID == "" {
+		return summary, nil
+	}
+
+	latestCase, err := a.cases.GetCase(ctx, followUpSummary.LatestFollowUpCaseID)
+	if err != nil {
+		if errors.Is(err, casesvc.ErrCaseNotFound) {
+			return summary, nil
+		}
+		return nil, fmt.Errorf("get linked case %q for eval report %q: %w", followUpSummary.LatestFollowUpCaseID, reportID, err)
+	}
+	if latestCase.TenantID != tenantID || latestCase.SourceEvalReportID != reportID {
+		return summary, nil
+	}
+	summary.LatestAssignedTo = latestCase.AssignedTo
+	return summary, nil
 }
 
 func (a *appHandler) evalCaseFollowUpSummaries(ctx context.Context, tenantID string, badCases []evalsvc.EvalReportBadCase) (map[string]casesvc.EvalCaseFollowUpSummary, error) {
@@ -559,7 +598,7 @@ func filterEvalReportBadCasesByNeedsFollowUp(badCases []evalsvc.EvalReportBadCas
 	return filtered
 }
 
-func newEvalReportResponse(item evalsvc.EvalReport, includeHeavy bool, followUpSummary casesvc.EvalReportFollowUpSummary, compareFollowUpSummary casesvc.EvalReportCompareFollowUpSummary, badCaseSummaries map[string]casesvc.EvalCaseFollowUpSummary, badCaseCount int, badCaseWithoutOpenFollowUpCount int) evalReportResponse {
+func newEvalReportResponse(item evalsvc.EvalReport, includeHeavy bool, followUpSummary casesvc.EvalReportFollowUpSummary, compareFollowUpSummary casesvc.EvalReportCompareFollowUpSummary, linkedCaseSummary *evalReportLinkedCaseSummaryResponse, badCaseSummaries map[string]casesvc.EvalCaseFollowUpSummary, badCaseCount int, badCaseWithoutOpenFollowUpCount int) evalReportResponse {
 	if badCaseCount < 0 {
 		badCaseCount = len(item.BadCases)
 	}
@@ -591,6 +630,7 @@ func newEvalReportResponse(item evalsvc.EvalReport, includeHeavy bool, followUpS
 		LatestCompareFollowUpCaseID:     compareFollowUpSummary.LatestCompareFollowUpCaseID,
 		LatestCompareFollowUpCaseStatus: compareFollowUpSummary.LatestCompareFollowUpCaseStatus,
 		PreferredCompareFollowUpAction:  newEvalReportCompareQueueActionResponse(item.ID, compareFollowUpSummary),
+		LinkedCaseSummary:               linkedCaseSummary,
 		CreatedAt:                       item.CreatedAt.Format(time.RFC3339Nano),
 		UpdatedAt:                       item.UpdatedAt.Format(time.RFC3339Nano),
 		ReadyAt:                         item.ReadyAt.Format(time.RFC3339Nano),

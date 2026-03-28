@@ -300,7 +300,7 @@
       }
       if ((payload.left.bad_case_without_open_follow_up_count || 0) > 0) {
         leftBadCaseNeedsFollowUpLink.hidden = false;
-        leftBadCaseNeedsFollowUpLink.href = `/admin/eval-reports?tenant_id=${encodeURIComponent(payload.left.tenant_id)}&bad_case_needs_follow_up=true&report_id=${encodeURIComponent(payload.left.report_id)}`;
+        leftBadCaseNeedsFollowUpLink.href = `/admin/eval-reports?tenant_id=${encodeURIComponent(payload.left.tenant_id)}&bad_case_needs_follow_up=true&report_id=${encodeURIComponent(payload.left.report_id)}&selected_report_id=${encodeURIComponent(payload.left.report_id)}`;
       } else {
         leftBadCaseNeedsFollowUpLink.hidden = true;
         leftBadCaseNeedsFollowUpLink.href = "#";
@@ -314,7 +314,7 @@
       }
       if ((payload.right.bad_case_without_open_follow_up_count || 0) > 0) {
         rightBadCaseNeedsFollowUpLink.hidden = false;
-        rightBadCaseNeedsFollowUpLink.href = `/admin/eval-reports?tenant_id=${encodeURIComponent(payload.right.tenant_id)}&bad_case_needs_follow_up=true&report_id=${encodeURIComponent(payload.right.report_id)}`;
+        rightBadCaseNeedsFollowUpLink.href = `/admin/eval-reports?tenant_id=${encodeURIComponent(payload.right.tenant_id)}&bad_case_needs_follow_up=true&report_id=${encodeURIComponent(payload.right.report_id)}&selected_report_id=${encodeURIComponent(payload.right.report_id)}`;
       } else {
         rightBadCaseNeedsFollowUpLink.hidden = true;
         rightBadCaseNeedsFollowUpLink.href = "#";
