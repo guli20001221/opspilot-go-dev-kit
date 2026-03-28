@@ -165,6 +165,8 @@ The current chat stream implementation is a Milestone 1 skeleton:
 - that same `Open latest case` handoff also appears inside the eval-report detail pane once a report is selected, so operators do not need to return to the table row to continue case triage
 - use `Open left latest case` / `Open right latest case` on `/admin/eval-report-compare` when you need to inspect existing follow-up before deciding whether to create another case from the comparison
 - check each compare card's follow-up summary on `/admin/eval-report-compare` when you need to know whether a side already has open regression work before creating another case
+- check each compare card's uncovered-bad-case count on `/admin/eval-report-compare` when you need to know which side still has bad cases without open linked follow-up
+- use `Open left unresolved bad cases` / `Open right unresolved bad cases` on `/admin/eval-report-compare` when you want to jump straight into that side's canonical unresolved bad-case report view
 - use `Open left linked cases` / `Open right linked cases` on `/admin/eval-report-compare` when you need the full canonical case slice for one side's `source_eval_report_id`, not just the latest linked case
 - use `Open linked cases` on `/admin/eval-reports` when you want to jump from one durable eval report straight into the canonical `/admin/cases?source_eval_report_id=<report_id>` slice
 - use `Create case` on `/admin/eval-reports` when the selected durable eval report needs operator follow-up and you want to jump straight into the newly created canonical case

@@ -124,6 +124,7 @@ Provide a practical operator UI for evaluation and runtime analysis while keepin
 95. Once canonical eval-report detail carries per-bad-case follow-up summary, prefer surfacing `latest_follow_up_case_id` and the `/admin/cases?source_eval_case_id=...` handoff directly inside `/admin/eval-reports` bad-case rows instead of issuing browser-side case lookups per bad case.
 96. Once canonical eval-report detail supports a backend-owned bad-case follow-up filter, prefer wiring detail-level quick views to that query parameter instead of filtering already-loaded bad cases only in the browser.
 97. When operators need unresolved bad-case pressure before opening eval-report detail, prefer durable list fields such as `bad_case_without_open_follow_up_count` and a canonical list filter like `bad_case_needs_follow_up=true` over inferring that queue from already-loaded report detail in the browser.
+98. When operators compare two eval reports and need to know which side still has uncovered bad cases, prefer carrying `bad_case_without_open_follow_up_count` on the canonical compare contract and hand off into the existing unresolved-report view rather than inventing a compare-only unresolved queue.
 
 ## Output contract
 When you finish, always report:

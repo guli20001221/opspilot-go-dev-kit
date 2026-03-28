@@ -62,6 +62,7 @@
                 <div class="detail-grid" id="leftReportDetail"></div>
                 <div class="actions" style="margin-top:14px;">
                   <a class="button-link ghost" id="leftLatestCaseLink" href="#" hidden>Open left latest case</a>
+                  <a class="button-link ghost" id="leftBadCaseNeedsFollowUpLink" href="#" hidden>Open left unresolved bad cases</a>
                   <a class="button-link ghost" id="leftLinkedCasesLink" href="#">Open left linked cases</a>
                   <a class="button-link ghost" id="leftReportAPILink" href="#" target="_blank" rel="noreferrer">Open left eval report API</a>
                   <a class="button-link ghost" id="leftRunLaneLink" href="#">Open left eval run lane</a>
@@ -73,6 +74,7 @@
                 <div class="detail-grid" id="rightReportDetail"></div>
                 <div class="actions" style="margin-top:14px;">
                   <a class="button-link ghost" id="rightLatestCaseLink" href="#" hidden>Open right latest case</a>
+                  <a class="button-link ghost" id="rightBadCaseNeedsFollowUpLink" href="#" hidden>Open right unresolved bad cases</a>
                   <a class="button-link ghost" id="rightLinkedCasesLink" href="#">Open right linked cases</a>
                   <a class="button-link ghost" id="rightReportAPILink" href="#" target="_blank" rel="noreferrer">Open right eval report API</a>
                   <a class="button-link ghost" id="rightRunLaneLink" href="#">Open right eval run lane</a>
@@ -117,6 +119,8 @@
     const rightReportAPILink = document.getElementById("rightReportAPILink");
     const leftLatestCaseLink = document.getElementById("leftLatestCaseLink");
     const rightLatestCaseLink = document.getElementById("rightLatestCaseLink");
+    const leftBadCaseNeedsFollowUpLink = document.getElementById("leftBadCaseNeedsFollowUpLink");
+    const rightBadCaseNeedsFollowUpLink = document.getElementById("rightBadCaseNeedsFollowUpLink");
     const leftLinkedCasesLink = document.getElementById("leftLinkedCasesLink");
     const rightLinkedCasesLink = document.getElementById("rightLinkedCasesLink");
     const leftRunLaneLink = document.getElementById("leftRunLaneLink");
@@ -175,7 +179,7 @@
     }
 
     function renderCompareCard(container, item) {
-      container.innerHTML = `<dl class="detail-card"><dt>Report ID</dt><dd>${escapeHTML(item.report_id)}</dd></dl><dl class="detail-card"><dt>Dataset</dt><dd>${escapeHTML(item.dataset_name)}<br><small>${escapeHTML(item.dataset_id)}</small></dd></dl><dl class="detail-card"><dt>Run</dt><dd>${escapeHTML(item.run_id)}<br><small>${escapeHTML(item.run_status)}</small></dd></dl><dl class="detail-card"><dt>Summary</dt><dd>${escapeHTML(item.summary || "none")}</dd></dl><dl class="detail-card"><dt>Judge version</dt><dd>${escapeHTML(item.judge_version || "unknown")}</dd></dl><dl class="detail-card"><dt>Bad cases</dt><dd>${escapeHTML(String(item.bad_case_count || 0))}</dd></dl><dl class="detail-card"><dt>Follow-up</dt><dd>${escapeHTML(String(item.follow_up_case_count || 0))} cases / ${escapeHTML(String(item.open_follow_up_case_count || 0))} open<br><small>${escapeHTML(item.latest_follow_up_case_status || "none")}</small></dd></dl><dl class="detail-card"><dt>Version</dt><dd>${escapeHTML(item.version_id || "Unavailable")}</dd></dl><dl class="detail-card"><dt>Ready at</dt><dd>${escapeHTML(fmtDate(item.ready_at))}</dd></dl>`;
+      container.innerHTML = `<dl class="detail-card"><dt>Report ID</dt><dd>${escapeHTML(item.report_id)}</dd></dl><dl class="detail-card"><dt>Dataset</dt><dd>${escapeHTML(item.dataset_name)}<br><small>${escapeHTML(item.dataset_id)}</small></dd></dl><dl class="detail-card"><dt>Run</dt><dd>${escapeHTML(item.run_id)}<br><small>${escapeHTML(item.run_status)}</small></dd></dl><dl class="detail-card"><dt>Summary</dt><dd>${escapeHTML(item.summary || "none")}</dd></dl><dl class="detail-card"><dt>Judge version</dt><dd>${escapeHTML(item.judge_version || "unknown")}</dd></dl><dl class="detail-card"><dt>Bad cases</dt><dd>${escapeHTML(String(item.bad_case_count || 0))}<br><small>${escapeHTML(String(item.bad_case_without_open_follow_up_count || 0))} uncovered</small></dd></dl><dl class="detail-card"><dt>Follow-up</dt><dd>${escapeHTML(String(item.follow_up_case_count || 0))} cases / ${escapeHTML(String(item.open_follow_up_case_count || 0))} open<br><small>${escapeHTML(item.latest_follow_up_case_status || "none")}</small></dd></dl><dl class="detail-card"><dt>Version</dt><dd>${escapeHTML(item.version_id || "Unavailable")}</dd></dl><dl class="detail-card"><dt>Ready at</dt><dd>${escapeHTML(fmtDate(item.ready_at))}</dd></dl>`;
     }
 
     function diffRow(label, changed, extra = "") {
@@ -249,12 +253,26 @@
         leftLatestCaseLink.hidden = true;
         leftLatestCaseLink.href = "#";
       }
+      if ((payload.left.bad_case_without_open_follow_up_count || 0) > 0) {
+        leftBadCaseNeedsFollowUpLink.hidden = false;
+        leftBadCaseNeedsFollowUpLink.href = `/admin/eval-reports?tenant_id=${encodeURIComponent(payload.left.tenant_id)}&bad_case_needs_follow_up=true&report_id=${encodeURIComponent(payload.left.report_id)}`;
+      } else {
+        leftBadCaseNeedsFollowUpLink.hidden = true;
+        leftBadCaseNeedsFollowUpLink.href = "#";
+      }
       if (payload.right.latest_follow_up_case_id) {
         rightLatestCaseLink.hidden = false;
         rightLatestCaseLink.href = `/admin/cases?tenant_id=${encodeURIComponent(payload.right.tenant_id)}&case_id=${encodeURIComponent(payload.right.latest_follow_up_case_id)}`;
       } else {
         rightLatestCaseLink.hidden = true;
         rightLatestCaseLink.href = "#";
+      }
+      if ((payload.right.bad_case_without_open_follow_up_count || 0) > 0) {
+        rightBadCaseNeedsFollowUpLink.hidden = false;
+        rightBadCaseNeedsFollowUpLink.href = `/admin/eval-reports?tenant_id=${encodeURIComponent(payload.right.tenant_id)}&bad_case_needs_follow_up=true&report_id=${encodeURIComponent(payload.right.report_id)}`;
+      } else {
+        rightBadCaseNeedsFollowUpLink.hidden = true;
+        rightBadCaseNeedsFollowUpLink.href = "#";
       }
       leftRunLaneLink.href = `${runLaneBase}?tenant_id=${encodeURIComponent(payload.left.tenant_id)}&dataset_id=${encodeURIComponent(payload.left.dataset_id)}&run_id=${encodeURIComponent(payload.left.run_id)}`;
       rightRunLaneLink.href = `${runLaneBase}?tenant_id=${encodeURIComponent(payload.right.tenant_id)}&dataset_id=${encodeURIComponent(payload.right.dataset_id)}&run_id=${encodeURIComponent(payload.right.run_id)}`;

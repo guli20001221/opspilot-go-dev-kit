@@ -3581,6 +3581,7 @@ components:
         - missing_results
         - average_score
         - bad_case_count
+        - bad_case_without_open_follow_up_count
         - created_at
         - updated_at
         - ready_at
@@ -3629,6 +3630,9 @@ components:
         version_id:
           type: string
         bad_case_count:
+          type: integer
+          minimum: 0
+        bad_case_without_open_follow_up_count:
           type: integer
           minimum: 0
         follow_up_case_count:

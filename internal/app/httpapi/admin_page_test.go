@@ -677,6 +677,9 @@ func TestAdminEvalReportComparePageRendersHTML(t *testing.T) {
 	if !strings.Contains(body, "Open left linked cases") {
 		t.Fatal("left linked-cases handoff missing from compare HTML")
 	}
+	if !strings.Contains(body, "Open right unresolved bad cases") {
+		t.Fatal("unresolved bad-case compare handoff missing from HTML")
+	}
 	if !strings.Contains(body, "Open right eval report API") {
 		t.Fatal("right eval report api handoff missing from compare HTML")
 	}
@@ -787,6 +790,10 @@ async function assertCaseSource(page, apiBaseURL, caseID, tenantID, expectedRepo
   if (!leftLinkedCasesHref || !leftLinkedCasesHref.includes("/admin/cases?") || !leftLinkedCasesHref.includes("source_eval_report_id=" + encodeURIComponent(leftReportID))) {
     throw new Error("left linked-cases handoff missing selected source_eval_report_id");
   }
+  const leftBadCaseNeedsFollowUpVisible = await page.isVisible("#leftBadCaseNeedsFollowUpLink");
+  if (leftBadCaseNeedsFollowUpVisible) {
+    throw new Error("left unresolved bad-case handoff should stay hidden when there are no uncovered bad cases");
+  }
 	const rightCaseHref = await page.getAttribute("#rightLatestCaseLink", "href");
 	if (!rightCaseHref || !rightCaseHref.includes("case_id=" + encodeURIComponent(rightCaseID))) {
 		throw new Error("right latest-case handoff missing selected case");
@@ -795,6 +802,10 @@ async function assertCaseSource(page, apiBaseURL, caseID, tenantID, expectedRepo
   if (!rightLinkedCasesHref || !rightLinkedCasesHref.includes("/admin/cases?") || !rightLinkedCasesHref.includes("source_eval_report_id=" + encodeURIComponent(rightReportID))) {
     throw new Error("right linked-cases handoff missing selected source_eval_report_id");
   }
+  const rightBadCaseNeedsFollowUpHref = await page.getAttribute("#rightBadCaseNeedsFollowUpLink", "href");
+  if (!rightBadCaseNeedsFollowUpHref || !rightBadCaseNeedsFollowUpHref.includes("/admin/eval-reports?") || !rightBadCaseNeedsFollowUpHref.includes("bad_case_needs_follow_up=true") || !rightBadCaseNeedsFollowUpHref.includes("report_id=" + encodeURIComponent(rightReportID))) {
+    throw new Error("right unresolved bad-case handoff missing canonical eval-report filter");
+  }
   const leftFollowUpText = (await page.textContent("#leftReportDetail")).trim();
   if (!leftFollowUpText.includes("1 cases / 1 open")) {
     throw new Error("left follow-up summary missing from compare detail");
@@ -802,6 +813,9 @@ async function assertCaseSource(page, apiBaseURL, caseID, tenantID, expectedRepo
   const rightFollowUpText = (await page.textContent("#rightReportDetail")).trim();
   if (!rightFollowUpText.includes("1 cases / 1 open")) {
     throw new Error("right follow-up summary missing from compare detail");
+  }
+  if (!rightFollowUpText.includes("1 uncovered")) {
+    throw new Error("right uncovered bad-case summary missing from compare detail");
   }
   await page.click("#createLeftCaseButton");
   await page.waitForURL(/\/admin\/cases\?/);
