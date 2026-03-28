@@ -155,6 +155,7 @@ Current Milestone 1 slice:
 - the same compare-follow-up queue on `/admin/cases` now also exposes a row-level `Open compare` handoff, so operators can jump straight back into the exact eval-report comparison without opening detail first
 - the same `/admin/cases` compare-follow-up queue now also supports row-level `Assign to me`, reusing the canonical case assign endpoint so an operator can claim a compare-derived regression without opening detail first
 - the same compare-follow-up queue now also supports row-level `Close from queue`, reusing the canonical case close endpoint so resolved regressions drop out of the open compare slice without a detail round trip
+- the same case queue now also supports row-level `Reopen from queue`, reusing the canonical case reopen endpoint so closed follow-up work can return to the open slice without a detail round trip
 - the same `/admin/eval-runs` lane now shows live lifecycle fields such as `started_at`, `finished_at`, and `error_reason`, so operators can watch queued run kickoffs turn into terminal records before judge wiring exists
 - that same `/admin/eval-runs` lane now exposes `Retry run` for failed runs, reusing the canonical retry endpoint instead of inventing an admin-only mutation path
 - that same `/admin/eval-runs` lane now renders a durable run timeline, so operators can still inspect prior `failed` and `retried` history after the top-level fields have been cleared by retry

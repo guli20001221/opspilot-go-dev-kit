@@ -113,6 +113,7 @@ Provide a practical operator UI for evaluation and runtime analysis while keepin
 85. When compare-derived cases are already visible in the canonical case queue, prefer a row-level handoff back into `/admin/eval-report-compare` from stored compare provenance instead of forcing a detail-pane round trip first.
 86. When operators need to claim work from an existing case queue, prefer row-level actions that reuse the canonical case assign endpoint over requiring a detail-pane round trip for simple ownership changes.
 87. When operators need to resolve work from an existing open case queue, prefer row-level actions that reuse the canonical case close endpoint over requiring a detail-pane round trip for simple queue removal.
+88. When operators need to recover work from an existing closed case queue, prefer row-level actions that reuse the canonical case reopen endpoint over requiring a detail-pane round trip for simple queue return.
 
 ## Output contract
 When you finish, always report:

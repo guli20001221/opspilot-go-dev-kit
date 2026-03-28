@@ -1259,6 +1259,9 @@ func TestAdminCasesPageRendersHTML(t *testing.T) {
 	if !strings.Contains(body, "Close from queue") {
 		t.Fatal("row-level close-from-queue action missing from cases page HTML")
 	}
+	if !strings.Contains(body, "Reopen from queue") {
+		t.Fatal("row-level reopen-from-queue action missing from cases page HTML")
+	}
 	if !strings.Contains(body, "Add note") {
 		t.Fatal("add note action missing from cases page HTML")
 	}
@@ -1457,6 +1460,30 @@ const compareRightReportID = process.argv[11];
   if (closedVisibleCount.trim() !== "0") throw new Error("row-level close did not remove case from open compare queue");
   const queueText = await page.textContent("#caseListState");
   if (!queueText.includes("No cases matched the current slice.")) throw new Error("closed compare queue did not enter empty state");
+  await page.goto(baseURL + "/admin/cases?tenant_id=" + encodeURIComponent(tenantID) + "&status=closed&compare_origin_only=true&limit=10&case_id=" + encodeURIComponent(linkedCaseID));
+  await page.waitForFunction(
+    (caseID) => {
+      const row = document.querySelector('[data-case-row="' + caseID + '"]');
+      return row && row.textContent && row.textContent.includes("closed");
+    },
+    linkedCaseID
+  );
+  await page.click('[data-case-reopen-id="' + linkedCaseID + '"]');
+  await page.waitForFunction(
+    (caseID) => {
+      const statusFilter = document.querySelector("#status");
+      const compareFilter = document.querySelector("#compare_origin_only");
+      const row = document.querySelector('[data-case-row="' + caseID + '"]');
+      return statusFilter && statusFilter.value === "open" && compareFilter && compareFilter.value === "true" && row && row.textContent && row.textContent.includes("open");
+    },
+    linkedCaseID
+  );
+  const reopenedVisibleCount = await page.textContent("#visibleCount");
+  if (reopenedVisibleCount.trim() !== "1") throw new Error("row-level reopen did not return case to the open queue");
+  const reopenedURL = new URL(page.url());
+  if (reopenedURL.searchParams.get("compare_origin_only") !== "true") throw new Error("row-level reopen drifted compare queue filter");
+  const reopenedDetail = await page.textContent("#caseDetail");
+  if (!reopenedDetail.includes("queue-owner")) throw new Error("row-level reopen did not preserve case ownership in detail");
 
   await page.goto(baseURL + "/admin/cases?tenant_id=" + encodeURIComponent(tenantID) + "&limit=10&case_id=" + encodeURIComponent(missingCaseID));
   await page.waitForSelector("text=Source eval report summary");
