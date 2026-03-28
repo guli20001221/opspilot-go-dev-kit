@@ -248,6 +248,30 @@
       return `${total} cases / ${open} open`;
     }
 
+    function preferredFollowUpAction(item) {
+      const fallbackQueueHref = `/admin/cases?tenant_id=${encodeURIComponent(item.tenant_id)}&source_eval_case_id=${encodeURIComponent(item.eval_case_id)}&limit=10`;
+      const fallbackCaseHref = item.latest_follow_up_case_id ? `/admin/cases?tenant_id=${encodeURIComponent(item.tenant_id)}&case_id=${encodeURIComponent(item.latest_follow_up_case_id)}` : "";
+      const action = item && item.preferred_follow_up_action ? item.preferred_follow_up_action : null;
+      if (action && action.mode) {
+        if (action.mode === "open_existing_case" && action.case_id) {
+          return { mode: action.mode, targetHref: `/admin/cases?tenant_id=${encodeURIComponent(item.tenant_id)}&case_id=${encodeURIComponent(action.case_id)}`, label: "Open existing case", hasReuse: true };
+        }
+        if (action.mode === "open_existing_queue") {
+          return { mode: action.mode, targetHref: `/admin/cases?tenant_id=${encodeURIComponent(item.tenant_id)}&source_eval_case_id=${encodeURIComponent(action.source_eval_case_id || item.eval_case_id)}&limit=10`, label: "Open existing queue", hasReuse: true };
+        }
+        if (action.mode === "create") {
+          return { mode: action.mode, targetHref: "", label: "Create case", hasReuse: false };
+        }
+      }
+      if (Number(item.open_follow_up_case_count || 0) > 0) {
+        if (fallbackCaseHref) {
+          return { mode: "open_existing_case", targetHref: fallbackCaseHref, label: "Open existing case", hasReuse: true };
+        }
+        return { mode: "open_existing_queue", targetHref: fallbackQueueHref, label: "Open existing queue", hasReuse: true };
+      }
+      return { mode: "create", targetHref: "", label: "Create case", hasReuse: false };
+    }
+
     function escapeHTML(value) {
       return String(value ?? "")
         .replaceAll("&", "&amp;")
@@ -354,7 +378,11 @@
 
       evalListState.hidden = true;
       tableWrap.hidden = false;
-      evalRows.innerHTML = currentItems.map((item) => `
+      evalRows.innerHTML = currentItems.map((item) => {
+        const preferredAction = preferredFollowUpAction(item);
+        const rowPreferredLink = preferredAction.hasReuse ? `<br><a class="button-link ghost" href="${preferredAction.targetHref}">${preferredAction.label}</a>` : "";
+        const queueLink = preferredAction.mode === "open_existing_queue" ? "" : `<br><a class="button-link ghost" href="/admin/cases?tenant_id=${encodeURIComponent(item.tenant_id)}&source_eval_case_id=${encodeURIComponent(item.eval_case_id)}&limit=10">Open queue</a>`;
+        return `
         <tr data-eval-row="${escapeHTML(item.eval_case_id)}">
           <td>
             <strong>${escapeHTML(item.title)}</strong>
@@ -364,13 +392,13 @@
           <td>${escapeHTML(item.version_id || "none")}</td>
           <td>
             <strong>${escapeHTML(followUpLabel(item))}</strong>
-            ${item.latest_follow_up_case_id ? `<br><a class="button-link ghost" href="/admin/cases?tenant_id=${encodeURIComponent(item.tenant_id)}&case_id=${encodeURIComponent(item.latest_follow_up_case_id)}">Open latest case</a>` : ""}
-            <br><a class="button-link ghost" href="/admin/cases?tenant_id=${encodeURIComponent(item.tenant_id)}&source_eval_case_id=${encodeURIComponent(item.eval_case_id)}&limit=10">Open queue</a>
+            ${rowPreferredLink}
+            ${queueLink}
           </td>
           <td>${escapeHTML(fmtDate(item.created_at))}</td>
           <td><button class="ghost" type="button" data-eval-id="${escapeHTML(item.eval_case_id)}">Inspect</button></td>
         </tr>
-      `).join("");
+      `}).join("");
       syncSelectedRow();
     }
 
@@ -409,14 +437,14 @@
       if (currentDatasetDetail && currentDatasetDetail.dataset_id) {
         datasetTargetIDInput.value = currentDatasetDetail.dataset_id;
       }
-      const hasOpenFollowUp = Number(item.open_follow_up_case_count || 0) > 0;
+      const preferredAction = preferredFollowUpAction(item);
       const caseURL = `${caseEndpointBase}${encodeURIComponent(item.source_case_id)}?tenant_id=${encodeURIComponent(item.tenant_id)}`;
       const latestFollowUpCaseURL = item.latest_follow_up_case_id ? `/admin/cases?tenant_id=${encodeURIComponent(item.tenant_id)}&case_id=${encodeURIComponent(item.latest_follow_up_case_id)}` : "";
       const followUpSliceURL = `/admin/cases?tenant_id=${encodeURIComponent(item.tenant_id)}&source_eval_case_id=${encodeURIComponent(item.eval_case_id)}&limit=10`;
-      createCaseButton.dataset.action = hasOpenFollowUp ? "open-existing" : "create";
-      createCaseButton.dataset.targetHref = hasOpenFollowUp ? (latestFollowUpCaseURL || followUpSliceURL) : "";
-      createCaseButton.textContent = hasOpenFollowUp ? (latestFollowUpCaseURL ? "Open existing case" : "Open existing queue") : "Create case";
-      evalDetailStatusNote.textContent = hasOpenFollowUp ? "This eval case already has open follow-up work; reuse the canonical case before creating another." : "Current eval case is ready for operator handoff.";
+      createCaseButton.dataset.action = preferredAction.mode === "create" ? "create" : "open-existing";
+      createCaseButton.dataset.targetHref = preferredAction.targetHref || "";
+      createCaseButton.textContent = preferredAction.label;
+      evalDetailStatusNote.textContent = preferredAction.hasReuse ? "This eval case already has open follow-up work; reuse the canonical case before creating another." : "Current eval case is ready for operator handoff.";
       const reportURL = item.source_report_id ? `${reportEndpointBase}${encodeURIComponent(item.source_report_id)}` : "";
       const taskURL = item.source_task_id ? `${taskEndpointBase}${encodeURIComponent(item.source_task_id)}` : "";
       const traceURL = item.source_case_id ? `/admin/trace-detail?case_id=${encodeURIComponent(item.source_case_id)}` : "/admin/trace-detail";

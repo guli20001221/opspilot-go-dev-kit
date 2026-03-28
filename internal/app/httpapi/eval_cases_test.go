@@ -90,6 +90,12 @@ func TestCreateAndGetEvalCaseEndpoint(t *testing.T) {
 	if created.VersionID != version.DefaultVersionID {
 		t.Fatalf("VersionID = %q, want %q", created.VersionID, version.DefaultVersionID)
 	}
+	if created.PreferredFollowUpAction.Mode != "create" {
+		t.Fatalf("PreferredFollowUpAction.Mode = %q, want %q", created.PreferredFollowUpAction.Mode, "create")
+	}
+	if created.PreferredFollowUpAction.SourceEvalCaseID != created.EvalCaseID {
+		t.Fatalf("PreferredFollowUpAction.SourceEvalCaseID = %q, want %q", created.PreferredFollowUpAction.SourceEvalCaseID, created.EvalCaseID)
+	}
 
 	getResp, err := http.Get(server.URL + "/api/v1/eval-cases/" + created.EvalCaseID)
 	if err != nil {
@@ -184,6 +190,12 @@ func TestCreateEvalCaseEndpointIsIdempotentBySourceCase(t *testing.T) {
 	}
 	if second.LatestFollowUpCaseStatus != string(casesvc.StatusOpen) {
 		t.Fatalf("second.LatestFollowUpCaseStatus = %q, want %q", second.LatestFollowUpCaseStatus, casesvc.StatusOpen)
+	}
+	if second.PreferredFollowUpAction.Mode != "open_existing_case" {
+		t.Fatalf("second.PreferredFollowUpAction.Mode = %q, want %q", second.PreferredFollowUpAction.Mode, "open_existing_case")
+	}
+	if second.PreferredFollowUpAction.CaseID != second.LatestFollowUpCaseID {
+		t.Fatalf("second.PreferredFollowUpAction.CaseID = %q, want %q", second.PreferredFollowUpAction.CaseID, second.LatestFollowUpCaseID)
 	}
 }
 
@@ -542,6 +554,12 @@ func TestEvalCaseEndpointsReturnFollowUpCaseSummary(t *testing.T) {
 	if listBody.EvalCases[0].LatestFollowUpCaseStatus != casesvc.StatusOpen {
 		t.Fatalf("LatestFollowUpCaseStatus = %q, want %q", listBody.EvalCases[0].LatestFollowUpCaseStatus, casesvc.StatusOpen)
 	}
+	if listBody.EvalCases[0].PreferredFollowUpAction.Mode != "open_existing_case" {
+		t.Fatalf("PreferredFollowUpAction.Mode = %q, want %q", listBody.EvalCases[0].PreferredFollowUpAction.Mode, "open_existing_case")
+	}
+	if listBody.EvalCases[0].PreferredFollowUpAction.CaseID != followUp.ID {
+		t.Fatalf("PreferredFollowUpAction.CaseID = %q, want %q", listBody.EvalCases[0].PreferredFollowUpAction.CaseID, followUp.ID)
+	}
 
 	detailResp, err := http.Get(server.URL + "/api/v1/eval-cases/" + created.ID + "?tenant_id=tenant-follow-up")
 	if err != nil {
@@ -561,6 +579,12 @@ func TestEvalCaseEndpointsReturnFollowUpCaseSummary(t *testing.T) {
 	}
 	if detail.LatestFollowUpCaseID != followUp.ID {
 		t.Fatalf("detail.LatestFollowUpCaseID = %q, want %q", detail.LatestFollowUpCaseID, followUp.ID)
+	}
+	if detail.PreferredFollowUpAction.Mode != "open_existing_case" {
+		t.Fatalf("detail.PreferredFollowUpAction.Mode = %q, want %q", detail.PreferredFollowUpAction.Mode, "open_existing_case")
+	}
+	if detail.PreferredFollowUpAction.CaseID != followUp.ID {
+		t.Fatalf("detail.PreferredFollowUpAction.CaseID = %q, want %q", detail.PreferredFollowUpAction.CaseID, followUp.ID)
 	}
 }
 

@@ -130,6 +130,7 @@ Provide a practical operator UI for evaluation and runtime analysis while keepin
 99. When an eval-report or bad-case handoff already has open canonical follow-up, prefer switching the primary page action to open the existing case or queue before attempting another `Create case` write, so reuse is visible in the operator flow rather than only after the POST response.
 100. When an eval-case handoff already has open canonical follow-up, prefer switching the primary `/admin/evals` action to open the existing case or queue before attempting another `Create case` write, so reuse is visible in the operator flow rather than only after the POST response.
 101. When eval-case follow-up summary is already present on the canonical list contract, prefer exposing row-level `latest case` or `queue` handoff from `/admin/evals` instead of forcing a detail-pane round trip for basic queue navigation.
+102. Once canonical eval-case reads expose a typed `preferred_follow_up_action`, prefer consuming that backend-owned action field from `/admin/evals` instead of recomputing `create` versus reuse decisions from follow-up counts and IDs in browser code.
 
 ## Output contract
 When you finish, always report:

@@ -105,6 +105,7 @@ Current Milestone 1 slice:
 - `POST /api/v1/eval-cases` and `GET /api/v1/eval-cases/{eval_case_id}` now expose durable eval-case promotion from canonical cases, preserving source case/task/report plus trace and version lineage
 - `GET /api/v1/eval-cases` now exposes the first tenant-scoped eval queue contract, so operators can browse promoted regression coverage instead of only jumping from one case at a time
 - the canonical eval-case list/detail contract now also carries follow-up case summary fields plus `latest_follow_up_case_id`, so eval triage can see linked operator work without a second case lookup
+- the same canonical eval-case list/detail contract now also carries typed `preferred_follow_up_action`, so `/admin/evals` can render `Create case`, `Open existing case`, or `Open existing queue` from one backend-owned decision instead of re-deriving that choice in browser code
 - the same canonical eval-case list now also supports `needs_follow_up=true|false`, so `/admin/evals` can pull unresolved-follow-up slices without browser-side case filtering
 - the canonical case contract now also allows `source_eval_case_id` without `source_eval_report_id`, so one eval case can open or reuse precise follow-up work directly from the eval lane
 - `POST /api/v1/eval-datasets`, `GET /api/v1/eval-datasets`, and `GET /api/v1/eval-datasets/{dataset_id}` now expose the first durable dataset-draft contract plus its lightweight tenant-scoped browse surface

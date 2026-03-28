@@ -445,7 +445,7 @@ async function main() {
   if (!followUpSummary.includes("1 cases / 1 open")) {
     throw new Error("follow-up summary missing from eval row: " + followUpSummary);
   }
-  if (!followUpSummary.includes("Open latest case") || !followUpSummary.includes("Open queue")) {
+  if (!followUpSummary.includes("Open existing case") || !followUpSummary.includes("Open queue")) {
     throw new Error("row-level follow-up handoff missing from eval row: " + followUpSummary);
   }
   const rowLatestCaseHref = await page.getAttribute("#evalRows tr td:nth-child(4) a[href*='case_id=']", "href");

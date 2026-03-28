@@ -2845,6 +2845,7 @@ components:
         - summary
         - follow_up_case_count
         - open_follow_up_case_count
+        - preferred_follow_up_action
         - created_by
         - created_at
       properties:
@@ -2879,6 +2880,8 @@ components:
           enum:
             - open
             - closed
+        preferred_follow_up_action:
+          $ref: '#/components/schemas/EvalCaseFollowUpAction'
         operator_note:
           type: string
         created_by:
@@ -2886,6 +2889,22 @@ components:
         created_at:
           type: string
           format: date-time
+    EvalCaseFollowUpAction:
+      type: object
+      required:
+        - mode
+        - source_eval_case_id
+      properties:
+        mode:
+          type: string
+          enum:
+            - create
+            - open_existing_case
+            - open_existing_queue
+        case_id:
+          type: string
+        source_eval_case_id:
+          type: string
     EvalDatasetItem:
       type: object
       required:
