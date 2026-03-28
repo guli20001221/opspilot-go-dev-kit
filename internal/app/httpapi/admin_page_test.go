@@ -562,6 +562,9 @@ func TestAdminEvalReportsPageRendersHTML(t *testing.T) {
 	if !strings.Contains(body, "Copy report link") {
 		t.Fatal("report link handoff missing from eval reports page HTML")
 	}
+	if !strings.Contains(body, "Create case") {
+		t.Fatal("create-case action missing from eval reports page HTML")
+	}
 	if !strings.Contains(body, "Linked cases") {
 		t.Fatal("linked cases section missing from eval reports page HTML")
 	}
@@ -930,6 +933,21 @@ const reportID = process.argv[4];
   const urlAfterLoad = new URL(page.url());
   if (urlAfterLoad.searchParams.get("report_id") !== reportID) {
     throw new Error("selected report_id not synced into URL");
+  }
+  await page.click("#createCaseButton");
+  await page.waitForURL(/\/admin\/cases\?/);
+  const createdCaseURL = new URL(page.url());
+  const createdCaseID = createdCaseURL.searchParams.get("case_id");
+  if (!createdCaseID) {
+    throw new Error("create-case handoff missing case_id");
+  }
+  if (createdCaseURL.searchParams.get("tenant_id") !== tenantID) {
+    throw new Error("create-case handoff missing tenant_id");
+  }
+  await page.waitForSelector("text=Source eval report summary");
+  const evalReportLink = await page.getAttribute("#openEvalReportLink", "href");
+  if (!evalReportLink || !evalReportLink.includes(reportID)) {
+    throw new Error("created case did not preserve source_eval_report_id");
   }
 
   await page.goto(baseURL + "/admin/eval-reports?tenant_id=" + encodeURIComponent(tenantID) + "&limit=10&report_id=missing-report");

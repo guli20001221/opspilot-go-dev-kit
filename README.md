@@ -144,6 +144,7 @@ Current Milestone 1 slice:
 - `/admin/eval-report-compare` now also shows per-side follow-up counts and latest follow-up status, so operators can judge existing triage pressure before opening or creating cases
 - `/admin/eval-report-compare` now also hands each side directly into `/admin/cases?source_eval_report_id=...`, so operators can inspect the full existing follow-up slice before opening another case
 - the same `/admin/eval-reports` page now also shows linked durable follow-up cases for the selected eval report by reusing the canonical case list filter `source_eval_report_id`
+- the same `/admin/eval-reports` page now also supports `Create case`, reusing `POST /api/v1/cases` with `source_eval_report_id` and deep-linking straight into `/admin/cases` for follow-up triage
 - `GET /api/v1/eval-report-compare` now exposes a narrow read-only compare contract over two durable eval reports, so score deltas, metadata drift, and bad-case overlap stay on the backend instead of turning into browser-only diff logic
 - `/admin/eval-report-compare` now exposes the first eval-report comparison page, handing off into eval runs and version detail from that same canonical compare contract
 - the same `/admin/eval-report-compare` page now also supports `Create case from left` and `Create case from right`, reusing `POST /api/v1/cases` and deep-linking straight into `/admin/cases` for regression follow-up while preserving the selected side as `source_eval_report_id`
