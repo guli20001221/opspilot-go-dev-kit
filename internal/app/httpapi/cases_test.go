@@ -268,6 +268,74 @@ func TestCreateAndGetCaseEndpointWithEvalRunSource(t *testing.T) {
 	}
 }
 
+func TestCreateCaseEndpointReusesOpenCaseBySourceEvalRun(t *testing.T) {
+	caseService := casesvc.NewService()
+	evalCaseService := evalsvc.NewService(caseService, nil)
+	datasetService := evalsvc.NewDatasetService(evalCaseService)
+	runService := evalsvc.NewRunService(datasetService)
+	reportService := evalsvc.NewEvalReportServiceWithDependencies(nil, runService)
+	evalReportID := materializeEvalRunReport(t, "tenant-eval-run-case-reuse", evalsvc.RunStatusFailed, "failure detail", caseService, evalCaseService, datasetService, runService, reportService, "Dataset Eval Run Reuse", "Source Eval Run Reuse")
+	reportItem, err := reportService.GetEvalReport(context.Background(), evalReportID)
+	if err != nil {
+		t.Fatalf("GetEvalReport() error = %v", err)
+	}
+	if len(reportItem.BadCases) == 0 {
+		t.Fatal("BadCases = 0, want at least one")
+	}
+
+	existing, err := caseService.CreateCase(context.Background(), casesvc.CreateInput{
+		TenantID:        "tenant-eval-run-case-reuse",
+		Title:           "Existing run-backed follow-up",
+		Summary:         "Existing follow-up summary",
+		SourceEvalRunID: reportItem.RunID,
+		CreatedBy:       "operator-existing-run",
+	})
+	if err != nil {
+		t.Fatalf("CreateCase(existing) error = %v", err)
+	}
+
+	server := httptest.NewServer(NewHandlerWithDependencies(Dependencies{
+		Cases:     caseService,
+		EvalCases: evalCaseService,
+		EvalRuns:  runService,
+	}))
+	defer server.Close()
+
+	body := bytes.NewBufferString(`{"tenant_id":"tenant-eval-run-case-reuse","title":"Investigate eval run again","summary":"Second click should reuse the open run-backed case","source_eval_case_id":"` + reportItem.BadCases[0].EvalCaseID + `","source_eval_run_id":"` + reportItem.RunID + `","created_by":"operator-eval-run"}`)
+	resp, err := http.Post(server.URL+"/api/v1/cases", "application/json", body)
+	if err != nil {
+		t.Fatalf("Post() error = %v", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("StatusCode = %d, want %d", resp.StatusCode, http.StatusOK)
+	}
+
+	var reused caseResponse
+	if err := json.NewDecoder(resp.Body).Decode(&reused); err != nil {
+		t.Fatalf("Decode(reused) error = %v", err)
+	}
+	if reused.CaseID != existing.ID {
+		t.Fatalf("CaseID = %q, want %q", reused.CaseID, existing.ID)
+	}
+	if reused.SourceEvalRunID != reportItem.RunID {
+		t.Fatalf("SourceEvalRunID = %q, want %q", reused.SourceEvalRunID, reportItem.RunID)
+	}
+
+	page, err := caseService.ListCases(context.Background(), casesvc.ListFilter{
+		TenantID:        "tenant-eval-run-case-reuse",
+		SourceEvalRunID: reportItem.RunID,
+		Limit:           10,
+	})
+	if err != nil {
+		t.Fatalf("ListCases() error = %v", err)
+	}
+	if len(page.Cases) != 1 {
+		t.Fatalf("len(page.Cases) = %d, want 1", len(page.Cases))
+	}
+}
+
 func TestCreateAndGetCaseEndpointWithStandaloneEvalCaseSource(t *testing.T) {
 	caseService := casesvc.NewService()
 	evalCaseService := evalsvc.NewService(caseService, nil)

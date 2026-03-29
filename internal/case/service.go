@@ -99,6 +99,24 @@ func (s *Service) FindOpenCaseBySourceEvalCase(ctx context.Context, tenantID str
 	return page.Cases[0], true, nil
 }
 
+// FindOpenCaseBySourceEvalRun returns the newest open case for one source eval run when it exists.
+func (s *Service) FindOpenCaseBySourceEvalRun(ctx context.Context, tenantID string, sourceEvalRunID string) (Case, bool, error) {
+	page, err := s.store.List(ctx, ListFilter{
+		TenantID:        tenantID,
+		Status:          StatusOpen,
+		SourceEvalRunID: sourceEvalRunID,
+		Limit:           1,
+	})
+	if err != nil {
+		return Case{}, false, err
+	}
+	if len(page.Cases) == 0 {
+		return Case{}, false, nil
+	}
+
+	return page.Cases[0], true, nil
+}
+
 // FindOpenCaseBySourceEvalReport returns the newest open case for one source eval report when it exists.
 func (s *Service) FindOpenCaseBySourceEvalReport(ctx context.Context, tenantID string, sourceEvalReportID string) (Case, bool, error) {
 	page, err := s.store.List(ctx, ListFilter{

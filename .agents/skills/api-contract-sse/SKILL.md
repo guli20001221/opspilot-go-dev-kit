@@ -62,6 +62,7 @@ Keep the HTTP surface explicit, documented, stable, and friendly to streaming ag
 31. Once placeholder `item_results` exist, prefer a lightweight `result_summary` on terminal eval-run reads for operator scanning instead of leaking full per-item payloads into list, create, or retry responses.
 32. Before a real judge provider is wired, keep placeholder eval item results structured: expose normalized verdict/score fields plus raw judge output on detail reads so later provider integration stays backward-compatible.
 33. When durable follow-up objects such as cases link eval-run lineage, expose `source_eval_run_id` on the canonical case read and write contracts and prefer backend-owned queue filters such as `source_eval_run_id` or `run_backed_only=true` over browser-built run-follow-up slices.
+34. Once `source_eval_run_id` is part of the canonical case contract, prefer `POST /api/v1/cases` to reuse the newest open `tenant_id + source_eval_run_id` case instead of creating duplicate run-backed follow-up rows from repeated operator clicks.
 
 ## Output contract
 When you finish, always report:

@@ -175,6 +175,7 @@ The current HTTP layer also exposes the same PostgreSQL-backed workflow records 
 - the same eval-run read model now also carries `preferred_linked_case_action`, so the run lane only surfaces a direct case handoff when the latest linked case is still open
 - the durable case contract now also persists `source_eval_run_id`, so follow-up opened from one eval run can be triaged later from `/admin/cases` without reconstructing run lineage from summary text
 - the canonical case list contract now also supports `source_eval_run_id` and `run_backed_only`, so `/admin/cases` can expose a true run-backed follow-up queue and hand operators back into `/admin/eval-runs` and `/api/v1/eval-runs/{run_id}`
+- the canonical case create path now also reuses the newest open case for the same `tenant_id + source_eval_run_id`, so eval-run follow-up stays one queue item per run unless an operator explicitly closes or branches the work elsewhere
 - those same durable `item_results` now also carry structured placeholder judge metadata such as `verdict`, `score`, `judge_version`, and raw `judge_output`
 - the built-in placeholder judge now lives behind a dedicated `RunJudge` runtime boundary and points at a versioned prompt artifact under `eval/prompts`, so later provider-backed judging can swap the execution body without redesigning the run-result contract
 - that same `RunJudge` boundary now also supports an env-gated HTTP provider implementation, while the runner still degrades to placeholder failure results if the external judge call cannot finalize the canonical run

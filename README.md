@@ -217,6 +217,7 @@ Current Milestone 1 slice:
 - the same eval-run contracts now also expose a typed `preferred_linked_case_action`, so `/admin/eval-runs` only offers `Open latest run case` when that latest linked case is still open
 - the durable case contract now also carries `source_eval_run_id`, so follow-up created from `/admin/eval-runs` keeps canonical eval-run lineage instead of collapsing back to eval-case-only provenance
 - `GET /api/v1/cases` now also supports `source_eval_run_id` and `run_backed_only`, and `/admin/cases` uses that contract for a `Run-backed cases` queue plus direct handoff back into `/admin/eval-runs`
+- `POST /api/v1/cases` now also reuses the newest open run-backed case for the same `tenant_id + source_eval_run_id`, so repeated eval-run follow-up clicks return operators to the canonical queue item instead of creating duplicates
 - `/admin/task-board` and `/admin/reports` now both expose a `Create case` handoff that reuses `POST /api/v1/cases` and deep-links straight into `/admin/cases`
 - the task-board `Create case` handoff now preserves `source_report_id` for successful `report_generation` tasks when the durable report row exists, but degrades to a task-only case if that durable report lookup is missing or temporarily unavailable; the reports page disables case creation when the row is missing
 - successful report tasks now finalize their `succeeded` task state and durable report row together, so report `ready_at` and `metadata.audit_ref` stay aligned with the final task success event

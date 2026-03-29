@@ -130,6 +130,7 @@ The current chat stream implementation is a Milestone 1 skeleton:
 - use `GET /api/v1/cases` when you need to inspect the current durable case slice for a tenant, status, or source linkage
 - the same case list now also supports `source_eval_dataset_id`, so one dataset-wide follow-up queue can be opened without first enumerating every `source_eval_report_id`
 - use `run_backed_only=true` on `GET /api/v1/cases` or the `Run-backed cases` quick view on `/admin/cases` when you want only eval-run-backed follow-up work
+- repeated `POST /api/v1/cases` writes for the same `tenant_id + source_eval_run_id` now reuse the newest open run-backed case, so local smoke tests should expect `200 OK` reuse rather than duplicate case creation
 - use `GET /api/v1/cases/{case_id}` when you need the canonical case record for that follow-up object
 - use `POST /api/v1/cases/{case_id}/close?tenant_id=<tenant>` when you need to close an open follow-up object and capture who closed it
 - use `POST /api/v1/cases/{case_id}/assign?tenant_id=<tenant>` when you need to claim or reassign an open follow-up object and capture who owns it

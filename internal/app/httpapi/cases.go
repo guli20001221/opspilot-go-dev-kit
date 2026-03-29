@@ -140,6 +140,17 @@ func (a *appHandler) handleCreateCase(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 	}
+	if req.SourceEvalRunID != "" {
+		existing, ok, err := a.cases.FindOpenCaseBySourceEvalRun(r.Context(), req.TenantID, req.SourceEvalRunID)
+		if err != nil {
+			writeError(w, http.StatusInternalServerError, "case_lookup_failed", err.Error())
+			return
+		}
+		if ok {
+			writeJSON(w, http.StatusOK, newCaseResponse(existing))
+			return
+		}
+	}
 	if req.SourceEvalReportID != "" && req.CompareOrigin != nil {
 		existing, ok, err := a.cases.FindOpenCaseByCompareOrigin(r.Context(), req.TenantID, req.SourceEvalReportID, newCaseCompareOriginModel(req.CompareOrigin))
 		if err != nil {
