@@ -217,6 +217,19 @@ func TestCreateEvalCaseEndpointIsIdempotentBySourceCase(t *testing.T) {
 	}
 }
 
+func TestEvalCaseFollowUpActionResponseFromSummaryPrefersQueueWhenLatestCaseMissing(t *testing.T) {
+	action := newEvalCaseFollowUpActionResponseFromSummary("eval-case-1", 1, "")
+	if action.Mode != "open_existing_queue" {
+		t.Fatalf("action.Mode = %q, want %q", action.Mode, "open_existing_queue")
+	}
+	if action.CaseID != "" {
+		t.Fatalf("action.CaseID = %q, want empty", action.CaseID)
+	}
+	if action.SourceEvalCaseID != "eval-case-1" {
+		t.Fatalf("action.SourceEvalCaseID = %q, want %q", action.SourceEvalCaseID, "eval-case-1")
+	}
+}
+
 func TestCreateEvalCaseEndpointRejectsCrossTenantSource(t *testing.T) {
 	caseService := casesvc.NewService()
 	createdCase, err := caseService.CreateCase(context.Background(), casesvc.CreateInput{

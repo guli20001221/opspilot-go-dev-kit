@@ -42,6 +42,7 @@ type evalDatasetItemResponse struct {
 	TraceID                   string                              `json:"trace_id,omitempty"`
 	VersionID                 string                              `json:"version_id,omitempty"`
 	LinkedCaseSummary         evalReportLinkedCaseSummaryResponse `json:"linked_case_summary"`
+	PreferredFollowUpAction   evalCaseFollowUpActionResponse      `json:"preferred_follow_up_action"`
 	PreferredLinkedCaseAction evalCaseFollowUpActionResponse      `json:"preferred_linked_case_action"`
 }
 
@@ -424,6 +425,11 @@ func newEvalDatasetResponse(item evalsvc.EvalDataset, latestRun evalDatasetLates
 				LatestCaseID:     followUpSummary.LatestFollowUpCaseID,
 				LatestCaseStatus: followUpSummary.LatestFollowUpCaseStatus,
 			},
+			PreferredFollowUpAction: newEvalCaseFollowUpActionResponseFromSummary(
+				member.EvalCaseID,
+				followUpSummary.OpenFollowUpCaseCount,
+				followUpSummary.LatestFollowUpCaseID,
+			),
 			PreferredLinkedCaseAction: newEvalCaseLinkedCaseActionResponseFromSummary(
 				member.EvalCaseID,
 				followUpSummary.FollowUpCaseCount,

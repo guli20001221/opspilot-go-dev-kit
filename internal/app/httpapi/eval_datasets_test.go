@@ -75,6 +75,9 @@ func TestCreateAndGetEvalDatasetEndpoint(t *testing.T) {
 	if created.Items[0].PreferredLinkedCaseAction.Mode != "none" {
 		t.Fatalf("created.Items[0].PreferredLinkedCaseAction.Mode = %q, want %q", created.Items[0].PreferredLinkedCaseAction.Mode, "none")
 	}
+	if created.Items[0].PreferredFollowUpAction.Mode != "create" {
+		t.Fatalf("created.Items[0].PreferredFollowUpAction.Mode = %q, want %q", created.Items[0].PreferredFollowUpAction.Mode, "create")
+	}
 
 	followUpCase, err := caseService.CreateCase(ctx, casesvc.CreateInput{
 		TenantID:         "tenant-dataset",
@@ -115,6 +118,12 @@ func TestCreateAndGetEvalDatasetEndpoint(t *testing.T) {
 	if got.Items[0].PreferredLinkedCaseAction.CaseID != followUpCase.ID {
 		t.Fatalf("got.Items[0].PreferredLinkedCaseAction.CaseID = %q, want %q", got.Items[0].PreferredLinkedCaseAction.CaseID, followUpCase.ID)
 	}
+	if got.Items[0].PreferredFollowUpAction.Mode != "open_existing_case" {
+		t.Fatalf("got.Items[0].PreferredFollowUpAction.Mode = %q, want %q", got.Items[0].PreferredFollowUpAction.Mode, "open_existing_case")
+	}
+	if got.Items[0].PreferredFollowUpAction.CaseID != followUpCase.ID {
+		t.Fatalf("got.Items[0].PreferredFollowUpAction.CaseID = %q, want %q", got.Items[0].PreferredFollowUpAction.CaseID, followUpCase.ID)
+	}
 }
 
 func TestCreateEvalDatasetEndpointRejectsCrossTenantEvalCase(t *testing.T) {
@@ -152,6 +161,79 @@ func TestCreateEvalDatasetEndpointRejectsCrossTenantEvalCase(t *testing.T) {
 	defer resp.Body.Close()
 	if resp.StatusCode != http.StatusConflict {
 		t.Fatalf("StatusCode = %d, want %d", resp.StatusCode, http.StatusConflict)
+	}
+}
+
+func TestGetEvalDatasetItemPreferredFollowUpActionCreatesWhenLatestCaseClosed(t *testing.T) {
+	ctx := context.Background()
+	caseService := casesvc.NewService()
+	evalCaseService := evalsvc.NewService(caseService, nil)
+	datasetService := evalsvc.NewDatasetService(evalCaseService)
+
+	sourceCase, err := caseService.CreateCase(ctx, casesvc.CreateInput{
+		TenantID: "tenant-dataset-queue",
+		Title:    "Dataset queue source",
+	})
+	if err != nil {
+		t.Fatalf("CreateCase(source) error = %v", err)
+	}
+	evalCase, _, err := evalCaseService.PromoteCase(ctx, evalsvc.CreateInput{
+		TenantID:     "tenant-dataset-queue",
+		SourceCaseID: sourceCase.ID,
+	})
+	if err != nil {
+		t.Fatalf("PromoteCase() error = %v", err)
+	}
+	dataset, err := datasetService.CreateDataset(ctx, evalsvc.CreateDatasetInput{
+		TenantID:    "tenant-dataset-queue",
+		Name:        "Queue dataset",
+		EvalCaseIDs: []string{evalCase.ID},
+		CreatedBy:   "operator-queue",
+	})
+	if err != nil {
+		t.Fatalf("CreateDataset() error = %v", err)
+	}
+
+	followUpCase, err := caseService.CreateCase(ctx, casesvc.CreateInput{
+		TenantID:         "tenant-dataset-queue",
+		Title:            "Closed eval-case follow-up",
+		SourceEvalCaseID: evalCase.ID,
+	})
+	if err != nil {
+		t.Fatalf("CreateCase(follow-up) error = %v", err)
+	}
+	if _, err := caseService.CloseCase(ctx, followUpCase.ID, "closer-1"); err != nil {
+		t.Fatalf("CloseCase() error = %v", err)
+	}
+
+	server := httptest.NewServer(NewHandlerWithDependencies(Dependencies{
+		Cases:        caseService,
+		EvalCases:    evalCaseService,
+		EvalDatasets: datasetService,
+	}))
+	defer server.Close()
+
+	resp, err := http.Get(server.URL + "/api/v1/eval-datasets/" + dataset.ID + "?tenant_id=tenant-dataset-queue")
+	if err != nil {
+		t.Fatalf("Get() error = %v", err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("StatusCode = %d, want %d", resp.StatusCode, http.StatusOK)
+	}
+
+	var got evalDatasetResponse
+	if err := json.NewDecoder(resp.Body).Decode(&got); err != nil {
+		t.Fatalf("Decode() error = %v", err)
+	}
+	if len(got.Items) != 1 {
+		t.Fatalf("len(got.Items) = %d, want 1", len(got.Items))
+	}
+	if got.Items[0].PreferredFollowUpAction.Mode != "create" {
+		t.Fatalf("got.Items[0].PreferredFollowUpAction.Mode = %q, want %q", got.Items[0].PreferredFollowUpAction.Mode, "create")
+	}
+	if got.Items[0].PreferredFollowUpAction.SourceEvalCaseID != evalCase.ID {
+		t.Fatalf("got.Items[0].PreferredFollowUpAction.SourceEvalCaseID = %q, want %q", got.Items[0].PreferredFollowUpAction.SourceEvalCaseID, evalCase.ID)
 	}
 }
 

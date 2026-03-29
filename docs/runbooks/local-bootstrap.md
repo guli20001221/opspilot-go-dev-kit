@@ -224,6 +224,7 @@ The current chat stream implementation is a Milestone 1 skeleton:
 - use `Open follow-up cases` on `/admin/eval-datasets` when the latest durable eval report for a baseline already has open linked cases and you want the canonical `/admin/cases` queue slice for that work
 - inspect `follow_up_case_summary` on `GET /api/v1/eval-datasets/{dataset_id}` or the `Follow-up case summary` panel on `/admin/eval-datasets` when you need total/open/closed linked-case pressure before deciding whether to jump into `/admin/cases`
 - inspect `items[].linked_case_summary` and `items[].preferred_linked_case_action` on `GET /api/v1/eval-datasets/{dataset_id}` or use `Open linked case` from the `Dataset items` panel when you need member-level eval-case follow-up without reconstructing queue routing in the browser
+- use `items[].preferred_follow_up_action` or `Create case from item` on `/admin/eval-datasets` when one dataset member needs new follow-up work and no open eval-case-backed case already exists
 - open `http://localhost:18080/admin/eval-runs` when you want the first eval-run operator page, including run detail plus dataset and eval handoff links
 - set `OPSPILOT_EVAL_RUN_FAIL_ALL=true` on the worker when you want every claimed eval run to fail for local recovery and operator-surface testing
 - use `Retry run` on `/admin/eval-runs` when you want to re-queue the selected failed run back into the worker lane from the same detail panel

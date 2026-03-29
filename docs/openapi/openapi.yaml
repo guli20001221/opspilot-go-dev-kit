@@ -2947,6 +2947,7 @@ components:
         - title
         - source_case_id
         - linked_case_summary
+        - preferred_follow_up_action
         - preferred_linked_case_action
       properties:
         eval_case_id:
@@ -2965,6 +2966,8 @@ components:
           type: string
         linked_case_summary:
           $ref: '#/components/schemas/EvalReportLinkedCaseSummary'
+        preferred_follow_up_action:
+          $ref: '#/components/schemas/EvalCaseFollowUpAction'
         preferred_linked_case_action:
           $ref: '#/components/schemas/EvalCaseFollowUpAction'
     EvalDatasetFollowUpAction:
