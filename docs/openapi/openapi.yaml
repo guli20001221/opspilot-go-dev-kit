@@ -3592,6 +3592,7 @@ components:
         - compare_follow_up_case_count
         - open_compare_follow_up_case_count
         - preferred_compare_follow_up_action
+        - preferred_linked_case_action
         - created_at
         - updated_at
         - ready_at
@@ -3675,6 +3676,8 @@ components:
           $ref: '#/components/schemas/EvalReportCompareQueueAction'
         linked_case_summary:
           $ref: '#/components/schemas/EvalReportLinkedCaseSummary'
+        preferred_linked_case_action:
+          $ref: '#/components/schemas/EvalReportLinkedCaseAction'
         metadata:
           type: object
           description: Raw aggregated report metadata, present on single-report detail reads.
@@ -3712,6 +3715,7 @@ components:
         - follow_up_case_count
         - open_follow_up_case_count
         - linked_case_summary
+        - preferred_linked_case_action
         - created_at
         - updated_at
         - ready_at
@@ -3772,6 +3776,8 @@ components:
             - closed
         linked_case_summary:
           $ref: '#/components/schemas/EvalReportLinkedCaseSummary'
+        preferred_linked_case_action:
+          $ref: '#/components/schemas/EvalReportLinkedCaseAction'
         created_at:
           type: string
           format: date-time
@@ -3810,6 +3816,22 @@ components:
           enum:
             - none
             - open_existing_queue
+        source_eval_report_id:
+          type: string
+    EvalReportLinkedCaseAction:
+      type: object
+      required:
+        - mode
+        - source_eval_report_id
+      properties:
+        mode:
+          type: string
+          enum:
+            - none
+            - open_existing_case
+            - open_existing_queue
+        case_id:
+          type: string
         source_eval_report_id:
           type: string
     EvalReportLinkedCaseSummary:

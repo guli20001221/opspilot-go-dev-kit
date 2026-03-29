@@ -1089,6 +1089,9 @@ func TestAdminEvalReportsPageRendersHTML(t *testing.T) {
 	if !strings.Contains(body, "Open latest case") {
 		t.Fatal("latest case handoff missing from eval reports page HTML")
 	}
+	if !strings.Contains(body, "Open linked case queue") {
+		t.Fatal("linked case queue handoff missing from eval reports page HTML")
+	}
 	if !strings.Contains(body, "linked-open") {
 		t.Fatal("linked case list summary missing from eval reports page HTML")
 	}

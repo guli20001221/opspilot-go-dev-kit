@@ -95,3 +95,4 @@ When you finish, always report:
 - once canonical eval-case reads already expose follow-up counts, prefer adding `linked_case_summary` on that same contract instead of leaving `/admin/evals` to infer total/open/latest linked follow-up state from only `latest_follow_up_case_id`
 - once canonical eval-report compare reads already expose follow-up counts per side, prefer adding `linked_case_summary` on those same compare items instead of leaving `/admin/eval-report-compare` to infer owner or queue state from only `latest_follow_up_case_id`
 - once canonical eval-report list rows need linked follow-up ownership/open pressure, prefer exposing `linked_case_summary` on `GET /api/v1/eval-reports` rows instead of introducing an admin-only list variant
+- once canonical eval-report list/detail reads need linked-case handoff, prefer exposing `preferred_linked_case_action` on those same contracts instead of leaving admin pages to branch on `latest_follow_up_case_id`

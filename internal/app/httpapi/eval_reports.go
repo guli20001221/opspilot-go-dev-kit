@@ -61,6 +61,7 @@ type evalReportResponse struct {
 	LatestCompareFollowUpCaseStatus string                               `json:"latest_compare_follow_up_case_status,omitempty"`
 	PreferredCompareFollowUpAction  evalReportCompareQueueActionResponse `json:"preferred_compare_follow_up_action"`
 	LinkedCaseSummary               *evalReportLinkedCaseSummaryResponse `json:"linked_case_summary,omitempty"`
+	PreferredLinkedCaseAction       evalReportLinkedCaseActionResponse   `json:"preferred_linked_case_action"`
 	Metadata                        json.RawMessage                      `json:"metadata,omitempty"`
 	BadCases                        []evalReportBadCaseResponse          `json:"bad_cases,omitempty"`
 	CreatedAt                       string                               `json:"created_at"`
@@ -69,6 +70,12 @@ type evalReportResponse struct {
 }
 
 type evalReportFollowUpActionResponse struct {
+	Mode               string `json:"mode"`
+	CaseID             string `json:"case_id,omitempty"`
+	SourceEvalReportID string `json:"source_eval_report_id,omitempty"`
+}
+
+type evalReportLinkedCaseActionResponse struct {
 	Mode               string `json:"mode"`
 	CaseID             string `json:"case_id,omitempty"`
 	SourceEvalReportID string `json:"source_eval_report_id,omitempty"`
@@ -649,6 +656,7 @@ func newEvalReportResponse(item evalsvc.EvalReport, includeHeavy bool, followUpS
 		LatestCompareFollowUpCaseStatus: compareFollowUpSummary.LatestCompareFollowUpCaseStatus,
 		PreferredCompareFollowUpAction:  newEvalReportCompareQueueActionResponse(item.ID, compareFollowUpSummary),
 		LinkedCaseSummary:               linkedCaseSummary,
+		PreferredLinkedCaseAction:       newEvalReportLinkedCaseActionResponse(item.ID, linkedCaseSummary),
 		CreatedAt:                       item.CreatedAt.Format(time.RFC3339Nano),
 		UpdatedAt:                       item.UpdatedAt.Format(time.RFC3339Nano),
 		ReadyAt:                         item.ReadyAt.Format(time.RFC3339Nano),
@@ -711,6 +719,23 @@ func newEvalReportBadCaseFollowUpActionResponse(evalCaseID string, followUpSumma
 	if followUpSummary.LatestFollowUpCaseID != "" {
 		action.Mode = "open_existing_case"
 		action.CaseID = followUpSummary.LatestFollowUpCaseID
+		return action
+	}
+	action.Mode = "open_existing_queue"
+	return action
+}
+
+func newEvalReportLinkedCaseActionResponse(reportID string, linkedCaseSummary *evalReportLinkedCaseSummaryResponse) evalReportLinkedCaseActionResponse {
+	action := evalReportLinkedCaseActionResponse{
+		Mode:               "none",
+		SourceEvalReportID: reportID,
+	}
+	if linkedCaseSummary == nil || linkedCaseSummary.TotalCaseCount <= 0 {
+		return action
+	}
+	if linkedCaseSummary.OpenCaseCount > 0 && linkedCaseSummary.LatestCaseID != "" && linkedCaseSummary.LatestCaseStatus == casesvc.StatusOpen {
+		action.Mode = "open_existing_case"
+		action.CaseID = linkedCaseSummary.LatestCaseID
 		return action
 	}
 	action.Mode = "open_existing_queue"

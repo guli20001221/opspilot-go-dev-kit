@@ -186,6 +186,15 @@ func TestGetEvalReportIncludesFollowUpCaseSummary(t *testing.T) {
 	if got.LinkedCaseSummary.LatestAssignedTo != "operator-followup" {
 		t.Fatalf("LinkedCaseSummary.LatestAssignedTo = %q, want %q", got.LinkedCaseSummary.LatestAssignedTo, "operator-followup")
 	}
+	if got.PreferredLinkedCaseAction.Mode != "open_existing_case" {
+		t.Fatalf("PreferredLinkedCaseAction.Mode = %q, want %q", got.PreferredLinkedCaseAction.Mode, "open_existing_case")
+	}
+	if got.PreferredLinkedCaseAction.CaseID != openCase.ID {
+		t.Fatalf("PreferredLinkedCaseAction.CaseID = %q, want %q", got.PreferredLinkedCaseAction.CaseID, openCase.ID)
+	}
+	if got.PreferredLinkedCaseAction.SourceEvalReportID != reportID {
+		t.Fatalf("PreferredLinkedCaseAction.SourceEvalReportID = %q, want %q", got.PreferredLinkedCaseAction.SourceEvalReportID, reportID)
+	}
 }
 
 func TestGetEvalReportIncludesBadCaseFollowUpCaseSummary(t *testing.T) {
@@ -1206,6 +1215,73 @@ func TestListEvalReportsIncludesLinkedCaseSummary(t *testing.T) {
 	}
 	if got.LinkedCaseSummary.LatestAssignedTo != "owner-linked" {
 		t.Fatalf("LatestAssignedTo = %q, want %q", got.LinkedCaseSummary.LatestAssignedTo, "owner-linked")
+	}
+	if got.PreferredLinkedCaseAction.Mode != "open_existing_case" {
+		t.Fatalf("PreferredLinkedCaseAction.Mode = %q, want %q", got.PreferredLinkedCaseAction.Mode, "open_existing_case")
+	}
+	if got.PreferredLinkedCaseAction.CaseID != openCase.ID {
+		t.Fatalf("PreferredLinkedCaseAction.CaseID = %q, want %q", got.PreferredLinkedCaseAction.CaseID, openCase.ID)
+	}
+	if got.PreferredLinkedCaseAction.SourceEvalReportID != reportID {
+		t.Fatalf("PreferredLinkedCaseAction.SourceEvalReportID = %q, want %q", got.PreferredLinkedCaseAction.SourceEvalReportID, reportID)
+	}
+}
+
+func TestGetEvalReportLinkedCaseActionPrefersQueueWhenLatestCaseClosed(t *testing.T) {
+	caseService := casesvc.NewService()
+	evalCaseService := evalsvc.NewService(caseService, nil)
+	datasetService := evalsvc.NewDatasetService(evalCaseService)
+	runService := evalsvc.NewRunService(datasetService)
+	reportService := evalsvc.NewEvalReportServiceWithDependencies(nil, runService)
+	reportID := materializeEvalRunReport(t, "tenant-eval-report-linked-queue", evalsvc.RunStatusFailed, "failure detail", caseService, evalCaseService, datasetService, runService, reportService, "Dataset Linked Queue", "Source Linked Queue")
+
+	closedCase, err := caseService.CreateCase(context.Background(), casesvc.CreateInput{
+		TenantID:           "tenant-eval-report-linked-queue",
+		Title:              "Only closed linked follow-up",
+		Summary:            "closed linked summary",
+		SourceEvalReportID: reportID,
+		CreatedBy:          "operator-linked",
+	})
+	if err != nil {
+		t.Fatalf("CreateCase(closed) error = %v", err)
+	}
+	if _, err := caseService.CloseCase(context.Background(), closedCase.ID, "operator-linked"); err != nil {
+		t.Fatalf("CloseCase() error = %v", err)
+	}
+
+	server := httptest.NewServer(NewHandlerWithDependencies(Dependencies{
+		Cases:       caseService,
+		EvalReports: reportService,
+	}))
+	defer server.Close()
+
+	resp, err := http.Get(server.URL + "/api/v1/eval-reports/" + reportID + "?tenant_id=tenant-eval-report-linked-queue")
+	if err != nil {
+		t.Fatalf("Get() error = %v", err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("StatusCode = %d, want %d", resp.StatusCode, http.StatusOK)
+	}
+
+	var got evalReportResponse
+	if err := json.NewDecoder(resp.Body).Decode(&got); err != nil {
+		t.Fatalf("Decode() error = %v", err)
+	}
+	if got.LinkedCaseSummary == nil {
+		t.Fatal("LinkedCaseSummary is nil")
+	}
+	if got.LinkedCaseSummary.TotalCaseCount != 1 || got.LinkedCaseSummary.OpenCaseCount != 0 {
+		t.Fatalf("LinkedCaseSummary = %#v, want total=1 open=0", got.LinkedCaseSummary)
+	}
+	if got.PreferredLinkedCaseAction.Mode != "open_existing_queue" {
+		t.Fatalf("PreferredLinkedCaseAction.Mode = %q, want %q", got.PreferredLinkedCaseAction.Mode, "open_existing_queue")
+	}
+	if got.PreferredLinkedCaseAction.CaseID != "" {
+		t.Fatalf("PreferredLinkedCaseAction.CaseID = %q, want empty", got.PreferredLinkedCaseAction.CaseID)
+	}
+	if got.PreferredLinkedCaseAction.SourceEvalReportID != reportID {
+		t.Fatalf("PreferredLinkedCaseAction.SourceEvalReportID = %q, want %q", got.PreferredLinkedCaseAction.SourceEvalReportID, reportID)
 	}
 }
 
