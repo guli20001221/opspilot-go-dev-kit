@@ -66,6 +66,7 @@ Keep the HTTP surface explicit, documented, stable, and friendly to streaming ag
 35. Once canonical eval-dataset reads already expose both latest-report and dataset-wide case queue actions, add a typed preferred case handoff field on that same contract instead of leaving the browser to compose dataset-versus-report queue priority on its own.
 36. Once canonical eval-dataset reads already know the latest durable run ID, expose a lightweight run-backed case summary there instead of forcing operators to query `/api/v1/eval-runs` or `/api/v1/cases` just to see whether the latest run already has claimed follow-up work.
 37. Once canonical eval-dataset reads already expose run-backed case summary for the latest durable run, add a typed preferred run-backed case handoff action on that same contract instead of leaving the browser to decide between an existing case and the open run-backed queue.
+38. Once canonical eval-run detail already exposes item-level follow-up actions, add a lightweight `linked_case_summary` on those same `items` and `item_results` instead of forcing operator pages to infer follow-up pressure from only `latest_follow_up_case_id`.
 
 ## Output contract
 When you finish, always report:
@@ -90,3 +91,4 @@ When you finish, always report:
 - do not return internal stack traces to clients
 - once canonical eval-dataset reads expose run-backed case summary, prefer adding a typed run-backed case handoff field on that same contract instead of leaving `/admin/eval-datasets` to route straight from `latest_case_id`
 - once canonical eval-dataset detail already exposes `recent_runs[]` with unresolved pressure and report linkage, add a typed `preferred_follow_up_action` on those same rows instead of leaving `/admin/eval-datasets` to decide between report and run queues from `report_id` plus `needs_follow_up`
+- once canonical eval-run detail already exposes item-level follow-up actions, prefer adding `linked_case_summary` on those same rows instead of leaving `/admin/eval-runs` to infer total/open/latest follow-up state from one latest case ID

@@ -855,6 +855,9 @@ func TestAdminEvalRunsPageRendersHTML(t *testing.T) {
 	if !strings.Contains(body, "Item results") {
 		t.Fatal("item results section missing from eval runs page HTML")
 	}
+	if !strings.Contains(body, "Linked follow-up cases") {
+		t.Fatal("item-level linked case summary missing from eval runs page HTML")
+	}
 	if !strings.Contains(body, "Results</th>") {
 		t.Fatal("result summary column missing from eval runs page HTML")
 	}
@@ -998,6 +1001,7 @@ const closedCaseID = process.argv[7];
   const detailText = await page.textContent("#runDetail");
   if (!detailText.includes(closedCaseID)) throw new Error("closed linked case summary missing from detail");
   if (!detailText.toLowerCase().includes("closed")) throw new Error("closed linked case status missing from detail");
+  if (!detailText.includes("Linked follow-up cases: 1 total / 0 open")) throw new Error("item-level linked case summary missing from detail");
 
   const detailLinks = await page.locator('#runDetail a').evaluateAll((elements) => elements.map((element) => ({
     text: (element.textContent || "").trim(),

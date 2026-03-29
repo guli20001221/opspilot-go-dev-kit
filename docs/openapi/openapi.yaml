@@ -3458,6 +3458,7 @@ components:
         - eval_case_id
         - title
         - source_case_id
+        - linked_case_summary
         - preferred_follow_up_action
         - trace_id
       properties:
@@ -3473,6 +3474,8 @@ components:
           type: string
         latest_follow_up_case_id:
           type: string
+        linked_case_summary:
+          $ref: '#/components/schemas/EvalReportLinkedCaseSummary'
         preferred_follow_up_action:
           $ref: '#/components/schemas/EvalCaseFollowUpAction'
         trace_id:
@@ -3488,6 +3491,7 @@ components:
         - score
         - judge_version
         - judge_output
+        - linked_case_summary
         - preferred_follow_up_action
         - updated_at
       properties:
@@ -3516,6 +3520,8 @@ components:
           type: object
         latest_follow_up_case_id:
           type: string
+        linked_case_summary:
+          $ref: '#/components/schemas/EvalReportLinkedCaseSummary'
         preferred_follow_up_action:
           $ref: '#/components/schemas/EvalCaseFollowUpAction'
         updated_at:

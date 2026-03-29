@@ -223,6 +223,7 @@ The current chat stream implementation is a Milestone 1 skeleton:
 - use the `Item results` card on `/admin/eval-runs` when you need the selected run's placeholder per-item terminal outcomes without unpacking the raw JSON payload
 - the same `Item results` card now also surfaces structured placeholder judge fields, so you can inspect verdict, score, and judge version without reading the raw JSON pane
 - the same canonical run detail now also carries `preferred_follow_up_action` and `latest_follow_up_case_id` per eval case, so `/admin/eval-runs` can open or create follow-up cases for failed results directly from the run lane
+- those same eval-run `items` and `item_results` now also carry `linked_case_summary`, so `/admin/eval-runs` can show per-result total/open/latest follow-up pressure before you jump into `/admin/cases`
 - use the `Results` column on `/admin/eval-runs` when you want a quick terminal pass/fail count before drilling into the selected run's full `item_results`
 - use `Needs follow-up` on `/admin/eval-runs` when you want the backend-owned unresolved run queue, filtered by canonical `needs_follow_up=true` instead of browser-side missing-case inference
 - use `Open eval report` on `/admin/eval-runs` when you want to jump straight from a terminal run into the durable eval-report artifact that was materialized from that run
