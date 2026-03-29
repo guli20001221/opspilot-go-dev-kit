@@ -384,6 +384,10 @@
         lines.push(`Latest run: ${item.latest_run_id} (${item.latest_run_status || "unknown"})`);
         lines.push(`Latest report: ${item.latest_report_id || "none"}${item.latest_report_status ? " (" + item.latest_report_status + ")" : ""}`);
         lines.push(`Unresolved follow-up items: ${item.unresolved_follow_up_count || 0}`);
+        if (item.follow_up_case_summary) {
+          lines.push(`Follow-up cases: ${item.follow_up_case_summary.follow_up_case_count || 0} total / ${item.follow_up_case_summary.open_follow_up_case_count || 0} open / ${item.follow_up_case_summary.closed_follow_up_case_count || 0} closed`);
+          lines.push(`Latest follow-up case: ${item.follow_up_case_summary.latest_follow_up_case_id || "none"}${item.follow_up_case_summary.latest_follow_up_case_status ? " (" + item.follow_up_case_summary.latest_follow_up_case_status + ")" : ""}`);
+        }
       }
       for (const recentRun of (item.recent_runs || [])) {
         lines.push(`Recent run: ${recentRun.run_id} (${recentRun.status}) | report=${recentRun.report_id || "none"} | unresolved=${recentRun.item_without_open_follow_up_count || 0}`);
@@ -431,6 +435,15 @@
             <dl class="detail-card"><dt>Latest report</dt><dd>${item.latest_report_id ? `${escapeHTML(item.latest_report_id)} (${escapeHTML(item.latest_report_status || "unknown")})` : "not materialized"}</dd></dl>
             <dl class="detail-card"><dt>Unresolved follow-up items</dt><dd>${escapeHTML(String(item.unresolved_follow_up_count || 0))}</dd></dl>
             <dl class="detail-card"><dt>Open follow-up cases</dt><dd>${escapeHTML(String(item.open_follow_up_case_count || 0))}</dd></dl>
+          </div>
+          <div class="detail-card">
+            <h3 style="margin-top:0;">Follow-up case summary</h3>
+            <div class="detail-grid">
+              <dl class="detail-card"><dt>Total follow-up cases</dt><dd>${escapeHTML(String(item.follow_up_case_summary?.follow_up_case_count || 0))}</dd></dl>
+              <dl class="detail-card"><dt>Open follow-up cases</dt><dd>${escapeHTML(String(item.follow_up_case_summary?.open_follow_up_case_count || 0))}</dd></dl>
+              <dl class="detail-card"><dt>Closed follow-up cases</dt><dd>${escapeHTML(String(item.follow_up_case_summary?.closed_follow_up_case_count || 0))}</dd></dl>
+              <dl class="detail-card"><dt>Latest follow-up case</dt><dd>${item.follow_up_case_summary?.latest_follow_up_case_id ? `${escapeHTML(item.follow_up_case_summary.latest_follow_up_case_id)} (${escapeHTML(item.follow_up_case_summary.latest_follow_up_case_status || "unknown")})` : "none"}</dd></dl>
+            </div>
           </div>
           <div class="detail-card">
             <h3 style="margin-top:0;">Handoff</h3>

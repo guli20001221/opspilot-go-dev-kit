@@ -3001,6 +3001,29 @@ components:
           type: string
         source_eval_report_id:
           type: string
+    EvalDatasetFollowUpCaseSummary:
+      type: object
+      required:
+        - follow_up_case_count
+        - open_follow_up_case_count
+        - closed_follow_up_case_count
+      properties:
+        follow_up_case_count:
+          type: integer
+          minimum: 0
+          description: Total durable follow-up cases already linked to the latest eval report for this dataset.
+        open_follow_up_case_count:
+          type: integer
+          minimum: 0
+          description: Open durable follow-up cases already linked to the latest eval report for this dataset.
+        closed_follow_up_case_count:
+          type: integer
+          minimum: 0
+          description: Closed durable follow-up cases already linked to the latest eval report for this dataset.
+        latest_follow_up_case_id:
+          type: string
+        latest_follow_up_case_status:
+          type: string
     EvalDataset:
       type: object
       required:
@@ -3014,6 +3037,7 @@ components:
         - unresolved_follow_up_count
         - needs_follow_up
         - preferred_follow_up_action
+        - follow_up_case_summary
         - open_follow_up_case_count
         - preferred_case_queue_action
         - recent_runs
@@ -3066,6 +3090,8 @@ components:
           description: Whether the latest durable eval run for this dataset still has at least one unresolved failed item.
         preferred_follow_up_action:
           $ref: '#/components/schemas/EvalDatasetFollowUpAction'
+        follow_up_case_summary:
+          $ref: '#/components/schemas/EvalDatasetFollowUpCaseSummary'
         open_follow_up_case_count:
           type: integer
           minimum: 0
