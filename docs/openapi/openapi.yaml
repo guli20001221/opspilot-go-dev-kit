@@ -3075,6 +3075,12 @@ components:
         needs_follow_up:
           type: boolean
           description: Whether this run still has at least one failed item without an open follow-up case.
+        report_id:
+          type: string
+          description: Stable eval-report ID when this terminal run has already materialized a durable eval report artifact.
+        report_status:
+          type: string
+          description: Eval-report lifecycle state for the linked durable report artifact.
         status:
           type: string
           enum:

@@ -662,6 +662,15 @@ func TestAdminEvalRunsPageRendersHTML(t *testing.T) {
 	if !strings.Contains(body, "Open dataset lane") {
 		t.Fatal("dataset lane handoff missing from eval runs page HTML")
 	}
+	if !strings.Contains(body, "Open eval report") {
+		t.Fatal("eval report handoff missing from eval runs page HTML")
+	}
+	if !strings.Contains(body, "Open eval report API detail") {
+		t.Fatal("eval report api handoff missing from eval runs page HTML")
+	}
+	if !strings.Contains(body, "Eval report ID") {
+		t.Fatal("eval report identity missing from eval runs page HTML")
+	}
 	if !strings.Contains(body, "Create case from result") {
 		t.Fatal("result-level create-case action missing from eval runs page HTML")
 	}

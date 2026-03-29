@@ -164,3 +164,4 @@ When you finish, always report:
 - do not hide failure reasons behind generic toasts only
 - do not build polished dashboards before core operator workflows work
 - once canonical eval-run list rows expose unresolved follow-up pressure, prefer driving `/admin/eval-runs` queue presets from those backend-owned fields over inferring missing follow-up state in the browser
+- once terminal eval-run reads expose canonical report linkage, prefer handing `/admin/eval-runs` directly into `/admin/eval-reports` and the eval-report API from those fields instead of reconstructing run-to-report lineage in the browser

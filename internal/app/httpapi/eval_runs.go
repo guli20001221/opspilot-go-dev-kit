@@ -1,6 +1,7 @@
 package httpapi
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -28,6 +29,8 @@ type evalRunResponse struct {
 	ResultSummary                *evalRunResultSummaryResponse `json:"result_summary,omitempty"`
 	ItemWithoutOpenFollowUpCount int                           `json:"item_without_open_follow_up_count"`
 	NeedsFollowUp                bool                          `json:"needs_follow_up"`
+	ReportID                     string                        `json:"report_id,omitempty"`
+	ReportStatus                 string                        `json:"report_status,omitempty"`
 	Status                       string                        `json:"status"`
 	CreatedBy                    string                        `json:"created_by"`
 	ErrorReason                  string                        `json:"error_reason,omitempty"`
@@ -85,6 +88,11 @@ type evalRunResultSummaryResponse struct {
 	SucceededItems  int `json:"succeeded_items"`
 	FailedItems     int `json:"failed_items"`
 	MissingResults  int `json:"missing_results"`
+}
+
+type evalRunReportSummary struct {
+	ReportID     string
+	ReportStatus string
 }
 
 func (a *appHandler) handleEvalRuns(w http.ResponseWriter, r *http.Request) {
@@ -171,7 +179,7 @@ func (a *appHandler) handleRetryEvalRun(w http.ResponseWriter, r *http.Request, 
 		return
 	}
 
-	writeJSON(w, http.StatusOK, newEvalRunResponse(retried, nil, nil, nil, nil, 0))
+	writeJSON(w, http.StatusOK, newEvalRunResponse(retried, nil, nil, nil, nil, evalRunReportSummary{}, 0))
 }
 
 func (a *appHandler) handleCreateEvalRun(w http.ResponseWriter, r *http.Request) {
@@ -204,7 +212,7 @@ func (a *appHandler) handleCreateEvalRun(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	writeJSON(w, http.StatusCreated, newEvalRunResponse(item, nil, nil, nil, nil, 0))
+	writeJSON(w, http.StatusCreated, newEvalRunResponse(item, nil, nil, nil, nil, evalRunReportSummary{}, 0))
 }
 
 func (a *appHandler) handleListEvalRuns(w http.ResponseWriter, r *http.Request) {
@@ -266,7 +274,7 @@ func parseEvalRunListFilter(r *http.Request) (evalsvc.RunListFilter, *bool, erro
 	return filter, needsFollowUp, nil
 }
 
-func newEvalRunResponse(item evalsvc.EvalRun, events []evalsvc.EvalRunEvent, items []evalsvc.EvalRunItem, results []evalsvc.EvalRunItemResult, followUpSummaries map[string]casesvc.EvalCaseFollowUpSummary, itemWithoutOpenFollowUpCount int) evalRunResponse {
+func newEvalRunResponse(item evalsvc.EvalRun, events []evalsvc.EvalRunEvent, items []evalsvc.EvalRunItem, results []evalsvc.EvalRunItemResult, followUpSummaries map[string]casesvc.EvalCaseFollowUpSummary, reportSummary evalRunReportSummary, itemWithoutOpenFollowUpCount int) evalRunResponse {
 	resp := evalRunResponse{
 		RunID:                        item.ID,
 		TenantID:                     item.TenantID,
@@ -275,6 +283,8 @@ func newEvalRunResponse(item evalsvc.EvalRun, events []evalsvc.EvalRunEvent, ite
 		DatasetItemCount:             item.DatasetItemCount,
 		ItemWithoutOpenFollowUpCount: itemWithoutOpenFollowUpCount,
 		NeedsFollowUp:                itemWithoutOpenFollowUpCount > 0,
+		ReportID:                     reportSummary.ReportID,
+		ReportStatus:                 reportSummary.ReportStatus,
 		Status:                       item.Status,
 		CreatedBy:                    item.CreatedBy,
 		ErrorReason:                  item.ErrorReason,
@@ -428,9 +438,39 @@ func (a *appHandler) buildEvalRunListRows(r *http.Request, items []evalsvc.EvalR
 		if err != nil {
 			return nil, err
 		}
-		rows = append(rows, newEvalRunResponse(item, nil, nil, nil, nil, summary.ItemWithoutOpenFollowUpCount))
+		reportSummary, err := a.evalRunReportSummary(r.Context(), item)
+		if err != nil {
+			return nil, err
+		}
+		rows = append(rows, newEvalRunResponse(item, nil, nil, nil, nil, reportSummary, summary.ItemWithoutOpenFollowUpCount))
 	}
 	return rows, nil
+}
+
+func (a *appHandler) evalRunReportSummary(ctx context.Context, item evalsvc.EvalRun) (evalRunReportSummary, error) {
+	if a.evalReports == nil {
+		return evalRunReportSummary{}, nil
+	}
+	if item.Status != evalsvc.RunStatusSucceeded && item.Status != evalsvc.RunStatusFailed {
+		return evalRunReportSummary{}, nil
+	}
+
+	reportID := evalsvc.EvalReportIDFromRunID(item.ID)
+	reportItem, err := a.evalReports.GetEvalReport(ctx, reportID)
+	if err != nil {
+		if errors.Is(err, evalsvc.ErrEvalReportNotFound) {
+			return evalRunReportSummary{}, nil
+		}
+		return evalRunReportSummary{}, fmt.Errorf("lookup eval report for run %q: %w", item.ID, err)
+	}
+	if reportItem.TenantID != item.TenantID {
+		return evalRunReportSummary{}, nil
+	}
+
+	return evalRunReportSummary{
+		ReportID:     reportItem.ID,
+		ReportStatus: reportItem.Status,
+	}, nil
 }
 
 type evalRunFollowUpSummary struct {
@@ -530,7 +570,13 @@ func (a *appHandler) writeEvalRunDetailResponse(w http.ResponseWriter, r *http.R
 		}
 	}
 
-	writeJSON(w, statusCode, newEvalRunResponse(item, detail.Events, detail.Items, detail.ItemResults, followUpSummaries, itemWithoutOpenFollowUpCount))
+	reportSummary, err := a.evalRunReportSummary(r.Context(), item)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "eval_run_report_summary_failed", err.Error())
+		return
+	}
+
+	writeJSON(w, statusCode, newEvalRunResponse(item, detail.Events, detail.Items, detail.ItemResults, followUpSummaries, reportSummary, itemWithoutOpenFollowUpCount))
 }
 
 func parseEvalRunPath(path string) (runID string, action string, ok bool) {

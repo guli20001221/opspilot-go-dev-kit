@@ -955,6 +955,68 @@ func TestGetEvalRunEndpointIncludesFollowUpReuseActions(t *testing.T) {
 	}
 }
 
+func TestEvalRunEndpointsIncludeMaterializedReportLinkage(t *testing.T) {
+	caseService := casesvc.NewService()
+	evalCaseService := evalsvc.NewService(caseService, nil)
+	datasetService := evalsvc.NewDatasetService(evalCaseService)
+	runService := evalsvc.NewRunService(datasetService)
+	reportService := evalsvc.NewEvalReportServiceWithDependencies(nil, runService)
+
+	reportID := materializeEvalRunReport(t, "tenant-run-report-link", evalsvc.RunStatusFailed, "failure detail", caseService, evalCaseService, datasetService, runService, reportService, "Dataset Run Link", "Source Run Link")
+
+	server := httptest.NewServer(NewHandlerWithDependencies(Dependencies{
+		Cases:        caseService,
+		EvalCases:    evalCaseService,
+		EvalDatasets: datasetService,
+		EvalRuns:     runService,
+		EvalReports:  reportService,
+	}))
+	defer server.Close()
+
+	listResp, err := http.Get(server.URL + "/api/v1/eval-runs?tenant_id=tenant-run-report-link&status=failed&limit=10")
+	if err != nil {
+		t.Fatalf("Get(list) error = %v", err)
+	}
+	defer listResp.Body.Close()
+	if listResp.StatusCode != http.StatusOK {
+		t.Fatalf("list StatusCode = %d, want %d", listResp.StatusCode, http.StatusOK)
+	}
+
+	var page listEvalRunsResponse
+	if err := json.NewDecoder(listResp.Body).Decode(&page); err != nil {
+		t.Fatalf("Decode(list page) error = %v", err)
+	}
+	if len(page.Runs) != 1 {
+		t.Fatalf("len(page.Runs) = %d, want 1", len(page.Runs))
+	}
+	if page.Runs[0].ReportID != reportID {
+		t.Fatalf("page.Runs[0].ReportID = %q, want %q", page.Runs[0].ReportID, reportID)
+	}
+	if page.Runs[0].ReportStatus != evalsvc.EvalReportStatusReady {
+		t.Fatalf("page.Runs[0].ReportStatus = %q, want %q", page.Runs[0].ReportStatus, evalsvc.EvalReportStatusReady)
+	}
+
+	detailResp, err := http.Get(server.URL + "/api/v1/eval-runs/" + page.Runs[0].RunID + "?tenant_id=tenant-run-report-link")
+	if err != nil {
+		t.Fatalf("Get(detail) error = %v", err)
+	}
+	defer detailResp.Body.Close()
+	if detailResp.StatusCode != http.StatusOK {
+		t.Fatalf("detail StatusCode = %d, want %d", detailResp.StatusCode, http.StatusOK)
+	}
+
+	var detail evalRunResponse
+	if err := json.NewDecoder(detailResp.Body).Decode(&detail); err != nil {
+		t.Fatalf("Decode(detail) error = %v", err)
+	}
+	if detail.ReportID != reportID {
+		t.Fatalf("detail.ReportID = %q, want %q", detail.ReportID, reportID)
+	}
+	if detail.ReportStatus != evalsvc.EvalReportStatusReady {
+		t.Fatalf("detail.ReportStatus = %q, want %q", detail.ReportStatus, evalsvc.EvalReportStatusReady)
+	}
+}
+
 func TestRetryEvalRunEndpointRequeuesFailedRun(t *testing.T) {
 	ctx := context.Background()
 	caseService := casesvc.NewService()

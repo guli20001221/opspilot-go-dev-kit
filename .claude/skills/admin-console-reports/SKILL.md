@@ -164,3 +164,4 @@ When you finish, always report:
 - once every active consumer has a stable canonical follow-up action field, prefer deleting browser-side fallback heuristics instead of keeping duplicate count-based decision trees alive in the page
 - once canonical eval-report list rows already carry a typed `preferred_follow_up_action`, prefer exposing row-level create-versus-reuse handoff directly from `/admin/eval-reports` instead of forcing operators to open detail before every follow-up action
 - once canonical eval-run list rows expose unresolved follow-up pressure, prefer driving `/admin/eval-runs` queue presets from those backend-owned fields over inferring missing follow-up state in the browser
+- once terminal eval-run reads expose canonical report linkage, prefer handing `/admin/eval-runs` directly into `/admin/eval-reports` and the eval-report API from those fields instead of reconstructing run-to-report lineage in the browser
