@@ -53,6 +53,12 @@ func TestGetEvalReportReturnsMaterializedDetail(t *testing.T) {
 	if got.PreferredFollowUpAction.SourceEvalReportID != reportID {
 		t.Fatalf("PreferredFollowUpAction.SourceEvalReportID = %q, want %q", got.PreferredFollowUpAction.SourceEvalReportID, reportID)
 	}
+	if got.PreferredPrimaryAction.Mode != "create" {
+		t.Fatalf("PreferredPrimaryAction.Mode = %q, want %q", got.PreferredPrimaryAction.Mode, "create")
+	}
+	if got.PreferredPrimaryAction.SourceEvalReportID != reportID {
+		t.Fatalf("PreferredPrimaryAction.SourceEvalReportID = %q, want %q", got.PreferredPrimaryAction.SourceEvalReportID, reportID)
+	}
 	if len(got.BadCases) == 0 {
 		t.Fatal("BadCases is empty")
 	}
@@ -174,6 +180,15 @@ func TestGetEvalReportIncludesFollowUpCaseSummary(t *testing.T) {
 	if got.PreferredFollowUpAction.SourceEvalReportID != reportID {
 		t.Fatalf("PreferredFollowUpAction.SourceEvalReportID = %q, want %q", got.PreferredFollowUpAction.SourceEvalReportID, reportID)
 	}
+	if got.PreferredPrimaryAction.Mode != "open_existing_case" {
+		t.Fatalf("PreferredPrimaryAction.Mode = %q, want %q", got.PreferredPrimaryAction.Mode, "open_existing_case")
+	}
+	if got.PreferredPrimaryAction.CaseID != openCase.ID {
+		t.Fatalf("PreferredPrimaryAction.CaseID = %q, want %q", got.PreferredPrimaryAction.CaseID, openCase.ID)
+	}
+	if got.PreferredPrimaryAction.SourceEvalReportID != reportID {
+		t.Fatalf("PreferredPrimaryAction.SourceEvalReportID = %q, want %q", got.PreferredPrimaryAction.SourceEvalReportID, reportID)
+	}
 	if got.PreferredBadCaseQueueAction.Mode != "open_existing_queue" {
 		t.Fatalf("PreferredBadCaseQueueAction.Mode = %q, want %q", got.PreferredBadCaseQueueAction.Mode, "open_existing_queue")
 	}
@@ -206,6 +221,15 @@ func TestGetEvalReportIncludesFollowUpCaseSummary(t *testing.T) {
 	}
 	if got.PreferredLinkedCaseAction.SourceEvalReportID != reportID {
 		t.Fatalf("PreferredLinkedCaseAction.SourceEvalReportID = %q, want %q", got.PreferredLinkedCaseAction.SourceEvalReportID, reportID)
+	}
+	if got.PreferredPrimaryAction.Mode != "open_existing_case" {
+		t.Fatalf("PreferredPrimaryAction.Mode = %q, want %q", got.PreferredPrimaryAction.Mode, "open_existing_case")
+	}
+	if got.PreferredPrimaryAction.CaseID != openCase.ID {
+		t.Fatalf("PreferredPrimaryAction.CaseID = %q, want %q", got.PreferredPrimaryAction.CaseID, openCase.ID)
+	}
+	if got.PreferredPrimaryAction.SourceEvalReportID != reportID {
+		t.Fatalf("PreferredPrimaryAction.SourceEvalReportID = %q, want %q", got.PreferredPrimaryAction.SourceEvalReportID, reportID)
 	}
 }
 
@@ -1282,6 +1306,15 @@ func TestListEvalReportsIncludesFollowUpCaseSummary(t *testing.T) {
 	if got.PreferredFollowUpAction.SourceEvalReportID != reportID {
 		t.Fatalf("PreferredFollowUpAction.SourceEvalReportID = %q, want %q", got.PreferredFollowUpAction.SourceEvalReportID, reportID)
 	}
+	if got.PreferredPrimaryAction.Mode != "open_existing_case" {
+		t.Fatalf("PreferredPrimaryAction.Mode = %q, want %q", got.PreferredPrimaryAction.Mode, "open_existing_case")
+	}
+	if got.PreferredPrimaryAction.CaseID != openCase.ID {
+		t.Fatalf("PreferredPrimaryAction.CaseID = %q, want %q", got.PreferredPrimaryAction.CaseID, openCase.ID)
+	}
+	if got.PreferredPrimaryAction.SourceEvalReportID != reportID {
+		t.Fatalf("PreferredPrimaryAction.SourceEvalReportID = %q, want %q", got.PreferredPrimaryAction.SourceEvalReportID, reportID)
+	}
 }
 
 func TestListEvalReportsIncludesCompareFollowUpSummary(t *testing.T) {
@@ -1447,6 +1480,15 @@ func TestListEvalReportsIncludesLinkedCaseSummary(t *testing.T) {
 	}
 	if got.PreferredLinkedCaseAction.SourceEvalReportID != reportID {
 		t.Fatalf("PreferredLinkedCaseAction.SourceEvalReportID = %q, want %q", got.PreferredLinkedCaseAction.SourceEvalReportID, reportID)
+	}
+	if got.PreferredPrimaryAction.Mode != "open_existing_case" {
+		t.Fatalf("PreferredPrimaryAction.Mode = %q, want %q", got.PreferredPrimaryAction.Mode, "open_existing_case")
+	}
+	if got.PreferredPrimaryAction.CaseID != openCase.ID {
+		t.Fatalf("PreferredPrimaryAction.CaseID = %q, want %q", got.PreferredPrimaryAction.CaseID, openCase.ID)
+	}
+	if got.PreferredPrimaryAction.SourceEvalReportID != reportID {
+		t.Fatalf("PreferredPrimaryAction.SourceEvalReportID = %q, want %q", got.PreferredPrimaryAction.SourceEvalReportID, reportID)
 	}
 }
 

@@ -56,6 +56,7 @@ type evalReportResponse struct {
 	LatestFollowUpCaseID            string                               `json:"latest_follow_up_case_id,omitempty"`
 	LatestFollowUpCaseStatus        string                               `json:"latest_follow_up_case_status,omitempty"`
 	PreferredFollowUpAction         evalReportFollowUpActionResponse     `json:"preferred_follow_up_action"`
+	PreferredPrimaryAction          evalReportPrimaryActionResponse      `json:"preferred_primary_action"`
 	PreferredBadCaseQueueAction     evalReportBadCaseQueueActionResponse `json:"preferred_bad_case_queue_action"`
 	CompareFollowUpCaseCount        int                                  `json:"compare_follow_up_case_count"`
 	OpenCompareFollowUpCaseCount    int                                  `json:"open_compare_follow_up_case_count"`
@@ -72,6 +73,12 @@ type evalReportResponse struct {
 }
 
 type evalReportFollowUpActionResponse struct {
+	Mode               string `json:"mode"`
+	CaseID             string `json:"case_id,omitempty"`
+	SourceEvalReportID string `json:"source_eval_report_id,omitempty"`
+}
+
+type evalReportPrimaryActionResponse struct {
 	Mode               string `json:"mode"`
 	CaseID             string `json:"case_id,omitempty"`
 	SourceEvalReportID string `json:"source_eval_report_id,omitempty"`
@@ -659,6 +666,7 @@ func newEvalReportResponse(item evalsvc.EvalReport, includeHeavy bool, followUpS
 		LatestFollowUpCaseID:            followUpSummary.LatestFollowUpCaseID,
 		LatestFollowUpCaseStatus:        followUpSummary.LatestFollowUpCaseStatus,
 		PreferredFollowUpAction:         newEvalReportFollowUpActionResponse(item.ID, followUpSummary),
+		PreferredPrimaryAction:          newEvalReportPrimaryActionResponse(item.ID, followUpSummary, linkedCaseSummary),
 		PreferredBadCaseQueueAction:     newEvalReportBadCaseQueueActionResponse(item.ID, badCaseWithoutOpenFollowUpCount),
 		CompareFollowUpCaseCount:        compareFollowUpSummary.CompareFollowUpCaseCount,
 		OpenCompareFollowUpCaseCount:    compareFollowUpSummary.OpenCompareFollowUpCaseCount,
@@ -717,6 +725,24 @@ func newEvalReportFollowUpActionResponse(reportID string, followUpSummary casesv
 	}
 	action.Mode = "open_existing_queue"
 	return action
+}
+
+func newEvalReportPrimaryActionResponse(reportID string, followUpSummary casesvc.EvalReportFollowUpSummary, linkedCaseSummary *evalReportLinkedCaseSummaryResponse) evalReportPrimaryActionResponse {
+	linkedAction := newEvalReportLinkedCaseActionResponse(reportID, linkedCaseSummary)
+	if linkedAction.Mode != "none" {
+		return evalReportPrimaryActionResponse{
+			Mode:               linkedAction.Mode,
+			CaseID:             linkedAction.CaseID,
+			SourceEvalReportID: linkedAction.SourceEvalReportID,
+		}
+	}
+
+	followUpAction := newEvalReportFollowUpActionResponse(reportID, followUpSummary)
+	return evalReportPrimaryActionResponse{
+		Mode:               followUpAction.Mode,
+		CaseID:             followUpAction.CaseID,
+		SourceEvalReportID: followUpAction.SourceEvalReportID,
+	}
 }
 
 func newEvalReportBadCaseFollowUpActionResponse(evalCaseID string, followUpSummary casesvc.EvalCaseFollowUpSummary) evalCaseFollowUpActionResponse {

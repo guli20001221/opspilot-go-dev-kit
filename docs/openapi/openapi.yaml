@@ -3607,6 +3607,7 @@ components:
         - follow_up_case_count
         - open_follow_up_case_count
         - preferred_follow_up_action
+        - preferred_primary_action
         - preferred_bad_case_queue_action
         - compare_follow_up_case_count
         - open_compare_follow_up_case_count
@@ -3678,6 +3679,8 @@ components:
             - closed
         preferred_follow_up_action:
           $ref: '#/components/schemas/EvalReportFollowUpAction'
+        preferred_primary_action:
+          $ref: '#/components/schemas/EvalReportPrimaryAction'
         preferred_bad_case_queue_action:
           $ref: '#/components/schemas/EvalReportBadCaseQueueAction'
         compare_follow_up_case_count:
@@ -3825,6 +3828,22 @@ components:
         source_eval_report_id:
           type: string
         source_eval_run_id:
+          type: string
+    EvalReportPrimaryAction:
+      type: object
+      required:
+        - mode
+        - source_eval_report_id
+      properties:
+        mode:
+          type: string
+          enum:
+            - create
+            - open_existing_case
+            - open_existing_queue
+        case_id:
+          type: string
+        source_eval_report_id:
           type: string
     EvalReportCompareQueueAction:
       type: object
