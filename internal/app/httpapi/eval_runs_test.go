@@ -143,6 +143,12 @@ func TestCreateAndGetEvalRunEndpoint(t *testing.T) {
 	if got.Items[0].PreferredFollowUpAction.SourceEvalCaseID != evalCase.ID {
 		t.Fatalf("Items[0].PreferredFollowUpAction.SourceEvalCaseID = %q, want %q", got.Items[0].PreferredFollowUpAction.SourceEvalCaseID, evalCase.ID)
 	}
+	if got.Items[0].PreferredLinkedCaseAction.Mode != "none" {
+		t.Fatalf("Items[0].PreferredLinkedCaseAction.Mode = %q, want %q", got.Items[0].PreferredLinkedCaseAction.Mode, "none")
+	}
+	if got.Items[0].PreferredLinkedCaseAction.SourceEvalCaseID != evalCase.ID {
+		t.Fatalf("Items[0].PreferredLinkedCaseAction.SourceEvalCaseID = %q, want %q", got.Items[0].PreferredLinkedCaseAction.SourceEvalCaseID, evalCase.ID)
+	}
 }
 
 func TestCreateEvalRunEndpointRejectsDraftDataset(t *testing.T) {
@@ -989,6 +995,12 @@ func TestGetEvalRunEndpointIncludesFollowUpReuseActions(t *testing.T) {
 	if got.Items[0].PreferredFollowUpAction.CaseID != followUpCase.ID {
 		t.Fatalf("Items[0].PreferredFollowUpAction.CaseID = %q, want %q", got.Items[0].PreferredFollowUpAction.CaseID, followUpCase.ID)
 	}
+	if got.Items[0].PreferredLinkedCaseAction.Mode != "open_existing_case" {
+		t.Fatalf("Items[0].PreferredLinkedCaseAction.Mode = %q, want %q", got.Items[0].PreferredLinkedCaseAction.Mode, "open_existing_case")
+	}
+	if got.Items[0].PreferredLinkedCaseAction.CaseID != followUpCase.ID {
+		t.Fatalf("Items[0].PreferredLinkedCaseAction.CaseID = %q, want %q", got.Items[0].PreferredLinkedCaseAction.CaseID, followUpCase.ID)
+	}
 	if got.ItemResults[0].LatestFollowUpCaseID != followUpCase.ID {
 		t.Fatalf("ItemResults[0].LatestFollowUpCaseID = %q, want %q", got.ItemResults[0].LatestFollowUpCaseID, followUpCase.ID)
 	}
@@ -1009,6 +1021,12 @@ func TestGetEvalRunEndpointIncludesFollowUpReuseActions(t *testing.T) {
 	}
 	if got.ItemResults[0].PreferredFollowUpAction.CaseID != followUpCase.ID {
 		t.Fatalf("ItemResults[0].PreferredFollowUpAction.CaseID = %q, want %q", got.ItemResults[0].PreferredFollowUpAction.CaseID, followUpCase.ID)
+	}
+	if got.ItemResults[0].PreferredLinkedCaseAction.Mode != "open_existing_case" {
+		t.Fatalf("ItemResults[0].PreferredLinkedCaseAction.Mode = %q, want %q", got.ItemResults[0].PreferredLinkedCaseAction.Mode, "open_existing_case")
+	}
+	if got.ItemResults[0].PreferredLinkedCaseAction.CaseID != followUpCase.ID {
+		t.Fatalf("ItemResults[0].PreferredLinkedCaseAction.CaseID = %q, want %q", got.ItemResults[0].PreferredLinkedCaseAction.CaseID, followUpCase.ID)
 	}
 	if got.LinkedCaseSummary.TotalCaseCount != 1 {
 		t.Fatalf("LinkedCaseSummary.TotalCaseCount = %d, want 1", got.LinkedCaseSummary.TotalCaseCount)
@@ -1128,6 +1146,18 @@ func TestGetEvalRunEndpointSuppressesDirectLinkedCaseActionForClosedLatestCase(t
 	}
 	if got.PreferredLinkedCaseAction.CaseID != "" {
 		t.Fatalf("PreferredLinkedCaseAction.CaseID = %q, want empty", got.PreferredLinkedCaseAction.CaseID)
+	}
+	if got.Items[0].PreferredLinkedCaseAction.Mode != "open_existing_queue" {
+		t.Fatalf("Items[0].PreferredLinkedCaseAction.Mode = %q, want %q", got.Items[0].PreferredLinkedCaseAction.Mode, "open_existing_queue")
+	}
+	if got.Items[0].PreferredLinkedCaseAction.CaseID != "" {
+		t.Fatalf("Items[0].PreferredLinkedCaseAction.CaseID = %q, want empty", got.Items[0].PreferredLinkedCaseAction.CaseID)
+	}
+	if got.ItemResults[0].PreferredLinkedCaseAction.Mode != "open_existing_queue" {
+		t.Fatalf("ItemResults[0].PreferredLinkedCaseAction.Mode = %q, want %q", got.ItemResults[0].PreferredLinkedCaseAction.Mode, "open_existing_queue")
+	}
+	if got.ItemResults[0].PreferredLinkedCaseAction.CaseID != "" {
+		t.Fatalf("ItemResults[0].PreferredLinkedCaseAction.CaseID = %q, want empty", got.ItemResults[0].PreferredLinkedCaseAction.CaseID)
 	}
 }
 

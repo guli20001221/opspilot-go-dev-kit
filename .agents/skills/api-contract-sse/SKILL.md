@@ -101,3 +101,4 @@ When you finish, always report:
 - once canonical eval-report list/detail reads need linked-case handoff, prefer exposing `preferred_linked_case_action` on those same contracts instead of leaving admin pages to branch on `latest_follow_up_case_id`
 - once canonical eval-report detail already exposes bad-case follow-up summary, add `preferred_linked_case_action` on each bad-case row instead of leaving `/admin/eval-reports` to branch on `latest_follow_up_case_id`
 - once canonical eval-case reads already expose `linked_case_summary`, add a typed `preferred_linked_case_action` on that same contract instead of leaving `/admin/evals` to branch on `latest_follow_up_case_id`
+- once canonical eval-run detail rows already expose `linked_case_summary`, add a typed `preferred_linked_case_action` on those same `items` and `item_results` instead of leaving `/admin/eval-runs` to branch on `latest_follow_up_case_id`

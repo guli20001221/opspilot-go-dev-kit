@@ -160,6 +160,7 @@ Provide a practical operator UI for evaluation and runtime analysis while keepin
 110. Once every active consumer has a stable canonical follow-up action field, prefer deleting browser-side fallback heuristics instead of keeping duplicate count-based decision trees alive in the page.
 111. Once canonical eval-report list rows already carry a typed `preferred_follow_up_action`, prefer exposing row-level create-versus-reuse handoff directly from `/admin/eval-reports` instead of forcing operators to open detail before every follow-up action.
 112. Once canonical eval-case reads also expose `preferred_linked_case_action`, prefer wiring `/admin/evals` linked-case handoff from that backend-owned field instead of branching on `latest_follow_up_case_id` in browser code.
+113. Once canonical eval-run detail rows also expose `preferred_linked_case_action`, prefer wiring `/admin/eval-runs` linked-case handoff from that backend-owned field instead of branching on `latest_follow_up_case_id` in browser code.
 
 ## Output contract
 When you finish, always report:

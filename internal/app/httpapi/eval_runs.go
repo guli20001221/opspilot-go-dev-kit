@@ -60,30 +60,32 @@ type evalRunEventResponse struct {
 }
 
 type evalRunItemResponse struct {
-	EvalCaseID              string                              `json:"eval_case_id"`
-	Title                   string                              `json:"title"`
-	SourceCaseID            string                              `json:"source_case_id"`
-	SourceTaskID            string                              `json:"source_task_id,omitempty"`
-	SourceReportID          string                              `json:"source_report_id,omitempty"`
-	LatestFollowUpCaseID    string                              `json:"latest_follow_up_case_id,omitempty"`
-	LinkedCaseSummary       evalReportLinkedCaseSummaryResponse `json:"linked_case_summary"`
-	PreferredFollowUpAction evalCaseFollowUpActionResponse      `json:"preferred_follow_up_action"`
-	TraceID                 string                              `json:"trace_id"`
-	VersionID               string                              `json:"version_id,omitempty"`
+	EvalCaseID                string                              `json:"eval_case_id"`
+	Title                     string                              `json:"title"`
+	SourceCaseID              string                              `json:"source_case_id"`
+	SourceTaskID              string                              `json:"source_task_id,omitempty"`
+	SourceReportID            string                              `json:"source_report_id,omitempty"`
+	LatestFollowUpCaseID      string                              `json:"latest_follow_up_case_id,omitempty"`
+	LinkedCaseSummary         evalReportLinkedCaseSummaryResponse `json:"linked_case_summary"`
+	PreferredFollowUpAction   evalCaseFollowUpActionResponse      `json:"preferred_follow_up_action"`
+	PreferredLinkedCaseAction evalCaseFollowUpActionResponse      `json:"preferred_linked_case_action"`
+	TraceID                   string                              `json:"trace_id"`
+	VersionID                 string                              `json:"version_id,omitempty"`
 }
 
 type evalRunItemResultResponse struct {
-	EvalCaseID              string                              `json:"eval_case_id"`
-	Status                  string                              `json:"status"`
-	Verdict                 string                              `json:"verdict"`
-	Detail                  string                              `json:"detail,omitempty"`
-	Score                   float64                             `json:"score"`
-	JudgeVersion            string                              `json:"judge_version"`
-	JudgeOutput             json.RawMessage                     `json:"judge_output"`
-	LatestFollowUpCaseID    string                              `json:"latest_follow_up_case_id,omitempty"`
-	LinkedCaseSummary       evalReportLinkedCaseSummaryResponse `json:"linked_case_summary"`
-	PreferredFollowUpAction evalCaseFollowUpActionResponse      `json:"preferred_follow_up_action"`
-	UpdatedAt               string                              `json:"updated_at"`
+	EvalCaseID                string                              `json:"eval_case_id"`
+	Status                    string                              `json:"status"`
+	Verdict                   string                              `json:"verdict"`
+	Detail                    string                              `json:"detail,omitempty"`
+	Score                     float64                             `json:"score"`
+	JudgeVersion              string                              `json:"judge_version"`
+	JudgeOutput               json.RawMessage                     `json:"judge_output"`
+	LatestFollowUpCaseID      string                              `json:"latest_follow_up_case_id,omitempty"`
+	LinkedCaseSummary         evalReportLinkedCaseSummaryResponse `json:"linked_case_summary"`
+	PreferredFollowUpAction   evalCaseFollowUpActionResponse      `json:"preferred_follow_up_action"`
+	PreferredLinkedCaseAction evalCaseFollowUpActionResponse      `json:"preferred_linked_case_action"`
+	UpdatedAt                 string                              `json:"updated_at"`
 }
 
 type evalRunResultSummaryResponse struct {
@@ -334,16 +336,17 @@ func newEvalRunResponse(item evalsvc.EvalRun, events []evalsvc.EvalRunEvent, ite
 		for _, item := range items {
 			summary := followUpSummaries[item.EvalCaseID]
 			resp.Items = append(resp.Items, evalRunItemResponse{
-				EvalCaseID:              item.EvalCaseID,
-				Title:                   item.Title,
-				SourceCaseID:            item.SourceCaseID,
-				SourceTaskID:            item.SourceTaskID,
-				SourceReportID:          item.SourceReportID,
-				LatestFollowUpCaseID:    summary.LatestFollowUpCaseID,
-				LinkedCaseSummary:       evalCaseLinkedCaseSummary(summary),
-				PreferredFollowUpAction: newEvalCaseFollowUpActionResponseFromSummary(item.EvalCaseID, summary.OpenFollowUpCaseCount, summary.LatestFollowUpCaseID),
-				TraceID:                 item.TraceID,
-				VersionID:               item.VersionID,
+				EvalCaseID:                item.EvalCaseID,
+				Title:                     item.Title,
+				SourceCaseID:              item.SourceCaseID,
+				SourceTaskID:              item.SourceTaskID,
+				SourceReportID:            item.SourceReportID,
+				LatestFollowUpCaseID:      summary.LatestFollowUpCaseID,
+				LinkedCaseSummary:         evalCaseLinkedCaseSummary(summary),
+				PreferredFollowUpAction:   newEvalCaseFollowUpActionResponseFromSummary(item.EvalCaseID, summary.OpenFollowUpCaseCount, summary.LatestFollowUpCaseID),
+				PreferredLinkedCaseAction: newEvalCaseLinkedCaseActionResponseFromSummary(item.EvalCaseID, summary.FollowUpCaseCount, summary.OpenFollowUpCaseCount, summary.LatestFollowUpCaseID, summary.LatestFollowUpCaseStatus),
+				TraceID:                   item.TraceID,
+				VersionID:                 item.VersionID,
 			})
 		}
 	}
@@ -352,17 +355,18 @@ func newEvalRunResponse(item evalsvc.EvalRun, events []evalsvc.EvalRunEvent, ite
 		for _, result := range results {
 			summary := followUpSummaries[result.EvalCaseID]
 			resp.ItemResults = append(resp.ItemResults, evalRunItemResultResponse{
-				EvalCaseID:              result.EvalCaseID,
-				Status:                  result.Status,
-				Verdict:                 result.Verdict,
-				Detail:                  result.Detail,
-				Score:                   result.Score,
-				JudgeVersion:            result.JudgeVersion,
-				JudgeOutput:             result.JudgeOutput,
-				LatestFollowUpCaseID:    summary.LatestFollowUpCaseID,
-				LinkedCaseSummary:       evalCaseLinkedCaseSummary(summary),
-				PreferredFollowUpAction: newEvalCaseFollowUpActionResponseFromSummary(result.EvalCaseID, summary.OpenFollowUpCaseCount, summary.LatestFollowUpCaseID),
-				UpdatedAt:               result.UpdatedAt.Format(time.RFC3339Nano),
+				EvalCaseID:                result.EvalCaseID,
+				Status:                    result.Status,
+				Verdict:                   result.Verdict,
+				Detail:                    result.Detail,
+				Score:                     result.Score,
+				JudgeVersion:              result.JudgeVersion,
+				JudgeOutput:               result.JudgeOutput,
+				LatestFollowUpCaseID:      summary.LatestFollowUpCaseID,
+				LinkedCaseSummary:         evalCaseLinkedCaseSummary(summary),
+				PreferredFollowUpAction:   newEvalCaseFollowUpActionResponseFromSummary(result.EvalCaseID, summary.OpenFollowUpCaseCount, summary.LatestFollowUpCaseID),
+				PreferredLinkedCaseAction: newEvalCaseLinkedCaseActionResponseFromSummary(result.EvalCaseID, summary.FollowUpCaseCount, summary.OpenFollowUpCaseCount, summary.LatestFollowUpCaseID, summary.LatestFollowUpCaseStatus),
+				UpdatedAt:                 result.UpdatedAt.Format(time.RFC3339Nano),
 			})
 		}
 	}

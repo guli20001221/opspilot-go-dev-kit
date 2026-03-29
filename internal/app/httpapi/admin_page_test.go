@@ -925,8 +925,11 @@ func TestAdminEvalRunsPageRendersHTML(t *testing.T) {
 	if !strings.Contains(body, "Open eval report API detail") {
 		t.Fatal("eval report api handoff missing from eval runs page HTML")
 	}
-	if !strings.Contains(body, "Open latest run case") {
-		t.Fatal("latest run case handoff missing from eval runs page HTML")
+	if !strings.Contains(body, "Open latest linked case") {
+		t.Fatal("latest linked case handoff missing from eval runs page HTML")
+	}
+	if !strings.Contains(body, "Open linked case queue") {
+		t.Fatal("linked case queue handoff missing from eval runs page HTML")
 	}
 	if !strings.Contains(body, "Eval report ID") {
 		t.Fatal("eval report identity missing from eval runs page HTML")
@@ -1052,6 +1055,13 @@ const closedCaseID = process.argv[7];
 
   const closedRowHref = await page.getAttribute('[data-run-row="' + closedRunID + '"] a[href*="case_id=' + encodeURIComponent(closedCaseID) + '"]', "href");
   if (closedRowHref) throw new Error("closed latest run case handoff should be suppressed in row");
+  const closedQueueHref = await page.locator('[data-run-row="' + closedRunID + '"] a').evaluateAll((elements) => {
+    const match = elements.find((element) => (element.textContent || "").includes("Open linked case queue"));
+    return match ? match.getAttribute("href") : "";
+  });
+  if (!closedQueueHref || !closedQueueHref.includes("source_eval_case_id=")) {
+    throw new Error("closed linked-case queue handoff missing from row");
+  }
 
   const detailText = await page.textContent("#runDetail");
   if (!detailText.includes(closedCaseID)) throw new Error("closed linked case summary missing from detail");
@@ -1064,6 +1074,9 @@ const closedCaseID = process.argv[7];
   })));
   if (detailLinks.some((entry) => entry.text === "Open latest run case" && entry.href.includes("case_id=" + encodeURIComponent(closedCaseID)))) {
     throw new Error("closed latest run case handoff should be suppressed in detail");
+  }
+  if (!detailLinks.some((entry) => entry.text === "Open linked case queue" && entry.href.includes("source_eval_case_id="))) {
+    throw new Error("closed linked-case queue handoff missing from detail");
   }
 
   await browser.close();
