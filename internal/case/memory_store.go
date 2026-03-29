@@ -37,9 +37,7 @@ func (s *memoryStore) SaveOrReuseOpenEvalRunCase(_ context.Context, item Case) (
 		if existing.TenantID != item.TenantID || existing.Status != StatusOpen || existing.SourceEvalRunID != item.SourceEvalRunID {
 			continue
 		}
-		if existing.UpdatedAt.After(item.UpdatedAt) ||
-			(existing.UpdatedAt.Equal(item.UpdatedAt) && existing.CreatedAt.After(item.CreatedAt)) ||
-			(existing.UpdatedAt.Equal(item.UpdatedAt) && existing.CreatedAt.Equal(item.CreatedAt) && existing.ID > item.ID) {
+		if caseSortsAfter(existing, item) {
 			return existing, false, nil
 		}
 		return existing, false, nil
@@ -134,13 +132,7 @@ func (s *memoryStore) List(_ context.Context, filter ListFilter) (ListPage, erro
 	}
 
 	sort.Slice(items, func(i, j int) bool {
-		if !items[i].UpdatedAt.Equal(items[j].UpdatedAt) {
-			return items[i].UpdatedAt.After(items[j].UpdatedAt)
-		}
-		if !items[i].CreatedAt.Equal(items[j].CreatedAt) {
-			return items[i].CreatedAt.After(items[j].CreatedAt)
-		}
-		return items[i].ID > items[j].ID
+		return caseSortsAfter(items[i], items[j])
 	})
 
 	if offset >= len(items) {
@@ -179,10 +171,7 @@ func (s *memoryStore) FindOpenByCompareOrigin(_ context.Context, tenantID string
 			item.CompareOrigin.SelectedSide != compareOrigin.SelectedSide {
 			continue
 		}
-		if !found ||
-			item.UpdatedAt.After(latest.UpdatedAt) ||
-			(item.UpdatedAt.Equal(latest.UpdatedAt) && item.CreatedAt.After(latest.CreatedAt)) ||
-			(item.UpdatedAt.Equal(latest.UpdatedAt) && item.CreatedAt.Equal(latest.CreatedAt) && item.ID > latest.ID) {
+		if !found || caseSortsAfter(item, latest) {
 			latest = item
 			found = true
 		}
@@ -227,10 +216,7 @@ func (s *memoryStore) SummarizeBySourceEvalReportIDs(_ context.Context, tenantID
 			summary.OpenFollowUpCaseCount++
 		}
 		latest, ok := latestCases[item.SourceEvalReportID]
-		if !ok ||
-			item.UpdatedAt.After(latest.UpdatedAt) ||
-			(item.UpdatedAt.Equal(latest.UpdatedAt) && item.CreatedAt.After(latest.CreatedAt)) ||
-			(item.UpdatedAt.Equal(latest.UpdatedAt) && item.CreatedAt.Equal(latest.CreatedAt) && item.ID > latest.ID) {
+		if !ok || caseSortsAfter(item, latest) {
 			latestCases[item.SourceEvalReportID] = item
 			summary.LatestFollowUpCaseID = item.ID
 			summary.LatestFollowUpCaseStatus = item.Status
@@ -283,10 +269,7 @@ func (s *memoryStore) SummarizeCompareOriginBySourceEvalReportIDs(_ context.Cont
 			summary.OpenCompareFollowUpCaseCount++
 		}
 		latest, ok := latestCases[item.SourceEvalReportID]
-		if !ok ||
-			item.UpdatedAt.After(latest.UpdatedAt) ||
-			(item.UpdatedAt.Equal(latest.UpdatedAt) && item.CreatedAt.After(latest.CreatedAt)) ||
-			(item.UpdatedAt.Equal(latest.UpdatedAt) && item.CreatedAt.Equal(latest.CreatedAt) && item.ID > latest.ID) {
+		if !ok || caseSortsAfter(item, latest) {
 			latestCases[item.SourceEvalReportID] = item
 			summary.LatestCompareFollowUpCaseID = item.ID
 			summary.LatestCompareFollowUpCaseStatus = item.Status
@@ -336,10 +319,7 @@ func (s *memoryStore) SummarizeBySourceEvalCaseIDs(_ context.Context, tenantID s
 			summary.OpenFollowUpCaseCount++
 		}
 		latest, ok := latestCases[item.SourceEvalCaseID]
-		if !ok ||
-			item.UpdatedAt.After(latest.UpdatedAt) ||
-			(item.UpdatedAt.Equal(latest.UpdatedAt) && item.CreatedAt.After(latest.CreatedAt)) ||
-			(item.UpdatedAt.Equal(latest.UpdatedAt) && item.CreatedAt.Equal(latest.CreatedAt) && item.ID > latest.ID) {
+		if !ok || caseSortsAfter(item, latest) {
 			latestCases[item.SourceEvalCaseID] = item
 			summary.LatestFollowUpCaseID = item.ID
 			summary.LatestFollowUpCaseStatus = item.Status
@@ -389,10 +369,7 @@ func (s *memoryStore) SummarizeBySourceEvalRunIDs(_ context.Context, tenantID st
 			summary.OpenFollowUpCaseCount++
 		}
 		latest, ok := latestCases[item.SourceEvalRunID]
-		if !ok ||
-			item.UpdatedAt.After(latest.UpdatedAt) ||
-			(item.UpdatedAt.Equal(latest.UpdatedAt) && item.CreatedAt.After(latest.CreatedAt)) ||
-			(item.UpdatedAt.Equal(latest.UpdatedAt) && item.CreatedAt.Equal(latest.CreatedAt) && item.ID > latest.ID) {
+		if !ok || caseSortsAfter(item, latest) {
 			latestCases[item.SourceEvalRunID] = item
 			summary.LatestFollowUpCaseID = item.ID
 			summary.LatestFollowUpCaseStatus = item.Status

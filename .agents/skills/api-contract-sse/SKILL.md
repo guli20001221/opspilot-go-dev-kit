@@ -64,6 +64,7 @@ Keep the HTTP surface explicit, documented, stable, and friendly to streaming ag
 33. When durable follow-up objects such as cases link eval-run lineage, expose `source_eval_run_id` on the canonical case read and write contracts and prefer backend-owned queue filters such as `source_eval_run_id` or `run_backed_only=true` over browser-built run-follow-up slices.
 34. Once `source_eval_run_id` is part of the canonical case contract, prefer `POST /api/v1/cases` to reuse the newest open `tenant_id + source_eval_run_id` case instead of creating duplicate run-backed follow-up rows from repeated operator clicks.
 35. Once canonical eval-dataset reads already expose both latest-report and dataset-wide case queue actions, add a typed preferred case handoff field on that same contract instead of leaving the browser to compose dataset-versus-report queue priority on its own.
+36. Once canonical eval-dataset reads already know the latest durable run ID, expose a lightweight run-backed case summary there instead of forcing operators to query `/api/v1/eval-runs` or `/api/v1/cases` just to see whether the latest run already has claimed follow-up work.
 
 ## Output contract
 When you finish, always report:

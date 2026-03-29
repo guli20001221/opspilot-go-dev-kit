@@ -119,6 +119,7 @@ The current HTTP layer also exposes the same PostgreSQL-backed workflow records 
 - those same dataset rows now also consume the canonical dataset queue action for row-level case handoff, keeping dataset-wide queue routing out of browser-side latest-report fallback logic
 - the same canonical eval-dataset list/detail contracts now also expose `preferred_case_handoff_action`, so the dataset lane can delegate dataset-wide versus latest-report case-queue priority back to the backend instead of composing it in page helpers
 - the same eval-dataset list/detail reads now also expose `linked_case_summary`, so dataset triage can see latest case status and assignment without first opening the case queue
+- the same canonical eval-dataset list/detail contracts now also expose `run_backed_case_summary`, so dataset triage can see the latest `source_eval_run_id` case state and ownership without first detouring into the eval-run lane
 - the same typed dataset queue action now prefers a direct handoff into the newest still-open dataset-wide follow-up case and only falls back to the dataset-scoped queue when the latest linked case is already closed
 - `POST /api/v1/eval-datasets/{dataset_id}/publish` now turns a durable draft into an immutable published baseline, recording `published_by` and `published_at` so later regression work can target stable dataset state instead of a moving draft
 - `internal/eval` now also holds the first durable eval-run kickoff model, which snapshots published dataset metadata into a queued run row before judge execution is connected

@@ -692,6 +692,18 @@ func TestAdminEvalDatasetsPageRuntimeSmoke(t *testing.T) {
 	if err != nil {
 		t.Fatalf("AssignCase(follow-up) error = %v", err)
 	}
+	runBackedCase, err := caseService.CreateCase(ctx, casesvc.CreateInput{
+		TenantID:        "tenant-dataset-admin-smoke",
+		Title:           "Dataset admin run-backed follow-up",
+		SourceEvalRunID: reportItem.RunID,
+	})
+	if err != nil {
+		t.Fatalf("CreateCase(run-backed) error = %v", err)
+	}
+	runBackedCase, err = caseService.AssignCase(ctx, runBackedCase, "dataset-run-operator")
+	if err != nil {
+		t.Fatalf("AssignCase(run-backed) error = %v", err)
+	}
 
 	server := httptest.NewServer(NewHandlerWithDependencies(Dependencies{
 		Cases:        caseService,
@@ -726,7 +738,9 @@ const reportID = process.argv[6];
     if (!firstRowText.includes("1 unresolved follow-up items")) throw new Error("unresolved follow-up count missing from dataset row");
     if (!firstRowText.includes("1 total / 1 open / 0 closed dataset follow-up cases")) throw new Error("dataset-wide follow-up summary missing from dataset row");
     if (!firstRowText.includes("Latest dataset case: ` + followUpCase.ID + ` (open, assigned to dataset-smoke-operator)")) throw new Error("linked dataset case summary missing from dataset row");
+    if (!firstRowText.includes("Latest run-backed case: ` + runBackedCase.ID + ` (open, assigned to dataset-run-operator)")) throw new Error("run-backed case summary missing from dataset row");
     if (!firstRowText.includes("Open latest dataset case")) throw new Error("latest dataset case handoff missing from dataset row");
+    if (!firstRowText.includes("Open latest run-backed case")) throw new Error("latest run-backed case handoff missing from dataset row");
     const latestRunHref = await page.getAttribute('a[href*="/admin/eval-runs?"][href*="run_id=' + encodeURIComponent(runID) + '"]', "href");
     if (!latestRunHref) throw new Error("latest run handoff missing from dataset row");
     const latestReportHref = await page.getAttribute('a[href*="/admin/eval-reports?"][href*="selected_report_id=' + encodeURIComponent(reportID) + '"]', "href");
@@ -738,12 +752,16 @@ const reportID = process.argv[6];
   if (!detailText.includes(reportID)) throw new Error("latest report summary missing from dataset detail");
     if (!detailText.includes("Dataset-wide follow-up case summary")) throw new Error("dataset-wide follow-up case summary section missing from dataset detail");
     if (!detailText.includes("Linked dataset case summary")) throw new Error("linked dataset case summary section missing from dataset detail");
+    if (!detailText.includes("Run-backed case summary")) throw new Error("run-backed case summary section missing from dataset detail");
     if (!detailText.includes("Latest-report follow-up case summary")) throw new Error("latest-report follow-up case summary section missing from dataset detail");
     if (!detailText.includes("Total follow-up cases")) throw new Error("follow-up case total missing from dataset detail");
     if (!detailText.includes("Closed follow-up cases")) throw new Error("closed follow-up case count missing from dataset detail");
     if (!detailText.includes("dataset-smoke-operator")) throw new Error("linked dataset case owner missing from dataset detail");
+    if (!detailText.includes("dataset-run-operator")) throw new Error("run-backed case owner missing from dataset detail");
     const datasetCaseHref = await page.getAttribute('a[href*="/admin/cases?"][href*="case_id=' + encodeURIComponent("` + followUpCase.ID + `") + '"]', "href");
     if (!datasetCaseHref) throw new Error("linked dataset case handoff missing from dataset detail");
+    const runBackedCaseHref = await page.getAttribute('a[href*="/admin/cases?"][href*="case_id=' + encodeURIComponent("` + runBackedCase.ID + `") + '"]', "href");
+    if (!runBackedCaseHref) throw new Error("run-backed case handoff missing from dataset detail");
   await page.click("#needsFollowUpQuickView");
   await page.waitForFunction(() => document.querySelector("#visibleCount")?.textContent?.trim() === "1");
   const currentURL = new URL(page.url());

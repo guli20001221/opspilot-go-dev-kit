@@ -151,6 +151,69 @@ func TestServiceListCasesSupportsFilterAndOffset(t *testing.T) {
 	}
 }
 
+func TestServiceListCasesUsesNaturalCaseIDTieBreakForPagination(t *testing.T) {
+	store := newMemoryStore()
+	svc := NewServiceWithStore(store)
+	now := time.Unix(1700000200, 0).UTC()
+
+	for _, item := range []Case{
+		{
+			ID:        "case-1700000200000000000-99",
+			TenantID:  "tenant-1",
+			Status:    StatusOpen,
+			Title:     "Older lexical suffix",
+			CreatedBy: "operator",
+			CreatedAt: now,
+			UpdatedAt: now,
+		},
+		{
+			ID:        "case-1700000200000000000-100",
+			TenantID:  "tenant-1",
+			Status:    StatusOpen,
+			Title:     "Newer numeric suffix",
+			CreatedBy: "operator",
+			CreatedAt: now,
+			UpdatedAt: now,
+		},
+	} {
+		if _, err := store.Save(context.Background(), item); err != nil {
+			t.Fatalf("store.Save(%s) error = %v", item.ID, err)
+		}
+	}
+
+	firstPage, err := svc.ListCases(context.Background(), ListFilter{
+		TenantID: "tenant-1",
+		Limit:    1,
+	})
+	if err != nil {
+		t.Fatalf("ListCases(firstPage) error = %v", err)
+	}
+	if len(firstPage.Cases) != 1 {
+		t.Fatalf("len(firstPage.Cases) = %d, want 1", len(firstPage.Cases))
+	}
+	if firstPage.Cases[0].ID != "case-1700000200000000000-100" {
+		t.Fatalf("firstPage.Cases[0].ID = %q, want %q", firstPage.Cases[0].ID, "case-1700000200000000000-100")
+	}
+	if !firstPage.HasMore {
+		t.Fatal("firstPage.HasMore = false, want true")
+	}
+
+	nextPage, err := svc.ListCases(context.Background(), ListFilter{
+		TenantID: "tenant-1",
+		Limit:    1,
+		Offset:   firstPage.NextOffset,
+	})
+	if err != nil {
+		t.Fatalf("ListCases(nextPage) error = %v", err)
+	}
+	if len(nextPage.Cases) != 1 {
+		t.Fatalf("len(nextPage.Cases) = %d, want 1", len(nextPage.Cases))
+	}
+	if nextPage.Cases[0].ID != "case-1700000200000000000-99" {
+		t.Fatalf("nextPage.Cases[0].ID = %q, want %q", nextPage.Cases[0].ID, "case-1700000200000000000-99")
+	}
+}
+
 func TestServiceListCasesSupportsAssignedToFilter(t *testing.T) {
 	svc := NewService()
 

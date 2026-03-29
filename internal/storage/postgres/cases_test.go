@@ -480,6 +480,84 @@ func TestCaseStoreListSupportsAssignedToFilter(t *testing.T) {
 	}
 }
 
+func TestCaseStoreListUsesNaturalCaseIDTieBreakForPagination(t *testing.T) {
+	dsn := os.Getenv("OPSPILOT_TEST_POSTGRES_DSN")
+	if dsn == "" {
+		t.Skip("OPSPILOT_TEST_POSTGRES_DSN not set")
+	}
+
+	ctx := context.Background()
+	pool, err := OpenPool(ctx, dsn)
+	if err != nil {
+		t.Fatalf("OpenPool() error = %v", err)
+	}
+	defer pool.Close()
+
+	applyMigration(t, ctx, pool)
+	if _, err := pool.Exec(ctx, "TRUNCATE eval_cases, eval_reports, eval_runs, cases, reports, workflow_task_events, workflow_tasks RESTART IDENTITY CASCADE"); err != nil {
+		t.Fatalf("TRUNCATE eval lineage and workflow tables error = %v", err)
+	}
+
+	store := NewCaseStore(pool)
+	now := time.Unix(1700100000, 0).UTC()
+	for _, item := range []casesvc.Case{
+		{
+			ID:        "case-1700100000000000000-99",
+			TenantID:  "tenant-natural-order",
+			Status:    casesvc.StatusOpen,
+			Title:     "Older lexical suffix",
+			CreatedBy: "operator-1",
+			CreatedAt: now,
+			UpdatedAt: now,
+		},
+		{
+			ID:        "case-1700100000000000000-100",
+			TenantID:  "tenant-natural-order",
+			Status:    casesvc.StatusOpen,
+			Title:     "Newer numeric suffix",
+			CreatedBy: "operator-2",
+			CreatedAt: now,
+			UpdatedAt: now,
+		},
+	} {
+		if _, err := store.Save(ctx, item); err != nil {
+			t.Fatalf("Save(%s) error = %v", item.ID, err)
+		}
+	}
+
+	firstPage, err := store.List(ctx, casesvc.ListFilter{
+		TenantID: "tenant-natural-order",
+		Limit:    1,
+	})
+	if err != nil {
+		t.Fatalf("List(firstPage) error = %v", err)
+	}
+	if len(firstPage.Cases) != 1 {
+		t.Fatalf("len(firstPage.Cases) = %d, want 1", len(firstPage.Cases))
+	}
+	if firstPage.Cases[0].ID != "case-1700100000000000000-100" {
+		t.Fatalf("firstPage.Cases[0].ID = %q, want %q", firstPage.Cases[0].ID, "case-1700100000000000000-100")
+	}
+	if !firstPage.HasMore {
+		t.Fatal("firstPage.HasMore = false, want true")
+	}
+
+	nextPage, err := store.List(ctx, casesvc.ListFilter{
+		TenantID: "tenant-natural-order",
+		Limit:    1,
+		Offset:   firstPage.NextOffset,
+	})
+	if err != nil {
+		t.Fatalf("List(nextPage) error = %v", err)
+	}
+	if len(nextPage.Cases) != 1 {
+		t.Fatalf("len(nextPage.Cases) = %d, want 1", len(nextPage.Cases))
+	}
+	if nextPage.Cases[0].ID != "case-1700100000000000000-99" {
+		t.Fatalf("nextPage.Cases[0].ID = %q, want %q", nextPage.Cases[0].ID, "case-1700100000000000000-99")
+	}
+}
+
 func TestCaseStoreListSupportsUnassignedOnlyFilter(t *testing.T) {
 	dsn := os.Getenv("OPSPILOT_TEST_POSTGRES_DSN")
 	if dsn == "" {

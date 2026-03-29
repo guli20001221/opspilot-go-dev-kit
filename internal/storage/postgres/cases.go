@@ -187,7 +187,7 @@ FROM cases
 WHERE tenant_id = $1
   AND status = $2
   AND source_eval_run_id = $3
-ORDER BY updated_at DESC, created_at DESC, id DESC
+ORDER BY updated_at DESC, created_at DESC, COALESCE((substring(id from '([0-9]+)$'))::bigint, 0) DESC, id DESC
 LIMIT 1`
 
 	row := q.QueryRow(ctx, query, tenantID, casesvc.StatusOpen, sourceEvalRunID)
@@ -288,7 +288,7 @@ WHERE ($1 = '' OR tenant_id = $1)
   AND (cardinality($13::text[]) = 0 OR source_eval_report_id = ANY($13))
   AND ($14 = '' OR source_eval_case_id = $14)
   AND ($15 = '' OR source_eval_run_id = $15)
-ORDER BY updated_at DESC, created_at DESC, id DESC
+ORDER BY updated_at DESC, created_at DESC, COALESCE((substring(id from '([0-9]+)$'))::bigint, 0) DESC, id DESC
 LIMIT $16 OFFSET $17`
 
 	sourceEvalReportIDs := filter.SourceEvalReportIDs
@@ -380,7 +380,7 @@ WHERE tenant_id = $1
   AND compare_left_eval_report_id = $4
   AND compare_right_eval_report_id = $5
   AND compare_selected_side = $6
-ORDER BY updated_at DESC, created_at DESC, id DESC
+ORDER BY updated_at DESC, created_at DESC, COALESCE((substring(id from '([0-9]+)$'))::bigint, 0) DESC, id DESC
 LIMIT 1`
 
 	row := s.pool.QueryRow(ctx, query, tenantID, casesvc.StatusOpen, sourceEvalReportID, compareOrigin.LeftEvalReportID, compareOrigin.RightEvalReportID, compareOrigin.SelectedSide)
@@ -428,7 +428,7 @@ latest AS (
         id,
         status
     FROM scoped
-    ORDER BY source_eval_report_id, updated_at DESC, created_at DESC, id DESC
+    ORDER BY source_eval_report_id, updated_at DESC, created_at DESC, COALESCE((substring(id from '([0-9]+)$'))::bigint, 0) DESC, id DESC
 )
 SELECT
     counts.source_eval_report_id,
@@ -509,7 +509,7 @@ latest AS (
         id,
         status
     FROM scoped
-    ORDER BY source_eval_report_id, updated_at DESC, created_at DESC, id DESC
+    ORDER BY source_eval_report_id, updated_at DESC, created_at DESC, COALESCE((substring(id from '([0-9]+)$'))::bigint, 0) DESC, id DESC
 )
 SELECT
     counts.source_eval_report_id,
@@ -589,7 +589,7 @@ latest AS (
         id,
         status
     FROM scoped
-    ORDER BY source_eval_case_id, updated_at DESC, created_at DESC, id DESC
+    ORDER BY source_eval_case_id, updated_at DESC, created_at DESC, COALESCE((substring(id from '([0-9]+)$'))::bigint, 0) DESC, id DESC
 )
 SELECT
     counts.source_eval_case_id,
@@ -671,7 +671,7 @@ latest AS (
         status,
         assigned_to
     FROM scoped
-    ORDER BY source_eval_run_id, updated_at DESC, created_at DESC, id DESC
+    ORDER BY source_eval_run_id, updated_at DESC, created_at DESC, COALESCE((substring(id from '([0-9]+)$'))::bigint, 0) DESC, id DESC
 )
 SELECT
     counts.source_eval_run_id,

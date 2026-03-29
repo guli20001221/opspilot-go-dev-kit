@@ -264,6 +264,18 @@ func TestListEvalDatasetsEndpointIncludesLatestRunSummary(t *testing.T) {
 	if err != nil {
 		t.Fatalf("AssignCase(follow-up) error = %v", err)
 	}
+	runBackedCase, err := caseService.CreateCase(ctx, casesvc.CreateInput{
+		TenantID:        "tenant-dataset-summary",
+		Title:           "Dataset run-backed follow-up",
+		SourceEvalRunID: reportItem.RunID,
+	})
+	if err != nil {
+		t.Fatalf("CreateCase(run-backed) error = %v", err)
+	}
+	runBackedCase, err = caseService.AssignCase(ctx, runBackedCase, "run-backed-operator")
+	if err != nil {
+		t.Fatalf("AssignCase(run-backed) error = %v", err)
+	}
 
 	server := httptest.NewServer(NewHandlerWithDependencies(Dependencies{
 		Cases:        caseService,
@@ -377,6 +389,21 @@ func TestListEvalDatasetsEndpointIncludesLatestRunSummary(t *testing.T) {
 	}
 	if got.LinkedCaseSummary.LatestAssignedTo != "dataset-operator" {
 		t.Fatalf("LinkedCaseSummary.LatestAssignedTo = %q, want %q", got.LinkedCaseSummary.LatestAssignedTo, "dataset-operator")
+	}
+	if got.RunBackedCaseSummary.TotalCaseCount != 1 {
+		t.Fatalf("RunBackedCaseSummary.TotalCaseCount = %d, want 1", got.RunBackedCaseSummary.TotalCaseCount)
+	}
+	if got.RunBackedCaseSummary.OpenCaseCount != 1 {
+		t.Fatalf("RunBackedCaseSummary.OpenCaseCount = %d, want 1", got.RunBackedCaseSummary.OpenCaseCount)
+	}
+	if got.RunBackedCaseSummary.LatestCaseID != runBackedCase.ID {
+		t.Fatalf("RunBackedCaseSummary.LatestCaseID = %q, want %q", got.RunBackedCaseSummary.LatestCaseID, runBackedCase.ID)
+	}
+	if got.RunBackedCaseSummary.LatestCaseStatus != casesvc.StatusOpen {
+		t.Fatalf("RunBackedCaseSummary.LatestCaseStatus = %q, want %q", got.RunBackedCaseSummary.LatestCaseStatus, casesvc.StatusOpen)
+	}
+	if got.RunBackedCaseSummary.LatestAssignedTo != "run-backed-operator" {
+		t.Fatalf("RunBackedCaseSummary.LatestAssignedTo = %q, want %q", got.RunBackedCaseSummary.LatestAssignedTo, "run-backed-operator")
 	}
 }
 
@@ -585,6 +612,18 @@ func TestGetEvalDatasetIncludesLatestRunSummary(t *testing.T) {
 	if err != nil {
 		t.Fatalf("AssignCase(follow-up) error = %v", err)
 	}
+	runBackedCase, err := caseService.CreateCase(ctx, casesvc.CreateInput{
+		TenantID:        "tenant-dataset-detail",
+		Title:           "Dataset detail run-backed follow-up",
+		SourceEvalRunID: reportItem.RunID,
+	})
+	if err != nil {
+		t.Fatalf("CreateCase(run-backed) error = %v", err)
+	}
+	runBackedCase, err = caseService.AssignCase(ctx, runBackedCase, "detail-run-operator")
+	if err != nil {
+		t.Fatalf("AssignCase(run-backed) error = %v", err)
+	}
 
 	server := httptest.NewServer(NewHandlerWithDependencies(Dependencies{
 		Cases:        caseService,
@@ -691,6 +730,21 @@ func TestGetEvalDatasetIncludesLatestRunSummary(t *testing.T) {
 	}
 	if got.LinkedCaseSummary.LatestAssignedTo != "detail-operator" {
 		t.Fatalf("LinkedCaseSummary.LatestAssignedTo = %q, want %q", got.LinkedCaseSummary.LatestAssignedTo, "detail-operator")
+	}
+	if got.RunBackedCaseSummary.TotalCaseCount != 1 {
+		t.Fatalf("RunBackedCaseSummary.TotalCaseCount = %d, want 1", got.RunBackedCaseSummary.TotalCaseCount)
+	}
+	if got.RunBackedCaseSummary.OpenCaseCount != 1 {
+		t.Fatalf("RunBackedCaseSummary.OpenCaseCount = %d, want 1", got.RunBackedCaseSummary.OpenCaseCount)
+	}
+	if got.RunBackedCaseSummary.LatestCaseID != runBackedCase.ID {
+		t.Fatalf("RunBackedCaseSummary.LatestCaseID = %q, want %q", got.RunBackedCaseSummary.LatestCaseID, runBackedCase.ID)
+	}
+	if got.RunBackedCaseSummary.LatestCaseStatus != casesvc.StatusOpen {
+		t.Fatalf("RunBackedCaseSummary.LatestCaseStatus = %q, want %q", got.RunBackedCaseSummary.LatestCaseStatus, casesvc.StatusOpen)
+	}
+	if got.RunBackedCaseSummary.LatestAssignedTo != "detail-run-operator" {
+		t.Fatalf("RunBackedCaseSummary.LatestAssignedTo = %q, want %q", got.RunBackedCaseSummary.LatestAssignedTo, "detail-run-operator")
 	}
 	if len(got.RecentRuns) == 0 {
 		t.Fatal("RecentRuns is empty, want latest run summary")

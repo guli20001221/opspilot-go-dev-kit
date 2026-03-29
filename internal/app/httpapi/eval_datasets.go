@@ -63,6 +63,7 @@ type evalDatasetResponse struct {
 	PreferredFollowUpAction         evalDatasetFollowUpActionResponse      `json:"preferred_follow_up_action"`
 	FollowUpCaseSummary             evalDatasetFollowUpCaseSummaryResponse `json:"follow_up_case_summary"`
 	LinkedCaseSummary               evalDatasetLinkedCaseSummaryResponse   `json:"linked_case_summary"`
+	RunBackedCaseSummary            evalDatasetLinkedCaseSummaryResponse   `json:"run_backed_case_summary"`
 	OpenFollowUpCaseCount           int                                    `json:"open_follow_up_case_count"`
 	PreferredCaseQueueAction        evalDatasetCaseQueueActionResponse     `json:"preferred_case_queue_action"`
 	DatasetFollowUpCaseSummary      evalDatasetFollowUpCaseSummaryResponse `json:"dataset_follow_up_case_summary"`
@@ -91,6 +92,7 @@ type evalDatasetSummaryResponse struct {
 	PreferredFollowUpAction         evalDatasetFollowUpActionResponse      `json:"preferred_follow_up_action"`
 	OpenFollowUpCaseCount           int                                    `json:"open_follow_up_case_count"`
 	LinkedCaseSummary               evalDatasetLinkedCaseSummaryResponse   `json:"linked_case_summary"`
+	RunBackedCaseSummary            evalDatasetLinkedCaseSummaryResponse   `json:"run_backed_case_summary"`
 	PreferredCaseQueueAction        evalDatasetCaseQueueActionResponse     `json:"preferred_case_queue_action"`
 	DatasetFollowUpCaseSummary      evalDatasetFollowUpCaseSummaryResponse `json:"dataset_follow_up_case_summary"`
 	DatasetOpenFollowUpCaseCount    int                                    `json:"dataset_open_follow_up_case_count"`
@@ -203,7 +205,7 @@ func (a *appHandler) handleCreateEvalDataset(w http.ResponseWriter, r *http.Requ
 		return
 	}
 
-	writeJSON(w, http.StatusCreated, newEvalDatasetResponse(item, evalDatasetLatestRunSummary{}, evalDatasetLinkedCaseSummaryResponse{}, nil))
+	writeJSON(w, http.StatusCreated, newEvalDatasetResponse(item, evalDatasetLatestRunSummary{}, evalDatasetLinkedCaseSummaryResponse{}, evalDatasetLinkedCaseSummaryResponse{}, nil))
 }
 
 func (a *appHandler) handleEvalDatasetByID(w http.ResponseWriter, r *http.Request) {
@@ -275,13 +277,18 @@ func (a *appHandler) handleGetEvalDataset(w http.ResponseWriter, r *http.Request
 		writeError(w, http.StatusInternalServerError, "eval_dataset_linked_case_summary_failed", err.Error())
 		return
 	}
+	runBackedCaseSummary, err := a.evalDatasetRunBackedCaseSummary(r.Context(), item.TenantID, latestRun)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "eval_dataset_run_backed_case_summary_failed", err.Error())
+		return
+	}
 	recentRuns, err := a.evalDatasetRecentRuns(r.Context(), item.TenantID, item.ID, 5)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "eval_dataset_recent_runs_failed", err.Error())
 		return
 	}
 
-	writeJSON(w, http.StatusOK, newEvalDatasetResponse(item, latestRun, linkedCaseSummary, recentRuns))
+	writeJSON(w, http.StatusOK, newEvalDatasetResponse(item, latestRun, linkedCaseSummary, runBackedCaseSummary, recentRuns))
 }
 
 func (a *appHandler) handleAddEvalDatasetItem(w http.ResponseWriter, r *http.Request, datasetID string) {
@@ -316,7 +323,7 @@ func (a *appHandler) handleAddEvalDatasetItem(w http.ResponseWriter, r *http.Req
 		return
 	}
 
-	writeJSON(w, http.StatusOK, newEvalDatasetResponse(item, evalDatasetLatestRunSummary{}, evalDatasetLinkedCaseSummaryResponse{}, nil))
+	writeJSON(w, http.StatusOK, newEvalDatasetResponse(item, evalDatasetLatestRunSummary{}, evalDatasetLinkedCaseSummaryResponse{}, evalDatasetLinkedCaseSummaryResponse{}, nil))
 }
 
 func (a *appHandler) handlePublishEvalDataset(w http.ResponseWriter, r *http.Request, datasetID string) {
@@ -348,10 +355,10 @@ func (a *appHandler) handlePublishEvalDataset(w http.ResponseWriter, r *http.Req
 		return
 	}
 
-	writeJSON(w, http.StatusOK, newEvalDatasetResponse(item, evalDatasetLatestRunSummary{}, evalDatasetLinkedCaseSummaryResponse{}, nil))
+	writeJSON(w, http.StatusOK, newEvalDatasetResponse(item, evalDatasetLatestRunSummary{}, evalDatasetLinkedCaseSummaryResponse{}, evalDatasetLinkedCaseSummaryResponse{}, nil))
 }
 
-func newEvalDatasetResponse(item evalsvc.EvalDataset, latestRun evalDatasetLatestRunSummary, linkedCaseSummary evalDatasetLinkedCaseSummaryResponse, recentRuns []evalDatasetRecentRunResponse) evalDatasetResponse {
+func newEvalDatasetResponse(item evalsvc.EvalDataset, latestRun evalDatasetLatestRunSummary, linkedCaseSummary evalDatasetLinkedCaseSummaryResponse, runBackedCaseSummary evalDatasetLinkedCaseSummaryResponse, recentRuns []evalDatasetRecentRunResponse) evalDatasetResponse {
 	resp := evalDatasetResponse{
 		DatasetID:                       item.ID,
 		TenantID:                        item.TenantID,
@@ -370,6 +377,7 @@ func newEvalDatasetResponse(item evalsvc.EvalDataset, latestRun evalDatasetLates
 		PreferredFollowUpAction:         newEvalDatasetFollowUpActionResponse(item.ID, latestRun),
 		FollowUpCaseSummary:             newEvalDatasetFollowUpCaseSummaryResponse(latestRun),
 		LinkedCaseSummary:               linkedCaseSummary,
+		RunBackedCaseSummary:            runBackedCaseSummary,
 		OpenFollowUpCaseCount:           latestRun.OpenFollowUpCaseCount,
 		PreferredCaseQueueAction:        newEvalDatasetCaseQueueActionResponse(latestRun),
 		DatasetFollowUpCaseSummary:      newEvalDatasetDatasetFollowUpCaseSummaryResponse(latestRun),
@@ -419,7 +427,7 @@ type evalDatasetLatestRunSummary struct {
 	DatasetLatestFollowUpCaseOwner  string
 }
 
-func newEvalDatasetSummaryResponse(item evalsvc.EvalDatasetSummary, latestRun evalDatasetLatestRunSummary, linkedCaseSummary evalDatasetLinkedCaseSummaryResponse) evalDatasetSummaryResponse {
+func newEvalDatasetSummaryResponse(item evalsvc.EvalDatasetSummary, latestRun evalDatasetLatestRunSummary, linkedCaseSummary evalDatasetLinkedCaseSummaryResponse, runBackedCaseSummary evalDatasetLinkedCaseSummaryResponse) evalDatasetSummaryResponse {
 	return evalDatasetSummaryResponse{
 		DatasetID:                       item.ID,
 		TenantID:                        item.TenantID,
@@ -438,6 +446,7 @@ func newEvalDatasetSummaryResponse(item evalsvc.EvalDatasetSummary, latestRun ev
 		PreferredFollowUpAction:         newEvalDatasetFollowUpActionResponse(item.ID, latestRun),
 		OpenFollowUpCaseCount:           latestRun.OpenFollowUpCaseCount,
 		LinkedCaseSummary:               linkedCaseSummary,
+		RunBackedCaseSummary:            runBackedCaseSummary,
 		PreferredCaseQueueAction:        newEvalDatasetCaseQueueActionResponse(latestRun),
 		DatasetFollowUpCaseSummary:      newEvalDatasetDatasetFollowUpCaseSummaryResponse(latestRun),
 		DatasetOpenFollowUpCaseCount:    latestRun.DatasetOpenFollowUpCaseCount,
@@ -653,8 +662,12 @@ func (a *appHandler) listEvalDatasetsResponse(ctx context.Context, filter evalsv
 		if err != nil {
 			return listEvalDatasetsResponse{}, err
 		}
+		runBackedCaseSummaries, err := a.evalDatasetRunBackedCaseSummaries(ctx, filter.TenantID, latestRunSummaries)
+		if err != nil {
+			return listEvalDatasetsResponse{}, err
+		}
 		resp := listEvalDatasetsResponse{
-			Datasets: buildEvalDatasetListRows(page.Datasets, latestRunSummaries, linkedCaseSummaries),
+			Datasets: buildEvalDatasetListRows(page.Datasets, latestRunSummaries, linkedCaseSummaries, runBackedCaseSummaries),
 			HasMore:  page.HasMore,
 		}
 		if page.HasMore {
@@ -690,7 +703,11 @@ func (a *appHandler) listEvalDatasetsResponse(ctx context.Context, filter evalsv
 	if err != nil {
 		return listEvalDatasetsResponse{}, err
 	}
-	rows := buildEvalDatasetListRows(candidates, latestRunSummaries, linkedCaseSummaries)
+	runBackedCaseSummaries, err := a.evalDatasetRunBackedCaseSummaries(ctx, filter.TenantID, latestRunSummaries)
+	if err != nil {
+		return listEvalDatasetsResponse{}, err
+	}
+	rows := buildEvalDatasetListRows(candidates, latestRunSummaries, linkedCaseSummaries, runBackedCaseSummaries)
 	resp := listEvalDatasetsResponse{Datasets: make([]evalDatasetSummaryResponse, 0, filter.Limit)}
 	matchedCount := 0
 	for _, row := range rows {
@@ -715,10 +732,10 @@ func (a *appHandler) listEvalDatasetsResponse(ctx context.Context, filter evalsv
 	return resp, nil
 }
 
-func buildEvalDatasetListRows(items []evalsvc.EvalDatasetSummary, latestRunSummaries map[string]evalDatasetLatestRunSummary, linkedCaseSummaries map[string]evalDatasetLinkedCaseSummaryResponse) []evalDatasetSummaryResponse {
+func buildEvalDatasetListRows(items []evalsvc.EvalDatasetSummary, latestRunSummaries map[string]evalDatasetLatestRunSummary, linkedCaseSummaries map[string]evalDatasetLinkedCaseSummaryResponse, runBackedCaseSummaries map[string]evalDatasetLinkedCaseSummaryResponse) []evalDatasetSummaryResponse {
 	rows := make([]evalDatasetSummaryResponse, 0, len(items))
 	for _, item := range items {
-		rows = append(rows, newEvalDatasetSummaryResponse(item, latestRunSummaries[item.ID], linkedCaseSummaries[item.ID]))
+		rows = append(rows, newEvalDatasetSummaryResponse(item, latestRunSummaries[item.ID], linkedCaseSummaries[item.ID], runBackedCaseSummaries[item.ID]))
 	}
 	return rows
 }
@@ -729,6 +746,18 @@ func (a *appHandler) evalDatasetLinkedCaseSummaries(ctx context.Context, tenantI
 		summary, err := a.evalDatasetLinkedCaseSummary(ctx, tenantID, latestRun)
 		if err != nil {
 			return nil, fmt.Errorf("build linked case summary for dataset %q: %w", datasetID, err)
+		}
+		summaries[datasetID] = summary
+	}
+	return summaries, nil
+}
+
+func (a *appHandler) evalDatasetRunBackedCaseSummaries(ctx context.Context, tenantID string, latestRunSummaries map[string]evalDatasetLatestRunSummary) (map[string]evalDatasetLinkedCaseSummaryResponse, error) {
+	summaries := make(map[string]evalDatasetLinkedCaseSummaryResponse, len(latestRunSummaries))
+	for datasetID, latestRun := range latestRunSummaries {
+		summary, err := a.evalDatasetRunBackedCaseSummary(ctx, tenantID, latestRun)
+		if err != nil {
+			return nil, fmt.Errorf("build run-backed case summary for dataset %q: %w", datasetID, err)
 		}
 		summaries[datasetID] = summary
 	}
@@ -753,6 +782,25 @@ func (a *appHandler) evalDatasetLinkedCaseSummary(ctx context.Context, tenantID 
 	}
 	summary.LatestAssignedTo = latestCase.AssignedTo
 	return summary, nil
+}
+
+func (a *appHandler) evalDatasetRunBackedCaseSummary(ctx context.Context, tenantID string, latestRun evalDatasetLatestRunSummary) (evalDatasetLinkedCaseSummaryResponse, error) {
+	if a.cases == nil || tenantID == "" || latestRun.LatestRunID == "" {
+		return evalDatasetLinkedCaseSummaryResponse{}, nil
+	}
+
+	summaries, err := a.cases.SummarizeBySourceEvalRunIDs(ctx, tenantID, []string{latestRun.LatestRunID})
+	if err != nil {
+		return evalDatasetLinkedCaseSummaryResponse{}, fmt.Errorf("summarize run-backed cases for run %q: %w", latestRun.LatestRunID, err)
+	}
+	runSummary := summaries[latestRun.LatestRunID]
+	return evalDatasetLinkedCaseSummaryResponse{
+		TotalCaseCount:   runSummary.FollowUpCaseCount,
+		OpenCaseCount:    runSummary.OpenFollowUpCaseCount,
+		LatestCaseID:     runSummary.LatestFollowUpCaseID,
+		LatestCaseStatus: runSummary.LatestFollowUpCaseStatus,
+		LatestAssignedTo: runSummary.LatestFollowUpAssignedTo,
+	}, nil
 }
 
 func (a *appHandler) evalDatasetLatestRunSummaries(ctx context.Context, tenantID string, items []evalsvc.EvalDatasetSummary) (map[string]evalDatasetLatestRunSummary, error) {
