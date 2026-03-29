@@ -245,6 +245,21 @@ func TestListEvalDatasetsEndpointIncludesLatestRunSummary(t *testing.T) {
 	if err != nil {
 		t.Fatalf("GetEvalReport() error = %v", err)
 	}
+	if _, err := caseService.CreateCase(ctx, casesvc.CreateInput{
+		TenantID:           "tenant-dataset-detail",
+		Title:              "Dataset detail follow-up",
+		SourceEvalReportID: reportID,
+	}); err != nil {
+		t.Fatalf("CreateCase(follow-up) error = %v", err)
+	}
+	followUpCase, err := caseService.CreateCase(ctx, casesvc.CreateInput{
+		TenantID:           "tenant-dataset-summary",
+		Title:              "Dataset follow-up",
+		SourceEvalReportID: reportID,
+	})
+	if err != nil {
+		t.Fatalf("CreateCase(follow-up) error = %v", err)
+	}
 
 	server := httptest.NewServer(NewHandlerWithDependencies(Dependencies{
 		Cases:        caseService,
@@ -298,6 +313,15 @@ func TestListEvalDatasetsEndpointIncludesLatestRunSummary(t *testing.T) {
 	}
 	if got.PreferredFollowUpAction.ReportID != reportID {
 		t.Fatalf("PreferredFollowUpAction.ReportID = %q, want %q", got.PreferredFollowUpAction.ReportID, reportID)
+	}
+	if got.OpenFollowUpCaseCount != 1 {
+		t.Fatalf("OpenFollowUpCaseCount = %d, want 1", got.OpenFollowUpCaseCount)
+	}
+	if got.PreferredCaseQueueAction.Mode != "open_existing_case" {
+		t.Fatalf("PreferredCaseQueueAction.Mode = %q, want %q", got.PreferredCaseQueueAction.Mode, "open_existing_case")
+	}
+	if got.PreferredCaseQueueAction.CaseID != followUpCase.ID {
+		t.Fatalf("PreferredCaseQueueAction.CaseID = %q, want %q", got.PreferredCaseQueueAction.CaseID, followUpCase.ID)
 	}
 }
 
@@ -494,6 +518,13 @@ func TestGetEvalDatasetIncludesLatestRunSummary(t *testing.T) {
 	if err != nil {
 		t.Fatalf("GetEvalReport() error = %v", err)
 	}
+	if _, err := caseService.CreateCase(ctx, casesvc.CreateInput{
+		TenantID:           "tenant-dataset-detail",
+		Title:              "Dataset detail follow-up",
+		SourceEvalReportID: reportID,
+	}); err != nil {
+		t.Fatalf("CreateCase(follow-up) error = %v", err)
+	}
 
 	server := httptest.NewServer(NewHandlerWithDependencies(Dependencies{
 		Cases:        caseService,
@@ -534,6 +565,15 @@ func TestGetEvalDatasetIncludesLatestRunSummary(t *testing.T) {
 	}
 	if got.PreferredFollowUpAction.ReportID != reportID {
 		t.Fatalf("PreferredFollowUpAction.ReportID = %q, want %q", got.PreferredFollowUpAction.ReportID, reportID)
+	}
+	if got.OpenFollowUpCaseCount != 1 {
+		t.Fatalf("OpenFollowUpCaseCount = %d, want 1", got.OpenFollowUpCaseCount)
+	}
+	if got.PreferredCaseQueueAction.Mode != "open_existing_case" {
+		t.Fatalf("PreferredCaseQueueAction.Mode = %q, want %q", got.PreferredCaseQueueAction.Mode, "open_existing_case")
+	}
+	if got.PreferredCaseQueueAction.CaseID == "" {
+		t.Fatal("PreferredCaseQueueAction.CaseID is empty, want linked follow-up case")
 	}
 	if len(got.RecentRuns) == 0 {
 		t.Fatal("RecentRuns is empty, want latest run summary")
@@ -622,6 +662,12 @@ func TestEvalDatasetFollowUpActionFallsBackToLatestRunQueue(t *testing.T) {
 	if got.PreferredFollowUpAction.ReportID != "" {
 		t.Fatalf("PreferredFollowUpAction.ReportID = %q, want empty", got.PreferredFollowUpAction.ReportID)
 	}
+	if got.OpenFollowUpCaseCount != 0 {
+		t.Fatalf("OpenFollowUpCaseCount = %d, want 0", got.OpenFollowUpCaseCount)
+	}
+	if got.PreferredCaseQueueAction.Mode != "none" {
+		t.Fatalf("PreferredCaseQueueAction.Mode = %q, want %q", got.PreferredCaseQueueAction.Mode, "none")
+	}
 	if len(got.RecentRuns) == 0 {
 		t.Fatal("RecentRuns is empty, want latest run summary")
 	}
@@ -630,6 +676,79 @@ func TestEvalDatasetFollowUpActionFallsBackToLatestRunQueue(t *testing.T) {
 	}
 	if got.RecentRuns[0].ReportID != "" {
 		t.Fatalf("RecentRuns[0].ReportID = %q, want empty", got.RecentRuns[0].ReportID)
+	}
+}
+
+func TestEvalDatasetCaseQueueActionPrefersQueueWhenLatestCaseIsClosed(t *testing.T) {
+	ctx := context.Background()
+	caseService := casesvc.NewService()
+	evalCaseService := evalsvc.NewService(caseService, nil)
+	datasetService := evalsvc.NewDatasetService(evalCaseService)
+	runService := evalsvc.NewRunService(datasetService)
+	reportService := evalsvc.NewEvalReportServiceWithDependencies(nil, runService)
+
+	reportID := materializeEvalRunReport(t, "tenant-dataset-case-queue", evalsvc.RunStatusFailed, "failure detail", caseService, evalCaseService, datasetService, runService, reportService, "Dataset Case Queue", "Dataset Case Queue Source")
+	openCase, err := caseService.CreateCase(ctx, casesvc.CreateInput{
+		TenantID:           "tenant-dataset-case-queue",
+		Title:              "Older open follow-up",
+		SourceEvalReportID: reportID,
+	})
+	if err != nil {
+		t.Fatalf("CreateCase(open) error = %v", err)
+	}
+	closedCase, err := caseService.CreateCase(ctx, casesvc.CreateInput{
+		TenantID:           "tenant-dataset-case-queue",
+		Title:              "Newer closed follow-up",
+		SourceEvalReportID: reportID,
+	})
+	if err != nil {
+		t.Fatalf("CreateCase(closed) error = %v", err)
+	}
+	if _, err := caseService.CloseCase(ctx, closedCase.ID, "operator-close"); err != nil {
+		t.Fatalf("CloseCase() error = %v", err)
+	}
+
+	reportItem, err := reportService.GetEvalReport(ctx, reportID)
+	if err != nil {
+		t.Fatalf("GetEvalReport() error = %v", err)
+	}
+
+	server := httptest.NewServer(NewHandlerWithDependencies(Dependencies{
+		Cases:        caseService,
+		EvalCases:    evalCaseService,
+		EvalDatasets: datasetService,
+		EvalRuns:     runService,
+		EvalReports:  reportService,
+	}))
+	defer server.Close()
+
+	resp, err := http.Get(server.URL + "/api/v1/eval-datasets/" + reportItem.DatasetID + "?tenant_id=tenant-dataset-case-queue")
+	if err != nil {
+		t.Fatalf("Get() error = %v", err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("StatusCode = %d, want %d", resp.StatusCode, http.StatusOK)
+	}
+
+	var got evalDatasetResponse
+	if err := json.NewDecoder(resp.Body).Decode(&got); err != nil {
+		t.Fatalf("Decode() error = %v", err)
+	}
+	if got.OpenFollowUpCaseCount != 1 {
+		t.Fatalf("OpenFollowUpCaseCount = %d, want 1", got.OpenFollowUpCaseCount)
+	}
+	if got.PreferredCaseQueueAction.Mode != "open_existing_queue" {
+		t.Fatalf("PreferredCaseQueueAction.Mode = %q, want %q", got.PreferredCaseQueueAction.Mode, "open_existing_queue")
+	}
+	if got.PreferredCaseQueueAction.CaseID != "" {
+		t.Fatalf("PreferredCaseQueueAction.CaseID = %q, want empty", got.PreferredCaseQueueAction.CaseID)
+	}
+	if got.PreferredCaseQueueAction.SourceEvalReportID != reportID {
+		t.Fatalf("PreferredCaseQueueAction.SourceEvalReportID = %q, want %q", got.PreferredCaseQueueAction.SourceEvalReportID, reportID)
+	}
+	if openCase.ID == "" {
+		t.Fatal("openCase.ID is empty")
 	}
 }
 

@@ -203,6 +203,7 @@ The current chat stream implementation is a Milestone 1 skeleton:
 - use `Needs follow-up` on `/admin/eval-datasets` when you want the canonical slice of datasets whose latest durable run still has unresolved failed items, and use `Open latest run` / `Open latest report` when you want to jump straight into the newest regression artifact for that baseline
 - use `Open preferred queue` on `/admin/eval-datasets` when you want the backend-owned best follow-up entry point for one dataset: unresolved bad cases on the latest report when available, otherwise the latest unresolved run queue
 - inspect `recent_runs[]` on `GET /api/v1/eval-datasets/{dataset_id}` or the `Recent eval activity` panel on `/admin/eval-datasets` when you need the latest run/report evidence behind one dataset's current follow-up pressure
+- use `Open follow-up cases` on `/admin/eval-datasets` when the latest durable eval report for a baseline already has open linked cases and you want the canonical `/admin/cases` queue slice for that work
 - open `http://localhost:18080/admin/eval-runs` when you want the first eval-run operator page, including run detail plus dataset and eval handoff links
 - set `OPSPILOT_EVAL_RUN_FAIL_ALL=true` on the worker when you want every claimed eval run to fail for local recovery and operator-surface testing
 - use `Retry run` on `/admin/eval-runs` when you want to re-queue the selected failed run back into the worker lane from the same detail panel

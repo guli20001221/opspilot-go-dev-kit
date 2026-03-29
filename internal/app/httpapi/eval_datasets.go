@@ -10,6 +10,7 @@ import (
 	"strings"
 	"time"
 
+	casesvc "opspilot-go/internal/case"
 	evalsvc "opspilot-go/internal/eval"
 )
 
@@ -43,43 +44,47 @@ type evalDatasetItemResponse struct {
 }
 
 type evalDatasetResponse struct {
-	DatasetID               string                            `json:"dataset_id"`
-	TenantID                string                            `json:"tenant_id"`
-	Name                    string                            `json:"name"`
-	Description             string                            `json:"description,omitempty"`
-	Status                  string                            `json:"status"`
-	CreatedBy               string                            `json:"created_by"`
-	CreatedAt               string                            `json:"created_at"`
-	UpdatedAt               string                            `json:"updated_at"`
-	PublishedBy             string                            `json:"published_by,omitempty"`
-	PublishedAt             string                            `json:"published_at,omitempty"`
-	LatestRunID             string                            `json:"latest_run_id,omitempty"`
-	LatestRunStatus         string                            `json:"latest_run_status,omitempty"`
-	LatestReportID          string                            `json:"latest_report_id,omitempty"`
-	LatestReportStatus      string                            `json:"latest_report_status,omitempty"`
-	UnresolvedFollowUpCount int                               `json:"unresolved_follow_up_count"`
-	NeedsFollowUp           bool                              `json:"needs_follow_up"`
-	PreferredFollowUpAction evalDatasetFollowUpActionResponse `json:"preferred_follow_up_action"`
-	RecentRuns              []evalDatasetRecentRunResponse    `json:"recent_runs"`
-	Items                   []evalDatasetItemResponse         `json:"items"`
+	DatasetID                string                             `json:"dataset_id"`
+	TenantID                 string                             `json:"tenant_id"`
+	Name                     string                             `json:"name"`
+	Description              string                             `json:"description,omitempty"`
+	Status                   string                             `json:"status"`
+	CreatedBy                string                             `json:"created_by"`
+	CreatedAt                string                             `json:"created_at"`
+	UpdatedAt                string                             `json:"updated_at"`
+	PublishedBy              string                             `json:"published_by,omitempty"`
+	PublishedAt              string                             `json:"published_at,omitempty"`
+	LatestRunID              string                             `json:"latest_run_id,omitempty"`
+	LatestRunStatus          string                             `json:"latest_run_status,omitempty"`
+	LatestReportID           string                             `json:"latest_report_id,omitempty"`
+	LatestReportStatus       string                             `json:"latest_report_status,omitempty"`
+	UnresolvedFollowUpCount  int                                `json:"unresolved_follow_up_count"`
+	NeedsFollowUp            bool                               `json:"needs_follow_up"`
+	PreferredFollowUpAction  evalDatasetFollowUpActionResponse  `json:"preferred_follow_up_action"`
+	OpenFollowUpCaseCount    int                                `json:"open_follow_up_case_count"`
+	PreferredCaseQueueAction evalDatasetCaseQueueActionResponse `json:"preferred_case_queue_action"`
+	RecentRuns               []evalDatasetRecentRunResponse     `json:"recent_runs"`
+	Items                    []evalDatasetItemResponse          `json:"items"`
 }
 
 type evalDatasetSummaryResponse struct {
-	DatasetID               string                            `json:"dataset_id"`
-	TenantID                string                            `json:"tenant_id"`
-	Name                    string                            `json:"name"`
-	Status                  string                            `json:"status"`
-	CreatedBy               string                            `json:"created_by"`
-	CreatedAt               string                            `json:"created_at"`
-	UpdatedAt               string                            `json:"updated_at"`
-	ItemCount               int                               `json:"item_count"`
-	LatestRunID             string                            `json:"latest_run_id,omitempty"`
-	LatestRunStatus         string                            `json:"latest_run_status,omitempty"`
-	LatestReportID          string                            `json:"latest_report_id,omitempty"`
-	LatestReportStatus      string                            `json:"latest_report_status,omitempty"`
-	UnresolvedFollowUpCount int                               `json:"unresolved_follow_up_count"`
-	NeedsFollowUp           bool                              `json:"needs_follow_up"`
-	PreferredFollowUpAction evalDatasetFollowUpActionResponse `json:"preferred_follow_up_action"`
+	DatasetID                string                             `json:"dataset_id"`
+	TenantID                 string                             `json:"tenant_id"`
+	Name                     string                             `json:"name"`
+	Status                   string                             `json:"status"`
+	CreatedBy                string                             `json:"created_by"`
+	CreatedAt                string                             `json:"created_at"`
+	UpdatedAt                string                             `json:"updated_at"`
+	ItemCount                int                                `json:"item_count"`
+	LatestRunID              string                             `json:"latest_run_id,omitempty"`
+	LatestRunStatus          string                             `json:"latest_run_status,omitempty"`
+	LatestReportID           string                             `json:"latest_report_id,omitempty"`
+	LatestReportStatus       string                             `json:"latest_report_status,omitempty"`
+	UnresolvedFollowUpCount  int                                `json:"unresolved_follow_up_count"`
+	NeedsFollowUp            bool                               `json:"needs_follow_up"`
+	PreferredFollowUpAction  evalDatasetFollowUpActionResponse  `json:"preferred_follow_up_action"`
+	OpenFollowUpCaseCount    int                                `json:"open_follow_up_case_count"`
+	PreferredCaseQueueAction evalDatasetCaseQueueActionResponse `json:"preferred_case_queue_action"`
 }
 
 type evalDatasetFollowUpActionResponse struct {
@@ -87,6 +92,12 @@ type evalDatasetFollowUpActionResponse struct {
 	SourceDatasetID string `json:"source_dataset_id"`
 	RunID           string `json:"run_id,omitempty"`
 	ReportID        string `json:"report_id,omitempty"`
+}
+
+type evalDatasetCaseQueueActionResponse struct {
+	Mode               string `json:"mode"`
+	CaseID             string `json:"case_id,omitempty"`
+	SourceEvalReportID string `json:"source_eval_report_id,omitempty"`
 }
 
 type evalDatasetRecentRunResponse struct {
@@ -309,23 +320,25 @@ func (a *appHandler) handlePublishEvalDataset(w http.ResponseWriter, r *http.Req
 
 func newEvalDatasetResponse(item evalsvc.EvalDataset, latestRun evalDatasetLatestRunSummary, recentRuns []evalDatasetRecentRunResponse) evalDatasetResponse {
 	resp := evalDatasetResponse{
-		DatasetID:               item.ID,
-		TenantID:                item.TenantID,
-		Name:                    item.Name,
-		Description:             item.Description,
-		Status:                  item.Status,
-		CreatedBy:               item.CreatedBy,
-		CreatedAt:               item.CreatedAt.Format(time.RFC3339Nano),
-		UpdatedAt:               item.UpdatedAt.Format(time.RFC3339Nano),
-		LatestRunID:             latestRun.LatestRunID,
-		LatestRunStatus:         latestRun.LatestRunStatus,
-		LatestReportID:          latestRun.LatestReportID,
-		LatestReportStatus:      latestRun.LatestReportStatus,
-		UnresolvedFollowUpCount: latestRun.UnresolvedFollowUpCount,
-		NeedsFollowUp:           latestRun.NeedsFollowUp,
-		PreferredFollowUpAction: newEvalDatasetFollowUpActionResponse(item.ID, latestRun),
-		RecentRuns:              make([]evalDatasetRecentRunResponse, 0, len(recentRuns)),
-		Items:                   make([]evalDatasetItemResponse, 0, len(item.Items)),
+		DatasetID:                item.ID,
+		TenantID:                 item.TenantID,
+		Name:                     item.Name,
+		Description:              item.Description,
+		Status:                   item.Status,
+		CreatedBy:                item.CreatedBy,
+		CreatedAt:                item.CreatedAt.Format(time.RFC3339Nano),
+		UpdatedAt:                item.UpdatedAt.Format(time.RFC3339Nano),
+		LatestRunID:              latestRun.LatestRunID,
+		LatestRunStatus:          latestRun.LatestRunStatus,
+		LatestReportID:           latestRun.LatestReportID,
+		LatestReportStatus:       latestRun.LatestReportStatus,
+		UnresolvedFollowUpCount:  latestRun.UnresolvedFollowUpCount,
+		NeedsFollowUp:            latestRun.NeedsFollowUp,
+		PreferredFollowUpAction:  newEvalDatasetFollowUpActionResponse(item.ID, latestRun),
+		OpenFollowUpCaseCount:    latestRun.OpenFollowUpCaseCount,
+		PreferredCaseQueueAction: newEvalDatasetCaseQueueActionResponse(latestRun),
+		RecentRuns:               make([]evalDatasetRecentRunResponse, 0, len(recentRuns)),
+		Items:                    make([]evalDatasetItemResponse, 0, len(item.Items)),
 	}
 	resp.RecentRuns = append(resp.RecentRuns, recentRuns...)
 	if item.PublishedBy != "" {
@@ -350,31 +363,36 @@ func newEvalDatasetResponse(item evalsvc.EvalDataset, latestRun evalDatasetLates
 }
 
 type evalDatasetLatestRunSummary struct {
-	LatestRunID             string
-	LatestRunStatus         string
-	LatestReportID          string
-	LatestReportStatus      string
-	UnresolvedFollowUpCount int
-	NeedsFollowUp           bool
+	LatestRunID              string
+	LatestRunStatus          string
+	LatestReportID           string
+	LatestReportStatus       string
+	UnresolvedFollowUpCount  int
+	NeedsFollowUp            bool
+	OpenFollowUpCaseCount    int
+	LatestFollowUpCaseID     string
+	LatestFollowUpCaseStatus string
 }
 
 func newEvalDatasetSummaryResponse(item evalsvc.EvalDatasetSummary, latestRun evalDatasetLatestRunSummary) evalDatasetSummaryResponse {
 	return evalDatasetSummaryResponse{
-		DatasetID:               item.ID,
-		TenantID:                item.TenantID,
-		Name:                    item.Name,
-		Status:                  item.Status,
-		CreatedBy:               item.CreatedBy,
-		CreatedAt:               item.CreatedAt.Format(time.RFC3339Nano),
-		UpdatedAt:               item.UpdatedAt.Format(time.RFC3339Nano),
-		ItemCount:               item.ItemCount,
-		LatestRunID:             latestRun.LatestRunID,
-		LatestRunStatus:         latestRun.LatestRunStatus,
-		LatestReportID:          latestRun.LatestReportID,
-		LatestReportStatus:      latestRun.LatestReportStatus,
-		UnresolvedFollowUpCount: latestRun.UnresolvedFollowUpCount,
-		NeedsFollowUp:           latestRun.NeedsFollowUp,
-		PreferredFollowUpAction: newEvalDatasetFollowUpActionResponse(item.ID, latestRun),
+		DatasetID:                item.ID,
+		TenantID:                 item.TenantID,
+		Name:                     item.Name,
+		Status:                   item.Status,
+		CreatedBy:                item.CreatedBy,
+		CreatedAt:                item.CreatedAt.Format(time.RFC3339Nano),
+		UpdatedAt:                item.UpdatedAt.Format(time.RFC3339Nano),
+		ItemCount:                item.ItemCount,
+		LatestRunID:              latestRun.LatestRunID,
+		LatestRunStatus:          latestRun.LatestRunStatus,
+		LatestReportID:           latestRun.LatestReportID,
+		LatestReportStatus:       latestRun.LatestReportStatus,
+		UnresolvedFollowUpCount:  latestRun.UnresolvedFollowUpCount,
+		NeedsFollowUp:            latestRun.NeedsFollowUp,
+		PreferredFollowUpAction:  newEvalDatasetFollowUpActionResponse(item.ID, latestRun),
+		OpenFollowUpCaseCount:    latestRun.OpenFollowUpCaseCount,
+		PreferredCaseQueueAction: newEvalDatasetCaseQueueActionResponse(latestRun),
 	}
 }
 
@@ -395,6 +413,21 @@ func newEvalDatasetFollowUpActionResponse(datasetID string, latestRun evalDatase
 		action.Mode = "open_latest_run_queue"
 		action.RunID = latestRun.LatestRunID
 	}
+	return action
+}
+
+func newEvalDatasetCaseQueueActionResponse(latestRun evalDatasetLatestRunSummary) evalDatasetCaseQueueActionResponse {
+	action := evalDatasetCaseQueueActionResponse{Mode: "none"}
+	if latestRun.LatestReportID == "" || latestRun.OpenFollowUpCaseCount <= 0 {
+		return action
+	}
+	action.SourceEvalReportID = latestRun.LatestReportID
+	if latestRun.LatestFollowUpCaseID != "" && latestRun.LatestFollowUpCaseStatus == casesvc.StatusOpen {
+		action.Mode = "open_existing_case"
+		action.CaseID = latestRun.LatestFollowUpCaseID
+		return action
+	}
+	action.Mode = "open_existing_queue"
 	return action
 }
 
@@ -619,17 +652,30 @@ func (a *appHandler) evalDatasetLatestRunSummaries(ctx context.Context, tenantID
 
 	if len(reportsByDatasetID) > 0 {
 		reports := make([]evalsvc.EvalReport, 0, len(reportsByDatasetID))
+		reportIDs := make([]string, 0, len(reportsByDatasetID))
 		for _, reportItem := range reportsByDatasetID {
 			reports = append(reports, reportItem)
+			reportIDs = append(reportIDs, reportItem.ID)
 		}
 		unresolvedCounts, err := a.evalReportBadCaseWithoutOpenFollowUpCounts(ctx, tenantID, reports)
 		if err != nil {
 			return nil, fmt.Errorf("summarize eval-report follow-up for tenant %q: %w", tenantID, err)
 		}
+		reportFollowUpSummaries := map[string]casesvc.EvalReportFollowUpSummary{}
+		if a.cases != nil {
+			reportFollowUpSummaries, err = a.cases.SummarizeBySourceEvalReportIDs(ctx, tenantID, reportIDs)
+			if err != nil {
+				return nil, fmt.Errorf("summarize dataset report case queue for tenant %q: %w", tenantID, err)
+			}
+		}
 		for datasetID, reportItem := range reportsByDatasetID {
 			summary := summaries[datasetID]
 			summary.UnresolvedFollowUpCount = unresolvedCounts[reportItem.ID]
 			summary.NeedsFollowUp = summary.UnresolvedFollowUpCount > 0
+			reportFollowUpSummary := reportFollowUpSummaries[reportItem.ID]
+			summary.OpenFollowUpCaseCount = reportFollowUpSummary.OpenFollowUpCaseCount
+			summary.LatestFollowUpCaseID = reportFollowUpSummary.LatestFollowUpCaseID
+			summary.LatestFollowUpCaseStatus = reportFollowUpSummary.LatestFollowUpCaseStatus
 			summaries[datasetID] = summary
 		}
 	}

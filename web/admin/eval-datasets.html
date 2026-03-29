@@ -249,6 +249,18 @@
       return "";
     }
 
+    function datasetCaseQueueHref(item) {
+      const action = item && item.preferred_case_queue_action;
+      if (!action) return "";
+      if (action.mode === "open_existing_case" && action.case_id) {
+        return `/admin/cases?tenant_id=${encodeURIComponent(item.tenant_id)}&case_id=${encodeURIComponent(action.case_id)}`;
+      }
+      if (action.mode === "open_existing_queue" && action.source_eval_report_id) {
+        return `/admin/cases?tenant_id=${encodeURIComponent(item.tenant_id)}&source_eval_report_id=${encodeURIComponent(action.source_eval_report_id)}&status=open`;
+      }
+      return "";
+    }
+
     function escapeHTML(value) {
       return String(value ?? "")
         .replaceAll("&", "&amp;")
@@ -341,8 +353,10 @@
               <div><strong>${escapeHTML(item.latest_run_status || "unknown")}</strong></div>
               <div><small>${escapeHTML(item.latest_run_id)}</small></div>
               <div><small>${escapeHTML(String(item.unresolved_follow_up_count || 0))} unresolved follow-up items</small></div>
+              ${item.open_follow_up_case_count ? `<div><small>${escapeHTML(String(item.open_follow_up_case_count))} open follow-up cases</small></div>` : ""}
               <div style="display:flex; flex-wrap:wrap; gap:8px; margin-top:8px;">
                 ${datasetPreferredQueueHref(item) ? `<a class="button-link" href="${datasetPreferredQueueHref(item)}">${datasetPreferredQueueLabel(item)}</a>` : ""}
+                ${datasetCaseQueueHref(item) ? `<a class="button-link ghost" href="${datasetCaseQueueHref(item)}">Open follow-up cases</a>` : ""}
                 <a class="button-link ghost" href="/admin/eval-runs?tenant_id=${encodeURIComponent(item.tenant_id)}&dataset_id=${encodeURIComponent(item.dataset_id)}&run_id=${encodeURIComponent(item.latest_run_id)}">Open latest run</a>
                 ${item.latest_report_id ? `<a class="button-link ghost" href="/admin/eval-reports?tenant_id=${encodeURIComponent(item.tenant_id)}&report_id=${encodeURIComponent(item.latest_report_id)}&selected_report_id=${encodeURIComponent(item.latest_report_id)}">Open latest report</a>` : ""}
               </div>
@@ -416,6 +430,7 @@
             <dl class="detail-card"><dt>Latest run</dt><dd>${item.latest_run_id ? `${escapeHTML(item.latest_run_id)} (${escapeHTML(item.latest_run_status || "unknown")})` : "none yet"}</dd></dl>
             <dl class="detail-card"><dt>Latest report</dt><dd>${item.latest_report_id ? `${escapeHTML(item.latest_report_id)} (${escapeHTML(item.latest_report_status || "unknown")})` : "not materialized"}</dd></dl>
             <dl class="detail-card"><dt>Unresolved follow-up items</dt><dd>${escapeHTML(String(item.unresolved_follow_up_count || 0))}</dd></dl>
+            <dl class="detail-card"><dt>Open follow-up cases</dt><dd>${escapeHTML(String(item.open_follow_up_case_count || 0))}</dd></dl>
           </div>
           <div class="detail-card">
             <h3 style="margin-top:0;">Handoff</h3>
@@ -424,6 +439,7 @@
               <a class="button-link ghost" href="/admin/evals?tenant_id=${encodeURIComponent(item.tenant_id)}">Open Evals</a>
               <a class="button-link ghost" href="/admin/eval-runs?tenant_id=${encodeURIComponent(item.tenant_id)}&dataset_id=${encodeURIComponent(item.dataset_id)}">Open eval runs</a>
               ${datasetPreferredQueueHref(item) ? `<a class="button-link" href="${datasetPreferredQueueHref(item)}">${datasetPreferredQueueLabel(item)}</a>` : ""}
+              ${datasetCaseQueueHref(item) ? `<a class="button-link ghost" href="${datasetCaseQueueHref(item)}">Open follow-up cases</a>` : ""}
               ${item.latest_run_id ? `<a class="button-link ghost" href="/admin/eval-runs?tenant_id=${encodeURIComponent(item.tenant_id)}&dataset_id=${encodeURIComponent(item.dataset_id)}&run_id=${encodeURIComponent(item.latest_run_id)}">Open latest run</a>` : ""}
               ${item.latest_report_id ? `<a class="button-link ghost" href="/admin/eval-reports?tenant_id=${encodeURIComponent(item.tenant_id)}&report_id=${encodeURIComponent(item.latest_report_id)}&selected_report_id=${encodeURIComponent(item.latest_report_id)}">Open latest report</a>` : ""}
               <a class="button-link ghost" href="/admin/cases?tenant_id=${encodeURIComponent(item.tenant_id)}">Open Cases</a>

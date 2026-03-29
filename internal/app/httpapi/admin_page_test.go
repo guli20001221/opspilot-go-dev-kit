@@ -564,6 +564,9 @@ func TestAdminEvalDatasetsPageRendersHTML(t *testing.T) {
 	if !strings.Contains(body, "Open preferred queue") {
 		t.Fatal("preferred follow-up queue handoff missing from eval datasets page HTML")
 	}
+	if !strings.Contains(body, "Open follow-up cases") {
+		t.Fatal("follow-up cases handoff missing from eval datasets page HTML")
+	}
 	if !strings.Contains(body, "Recent eval activity") {
 		t.Fatal("recent eval activity panel missing from eval datasets page HTML")
 	}
