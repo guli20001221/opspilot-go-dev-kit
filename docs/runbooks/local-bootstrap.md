@@ -127,6 +127,7 @@ The current chat stream implementation is a Milestone 1 skeleton:
 - use `POST /api/v1/cases` when you need a durable operator follow-up object that can point at a source task, a source report, or both
 - that same canonical case contract now also accepts standalone `source_eval_case_id`, so one durable eval case can open or reuse precise follow-up work without a matching `source_eval_report_id`
 - use `GET /api/v1/cases` when you need to inspect the current durable case slice for a tenant, status, or source linkage
+- the same case list now also supports `source_eval_dataset_id`, so one dataset-wide follow-up queue can be opened without first enumerating every `source_eval_report_id`
 - use `GET /api/v1/cases/{case_id}` when you need the canonical case record for that follow-up object
 - use `POST /api/v1/cases/{case_id}/close?tenant_id=<tenant>` when you need to close an open follow-up object and capture who closed it
 - use `POST /api/v1/cases/{case_id}/assign?tenant_id=<tenant>` when you need to claim or reassign an open follow-up object and capture who owns it
@@ -140,6 +141,7 @@ The current chat stream implementation is a Milestone 1 skeleton:
 - use `GET /api/v1/eval-datasets?tenant_id=<tenant>` when you need the lightweight dataset lane without pulling full membership payloads into the list response
 - the same canonical dataset list now also carries `latest_run_id`, `latest_report_id`, `unresolved_follow_up_count`, and `needs_follow_up`, so dataset-level regression pressure is visible without first opening `/api/v1/eval-runs`
 - that same dataset list/detail contract now also carries `preferred_follow_up_action`, so operator UI can jump straight into the right unresolved queue for the latest regression context
+- the same canonical dataset list/detail contracts now also expose dataset-wide follow-up case summary plus a typed dataset queue action, so `/admin/eval-datasets` can jump into `/admin/cases?source_eval_dataset_id=...` and inspect one baseline-wide follow-up queue across all linked eval reports
 - use `POST /api/v1/eval-datasets/{dataset_id}/items` when you need to append another durable eval case into an existing draft dataset instead of creating a new draft
 - use `POST /api/v1/eval-datasets/{dataset_id}/publish` when curation is complete and you need an immutable baseline for later eval runs
 - use `POST /api/v1/eval-runs` when you need to create a durable queued eval run from a published dataset baseline

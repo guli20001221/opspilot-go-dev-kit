@@ -327,6 +327,10 @@
             <input id="source_eval_report_id" name="source_eval_report_id" type="text" placeholder="eval-report-...">
           </div>
           <div class="field">
+            <label for="source_eval_dataset_id">Source Eval Dataset</label>
+            <input id="source_eval_dataset_id" name="source_eval_dataset_id" type="text" placeholder="eval-dataset-...">
+          </div>
+          <div class="field">
             <label for="source_eval_case_id">Source Eval Case</label>
             <input id="source_eval_case_id" name="source_eval_case_id" type="text" placeholder="eval-case-...">
           </div>
@@ -560,14 +564,15 @@
         const currentEvalBackedOnly = form.elements.namedItem("eval_backed_only").value.trim();
         const currentCompareOriginOnly = form.elements.namedItem("compare_origin_only").value.trim();
         const currentSourceEvalReportID = form.elements.namedItem("source_eval_report_id").value.trim();
+        const currentSourceEvalDatasetID = form.elements.namedItem("source_eval_dataset_id").value.trim();
         const currentSourceEvalCaseID = form.elements.namedItem("source_eval_case_id").value.trim();
         const actor = currentActor();
 
         const mineActive = currentStatus === "open" && currentAssignedTo === actor && currentUnassignedOnly !== "true";
         const unassignedActive = currentStatus === "open" && currentAssignedTo === "" && currentUnassignedOnly === "true";
-        const openActive = currentStatus === "open" && currentAssignedTo === "" && currentUnassignedOnly !== "true" && currentEvalBackedOnly !== "true" && currentCompareOriginOnly !== "true" && currentSourceEvalReportID === "" && currentSourceEvalCaseID === "";
-        const evalBackedActive = currentAssignedTo === "" && currentUnassignedOnly !== "true" && currentEvalBackedOnly === "true" && currentCompareOriginOnly !== "true" && currentSourceEvalReportID === "" && currentSourceEvalCaseID === "";
-        const compareFollowUpsActive = currentStatus === "open" && currentAssignedTo === "" && currentUnassignedOnly !== "true" && currentEvalBackedOnly !== "true" && currentCompareOriginOnly === "true" && currentSourceEvalReportID === "" && currentSourceEvalCaseID === "";
+        const openActive = currentStatus === "open" && currentAssignedTo === "" && currentUnassignedOnly !== "true" && currentEvalBackedOnly !== "true" && currentCompareOriginOnly !== "true" && currentSourceEvalReportID === "" && currentSourceEvalDatasetID === "" && currentSourceEvalCaseID === "";
+        const evalBackedActive = currentAssignedTo === "" && currentUnassignedOnly !== "true" && currentEvalBackedOnly === "true" && currentCompareOriginOnly !== "true" && currentSourceEvalReportID === "" && currentSourceEvalDatasetID === "" && currentSourceEvalCaseID === "";
+        const compareFollowUpsActive = currentStatus === "open" && currentAssignedTo === "" && currentUnassignedOnly !== "true" && currentEvalBackedOnly !== "true" && currentCompareOriginOnly === "true" && currentSourceEvalReportID === "" && currentSourceEvalDatasetID === "" && currentSourceEvalCaseID === "";
 
         [
           [myOpenCasesQuickView, mineActive],
@@ -598,7 +603,7 @@
 
     function buildParams() {
       const params = new URLSearchParams();
-      for (const name of ["tenant_id", "assigned_to", "unassigned_only", "eval_backed_only", "compare_origin_only", "status", "source_task_id", "source_report_id", "source_eval_report_id", "source_eval_case_id", "limit", "offset"]) {
+      for (const name of ["tenant_id", "assigned_to", "unassigned_only", "eval_backed_only", "compare_origin_only", "status", "source_task_id", "source_report_id", "source_eval_report_id", "source_eval_dataset_id", "source_eval_case_id", "limit", "offset"]) {
         const value = form.elements.namedItem(name).value.trim();
         if (value) params.set(name, value);
       }
@@ -680,7 +685,7 @@
 
     function readParamsFromURL() {
       const params = new URLSearchParams(window.location.search);
-      for (const name of ["tenant_id", "assigned_to", "unassigned_only", "eval_backed_only", "compare_origin_only", "status", "source_task_id", "source_report_id", "source_eval_report_id", "source_eval_case_id", "limit", "offset"]) {
+      for (const name of ["tenant_id", "assigned_to", "unassigned_only", "eval_backed_only", "compare_origin_only", "status", "source_task_id", "source_report_id", "source_eval_report_id", "source_eval_dataset_id", "source_eval_case_id", "limit", "offset"]) {
         form.elements.namedItem(name).value = params.get(name) || (name === "status" ? "open" : name === "limit" ? "10" : name === "offset" ? "0" : "");
       }
       return params.get("case_id") || "";
@@ -1191,6 +1196,7 @@
       form.elements.namedItem("unassigned_only").value = "";
       form.elements.namedItem("eval_backed_only").value = "";
       form.elements.namedItem("compare_origin_only").value = "";
+      form.elements.namedItem("source_eval_dataset_id").value = "";
       form.elements.namedItem("status").value = "open";
       form.elements.namedItem("limit").value = "10";
       form.elements.namedItem("offset").value = "0";
@@ -1204,6 +1210,7 @@
       form.elements.namedItem("eval_backed_only").value = "";
       form.elements.namedItem("compare_origin_only").value = "";
       form.elements.namedItem("source_eval_report_id").value = "";
+      form.elements.namedItem("source_eval_dataset_id").value = "";
       form.elements.namedItem("source_eval_case_id").value = "";
       form.elements.namedItem("offset").value = "0";
       loadCases("");
@@ -1216,6 +1223,7 @@
       form.elements.namedItem("eval_backed_only").value = "";
       form.elements.namedItem("compare_origin_only").value = "";
       form.elements.namedItem("source_eval_report_id").value = "";
+      form.elements.namedItem("source_eval_dataset_id").value = "";
       form.elements.namedItem("source_eval_case_id").value = "";
       form.elements.namedItem("offset").value = "0";
       loadCases("");
@@ -1228,6 +1236,7 @@
       form.elements.namedItem("eval_backed_only").value = "";
       form.elements.namedItem("compare_origin_only").value = "";
       form.elements.namedItem("source_eval_report_id").value = "";
+      form.elements.namedItem("source_eval_dataset_id").value = "";
       form.elements.namedItem("source_eval_case_id").value = "";
       form.elements.namedItem("offset").value = "0";
       loadCases("");
@@ -1239,6 +1248,7 @@
       form.elements.namedItem("eval_backed_only").value = "true";
       form.elements.namedItem("compare_origin_only").value = "";
       form.elements.namedItem("source_eval_report_id").value = "";
+      form.elements.namedItem("source_eval_dataset_id").value = "";
       form.elements.namedItem("source_eval_case_id").value = "";
       form.elements.namedItem("offset").value = "0";
       loadCases("");
@@ -1251,6 +1261,7 @@
       form.elements.namedItem("eval_backed_only").value = "";
       form.elements.namedItem("compare_origin_only").value = "true";
       form.elements.namedItem("source_eval_report_id").value = "";
+      form.elements.namedItem("source_eval_dataset_id").value = "";
       form.elements.namedItem("source_eval_case_id").value = "";
       form.elements.namedItem("offset").value = "0";
       loadCases("");

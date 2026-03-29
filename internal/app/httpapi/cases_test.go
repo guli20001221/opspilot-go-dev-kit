@@ -1179,6 +1179,145 @@ func TestListCasesEndpointSupportsEvalReportSourceFilter(t *testing.T) {
 	}
 }
 
+func TestListCasesEndpointSupportsEvalDatasetSourceFilter(t *testing.T) {
+	ctx := context.Background()
+	caseService := casesvc.NewService()
+	evalCaseService := evalsvc.NewService(caseService, nil)
+	datasetService := evalsvc.NewDatasetService(evalCaseService)
+	runService := evalsvc.NewRunService(datasetService)
+	reportService := evalsvc.NewEvalReportServiceWithDependencies(nil, runService)
+
+	sourceCaseA, err := caseService.CreateCase(ctx, casesvc.CreateInput{
+		TenantID: "tenant-dataset-cases",
+		Title:    "Dataset source A",
+	})
+	if err != nil {
+		t.Fatalf("CreateCase(sourceCaseA) error = %v", err)
+	}
+	evalCaseA, _, err := evalCaseService.PromoteCase(ctx, evalsvc.CreateInput{
+		TenantID:     "tenant-dataset-cases",
+		SourceCaseID: sourceCaseA.ID,
+	})
+	if err != nil {
+		t.Fatalf("PromoteCase(evalCaseA) error = %v", err)
+	}
+	sourceCaseB, err := caseService.CreateCase(ctx, casesvc.CreateInput{
+		TenantID: "tenant-dataset-cases",
+		Title:    "Dataset source B",
+	})
+	if err != nil {
+		t.Fatalf("CreateCase(sourceCaseB) error = %v", err)
+	}
+	evalCaseB, _, err := evalCaseService.PromoteCase(ctx, evalsvc.CreateInput{
+		TenantID:     "tenant-dataset-cases",
+		SourceCaseID: sourceCaseB.ID,
+	})
+	if err != nil {
+		t.Fatalf("PromoteCase(evalCaseB) error = %v", err)
+	}
+	dataset, err := datasetService.CreateDataset(ctx, evalsvc.CreateDatasetInput{
+		TenantID:    "tenant-dataset-cases",
+		Name:        "Dataset-backed queue",
+		EvalCaseIDs: []string{evalCaseA.ID, evalCaseB.ID},
+		CreatedBy:   "operator-dataset",
+	})
+	if err != nil {
+		t.Fatalf("CreateDataset() error = %v", err)
+	}
+	if _, err := datasetService.PublishDataset(ctx, dataset.ID, evalsvc.PublishDatasetInput{TenantID: "tenant-dataset-cases"}); err != nil {
+		t.Fatalf("PublishDataset() error = %v", err)
+	}
+
+	runA, err := runService.CreateRun(ctx, evalsvc.CreateRunInput{
+		TenantID:  "tenant-dataset-cases",
+		DatasetID: dataset.ID,
+		CreatedBy: "operator-dataset",
+	})
+	if err != nil {
+		t.Fatalf("CreateRun(runA) error = %v", err)
+	}
+	if _, err := runService.ClaimQueuedRuns(ctx, 10); err != nil {
+		t.Fatalf("ClaimQueuedRuns(runA) error = %v", err)
+	}
+	if _, err := runService.MarkRunFailed(ctx, runA.ID, "first run failed"); err != nil {
+		t.Fatalf("MarkRunFailed(runA) error = %v", err)
+	}
+	reportA, err := reportService.MaterializeRunReport(ctx, runA.ID)
+	if err != nil {
+		t.Fatalf("MaterializeRunReport(runA) error = %v", err)
+	}
+
+	runB, err := runService.CreateRun(ctx, evalsvc.CreateRunInput{
+		TenantID:  "tenant-dataset-cases",
+		DatasetID: dataset.ID,
+		CreatedBy: "operator-dataset",
+	})
+	if err != nil {
+		t.Fatalf("CreateRun(runB) error = %v", err)
+	}
+	if _, err := runService.ClaimQueuedRuns(ctx, 10); err != nil {
+		t.Fatalf("ClaimQueuedRuns(runB) error = %v", err)
+	}
+	if _, err := runService.MarkRunFailed(ctx, runB.ID, "second run failed"); err != nil {
+		t.Fatalf("MarkRunFailed(runB) error = %v", err)
+	}
+	reportB, err := reportService.MaterializeRunReport(ctx, runB.ID)
+	if err != nil {
+		t.Fatalf("MaterializeRunReport(runB) error = %v", err)
+	}
+
+	firstCase, err := caseService.CreateCase(ctx, casesvc.CreateInput{
+		TenantID:           "tenant-dataset-cases",
+		Title:              "First dataset follow-up",
+		SourceEvalReportID: reportA.ID,
+	})
+	if err != nil {
+		t.Fatalf("CreateCase(firstCase) error = %v", err)
+	}
+	secondCase, err := caseService.CreateCase(ctx, casesvc.CreateInput{
+		TenantID:           "tenant-dataset-cases",
+		Title:              "Second dataset follow-up",
+		SourceEvalReportID: reportB.ID,
+	})
+	if err != nil {
+		t.Fatalf("CreateCase(secondCase) error = %v", err)
+	}
+	if _, err := caseService.CreateCase(ctx, casesvc.CreateInput{
+		TenantID:           "tenant-dataset-cases",
+		Title:              "Other dataset follow-up",
+		SourceEvalReportID: "eval-report-other",
+	}); err != nil {
+		t.Fatalf("CreateCase(otherCase) error = %v", err)
+	}
+
+	server := httptest.NewServer(NewHandlerWithDependencies(Dependencies{
+		Cases:       caseService,
+		EvalReports: reportService,
+	}))
+	defer server.Close()
+
+	resp, err := http.Get(server.URL + "/api/v1/cases?tenant_id=tenant-dataset-cases&source_eval_dataset_id=" + dataset.ID + "&limit=10")
+	if err != nil {
+		t.Fatalf("Get() error = %v", err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("StatusCode = %d, want %d", resp.StatusCode, http.StatusOK)
+	}
+
+	var page listCasesResponse
+	if err := json.NewDecoder(resp.Body).Decode(&page); err != nil {
+		t.Fatalf("Decode() error = %v", err)
+	}
+	if len(page.Cases) != 2 {
+		t.Fatalf("len(page.Cases) = %d, want %d", len(page.Cases), 2)
+	}
+	gotIDs := []string{page.Cases[0].CaseID, page.Cases[1].CaseID}
+	if !(gotIDs[0] == secondCase.ID && gotIDs[1] == firstCase.ID) {
+		t.Fatalf("got IDs = %#v, want [%q %q]", gotIDs, secondCase.ID, firstCase.ID)
+	}
+}
+
 func TestListCasesEndpointSupportsEvalBackedOnlyFilter(t *testing.T) {
 	caseService := casesvc.NewService()
 

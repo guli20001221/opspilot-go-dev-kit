@@ -87,6 +87,7 @@ type ListFilter struct {
 	SourceTaskID         string
 	SourceReportID       string
 	SourceEvalReportID   string
+	SourceEvalReportIDs  []string
 	SourceEvalCaseID     string
 	Limit                int
 	Offset               int

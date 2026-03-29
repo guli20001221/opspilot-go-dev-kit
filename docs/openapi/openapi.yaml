@@ -800,6 +800,11 @@ paths:
           required: false
           schema:
             type: string
+        - name: source_eval_dataset_id
+          in: query
+          required: false
+          schema:
+            type: string
         - name: eval_backed_only
           in: query
           required: false
@@ -2999,6 +3004,8 @@ components:
             - open_existing_queue
         case_id:
           type: string
+        source_eval_dataset_id:
+          type: string
         source_eval_report_id:
           type: string
     EvalDatasetFollowUpCaseSummary:
@@ -3040,6 +3047,9 @@ components:
         - follow_up_case_summary
         - open_follow_up_case_count
         - preferred_case_queue_action
+        - dataset_follow_up_case_summary
+        - dataset_open_follow_up_case_count
+        - preferred_dataset_case_queue_action
         - recent_runs
         - items
       properties:
@@ -3098,6 +3108,14 @@ components:
           description: Open follow-up cases already linked to the latest durable eval report for this dataset.
         preferred_case_queue_action:
           $ref: '#/components/schemas/EvalDatasetCaseQueueAction'
+        dataset_follow_up_case_summary:
+          $ref: '#/components/schemas/EvalDatasetFollowUpCaseSummary'
+        dataset_open_follow_up_case_count:
+          type: integer
+          minimum: 0
+          description: Open follow-up cases already linked anywhere in this dataset across all durable eval reports.
+        preferred_dataset_case_queue_action:
+          $ref: '#/components/schemas/EvalDatasetCaseQueueAction'
         recent_runs:
           type: array
           items:
@@ -3122,6 +3140,8 @@ components:
         - preferred_follow_up_action
         - open_follow_up_case_count
         - preferred_case_queue_action
+        - dataset_open_follow_up_case_count
+        - preferred_dataset_case_queue_action
       properties:
         dataset_id:
           type: string
@@ -3171,6 +3191,12 @@ components:
           minimum: 0
           description: Open follow-up cases already linked to the latest durable eval report for this dataset.
         preferred_case_queue_action:
+          $ref: '#/components/schemas/EvalDatasetCaseQueueAction'
+        dataset_open_follow_up_case_count:
+          type: integer
+          minimum: 0
+          description: Open follow-up cases already linked anywhere in this dataset across all durable eval reports.
+        preferred_dataset_case_queue_action:
           $ref: '#/components/schemas/EvalDatasetCaseQueueAction'
     ListEvalCasesResponse:
       type: object

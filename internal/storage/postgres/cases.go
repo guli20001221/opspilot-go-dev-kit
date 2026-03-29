@@ -199,9 +199,15 @@ WHERE ($1 = '' OR tenant_id = $1)
   AND ($9 = '' OR source_task_id = $9)
   AND ($10 = '' OR source_report_id = $10)
   AND ($11 = '' OR source_eval_report_id = $11)
-  AND ($12 = '' OR source_eval_case_id = $12)
+  AND (cardinality($12::text[]) = 0 OR source_eval_report_id = ANY($12))
+  AND ($13 = '' OR source_eval_case_id = $13)
 ORDER BY updated_at DESC, created_at DESC, id DESC
-LIMIT $13 OFFSET $14`
+LIMIT $14 OFFSET $15`
+
+	sourceEvalReportIDs := filter.SourceEvalReportIDs
+	if len(sourceEvalReportIDs) == 0 {
+		sourceEvalReportIDs = []string{}
+	}
 
 	rows, err := s.pool.Query(
 		ctx,
@@ -217,6 +223,7 @@ LIMIT $13 OFFSET $14`
 		filter.SourceTaskID,
 		filter.SourceReportID,
 		filter.SourceEvalReportID,
+		sourceEvalReportIDs,
 		filter.SourceEvalCaseID,
 		limit+1,
 		offset,

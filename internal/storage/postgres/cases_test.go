@@ -499,6 +499,24 @@ func TestCaseStoreListSupportsEvalReportFilters(t *testing.T) {
 		t.Fatalf("exactPage.Cases[0].ID = %q, want %q", exactPage.Cases[0].ID, "case-eval-filter-1")
 	}
 
+	multiReportPage, err := store.List(ctx, casesvc.ListFilter{
+		TenantID:            "tenant-1",
+		SourceEvalReportIDs: []string{"eval-report-filter-1", "eval-report-filter-2"},
+		Limit:               10,
+	})
+	if err != nil {
+		t.Fatalf("List(multiReportPage) error = %v", err)
+	}
+	if len(multiReportPage.Cases) != 2 {
+		t.Fatalf("len(multiReportPage.Cases) = %d, want %d", len(multiReportPage.Cases), 2)
+	}
+	if multiReportPage.Cases[0].ID != "case-eval-filter-2" {
+		t.Fatalf("multiReportPage.Cases[0].ID = %q, want %q", multiReportPage.Cases[0].ID, "case-eval-filter-2")
+	}
+	if multiReportPage.Cases[1].ID != "case-eval-filter-1" {
+		t.Fatalf("multiReportPage.Cases[1].ID = %q, want %q", multiReportPage.Cases[1].ID, "case-eval-filter-1")
+	}
+
 	evalPage, err := store.List(ctx, casesvc.ListFilter{
 		TenantID:       "tenant-1",
 		EvalBackedOnly: true,

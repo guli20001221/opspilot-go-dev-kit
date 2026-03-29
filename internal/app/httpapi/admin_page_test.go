@@ -573,11 +573,17 @@ func TestAdminEvalDatasetsPageRendersHTML(t *testing.T) {
 	if !strings.Contains(body, "Unresolved follow-up items") {
 		t.Fatal("unresolved follow-up summary missing from eval datasets page HTML")
 	}
-	if !strings.Contains(body, "Follow-up case summary") {
-		t.Fatal("follow-up case summary panel missing from eval datasets page HTML")
+	if !strings.Contains(body, "Dataset-wide follow-up case summary") {
+		t.Fatal("dataset-wide follow-up case summary panel missing from eval datasets page HTML")
+	}
+	if !strings.Contains(body, "Latest-report follow-up case summary") {
+		t.Fatal("latest-report follow-up case summary panel missing from eval datasets page HTML")
 	}
 	if !strings.Contains(body, "Closed follow-up cases") {
 		t.Fatal("closed follow-up case summary missing from eval datasets page HTML")
+	}
+	if !strings.Contains(body, "source_eval_dataset_id") {
+		t.Fatal("dataset-scoped case queue handoff missing from eval datasets page HTML")
 	}
 	if !strings.Contains(body, "/admin/eval-runs") {
 		t.Fatal("eval run lane handoff missing from eval datasets page HTML")
@@ -707,9 +713,12 @@ const reportID = process.argv[6];
   const detailText = await page.textContent("#datasetDetail");
   if (!detailText.includes(runID)) throw new Error("latest run summary missing from dataset detail");
   if (!detailText.includes(reportID)) throw new Error("latest report summary missing from dataset detail");
-  if (!detailText.includes("Follow-up case summary")) throw new Error("follow-up case summary section missing from dataset detail");
+  if (!detailText.includes("Dataset-wide follow-up case summary")) throw new Error("dataset-wide follow-up case summary section missing from dataset detail");
+  if (!detailText.includes("Latest-report follow-up case summary")) throw new Error("latest-report follow-up case summary section missing from dataset detail");
   if (!detailText.includes("Total follow-up cases")) throw new Error("follow-up case total missing from dataset detail");
   if (!detailText.includes("Closed follow-up cases")) throw new Error("closed follow-up case count missing from dataset detail");
+  const datasetQueueHref = await page.getAttribute('a[href*="/admin/cases?"][href*="source_eval_dataset_id=' + encodeURIComponent(datasetID) + '"]', "href");
+  if (!datasetQueueHref) throw new Error("dataset-wide follow-up case handoff missing from dataset detail");
   await page.click("#needsFollowUpQuickView");
   await page.waitForFunction(() => document.querySelector("#visibleCount")?.textContent?.trim() === "1");
   const currentURL = new URL(page.url());

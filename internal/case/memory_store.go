@@ -55,6 +55,13 @@ func (s *memoryStore) List(_ context.Context, filter ListFilter) (ListPage, erro
 	}
 
 	items := make([]Case, 0, len(s.records))
+	allowedEvalReports := make(map[string]struct{}, len(filter.SourceEvalReportIDs))
+	for _, reportID := range filter.SourceEvalReportIDs {
+		if reportID == "" {
+			continue
+		}
+		allowedEvalReports[reportID] = struct{}{}
+	}
 	for _, item := range s.records {
 		if filter.TenantID != "" && item.TenantID != filter.TenantID {
 			continue
@@ -88,6 +95,11 @@ func (s *memoryStore) List(_ context.Context, filter ListFilter) (ListPage, erro
 		}
 		if filter.SourceEvalReportID != "" && item.SourceEvalReportID != filter.SourceEvalReportID {
 			continue
+		}
+		if len(allowedEvalReports) > 0 {
+			if _, ok := allowedEvalReports[item.SourceEvalReportID]; !ok {
+				continue
+			}
 		}
 		if filter.SourceEvalCaseID != "" && item.SourceEvalCaseID != filter.SourceEvalCaseID {
 			continue

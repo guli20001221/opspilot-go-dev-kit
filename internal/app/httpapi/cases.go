@@ -1,6 +1,7 @@
 package httpapi
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -180,10 +181,22 @@ func (a *appHandler) handleCreateCase(w http.ResponseWriter, r *http.Request) {
 }
 
 func (a *appHandler) handleListCases(w http.ResponseWriter, r *http.Request) {
-	filter, err := parseCaseListFilter(r)
+	filter, sourceEvalDatasetID, err := parseCaseListFilter(r)
 	if err != nil {
 		writeError(w, http.StatusBadRequest, "invalid_query", err.Error())
 		return
+	}
+	if sourceEvalDatasetID != "" {
+		reportIDs, err := a.collectEvalReportIDsForDataset(r.Context(), filter.TenantID, sourceEvalDatasetID)
+		if err != nil {
+			writeError(w, http.StatusInternalServerError, "case_list_failed", err.Error())
+			return
+		}
+		if len(reportIDs) == 0 {
+			writeJSON(w, http.StatusOK, listCasesResponse{Cases: []caseResponse{}, HasMore: false})
+			return
+		}
+		filter.SourceEvalReportIDs = reportIDs
 	}
 
 	page, err := a.cases.ListCases(r.Context(), filter)
@@ -578,7 +591,7 @@ func validateCreateCaseRequest(req createCaseRequest) error {
 	}
 }
 
-func parseCaseListFilter(r *http.Request) (casesvc.ListFilter, error) {
+func parseCaseListFilter(r *http.Request) (casesvc.ListFilter, string, error) {
 	filter := casesvc.ListFilter{
 		TenantID:           r.URL.Query().Get("tenant_id"),
 		Status:             r.URL.Query().Get("status"),
@@ -592,46 +605,83 @@ func parseCaseListFilter(r *http.Request) (casesvc.ListFilter, error) {
 		SourceEvalCaseID:   r.URL.Query().Get("source_eval_case_id"),
 		Limit:              20,
 	}
+	sourceEvalDatasetID := strings.TrimSpace(r.URL.Query().Get("source_eval_dataset_id"))
 	if strings.TrimSpace(filter.TenantID) == "" {
-		return casesvc.ListFilter{}, errors.New("tenant_id is required")
+		return casesvc.ListFilter{}, "", errors.New("tenant_id is required")
 	}
 	if rawUnassignedOnly := r.URL.Query().Get("unassigned_only"); rawUnassignedOnly != "" {
 		value, err := strconv.ParseBool(rawUnassignedOnly)
 		if err != nil {
-			return casesvc.ListFilter{}, fmt.Errorf("unassigned_only must be a boolean")
+			return casesvc.ListFilter{}, "", fmt.Errorf("unassigned_only must be a boolean")
 		}
 		filter.UnassignedOnly = value
 	}
 	if rawEvalBackedOnly := r.URL.Query().Get("eval_backed_only"); rawEvalBackedOnly != "" {
 		value, err := strconv.ParseBool(rawEvalBackedOnly)
 		if err != nil {
-			return casesvc.ListFilter{}, fmt.Errorf("eval_backed_only must be a boolean")
+			return casesvc.ListFilter{}, "", fmt.Errorf("eval_backed_only must be a boolean")
 		}
 		filter.EvalBackedOnly = value
 	}
 	if rawCompareOriginOnly := r.URL.Query().Get("compare_origin_only"); rawCompareOriginOnly != "" {
 		value, err := strconv.ParseBool(rawCompareOriginOnly)
 		if err != nil {
-			return casesvc.ListFilter{}, fmt.Errorf("compare_origin_only must be a boolean")
+			return casesvc.ListFilter{}, "", fmt.Errorf("compare_origin_only must be a boolean")
 		}
 		filter.CompareOriginOnly = value
 	}
 	if rawLimit := r.URL.Query().Get("limit"); rawLimit != "" {
 		limit, err := strconv.Atoi(rawLimit)
 		if err != nil || limit <= 0 {
-			return casesvc.ListFilter{}, errors.New("limit must be a positive integer")
+			return casesvc.ListFilter{}, "", errors.New("limit must be a positive integer")
 		}
 		filter.Limit = limit
 	}
 	if rawOffset := r.URL.Query().Get("offset"); rawOffset != "" {
 		offset, err := strconv.Atoi(rawOffset)
 		if err != nil || offset < 0 {
-			return casesvc.ListFilter{}, errors.New("offset must be a non-negative integer")
+			return casesvc.ListFilter{}, "", errors.New("offset must be a non-negative integer")
 		}
 		filter.Offset = offset
 	}
 
-	return filter, nil
+	return filter, sourceEvalDatasetID, nil
+}
+
+func (a *appHandler) collectEvalReportIDsForDataset(ctx context.Context, tenantID string, datasetID string) ([]string, error) {
+	if a.evalReports == nil || datasetID == "" {
+		return nil, nil
+	}
+
+	filter := evalsvc.EvalReportListFilter{
+		TenantID:  tenantID,
+		DatasetID: datasetID,
+		Limit:     100,
+	}
+	reportIDs := make([]string, 0, 8)
+	seen := make(map[string]struct{})
+	for {
+		page, err := a.evalReports.ListEvalReports(ctx, filter)
+		if err != nil {
+			return nil, fmt.Errorf("list eval reports for dataset %q: %w", datasetID, err)
+		}
+		for _, item := range page.Reports {
+			if item.ID == "" {
+				continue
+			}
+			if _, ok := seen[item.ID]; ok {
+				continue
+			}
+			seen[item.ID] = struct{}{}
+			reportIDs = append(reportIDs, item.ID)
+		}
+		if !page.HasMore {
+			break
+		}
+		filter.Offset = page.NextOffset
+	}
+
+	return reportIDs, nil
 }
 
 func (a *appHandler) validateCaseSources(r *http.Request, req createCaseRequest) (report.Report, error) {

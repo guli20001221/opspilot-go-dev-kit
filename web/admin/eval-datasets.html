@@ -250,15 +250,41 @@
     }
 
     function datasetCaseQueueHref(item) {
-      const action = item && item.preferred_case_queue_action;
-      if (!action) return "";
-      if (action.mode === "open_existing_case" && action.case_id) {
-        return `/admin/cases?tenant_id=${encodeURIComponent(item.tenant_id)}&case_id=${encodeURIComponent(action.case_id)}`;
+      const datasetAction = item && item.preferred_dataset_case_queue_action;
+      if (datasetAction && datasetAction.mode === "open_existing_queue" && datasetAction.source_eval_dataset_id) {
+        return `/admin/cases?tenant_id=${encodeURIComponent(item.tenant_id)}&source_eval_dataset_id=${encodeURIComponent(datasetAction.source_eval_dataset_id)}&status=open`;
       }
-      if (action.mode === "open_existing_queue" && action.source_eval_report_id) {
-        return `/admin/cases?tenant_id=${encodeURIComponent(item.tenant_id)}&source_eval_report_id=${encodeURIComponent(action.source_eval_report_id)}&status=open`;
+      if (datasetAction && datasetAction.mode === "open_existing_case" && datasetAction.case_id) {
+        return `/admin/cases?tenant_id=${encodeURIComponent(item.tenant_id)}&case_id=${encodeURIComponent(datasetAction.case_id)}`;
+      }
+      const latestReportAction = item && item.preferred_case_queue_action;
+      if (!latestReportAction) return "";
+      if (latestReportAction.mode === "open_existing_case" && latestReportAction.case_id) {
+        return `/admin/cases?tenant_id=${encodeURIComponent(item.tenant_id)}&case_id=${encodeURIComponent(latestReportAction.case_id)}`;
+      }
+      if (latestReportAction.mode === "open_existing_queue" && latestReportAction.source_eval_report_id) {
+        return `/admin/cases?tenant_id=${encodeURIComponent(item.tenant_id)}&source_eval_report_id=${encodeURIComponent(latestReportAction.source_eval_report_id)}&status=open`;
       }
       return "";
+    }
+
+    function datasetCaseQueueLabel(item) {
+      const datasetAction = item && item.preferred_dataset_case_queue_action;
+      if (datasetAction && datasetAction.mode !== "none") {
+        return "Open dataset follow-up cases";
+      }
+      const latestReportAction = item && item.preferred_case_queue_action;
+      if (latestReportAction && latestReportAction.mode !== "none") {
+        return "Open latest-report follow-up cases";
+      }
+      return "";
+    }
+
+    function datasetFollowUpCaseSummary(item) {
+      if (item && item.dataset_follow_up_case_summary) {
+        return item.dataset_follow_up_case_summary;
+      }
+      return item && item.follow_up_case_summary ? item.follow_up_case_summary : null;
     }
 
     function escapeHTML(value) {
@@ -353,10 +379,10 @@
               <div><strong>${escapeHTML(item.latest_run_status || "unknown")}</strong></div>
               <div><small>${escapeHTML(item.latest_run_id)}</small></div>
               <div><small>${escapeHTML(String(item.unresolved_follow_up_count || 0))} unresolved follow-up items</small></div>
-              ${item.open_follow_up_case_count ? `<div><small>${escapeHTML(String(item.open_follow_up_case_count))} open follow-up cases</small></div>` : ""}
+              ${datasetFollowUpCaseSummary(item) ? `<div><small>${escapeHTML(`${datasetFollowUpCaseSummary(item).follow_up_case_count || 0} total / ${datasetFollowUpCaseSummary(item).open_follow_up_case_count || 0} open / ${datasetFollowUpCaseSummary(item).closed_follow_up_case_count || 0} closed dataset follow-up cases`)}</small></div>` : ""}
               <div style="display:flex; flex-wrap:wrap; gap:8px; margin-top:8px;">
                 ${datasetPreferredQueueHref(item) ? `<a class="button-link" href="${datasetPreferredQueueHref(item)}">${datasetPreferredQueueLabel(item)}</a>` : ""}
-                ${datasetCaseQueueHref(item) ? `<a class="button-link ghost" href="${datasetCaseQueueHref(item)}">Open follow-up cases</a>` : ""}
+                ${datasetCaseQueueHref(item) ? `<a class="button-link ghost" href="${datasetCaseQueueHref(item)}">${datasetCaseQueueLabel(item)}</a>` : ""}
                 <a class="button-link ghost" href="/admin/eval-runs?tenant_id=${encodeURIComponent(item.tenant_id)}&dataset_id=${encodeURIComponent(item.dataset_id)}&run_id=${encodeURIComponent(item.latest_run_id)}">Open latest run</a>
                 ${item.latest_report_id ? `<a class="button-link ghost" href="/admin/eval-reports?tenant_id=${encodeURIComponent(item.tenant_id)}&report_id=${encodeURIComponent(item.latest_report_id)}&selected_report_id=${encodeURIComponent(item.latest_report_id)}">Open latest report</a>` : ""}
               </div>
@@ -384,9 +410,13 @@
         lines.push(`Latest run: ${item.latest_run_id} (${item.latest_run_status || "unknown"})`);
         lines.push(`Latest report: ${item.latest_report_id || "none"}${item.latest_report_status ? " (" + item.latest_report_status + ")" : ""}`);
         lines.push(`Unresolved follow-up items: ${item.unresolved_follow_up_count || 0}`);
+        if (item.dataset_follow_up_case_summary) {
+          lines.push(`Dataset follow-up cases: ${item.dataset_follow_up_case_summary.follow_up_case_count || 0} total / ${item.dataset_follow_up_case_summary.open_follow_up_case_count || 0} open / ${item.dataset_follow_up_case_summary.closed_follow_up_case_count || 0} closed`);
+          lines.push(`Latest dataset follow-up case: ${item.dataset_follow_up_case_summary.latest_follow_up_case_id || "none"}${item.dataset_follow_up_case_summary.latest_follow_up_case_status ? " (" + item.dataset_follow_up_case_summary.latest_follow_up_case_status + ")" : ""}`);
+        }
         if (item.follow_up_case_summary) {
-          lines.push(`Follow-up cases: ${item.follow_up_case_summary.follow_up_case_count || 0} total / ${item.follow_up_case_summary.open_follow_up_case_count || 0} open / ${item.follow_up_case_summary.closed_follow_up_case_count || 0} closed`);
-          lines.push(`Latest follow-up case: ${item.follow_up_case_summary.latest_follow_up_case_id || "none"}${item.follow_up_case_summary.latest_follow_up_case_status ? " (" + item.follow_up_case_summary.latest_follow_up_case_status + ")" : ""}`);
+          lines.push(`Latest-report follow-up cases: ${item.follow_up_case_summary.follow_up_case_count || 0} total / ${item.follow_up_case_summary.open_follow_up_case_count || 0} open / ${item.follow_up_case_summary.closed_follow_up_case_count || 0} closed`);
+          lines.push(`Latest latest-report follow-up case: ${item.follow_up_case_summary.latest_follow_up_case_id || "none"}${item.follow_up_case_summary.latest_follow_up_case_status ? " (" + item.follow_up_case_summary.latest_follow_up_case_status + ")" : ""}`);
         }
       }
       for (const recentRun of (item.recent_runs || [])) {
@@ -434,15 +464,25 @@
             <dl class="detail-card"><dt>Latest run</dt><dd>${item.latest_run_id ? `${escapeHTML(item.latest_run_id)} (${escapeHTML(item.latest_run_status || "unknown")})` : "none yet"}</dd></dl>
             <dl class="detail-card"><dt>Latest report</dt><dd>${item.latest_report_id ? `${escapeHTML(item.latest_report_id)} (${escapeHTML(item.latest_report_status || "unknown")})` : "not materialized"}</dd></dl>
             <dl class="detail-card"><dt>Unresolved follow-up items</dt><dd>${escapeHTML(String(item.unresolved_follow_up_count || 0))}</dd></dl>
-            <dl class="detail-card"><dt>Open follow-up cases</dt><dd>${escapeHTML(String(item.open_follow_up_case_count || 0))}</dd></dl>
+            <dl class="detail-card"><dt>Dataset open follow-up cases</dt><dd>${escapeHTML(String(item.dataset_open_follow_up_case_count || 0))}</dd></dl>
+            <dl class="detail-card"><dt>Latest-report open follow-up cases</dt><dd>${escapeHTML(String(item.open_follow_up_case_count || 0))}</dd></dl>
           </div>
           <div class="detail-card">
-            <h3 style="margin-top:0;">Follow-up case summary</h3>
+            <h3 style="margin-top:0;">Dataset-wide follow-up case summary</h3>
             <div class="detail-grid">
-              <dl class="detail-card"><dt>Total follow-up cases</dt><dd>${escapeHTML(String(item.follow_up_case_summary?.follow_up_case_count || 0))}</dd></dl>
-              <dl class="detail-card"><dt>Open follow-up cases</dt><dd>${escapeHTML(String(item.follow_up_case_summary?.open_follow_up_case_count || 0))}</dd></dl>
-              <dl class="detail-card"><dt>Closed follow-up cases</dt><dd>${escapeHTML(String(item.follow_up_case_summary?.closed_follow_up_case_count || 0))}</dd></dl>
-              <dl class="detail-card"><dt>Latest follow-up case</dt><dd>${item.follow_up_case_summary?.latest_follow_up_case_id ? `${escapeHTML(item.follow_up_case_summary.latest_follow_up_case_id)} (${escapeHTML(item.follow_up_case_summary.latest_follow_up_case_status || "unknown")})` : "none"}</dd></dl>
+              <dl class="detail-card"><dt>Total follow-up cases</dt><dd>${escapeHTML(String(item.dataset_follow_up_case_summary?.follow_up_case_count || 0))}</dd></dl>
+              <dl class="detail-card"><dt>Open follow-up cases</dt><dd>${escapeHTML(String(item.dataset_follow_up_case_summary?.open_follow_up_case_count || 0))}</dd></dl>
+              <dl class="detail-card"><dt>Closed follow-up cases</dt><dd>${escapeHTML(String(item.dataset_follow_up_case_summary?.closed_follow_up_case_count || 0))}</dd></dl>
+              <dl class="detail-card"><dt>Latest follow-up case</dt><dd>${item.dataset_follow_up_case_summary?.latest_follow_up_case_id ? `${escapeHTML(item.dataset_follow_up_case_summary.latest_follow_up_case_id)} (${escapeHTML(item.dataset_follow_up_case_summary.latest_follow_up_case_status || "unknown")})` : "none"}</dd></dl>
+            </div>
+          </div>
+          <div class="detail-card">
+            <h3 style="margin-top:0;">Latest-report follow-up case summary</h3>
+            <div class="detail-grid">
+              <dl class="detail-card"><dt>Total latest-report cases</dt><dd>${escapeHTML(String(item.follow_up_case_summary?.follow_up_case_count || 0))}</dd></dl>
+              <dl class="detail-card"><dt>Open latest-report cases</dt><dd>${escapeHTML(String(item.follow_up_case_summary?.open_follow_up_case_count || 0))}</dd></dl>
+              <dl class="detail-card"><dt>Closed latest-report cases</dt><dd>${escapeHTML(String(item.follow_up_case_summary?.closed_follow_up_case_count || 0))}</dd></dl>
+              <dl class="detail-card"><dt>Latest latest-report case</dt><dd>${item.follow_up_case_summary?.latest_follow_up_case_id ? `${escapeHTML(item.follow_up_case_summary.latest_follow_up_case_id)} (${escapeHTML(item.follow_up_case_summary.latest_follow_up_case_status || "unknown")})` : "none"}</dd></dl>
             </div>
           </div>
           <div class="detail-card">
@@ -452,7 +492,7 @@
               <a class="button-link ghost" href="/admin/evals?tenant_id=${encodeURIComponent(item.tenant_id)}">Open Evals</a>
               <a class="button-link ghost" href="/admin/eval-runs?tenant_id=${encodeURIComponent(item.tenant_id)}&dataset_id=${encodeURIComponent(item.dataset_id)}">Open eval runs</a>
               ${datasetPreferredQueueHref(item) ? `<a class="button-link" href="${datasetPreferredQueueHref(item)}">${datasetPreferredQueueLabel(item)}</a>` : ""}
-              ${datasetCaseQueueHref(item) ? `<a class="button-link ghost" href="${datasetCaseQueueHref(item)}">Open follow-up cases</a>` : ""}
+              ${datasetCaseQueueHref(item) ? `<a class="button-link ghost" href="${datasetCaseQueueHref(item)}">${datasetCaseQueueLabel(item)}</a>` : ""}
               ${item.latest_run_id ? `<a class="button-link ghost" href="/admin/eval-runs?tenant_id=${encodeURIComponent(item.tenant_id)}&dataset_id=${encodeURIComponent(item.dataset_id)}&run_id=${encodeURIComponent(item.latest_run_id)}">Open latest run</a>` : ""}
               ${item.latest_report_id ? `<a class="button-link ghost" href="/admin/eval-reports?tenant_id=${encodeURIComponent(item.tenant_id)}&report_id=${encodeURIComponent(item.latest_report_id)}&selected_report_id=${encodeURIComponent(item.latest_report_id)}">Open latest report</a>` : ""}
               <a class="button-link ghost" href="/admin/cases?tenant_id=${encodeURIComponent(item.tenant_id)}">Open Cases</a>
