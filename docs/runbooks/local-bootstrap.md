@@ -142,6 +142,7 @@ The current chat stream implementation is a Milestone 1 skeleton:
 - the same canonical dataset list now also carries `latest_run_id`, `latest_report_id`, `unresolved_follow_up_count`, and `needs_follow_up`, so dataset-level regression pressure is visible without first opening `/api/v1/eval-runs`
 - that same dataset list/detail contract now also carries `preferred_follow_up_action`, so operator UI can jump straight into the right unresolved queue for the latest regression context
 - the same canonical dataset list/detail contracts now also expose dataset-wide follow-up case summary plus a typed dataset queue action, so `/admin/eval-datasets` can jump into `/admin/cases?source_eval_dataset_id=...` and inspect one baseline-wide follow-up queue across all linked eval reports
+- that same `GET /api/v1/eval-datasets` list now also carries `dataset_follow_up_case_summary`, so `/admin/eval-datasets` rows can show dataset-wide total/open/closed follow-up pressure before detail is opened
 - use `POST /api/v1/eval-datasets/{dataset_id}/items` when you need to append another durable eval case into an existing draft dataset instead of creating a new draft
 - use `POST /api/v1/eval-datasets/{dataset_id}/publish` when curation is complete and you need an immutable baseline for later eval runs
 - use `POST /api/v1/eval-runs` when you need to create a durable queued eval run from a published dataset baseline

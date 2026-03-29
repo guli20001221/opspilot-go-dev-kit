@@ -13,3 +13,4 @@ Promote dataset-wide follow-up work into canonical backend contracts so `/admin/
 ## Notes
 - dataset-wide queue aggregation is additive and leaves latest-report follow-up summary intact
 - the frontend should consume backend-owned dataset queue actions instead of reconstructing report IDs in browser code
+- dataset summary rows should expose the same dataset-wide follow-up summary block that detail already has, so row rendering does not fall back to browser-only aggregation

@@ -3124,80 +3124,83 @@ components:
           type: array
           items:
             $ref: '#/components/schemas/EvalDatasetItem'
-    EvalDatasetSummary:
-      type: object
-      required:
-        - dataset_id
-        - tenant_id
-        - name
-        - status
-        - created_by
-        - created_at
-        - updated_at
-        - item_count
-        - unresolved_follow_up_count
-        - needs_follow_up
-        - preferred_follow_up_action
-        - open_follow_up_case_count
-        - preferred_case_queue_action
-        - dataset_open_follow_up_case_count
-        - preferred_dataset_case_queue_action
-      properties:
-        dataset_id:
-          type: string
-        tenant_id:
-          type: string
-        name:
-          type: string
-        status:
-          type: string
-          enum:
-            - draft
-            - published
-        created_by:
-          type: string
-        created_at:
-          type: string
-          format: date-time
-        updated_at:
-          type: string
-          format: date-time
-        item_count:
-          type: integer
-          minimum: 0
-        latest_run_id:
-          type: string
-          description: Stable eval-run ID for the latest durable run kicked off from this dataset.
-        latest_run_status:
-          type: string
-          description: Lifecycle state of the latest durable eval run for this dataset.
-        latest_report_id:
-          type: string
-          description: Stable eval-report ID when the latest terminal eval run has already materialized a durable report artifact.
-        latest_report_status:
-          type: string
-          description: Eval-report lifecycle state for the latest linked durable report artifact.
-        unresolved_follow_up_count:
-          type: integer
-          minimum: 0
-          description: Failed items in the latest durable eval run that still lack an open follow-up case.
-        needs_follow_up:
-          type: boolean
-          description: Whether the latest durable eval run for this dataset still has at least one unresolved failed item.
-        preferred_follow_up_action:
-          $ref: '#/components/schemas/EvalDatasetFollowUpAction'
-        open_follow_up_case_count:
-          type: integer
-          minimum: 0
-          description: Open follow-up cases already linked to the latest durable eval report for this dataset.
-        preferred_case_queue_action:
-          $ref: '#/components/schemas/EvalDatasetCaseQueueAction'
-        dataset_open_follow_up_case_count:
-          type: integer
-          minimum: 0
-          description: Open follow-up cases already linked anywhere in this dataset across all durable eval reports.
-        preferred_dataset_case_queue_action:
-          $ref: '#/components/schemas/EvalDatasetCaseQueueAction'
+      EvalDatasetSummary:
+        type: object
+        required:
+          - dataset_id
+          - tenant_id
+          - name
+          - status
+          - created_by
+          - created_at
+          - updated_at
+          - item_count
+          - unresolved_follow_up_count
+          - needs_follow_up
+          - preferred_follow_up_action
+          - open_follow_up_case_count
+          - preferred_case_queue_action
+          - dataset_follow_up_case_summary
+          - dataset_open_follow_up_case_count
+          - preferred_dataset_case_queue_action
+        properties:
+          dataset_id:
+            type: string
+          tenant_id:
+            type: string
+          name:
+            type: string
+          status:
+            type: string
+            enum:
+              - draft
+              - published
+          created_by:
+            type: string
+          created_at:
+            type: string
+            format: date-time
+          updated_at:
+            type: string
+            format: date-time
+          item_count:
+            type: integer
+            minimum: 0
+          latest_run_id:
+            type: string
+            description: Stable eval-run ID for the latest durable run kicked off from this dataset.
+          latest_run_status:
+            type: string
+            description: Lifecycle state of the latest durable eval run for this dataset.
+          latest_report_id:
+            type: string
+            description: Stable eval-report ID when the latest terminal eval run has already materialized a durable report artifact.
+          latest_report_status:
+            type: string
+            description: Eval-report lifecycle state for the latest linked durable report artifact.
+          unresolved_follow_up_count:
+            type: integer
+            minimum: 0
+            description: Failed items in the latest durable eval run that still lack an open follow-up case.
+          needs_follow_up:
+            type: boolean
+            description: Whether the latest durable eval run for this dataset still has at least one unresolved failed item.
+          preferred_follow_up_action:
+            $ref: '#/components/schemas/EvalDatasetFollowUpAction'
+          open_follow_up_case_count:
+            type: integer
+            minimum: 0
+            description: Open follow-up cases already linked to the latest durable eval report for this dataset.
+          preferred_case_queue_action:
+            $ref: '#/components/schemas/EvalDatasetCaseQueueAction'
+          dataset_follow_up_case_summary:
+            $ref: '#/components/schemas/EvalDatasetFollowUpCaseSummary'
+          dataset_open_follow_up_case_count:
+            type: integer
+            minimum: 0
+            description: Open follow-up cases already linked anywhere in this dataset across all durable eval reports.
+          preferred_dataset_case_queue_action:
+            $ref: '#/components/schemas/EvalDatasetCaseQueueAction'
     ListEvalCasesResponse:
       type: object
       required:

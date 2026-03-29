@@ -72,25 +72,26 @@ type evalDatasetResponse struct {
 }
 
 type evalDatasetSummaryResponse struct {
-	DatasetID                       string                             `json:"dataset_id"`
-	TenantID                        string                             `json:"tenant_id"`
-	Name                            string                             `json:"name"`
-	Status                          string                             `json:"status"`
-	CreatedBy                       string                             `json:"created_by"`
-	CreatedAt                       string                             `json:"created_at"`
-	UpdatedAt                       string                             `json:"updated_at"`
-	ItemCount                       int                                `json:"item_count"`
-	LatestRunID                     string                             `json:"latest_run_id,omitempty"`
-	LatestRunStatus                 string                             `json:"latest_run_status,omitempty"`
-	LatestReportID                  string                             `json:"latest_report_id,omitempty"`
-	LatestReportStatus              string                             `json:"latest_report_status,omitempty"`
-	UnresolvedFollowUpCount         int                                `json:"unresolved_follow_up_count"`
-	NeedsFollowUp                   bool                               `json:"needs_follow_up"`
-	PreferredFollowUpAction         evalDatasetFollowUpActionResponse  `json:"preferred_follow_up_action"`
-	OpenFollowUpCaseCount           int                                `json:"open_follow_up_case_count"`
-	PreferredCaseQueueAction        evalDatasetCaseQueueActionResponse `json:"preferred_case_queue_action"`
-	DatasetOpenFollowUpCaseCount    int                                `json:"dataset_open_follow_up_case_count"`
-	PreferredDatasetCaseQueueAction evalDatasetCaseQueueActionResponse `json:"preferred_dataset_case_queue_action"`
+	DatasetID                       string                                 `json:"dataset_id"`
+	TenantID                        string                                 `json:"tenant_id"`
+	Name                            string                                 `json:"name"`
+	Status                          string                                 `json:"status"`
+	CreatedBy                       string                                 `json:"created_by"`
+	CreatedAt                       string                                 `json:"created_at"`
+	UpdatedAt                       string                                 `json:"updated_at"`
+	ItemCount                       int                                    `json:"item_count"`
+	LatestRunID                     string                                 `json:"latest_run_id,omitempty"`
+	LatestRunStatus                 string                                 `json:"latest_run_status,omitempty"`
+	LatestReportID                  string                                 `json:"latest_report_id,omitempty"`
+	LatestReportStatus              string                                 `json:"latest_report_status,omitempty"`
+	UnresolvedFollowUpCount         int                                    `json:"unresolved_follow_up_count"`
+	NeedsFollowUp                   bool                                   `json:"needs_follow_up"`
+	PreferredFollowUpAction         evalDatasetFollowUpActionResponse      `json:"preferred_follow_up_action"`
+	OpenFollowUpCaseCount           int                                    `json:"open_follow_up_case_count"`
+	PreferredCaseQueueAction        evalDatasetCaseQueueActionResponse     `json:"preferred_case_queue_action"`
+	DatasetFollowUpCaseSummary      evalDatasetFollowUpCaseSummaryResponse `json:"dataset_follow_up_case_summary"`
+	DatasetOpenFollowUpCaseCount    int                                    `json:"dataset_open_follow_up_case_count"`
+	PreferredDatasetCaseQueueAction evalDatasetCaseQueueActionResponse     `json:"preferred_dataset_case_queue_action"`
 }
 
 type evalDatasetFollowUpActionResponse struct {
@@ -417,6 +418,7 @@ func newEvalDatasetSummaryResponse(item evalsvc.EvalDatasetSummary, latestRun ev
 		PreferredFollowUpAction:         newEvalDatasetFollowUpActionResponse(item.ID, latestRun),
 		OpenFollowUpCaseCount:           latestRun.OpenFollowUpCaseCount,
 		PreferredCaseQueueAction:        newEvalDatasetCaseQueueActionResponse(latestRun),
+		DatasetFollowUpCaseSummary:      newEvalDatasetDatasetFollowUpCaseSummaryResponse(latestRun),
 		DatasetOpenFollowUpCaseCount:    latestRun.DatasetOpenFollowUpCaseCount,
 		PreferredDatasetCaseQueueAction: newEvalDatasetDatasetCaseQueueActionResponse(item.ID, latestRun),
 	}

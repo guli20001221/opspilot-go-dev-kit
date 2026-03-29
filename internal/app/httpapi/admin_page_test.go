@@ -706,6 +706,7 @@ const reportID = process.argv[6];
   const firstRowText = await page.textContent("#datasetRows tr:first-child");
   if (!firstRowText.includes(runID)) throw new Error("latest run summary missing from dataset row");
   if (!firstRowText.includes("1 unresolved follow-up items")) throw new Error("unresolved follow-up count missing from dataset row");
+  if (!firstRowText.includes("1 total / 1 open / 0 closed dataset follow-up cases")) throw new Error("dataset-wide follow-up summary missing from dataset row");
   const latestRunHref = await page.getAttribute('a[href*="/admin/eval-runs?"][href*="run_id=' + encodeURIComponent(runID) + '"]', "href");
   if (!latestRunHref) throw new Error("latest run handoff missing from dataset row");
   const latestReportHref = await page.getAttribute('a[href*="/admin/eval-reports?"][href*="selected_report_id=' + encodeURIComponent(reportID) + '"]', "href");

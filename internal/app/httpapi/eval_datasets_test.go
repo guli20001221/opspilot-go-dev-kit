@@ -332,6 +332,21 @@ func TestListEvalDatasetsEndpointIncludesLatestRunSummary(t *testing.T) {
 	if got.PreferredDatasetCaseQueueAction.SourceEvalDatasetID != reportItem.DatasetID {
 		t.Fatalf("PreferredDatasetCaseQueueAction.SourceEvalDatasetID = %q, want %q", got.PreferredDatasetCaseQueueAction.SourceEvalDatasetID, reportItem.DatasetID)
 	}
+	if got.DatasetFollowUpCaseSummary.FollowUpCaseCount != 1 {
+		t.Fatalf("DatasetFollowUpCaseSummary.FollowUpCaseCount = %d, want 1", got.DatasetFollowUpCaseSummary.FollowUpCaseCount)
+	}
+	if got.DatasetFollowUpCaseSummary.OpenFollowUpCaseCount != 1 {
+		t.Fatalf("DatasetFollowUpCaseSummary.OpenFollowUpCaseCount = %d, want 1", got.DatasetFollowUpCaseSummary.OpenFollowUpCaseCount)
+	}
+	if got.DatasetFollowUpCaseSummary.ClosedFollowUpCaseCount != 0 {
+		t.Fatalf("DatasetFollowUpCaseSummary.ClosedFollowUpCaseCount = %d, want 0", got.DatasetFollowUpCaseSummary.ClosedFollowUpCaseCount)
+	}
+	if got.DatasetFollowUpCaseSummary.LatestFollowUpCaseID != followUpCase.ID {
+		t.Fatalf("DatasetFollowUpCaseSummary.LatestFollowUpCaseID = %q, want %q", got.DatasetFollowUpCaseSummary.LatestFollowUpCaseID, followUpCase.ID)
+	}
+	if got.DatasetFollowUpCaseSummary.LatestFollowUpCaseStatus != casesvc.StatusOpen {
+		t.Fatalf("DatasetFollowUpCaseSummary.LatestFollowUpCaseStatus = %q, want %q", got.DatasetFollowUpCaseSummary.LatestFollowUpCaseStatus, casesvc.StatusOpen)
+	}
 }
 
 func TestListEvalDatasetsEndpointSupportsNeedsFollowUpFilter(t *testing.T) {
