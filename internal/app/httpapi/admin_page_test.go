@@ -345,6 +345,9 @@ func TestAdminEvalsPageRendersHTML(t *testing.T) {
 	if !strings.Contains(body, "Open follow-up slice") {
 		t.Fatal("follow-up slice handoff missing from eval page HTML")
 	}
+	if !strings.Contains(body, "Linked case summary") {
+		t.Fatal("linked-case summary missing from eval page HTML")
+	}
 	if !strings.Contains(body, "Open report API detail") {
 		t.Fatal("report handoff missing from eval page HTML")
 	}
@@ -478,6 +481,9 @@ async function main() {
   const detailText = (await page.textContent("#evalDetail")).trim();
   if (!detailText.includes(evalCaseID) || !detailText.includes("Follow-up cases")) {
     throw new Error("eval detail did not materialize expected content");
+  }
+  if (!detailText.includes("Linked case summary") || !detailText.includes("1 total / 1 open")) {
+    throw new Error("eval detail linked-case summary missing from detail");
   }
   const statusText = (await page.textContent("#evalDetailStatusNote")).trim();
   if (!statusText.includes("already has open follow-up work")) {

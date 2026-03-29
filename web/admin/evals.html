@@ -248,6 +248,16 @@
       return `${total} cases / ${open} open`;
     }
 
+    function linkedCaseSummaryLabel(item) {
+      const summary = item && item.linked_case_summary ? item.linked_case_summary : null;
+      if (!summary) return "0 total / 0 open";
+      const total = Number(summary.total_case_count || 0);
+      const open = Number(summary.open_case_count || 0);
+      const latestID = summary.latest_case_id || "none";
+      const latestStatus = summary.latest_case_status || "unknown";
+      return `${total} total / ${open} open / latest ${latestID} (${latestStatus})`;
+    }
+
     function buildEvalQueueHref(item, sourceEvalCaseID) {
       return `/admin/cases?tenant_id=${encodeURIComponent(item.tenant_id)}&source_eval_case_id=${encodeURIComponent(sourceEvalCaseID)}&limit=10`;
     }
@@ -390,13 +400,14 @@
             <small>${escapeHTML(item.eval_case_id)}</small>
           </td>
           <td>${escapeHTML(item.source_case_id)}</td>
-          <td>${escapeHTML(item.version_id || "none")}</td>
-          <td>
-            <strong>${escapeHTML(followUpLabel(item))}</strong>
-            ${rowPreferredLink}
-            ${queueLink}
-            ${actionWarning}
-          </td>
+            <td>${escapeHTML(item.version_id || "none")}</td>
+            <td>
+              <strong>${escapeHTML(followUpLabel(item))}</strong>
+              <small>${escapeHTML(linkedCaseSummaryLabel(item))}</small>
+              ${rowPreferredLink}
+              ${queueLink}
+              ${actionWarning}
+            </td>
           <td>${escapeHTML(fmtDate(item.created_at))}</td>
           <td><button class="ghost" type="button" data-eval-id="${escapeHTML(item.eval_case_id)}">Inspect</button></td>
         </tr>
@@ -414,6 +425,7 @@
         `Follow-up cases: ${item.follow_up_case_count || 0}`,
         `Open follow-up cases: ${item.open_follow_up_case_count || 0}`,
         `Latest follow-up case: ${item.latest_follow_up_case_id || "none"}`,
+        `Linked case summary: ${linkedCaseSummaryLabel(item)}`,
         `Trace: ${item.trace_id || "none"}`,
         `Version: ${item.version_id || "none"}`,
         `Title: ${item.title || "unknown"}`,
@@ -468,6 +480,7 @@
             <dl class="detail-card"><dt>Source task</dt><dd>${escapeHTML(item.source_task_id || "none")}</dd></dl>
             <dl class="detail-card"><dt>Source report</dt><dd>${escapeHTML(item.source_report_id || "none")}</dd></dl>
             <dl class="detail-card"><dt>Follow-up cases</dt><dd>${escapeHTML(followUpLabel(item))}</dd></dl>
+            <dl class="detail-card"><dt>Linked case summary</dt><dd>${escapeHTML(linkedCaseSummaryLabel(item))}</dd></dl>
             <dl class="detail-card"><dt>Trace</dt><dd>${escapeHTML(item.trace_id || "none")}</dd></dl>
           </div>
           <div class="detail-grid">

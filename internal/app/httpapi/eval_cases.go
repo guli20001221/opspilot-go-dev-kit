@@ -20,23 +20,24 @@ type createEvalCaseRequest struct {
 }
 
 type evalCaseResponse struct {
-	EvalCaseID               string                         `json:"eval_case_id"`
-	TenantID                 string                         `json:"tenant_id"`
-	SourceCaseID             string                         `json:"source_case_id"`
-	SourceTaskID             string                         `json:"source_task_id,omitempty"`
-	SourceReportID           string                         `json:"source_report_id,omitempty"`
-	FollowUpCaseCount        int                            `json:"follow_up_case_count"`
-	OpenFollowUpCaseCount    int                            `json:"open_follow_up_case_count"`
-	LatestFollowUpCaseID     string                         `json:"latest_follow_up_case_id,omitempty"`
-	LatestFollowUpCaseStatus string                         `json:"latest_follow_up_case_status,omitempty"`
-	PreferredFollowUpAction  evalCaseFollowUpActionResponse `json:"preferred_follow_up_action"`
-	TraceID                  string                         `json:"trace_id,omitempty"`
-	VersionID                string                         `json:"version_id,omitempty"`
-	Title                    string                         `json:"title"`
-	Summary                  string                         `json:"summary"`
-	OperatorNote             string                         `json:"operator_note,omitempty"`
-	CreatedBy                string                         `json:"created_by"`
-	CreatedAt                string                         `json:"created_at"`
+	EvalCaseID               string                              `json:"eval_case_id"`
+	TenantID                 string                              `json:"tenant_id"`
+	SourceCaseID             string                              `json:"source_case_id"`
+	SourceTaskID             string                              `json:"source_task_id,omitempty"`
+	SourceReportID           string                              `json:"source_report_id,omitempty"`
+	FollowUpCaseCount        int                                 `json:"follow_up_case_count"`
+	OpenFollowUpCaseCount    int                                 `json:"open_follow_up_case_count"`
+	LatestFollowUpCaseID     string                              `json:"latest_follow_up_case_id,omitempty"`
+	LatestFollowUpCaseStatus string                              `json:"latest_follow_up_case_status,omitempty"`
+	LinkedCaseSummary        evalReportLinkedCaseSummaryResponse `json:"linked_case_summary"`
+	PreferredFollowUpAction  evalCaseFollowUpActionResponse      `json:"preferred_follow_up_action"`
+	TraceID                  string                              `json:"trace_id,omitempty"`
+	VersionID                string                              `json:"version_id,omitempty"`
+	Title                    string                              `json:"title"`
+	Summary                  string                              `json:"summary"`
+	OperatorNote             string                              `json:"operator_note,omitempty"`
+	CreatedBy                string                              `json:"created_by"`
+	CreatedAt                string                              `json:"created_at"`
 }
 
 type evalCaseFollowUpActionResponse struct {
@@ -170,14 +171,20 @@ func newEvalCaseResponse(item evalsvc.EvalCase) evalCaseResponse {
 		OpenFollowUpCaseCount:    item.OpenFollowUpCaseCount,
 		LatestFollowUpCaseID:     item.LatestFollowUpCaseID,
 		LatestFollowUpCaseStatus: item.LatestFollowUpCaseStatus,
-		PreferredFollowUpAction:  newEvalCaseFollowUpActionResponse(item),
-		TraceID:                  item.TraceID,
-		VersionID:                item.VersionID,
-		Title:                    item.Title,
-		Summary:                  item.Summary,
-		OperatorNote:             item.OperatorNote,
-		CreatedBy:                item.CreatedBy,
-		CreatedAt:                item.CreatedAt.Format(time.RFC3339Nano),
+		LinkedCaseSummary: evalReportLinkedCaseSummaryResponse{
+			TotalCaseCount:   item.FollowUpCaseCount,
+			OpenCaseCount:    item.OpenFollowUpCaseCount,
+			LatestCaseID:     item.LatestFollowUpCaseID,
+			LatestCaseStatus: item.LatestFollowUpCaseStatus,
+		},
+		PreferredFollowUpAction: newEvalCaseFollowUpActionResponse(item),
+		TraceID:                 item.TraceID,
+		VersionID:               item.VersionID,
+		Title:                   item.Title,
+		Summary:                 item.Summary,
+		OperatorNote:            item.OperatorNote,
+		CreatedBy:               item.CreatedBy,
+		CreatedAt:               item.CreatedAt.Format(time.RFC3339Nano),
 	}
 }
 

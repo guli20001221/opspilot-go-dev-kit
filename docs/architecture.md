@@ -94,6 +94,7 @@ The current HTTP layer also exposes the same PostgreSQL-backed workflow records 
 - `GET /api/v1/eval-cases` now exposes the first tenant-scoped eval queue contract, so promoted coverage can be browsed as an operator lane instead of remaining write-only
 - the same canonical eval-case list/detail contract now also carries follow-up case summary fields and `latest_follow_up_case_id`, so eval triage can inspect linked operator work without an extra case query layer
 - the same canonical eval-case list/detail contract now also carries backend-owned `preferred_follow_up_action`, so `/admin/evals` can render `Create case` versus reuse actions from one typed read-model field instead of recomputing that decision from counts and IDs in the browser
+- the same canonical eval-case list/detail contract now also carries `linked_case_summary`, so `/admin/evals` can render total/open/latest follow-up pressure from one backend-owned block instead of leaning on only `latest_follow_up_case_id`
 - the same canonical eval-case list now also supports `needs_follow_up=true|false`, so unresolved eval follow-up can be filtered on the backend instead of derived in the browser
 - the canonical case contract now also accepts standalone `source_eval_case_id`, so precise eval-case follow-up can be created or reused without routing through an eval-report-level contract first
 - the same `/admin/cases` page now also supports `Promote to eval`, keeping the operator action on the canonical case surface instead of introducing an admin-only eval write path

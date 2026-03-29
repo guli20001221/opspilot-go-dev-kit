@@ -139,6 +139,7 @@ The current chat stream implementation is a Milestone 1 skeleton:
 - use `GET /api/v1/eval-cases?tenant_id=<tenant>` when you need the first tenant-scoped queue of promoted eval coverage before creating datasets or regression runs
 - that same eval-case list/detail contract now also includes `follow_up_case_count`, `open_follow_up_case_count`, and `latest_follow_up_case_id`, so `/admin/evals` can surface regression follow-up pressure directly from canonical eval state
 - that same eval-case list/detail contract now also includes typed `preferred_follow_up_action`, so `/admin/evals` can render `Create case`, `Open existing case`, or `Open existing queue` from one backend-owned decision instead of recomputing the action from follow-up counts in the browser
+- that same eval-case list/detail contract now also includes `linked_case_summary`, so `/admin/evals` can show total/open/latest follow-up pressure from one backend-owned block instead of relying on only `latest_follow_up_case_id`
 - use `needs_follow_up=true` on `GET /api/v1/eval-cases` when you want only eval cases that still have open linked operator work, or `needs_follow_up=false` when you want eval cases whose follow-up queue is already clear
 - use `POST /api/v1/eval-datasets` when you need to turn one or more durable eval cases into a draft dataset for later regression work
 - use `GET /api/v1/eval-datasets?tenant_id=<tenant>` when you need the lightweight dataset lane without pulling full membership payloads into the list response
