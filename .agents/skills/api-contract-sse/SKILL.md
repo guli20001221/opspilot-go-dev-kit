@@ -65,6 +65,7 @@ Keep the HTTP surface explicit, documented, stable, and friendly to streaming ag
 34. Once `source_eval_run_id` is part of the canonical case contract, prefer `POST /api/v1/cases` to reuse the newest open `tenant_id + source_eval_run_id` case instead of creating duplicate run-backed follow-up rows from repeated operator clicks.
 35. Once canonical eval-dataset reads already expose both latest-report and dataset-wide case queue actions, add a typed preferred case handoff field on that same contract instead of leaving the browser to compose dataset-versus-report queue priority on its own.
 36. Once canonical eval-dataset reads already know the latest durable run ID, expose a lightweight run-backed case summary there instead of forcing operators to query `/api/v1/eval-runs` or `/api/v1/cases` just to see whether the latest run already has claimed follow-up work.
+37. Once canonical eval-dataset reads already expose run-backed case summary for the latest durable run, add a typed preferred run-backed case handoff action on that same contract instead of leaving the browser to decide between an existing case and the open run-backed queue.
 
 ## Output contract
 When you finish, always report:
@@ -87,3 +88,4 @@ When you finish, always report:
 - no business logic embedded in handlers
 - no streaming format invented ad hoc per endpoint
 - do not return internal stack traces to clients
+- once canonical eval-dataset reads expose run-backed case summary, prefer adding a typed run-backed case handoff field on that same contract instead of leaving `/admin/eval-datasets` to route straight from `latest_case_id`
