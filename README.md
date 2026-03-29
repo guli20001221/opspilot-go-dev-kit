@@ -165,6 +165,7 @@ Current Milestone 1 slice:
 - the same `/admin/eval-datasets` page now also supports `Run dataset`, handing a published baseline straight into the shared `/admin/eval-runs` lane
 - that same `/admin/eval-datasets` lane now also exposes a backend-owned `Needs follow-up` slice plus direct `Open latest run` and `Open latest report` handoff from canonical dataset list rows
 - the same dataset lane now also renders `Open preferred queue` from the canonical dataset follow-up action, preferring unresolved bad-case triage on the latest report when it exists and falling back to the latest run queue otherwise
+- `GET /api/v1/eval-datasets/{dataset_id}` now also carries `linked_case_summary` and `preferred_linked_case_action` on each `items[]` row, so `/admin/eval-datasets` can hand operators from one dataset member straight into its linked case or canonical queue without browser-side routing
 - `/admin/eval-runs` now exposes the first eval-run operator page, backed directly by the canonical run list/detail contracts with handoff back to datasets and evals
 - `/admin/eval-reports` now exposes the first eval-report operator page, backed directly by the canonical eval-report list/detail contracts with bad-case and metadata drill-down
 - the same `/admin/eval-reports` list now also surfaces durable follow-up case summary from the canonical eval-report list contract, so operators can see follow-up pressure before drilling into linked cases

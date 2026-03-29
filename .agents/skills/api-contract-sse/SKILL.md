@@ -70,6 +70,7 @@ Keep the HTTP surface explicit, documented, stable, and friendly to streaming ag
 39. Once canonical eval-case reads already expose follow-up counts, add a lightweight `linked_case_summary` on that same contract instead of leaving `/admin/evals` to infer total/open/latest linked follow-up state from only `latest_follow_up_case_id`.
 40. Once canonical eval-report compare reads already expose follow-up counts per side, add a lightweight `linked_case_summary` on those same compare items instead of leaving `/admin/eval-report-compare` to infer owner or queue state from only `latest_follow_up_case_id`.
 41. Once canonical eval-report reads already expose unresolved bad-case pressure, add a typed `preferred_bad_case_queue_action` on those same list/detail and compare-side contracts instead of leaving admin pages to compose unresolved-report queue URLs from `report_id`.
+42. Once canonical eval-dataset detail already exposes durable `items[]`, add `linked_case_summary` and a typed `preferred_linked_case_action` on those same member rows instead of leaving `/admin/eval-datasets` to infer member-level follow-up routing from raw eval-case IDs.
 
 ## Output contract
 When you finish, always report:

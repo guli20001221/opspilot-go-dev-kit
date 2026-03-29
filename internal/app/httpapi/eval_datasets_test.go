@@ -72,6 +72,18 @@ func TestCreateAndGetEvalDatasetEndpoint(t *testing.T) {
 	if len(created.Items) != 1 || created.Items[0].EvalCaseID != evalCase.ID {
 		t.Fatalf("Items = %#v, want one eval case item", created.Items)
 	}
+	if created.Items[0].PreferredLinkedCaseAction.Mode != "none" {
+		t.Fatalf("created.Items[0].PreferredLinkedCaseAction.Mode = %q, want %q", created.Items[0].PreferredLinkedCaseAction.Mode, "none")
+	}
+
+	followUpCase, err := caseService.CreateCase(ctx, casesvc.CreateInput{
+		TenantID:         "tenant-dataset",
+		Title:            "Eval dataset item follow-up",
+		SourceEvalCaseID: evalCase.ID,
+	})
+	if err != nil {
+		t.Fatalf("CreateCase(item follow-up) error = %v", err)
+	}
 
 	getResp, err := http.Get(server.URL + "/api/v1/eval-datasets/" + created.DatasetID + "?tenant_id=tenant-dataset")
 	if err != nil {
@@ -80,6 +92,28 @@ func TestCreateAndGetEvalDatasetEndpoint(t *testing.T) {
 	defer getResp.Body.Close()
 	if getResp.StatusCode != http.StatusOK {
 		t.Fatalf("StatusCode = %d, want %d", getResp.StatusCode, http.StatusOK)
+	}
+	var got evalDatasetResponse
+	if err := json.NewDecoder(getResp.Body).Decode(&got); err != nil {
+		t.Fatalf("Decode(get) error = %v", err)
+	}
+	if len(got.Items) != 1 {
+		t.Fatalf("len(got.Items) = %d, want 1", len(got.Items))
+	}
+	if got.Items[0].LinkedCaseSummary.TotalCaseCount != 1 {
+		t.Fatalf("got.Items[0].LinkedCaseSummary.TotalCaseCount = %d, want 1", got.Items[0].LinkedCaseSummary.TotalCaseCount)
+	}
+	if got.Items[0].LinkedCaseSummary.OpenCaseCount != 1 {
+		t.Fatalf("got.Items[0].LinkedCaseSummary.OpenCaseCount = %d, want 1", got.Items[0].LinkedCaseSummary.OpenCaseCount)
+	}
+	if got.Items[0].LinkedCaseSummary.LatestCaseID != followUpCase.ID {
+		t.Fatalf("got.Items[0].LinkedCaseSummary.LatestCaseID = %q, want %q", got.Items[0].LinkedCaseSummary.LatestCaseID, followUpCase.ID)
+	}
+	if got.Items[0].PreferredLinkedCaseAction.Mode != "open_existing_case" {
+		t.Fatalf("got.Items[0].PreferredLinkedCaseAction.Mode = %q, want %q", got.Items[0].PreferredLinkedCaseAction.Mode, "open_existing_case")
+	}
+	if got.Items[0].PreferredLinkedCaseAction.CaseID != followUpCase.ID {
+		t.Fatalf("got.Items[0].PreferredLinkedCaseAction.CaseID = %q, want %q", got.Items[0].PreferredLinkedCaseAction.CaseID, followUpCase.ID)
 	}
 }
 

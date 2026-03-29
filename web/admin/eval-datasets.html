@@ -355,6 +355,25 @@
       return "Open preferred queue";
     }
 
+    function datasetItemLinkedCaseHref(item, member) {
+      const action = member && member.preferred_linked_case_action;
+      if (!action || action.mode === "none") return "";
+      if (action.mode === "open_existing_case" && action.case_id) {
+        return `/admin/cases?tenant_id=${encodeURIComponent(item.tenant_id)}&case_id=${encodeURIComponent(action.case_id)}`;
+      }
+      if (action.mode === "open_existing_queue" && action.source_eval_case_id) {
+        return `/admin/cases?tenant_id=${encodeURIComponent(item.tenant_id)}&source_eval_case_id=${encodeURIComponent(action.source_eval_case_id)}&status=open`;
+      }
+      return "";
+    }
+
+    function datasetItemLinkedCaseLabel(member) {
+      const action = member && member.preferred_linked_case_action;
+      if (!action || action.mode === "none") return "";
+      if (action.mode === "open_existing_queue") return "Open linked case queue";
+      return "Open linked case";
+    }
+
     function datasetListFollowUpCaseSummary(item) {
       return item && item.dataset_follow_up_case_summary ? item.dataset_follow_up_case_summary : null;
     }
@@ -513,6 +532,7 @@
       }
       for (const member of item.items) {
         lines.push(`- ${member.eval_case_id}: ${member.title} | case=${member.source_case_id} | task=${member.source_task_id || "none"} | report=${member.source_report_id || "none"} | version=${member.version_id || "none"} | trace=${member.trace_id || "none"}`);
+        lines.push(`  linked cases: ${member.linked_case_summary?.total_case_count || 0} total / ${member.linked_case_summary?.open_case_count || 0} open | latest=${member.linked_case_summary?.latest_case_id || "none"}${member.linked_case_summary?.latest_case_status ? " (" + member.linked_case_summary.latest_case_status + ")" : ""}`);
       }
       return lines.join("\n");
     }
@@ -628,6 +648,7 @@
               ${item.items.map((member) => `
                 <li>
                   <strong>${escapeHTML(member.title)}</strong>
+                  <div>Linked cases: ${escapeHTML(String(member.linked_case_summary?.total_case_count || 0))} total / ${escapeHTML(String(member.linked_case_summary?.open_case_count || 0))} open${member.linked_case_summary?.latest_case_id ? ` | Latest: ${escapeHTML(member.linked_case_summary.latest_case_id)} (${escapeHTML(member.linked_case_summary.latest_case_status || "unknown")})` : ""}</div>
                   <div>
                     <a class="button-link ghost" href="${evalCaseEndpointBase}${encodeURIComponent(member.eval_case_id)}?tenant_id=${encodeURIComponent(item.tenant_id)}" target="_blank" rel="noreferrer">Eval case API detail</a>
                     <a class="button-link ghost" href="${caseEndpointBase}${encodeURIComponent(member.source_case_id)}?tenant_id=${encodeURIComponent(item.tenant_id)}" target="_blank" rel="noreferrer">Case API detail</a>
@@ -635,6 +656,7 @@
                     ${member.source_report_id ? `<a class="button-link ghost" href="${reportEndpointBase}${encodeURIComponent(member.source_report_id)}" target="_blank" rel="noreferrer">Report API detail</a>` : ""}
                     ${member.source_case_id ? `<a class="button-link ghost" href="/admin/trace-detail?case_id=${encodeURIComponent(member.source_case_id)}">Trace detail</a>` : ""}
                     ${member.version_id ? `<a class="button-link ghost" href="/admin/version-detail?version_id=${encodeURIComponent(member.version_id)}">Version detail</a>` : ""}
+                    ${datasetItemLinkedCaseHref(item, member) ? `<a class="button-link ghost" href="${datasetItemLinkedCaseHref(item, member)}">${datasetItemLinkedCaseLabel(member)}</a>` : ""}
                   </div>
                 </li>
               `).join("")}

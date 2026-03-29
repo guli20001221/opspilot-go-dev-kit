@@ -682,6 +682,9 @@ func TestAdminEvalDatasetsPageRendersHTML(t *testing.T) {
 	if !strings.Contains(body, "Version detail") {
 		t.Fatal("version detail handoff missing from eval datasets page HTML")
 	}
+	if !strings.Contains(body, "Open linked case") {
+		t.Fatal("linked case handoff missing from eval datasets page HTML")
+	}
 	if !strings.Contains(body, "task-row-selected") {
 		t.Fatal("selected dataset row styling missing from eval datasets page HTML")
 	}

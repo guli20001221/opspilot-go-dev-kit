@@ -34,13 +34,15 @@ type publishEvalDatasetRequest struct {
 }
 
 type evalDatasetItemResponse struct {
-	EvalCaseID     string `json:"eval_case_id"`
-	Title          string `json:"title"`
-	SourceCaseID   string `json:"source_case_id"`
-	SourceTaskID   string `json:"source_task_id,omitempty"`
-	SourceReportID string `json:"source_report_id,omitempty"`
-	TraceID        string `json:"trace_id,omitempty"`
-	VersionID      string `json:"version_id,omitempty"`
+	EvalCaseID                string                              `json:"eval_case_id"`
+	Title                     string                              `json:"title"`
+	SourceCaseID              string                              `json:"source_case_id"`
+	SourceTaskID              string                              `json:"source_task_id,omitempty"`
+	SourceReportID            string                              `json:"source_report_id,omitempty"`
+	TraceID                   string                              `json:"trace_id,omitempty"`
+	VersionID                 string                              `json:"version_id,omitempty"`
+	LinkedCaseSummary         evalReportLinkedCaseSummaryResponse `json:"linked_case_summary"`
+	PreferredLinkedCaseAction evalCaseFollowUpActionResponse      `json:"preferred_linked_case_action"`
 }
 
 type evalDatasetResponse struct {
@@ -211,7 +213,7 @@ func (a *appHandler) handleCreateEvalDataset(w http.ResponseWriter, r *http.Requ
 		return
 	}
 
-	writeJSON(w, http.StatusCreated, newEvalDatasetResponse(item, evalDatasetLatestRunSummary{}, evalDatasetLinkedCaseSummaryResponse{}, evalDatasetLinkedCaseSummaryResponse{}, nil))
+	writeJSON(w, http.StatusCreated, newEvalDatasetResponse(item, evalDatasetLatestRunSummary{}, evalDatasetLinkedCaseSummaryResponse{}, evalDatasetLinkedCaseSummaryResponse{}, nil, nil))
 }
 
 func (a *appHandler) handleEvalDatasetByID(w http.ResponseWriter, r *http.Request) {
@@ -293,8 +295,13 @@ func (a *appHandler) handleGetEvalDataset(w http.ResponseWriter, r *http.Request
 		writeError(w, http.StatusInternalServerError, "eval_dataset_recent_runs_failed", err.Error())
 		return
 	}
+	itemFollowUpSummaries, err := a.evalDatasetItemFollowUpSummaries(r.Context(), item.TenantID, item)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "eval_dataset_item_linked_case_summary_failed", err.Error())
+		return
+	}
 
-	writeJSON(w, http.StatusOK, newEvalDatasetResponse(item, latestRun, linkedCaseSummary, runBackedCaseSummary, recentRuns))
+	writeJSON(w, http.StatusOK, newEvalDatasetResponse(item, latestRun, linkedCaseSummary, runBackedCaseSummary, recentRuns, itemFollowUpSummaries))
 }
 
 func (a *appHandler) handleAddEvalDatasetItem(w http.ResponseWriter, r *http.Request, datasetID string) {
@@ -329,7 +336,7 @@ func (a *appHandler) handleAddEvalDatasetItem(w http.ResponseWriter, r *http.Req
 		return
 	}
 
-	writeJSON(w, http.StatusOK, newEvalDatasetResponse(item, evalDatasetLatestRunSummary{}, evalDatasetLinkedCaseSummaryResponse{}, evalDatasetLinkedCaseSummaryResponse{}, nil))
+	writeJSON(w, http.StatusOK, newEvalDatasetResponse(item, evalDatasetLatestRunSummary{}, evalDatasetLinkedCaseSummaryResponse{}, evalDatasetLinkedCaseSummaryResponse{}, nil, nil))
 }
 
 func (a *appHandler) handlePublishEvalDataset(w http.ResponseWriter, r *http.Request, datasetID string) {
@@ -361,10 +368,10 @@ func (a *appHandler) handlePublishEvalDataset(w http.ResponseWriter, r *http.Req
 		return
 	}
 
-	writeJSON(w, http.StatusOK, newEvalDatasetResponse(item, evalDatasetLatestRunSummary{}, evalDatasetLinkedCaseSummaryResponse{}, evalDatasetLinkedCaseSummaryResponse{}, nil))
+	writeJSON(w, http.StatusOK, newEvalDatasetResponse(item, evalDatasetLatestRunSummary{}, evalDatasetLinkedCaseSummaryResponse{}, evalDatasetLinkedCaseSummaryResponse{}, nil, nil))
 }
 
-func newEvalDatasetResponse(item evalsvc.EvalDataset, latestRun evalDatasetLatestRunSummary, linkedCaseSummary evalDatasetLinkedCaseSummaryResponse, runBackedCaseSummary evalDatasetLinkedCaseSummaryResponse, recentRuns []evalDatasetRecentRunResponse) evalDatasetResponse {
+func newEvalDatasetResponse(item evalsvc.EvalDataset, latestRun evalDatasetLatestRunSummary, linkedCaseSummary evalDatasetLinkedCaseSummaryResponse, runBackedCaseSummary evalDatasetLinkedCaseSummaryResponse, recentRuns []evalDatasetRecentRunResponse, itemFollowUpSummaries map[string]casesvc.EvalCaseFollowUpSummary) evalDatasetResponse {
 	resp := evalDatasetResponse{
 		DatasetID:                       item.ID,
 		TenantID:                        item.TenantID,
@@ -402,6 +409,7 @@ func newEvalDatasetResponse(item evalsvc.EvalDataset, latestRun evalDatasetLates
 		resp.PublishedAt = item.PublishedAt.Format(time.RFC3339Nano)
 	}
 	for _, member := range item.Items {
+		followUpSummary := itemFollowUpSummaries[member.EvalCaseID]
 		resp.Items = append(resp.Items, evalDatasetItemResponse{
 			EvalCaseID:     member.EvalCaseID,
 			Title:          member.Title,
@@ -410,10 +418,48 @@ func newEvalDatasetResponse(item evalsvc.EvalDataset, latestRun evalDatasetLates
 			SourceReportID: member.SourceReportID,
 			TraceID:        member.TraceID,
 			VersionID:      member.VersionID,
+			LinkedCaseSummary: evalReportLinkedCaseSummaryResponse{
+				TotalCaseCount:   followUpSummary.FollowUpCaseCount,
+				OpenCaseCount:    followUpSummary.OpenFollowUpCaseCount,
+				LatestCaseID:     followUpSummary.LatestFollowUpCaseID,
+				LatestCaseStatus: followUpSummary.LatestFollowUpCaseStatus,
+			},
+			PreferredLinkedCaseAction: newEvalCaseLinkedCaseActionResponseFromSummary(
+				member.EvalCaseID,
+				followUpSummary.FollowUpCaseCount,
+				followUpSummary.OpenFollowUpCaseCount,
+				followUpSummary.LatestFollowUpCaseID,
+				followUpSummary.LatestFollowUpCaseStatus,
+			),
 		})
 	}
 
 	return resp
+}
+
+func (a *appHandler) evalDatasetItemFollowUpSummaries(ctx context.Context, tenantID string, item evalsvc.EvalDataset) (map[string]casesvc.EvalCaseFollowUpSummary, error) {
+	summaries := make(map[string]casesvc.EvalCaseFollowUpSummary, len(item.Items))
+	if a.cases == nil || len(item.Items) == 0 {
+		return summaries, nil
+	}
+
+	evalCaseIDs := make([]string, 0, len(item.Items))
+	seen := make(map[string]struct{}, len(item.Items))
+	for _, member := range item.Items {
+		if member.EvalCaseID == "" {
+			continue
+		}
+		if _, ok := seen[member.EvalCaseID]; ok {
+			continue
+		}
+		seen[member.EvalCaseID] = struct{}{}
+		evalCaseIDs = append(evalCaseIDs, member.EvalCaseID)
+	}
+	if len(evalCaseIDs) == 0 {
+		return summaries, nil
+	}
+
+	return a.cases.SummarizeBySourceEvalCaseIDs(ctx, tenantID, evalCaseIDs)
 }
 
 type evalDatasetLatestRunSummary struct {
