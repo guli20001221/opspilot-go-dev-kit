@@ -14,6 +14,7 @@ var caseNoteIDSequence atomic.Uint64
 // Store persists case read models.
 type Store interface {
 	Save(ctx context.Context, item Case) (Case, error)
+	SaveOrReuseOpenEvalRunCase(ctx context.Context, item Case) (Case, bool, error)
 	Get(ctx context.Context, caseID string) (Case, error)
 	List(ctx context.Context, filter ListFilter) (ListPage, error)
 	FindOpenByCompareOrigin(ctx context.Context, tenantID string, sourceEvalReportID string, compareOrigin CompareOrigin) (Case, bool, error)
@@ -49,6 +50,12 @@ func NewServiceWithStore(store Store) *Service {
 
 // CreateCase persists a new operator-managed case.
 func (s *Service) CreateCase(ctx context.Context, input CreateInput) (Case, error) {
+	item, _, err := s.CreateCaseWithOutcome(ctx, input)
+	return item, err
+}
+
+// CreateCaseWithOutcome persists a new operator-managed case and reports whether a new row was created.
+func (s *Service) CreateCaseWithOutcome(ctx context.Context, input CreateInput) (Case, bool, error) {
 	now := time.Now().UTC()
 	item := Case{
 		ID:                 newCaseID(now),
@@ -66,8 +73,12 @@ func (s *Service) CreateCase(ctx context.Context, input CreateInput) (Case, erro
 		CreatedAt:          now,
 		UpdatedAt:          now,
 	}
+	if item.SourceEvalRunID != "" {
+		return s.store.SaveOrReuseOpenEvalRunCase(ctx, item)
+	}
 
-	return s.store.Save(ctx, item)
+	saved, err := s.store.Save(ctx, item)
+	return saved, true, err
 }
 
 // GetCase returns a durable case by ID.

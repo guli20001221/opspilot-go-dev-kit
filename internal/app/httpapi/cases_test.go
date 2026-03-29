@@ -2564,6 +2564,11 @@ func (s *staleAssignStore) Save(_ context.Context, item casesvc.Case) (casesvc.C
 	return item, nil
 }
 
+func (s *staleAssignStore) SaveOrReuseOpenEvalRunCase(_ context.Context, item casesvc.Case) (casesvc.Case, bool, error) {
+	s.item = item
+	return item, true, nil
+}
+
 func (s *staleAssignStore) Get(_ context.Context, caseID string) (casesvc.Case, error) {
 	if s.item.ID != caseID {
 		return casesvc.Case{}, casesvc.ErrCaseNotFound

@@ -29,6 +29,26 @@ func (s *memoryStore) Save(_ context.Context, item Case) (Case, error) {
 	return item, nil
 }
 
+func (s *memoryStore) SaveOrReuseOpenEvalRunCase(_ context.Context, item Case) (Case, bool, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	for _, existing := range s.records {
+		if existing.TenantID != item.TenantID || existing.Status != StatusOpen || existing.SourceEvalRunID != item.SourceEvalRunID {
+			continue
+		}
+		if existing.UpdatedAt.After(item.UpdatedAt) ||
+			(existing.UpdatedAt.Equal(item.UpdatedAt) && existing.CreatedAt.After(item.CreatedAt)) ||
+			(existing.UpdatedAt.Equal(item.UpdatedAt) && existing.CreatedAt.Equal(item.CreatedAt) && existing.ID > item.ID) {
+			return existing, false, nil
+		}
+		return existing, false, nil
+	}
+
+	s.records[item.ID] = item
+	return item, true, nil
+}
+
 func (s *memoryStore) Get(_ context.Context, caseID string) (Case, error) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()

@@ -32,6 +32,44 @@ func NewCaseStore(pool *pgxpool.Pool) *CaseStore {
 
 // Save inserts or updates a durable case record.
 func (s *CaseStore) Save(ctx context.Context, item casesvc.Case) (casesvc.Case, error) {
+	return saveCase(ctx, s.pool, item)
+}
+
+// SaveOrReuseOpenEvalRunCase atomically reuses the newest open run-backed case for one tenant/run pair.
+func (s *CaseStore) SaveOrReuseOpenEvalRunCase(ctx context.Context, item casesvc.Case) (casesvc.Case, bool, error) {
+	tx, err := s.pool.Begin(ctx)
+	if err != nil {
+		return casesvc.Case{}, false, fmt.Errorf("begin eval-run case dedupe tx: %w", err)
+	}
+	defer tx.Rollback(ctx)
+
+	if _, err := tx.Exec(ctx, `LOCK TABLE cases IN SHARE ROW EXCLUSIVE MODE`); err != nil {
+		return casesvc.Case{}, false, fmt.Errorf("lock cases for eval-run dedupe: %w", err)
+	}
+
+	existing, ok, err := findOpenCaseBySourceEvalRun(ctx, tx, item.TenantID, item.SourceEvalRunID)
+	if err != nil {
+		return casesvc.Case{}, false, err
+	}
+	if ok {
+		if err := tx.Commit(ctx); err != nil {
+			return casesvc.Case{}, false, fmt.Errorf("commit eval-run case dedupe tx: %w", err)
+		}
+		return existing, false, nil
+	}
+
+	saved, err := saveCase(ctx, tx, item)
+	if err != nil {
+		return casesvc.Case{}, false, err
+	}
+	if err := tx.Commit(ctx); err != nil {
+		return casesvc.Case{}, false, fmt.Errorf("commit eval-run case save tx: %w", err)
+	}
+
+	return saved, true, nil
+}
+
+func saveCase(ctx context.Context, q caseQuerier, item casesvc.Case) (casesvc.Case, error) {
 	const query = `
 INSERT INTO cases (
     id,
@@ -96,7 +134,7 @@ RETURNING
     created_at,
     updated_at`
 
-	row := s.pool.QueryRow(
+	row := q.QueryRow(
 		ctx,
 		query,
 		item.ID,
@@ -121,6 +159,47 @@ RETURNING
 	)
 
 	return scanCase(row)
+}
+
+func findOpenCaseBySourceEvalRun(ctx context.Context, q caseQuerier, tenantID string, sourceEvalRunID string) (casesvc.Case, bool, error) {
+	const query = `
+SELECT
+    id,
+    tenant_id,
+    status,
+    title,
+    summary,
+    COALESCE(source_task_id, ''),
+    COALESCE(source_report_id, ''),
+    COALESCE(source_eval_report_id, ''),
+    COALESCE(source_eval_case_id, ''),
+    COALESCE(source_eval_run_id, ''),
+    COALESCE(compare_left_eval_report_id, ''),
+    COALESCE(compare_right_eval_report_id, ''),
+    compare_selected_side,
+    created_by,
+    assigned_to,
+    assigned_at,
+    closed_by,
+    created_at,
+    updated_at
+FROM cases
+WHERE tenant_id = $1
+  AND status = $2
+  AND source_eval_run_id = $3
+ORDER BY updated_at DESC, created_at DESC, id DESC
+LIMIT 1`
+
+	row := q.QueryRow(ctx, query, tenantID, casesvc.StatusOpen, sourceEvalRunID)
+	item, err := scanCase(row)
+	if err != nil {
+		if errors.Is(err, casesvc.ErrCaseNotFound) {
+			return casesvc.Case{}, false, nil
+		}
+		return casesvc.Case{}, false, fmt.Errorf("find open eval-run case: %w", err)
+	}
+
+	return item, true, nil
 }
 
 // Get loads a case by ID.

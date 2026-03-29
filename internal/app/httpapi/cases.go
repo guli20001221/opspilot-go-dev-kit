@@ -140,17 +140,6 @@ func (a *appHandler) handleCreateCase(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 	}
-	if req.SourceEvalRunID != "" {
-		existing, ok, err := a.cases.FindOpenCaseBySourceEvalRun(r.Context(), req.TenantID, req.SourceEvalRunID)
-		if err != nil {
-			writeError(w, http.StatusInternalServerError, "case_lookup_failed", err.Error())
-			return
-		}
-		if ok {
-			writeJSON(w, http.StatusOK, newCaseResponse(existing))
-			return
-		}
-	}
 	if req.SourceEvalReportID != "" && req.CompareOrigin != nil {
 		existing, ok, err := a.cases.FindOpenCaseByCompareOrigin(r.Context(), req.TenantID, req.SourceEvalReportID, newCaseCompareOriginModel(req.CompareOrigin))
 		if err != nil {
@@ -174,7 +163,7 @@ func (a *appHandler) handleCreateCase(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	item, err := a.cases.CreateCase(r.Context(), casesvc.CreateInput{
+	item, created, err := a.cases.CreateCaseWithOutcome(r.Context(), casesvc.CreateInput{
 		TenantID:           req.TenantID,
 		Title:              req.Title,
 		Summary:            req.Summary,
@@ -191,7 +180,11 @@ func (a *appHandler) handleCreateCase(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	writeJSON(w, http.StatusCreated, newCaseResponse(item))
+	statusCode := http.StatusCreated
+	if !created {
+		statusCode = http.StatusOK
+	}
+	writeJSON(w, statusCode, newCaseResponse(item))
 }
 
 func (a *appHandler) handleListCases(w http.ResponseWriter, r *http.Request) {

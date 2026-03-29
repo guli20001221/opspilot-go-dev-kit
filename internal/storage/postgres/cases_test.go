@@ -165,6 +165,79 @@ INSERT INTO eval_cases (
 	}
 }
 
+func TestCaseStoreSaveOrReuseOpenEvalRunCase(t *testing.T) {
+	dsn := os.Getenv("OPSPILOT_TEST_POSTGRES_DSN")
+	if dsn == "" {
+		t.Skip("OPSPILOT_TEST_POSTGRES_DSN not set")
+	}
+
+	ctx := context.Background()
+	pool, err := OpenPool(ctx, dsn)
+	if err != nil {
+		t.Fatalf("OpenPool() error = %v", err)
+	}
+	defer pool.Close()
+
+	applyMigration(t, ctx, pool)
+	if _, err := pool.Exec(ctx, "TRUNCATE cases, reports, workflow_task_events, workflow_tasks RESTART IDENTITY CASCADE"); err != nil {
+		t.Fatalf("TRUNCATE case tables error = %v", err)
+	}
+
+	store := NewCaseStore(pool)
+	firstInput := casesvc.Case{
+		ID:              "case-run-dedupe-1",
+		TenantID:        "tenant-run-dedupe",
+		Status:          casesvc.StatusOpen,
+		Title:           "First run-backed case",
+		Summary:         "Follow up this run once",
+		SourceEvalRunID: "eval-run-dedupe-1",
+		CreatedBy:       "operator-1",
+		CreatedAt:       time.Unix(1700030000, 0).UTC(),
+		UpdatedAt:       time.Unix(1700030000, 0).UTC(),
+	}
+	first, created, err := store.SaveOrReuseOpenEvalRunCase(ctx, firstInput)
+	if err != nil {
+		t.Fatalf("SaveOrReuseOpenEvalRunCase(first) error = %v", err)
+	}
+	if !created {
+		t.Fatal("SaveOrReuseOpenEvalRunCase(first) created = false, want true")
+	}
+
+	secondInput := casesvc.Case{
+		ID:              "case-run-dedupe-2",
+		TenantID:        "tenant-run-dedupe",
+		Status:          casesvc.StatusOpen,
+		Title:           "Second run-backed case",
+		Summary:         "Second click should reuse",
+		SourceEvalRunID: "eval-run-dedupe-1",
+		CreatedBy:       "operator-2",
+		CreatedAt:       time.Unix(1700030001, 0).UTC(),
+		UpdatedAt:       time.Unix(1700030001, 0).UTC(),
+	}
+	second, created, err := store.SaveOrReuseOpenEvalRunCase(ctx, secondInput)
+	if err != nil {
+		t.Fatalf("SaveOrReuseOpenEvalRunCase(second) error = %v", err)
+	}
+	if created {
+		t.Fatal("SaveOrReuseOpenEvalRunCase(second) created = true, want false")
+	}
+	if second.ID != first.ID {
+		t.Fatalf("SaveOrReuseOpenEvalRunCase(second).ID = %q, want %q", second.ID, first.ID)
+	}
+
+	page, err := store.List(ctx, casesvc.ListFilter{
+		TenantID:        "tenant-run-dedupe",
+		SourceEvalRunID: "eval-run-dedupe-1",
+		Limit:           10,
+	})
+	if err != nil {
+		t.Fatalf("List() error = %v", err)
+	}
+	if len(page.Cases) != 1 {
+		t.Fatalf("len(page.Cases) = %d, want 1", len(page.Cases))
+	}
+}
+
 func TestCaseStoreListSupportsFiltersAndOffset(t *testing.T) {
 	dsn := os.Getenv("OPSPILOT_TEST_POSTGRES_DSN")
 	if dsn == "" {
