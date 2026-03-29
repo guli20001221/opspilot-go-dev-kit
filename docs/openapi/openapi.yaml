@@ -2982,6 +2982,8 @@ components:
         - updated_at
         - item_without_open_follow_up_count
         - needs_follow_up
+        - linked_case_summary
+        - preferred_case_action
       properties:
         run_id:
           type: string
@@ -3005,6 +3007,10 @@ components:
           type: string
         report_status:
           type: string
+        linked_case_summary:
+          $ref: '#/components/schemas/EvalReportLinkedCaseSummary'
+        preferred_case_action:
+          $ref: '#/components/schemas/EvalDatasetCaseQueueAction'
     EvalDatasetCaseQueueAction:
       type: object
       required:

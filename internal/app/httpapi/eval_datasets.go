@@ -134,15 +134,17 @@ type evalDatasetLinkedCaseSummaryResponse struct {
 }
 
 type evalDatasetRecentRunResponse struct {
-	RunID                        string `json:"run_id"`
-	Status                       string `json:"status"`
-	CreatedAt                    string `json:"created_at"`
-	UpdatedAt                    string `json:"updated_at"`
-	FinishedAt                   string `json:"finished_at,omitempty"`
-	ItemWithoutOpenFollowUpCount int    `json:"item_without_open_follow_up_count"`
-	NeedsFollowUp                bool   `json:"needs_follow_up"`
-	ReportID                     string `json:"report_id,omitempty"`
-	ReportStatus                 string `json:"report_status,omitempty"`
+	RunID                        string                               `json:"run_id"`
+	Status                       string                               `json:"status"`
+	CreatedAt                    string                               `json:"created_at"`
+	UpdatedAt                    string                               `json:"updated_at"`
+	FinishedAt                   string                               `json:"finished_at,omitempty"`
+	ItemWithoutOpenFollowUpCount int                                  `json:"item_without_open_follow_up_count"`
+	NeedsFollowUp                bool                                 `json:"needs_follow_up"`
+	ReportID                     string                               `json:"report_id,omitempty"`
+	ReportStatus                 string                               `json:"report_status,omitempty"`
+	LinkedCaseSummary            evalDatasetLinkedCaseSummaryResponse `json:"linked_case_summary"`
+	PreferredCaseAction          evalDatasetCaseQueueActionResponse   `json:"preferred_case_action"`
 }
 
 type listEvalDatasetsResponse struct {
@@ -607,6 +609,14 @@ func (a *appHandler) evalDatasetRecentRuns(ctx context.Context, tenantID string,
 			}
 			resp.ItemWithoutOpenFollowUpCount = followUpSummary.ItemWithoutOpenFollowUpCount
 			resp.NeedsFollowUp = followUpSummary.ItemWithoutOpenFollowUpCount > 0
+			resp.LinkedCaseSummary = evalDatasetLinkedCaseSummaryResponse{
+				TotalCaseCount:   followUpSummary.RunSummary.FollowUpCaseCount,
+				OpenCaseCount:    followUpSummary.RunSummary.OpenFollowUpCaseCount,
+				LatestCaseID:     followUpSummary.RunSummary.LatestFollowUpCaseID,
+				LatestCaseStatus: followUpSummary.RunSummary.LatestFollowUpCaseStatus,
+				LatestAssignedTo: followUpSummary.RunSummary.LatestFollowUpAssignedTo,
+			}
+			resp.PreferredCaseAction = newEvalDatasetRecentRunCaseActionResponse(run.ID, resp.LinkedCaseSummary)
 			if a.evalReports != nil {
 				reportID := evalsvc.EvalReportIDFromRunID(run.ID)
 				reportItem, err := a.evalReports.GetEvalReport(ctx, reportID)
@@ -627,6 +637,23 @@ func (a *appHandler) evalDatasetRecentRuns(ctx context.Context, tenantID string,
 	}
 
 	return rows, nil
+}
+
+func newEvalDatasetRecentRunCaseActionResponse(runID string, summary evalDatasetLinkedCaseSummaryResponse) evalDatasetCaseQueueActionResponse {
+	action := evalDatasetCaseQueueActionResponse{Mode: "none"}
+	if runID == "" || summary.OpenCaseCount <= 0 {
+		return action
+	}
+
+	action.SourceEvalRunID = runID
+	if summary.LatestCaseID != "" && summary.LatestCaseStatus == casesvc.StatusOpen {
+		action.Mode = "open_existing_case"
+		action.CaseID = summary.LatestCaseID
+		return action
+	}
+
+	action.Mode = "open_existing_queue"
+	return action
 }
 
 func parseEvalDatasetListFilter(r *http.Request) (evalsvc.DatasetListFilter, *bool, error) {

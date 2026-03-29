@@ -773,6 +773,27 @@ func TestGetEvalDatasetIncludesLatestRunSummary(t *testing.T) {
 	if got.RecentRuns[0].ReportID != reportID {
 		t.Fatalf("RecentRuns[0].ReportID = %q, want %q", got.RecentRuns[0].ReportID, reportID)
 	}
+	if got.RecentRuns[0].LinkedCaseSummary.TotalCaseCount != 1 {
+		t.Fatalf("RecentRuns[0].LinkedCaseSummary.TotalCaseCount = %d, want 1", got.RecentRuns[0].LinkedCaseSummary.TotalCaseCount)
+	}
+	if got.RecentRuns[0].LinkedCaseSummary.OpenCaseCount != 1 {
+		t.Fatalf("RecentRuns[0].LinkedCaseSummary.OpenCaseCount = %d, want 1", got.RecentRuns[0].LinkedCaseSummary.OpenCaseCount)
+	}
+	if got.RecentRuns[0].LinkedCaseSummary.LatestCaseID != runBackedCase.ID {
+		t.Fatalf("RecentRuns[0].LinkedCaseSummary.LatestCaseID = %q, want %q", got.RecentRuns[0].LinkedCaseSummary.LatestCaseID, runBackedCase.ID)
+	}
+	if got.RecentRuns[0].LinkedCaseSummary.LatestAssignedTo != "detail-run-operator" {
+		t.Fatalf("RecentRuns[0].LinkedCaseSummary.LatestAssignedTo = %q, want %q", got.RecentRuns[0].LinkedCaseSummary.LatestAssignedTo, "detail-run-operator")
+	}
+	if got.RecentRuns[0].PreferredCaseAction.Mode != "open_existing_case" {
+		t.Fatalf("RecentRuns[0].PreferredCaseAction.Mode = %q, want %q", got.RecentRuns[0].PreferredCaseAction.Mode, "open_existing_case")
+	}
+	if got.RecentRuns[0].PreferredCaseAction.CaseID != runBackedCase.ID {
+		t.Fatalf("RecentRuns[0].PreferredCaseAction.CaseID = %q, want %q", got.RecentRuns[0].PreferredCaseAction.CaseID, runBackedCase.ID)
+	}
+	if got.RecentRuns[0].PreferredCaseAction.SourceEvalRunID != reportItem.RunID {
+		t.Fatalf("RecentRuns[0].PreferredCaseAction.SourceEvalRunID = %q, want %q", got.RecentRuns[0].PreferredCaseAction.SourceEvalRunID, reportItem.RunID)
+	}
 }
 
 func TestEvalDatasetFollowUpActionFallsBackToLatestRunQueue(t *testing.T) {
@@ -877,6 +898,12 @@ func TestEvalDatasetFollowUpActionFallsBackToLatestRunQueue(t *testing.T) {
 	}
 	if got.RecentRuns[0].ReportID != "" {
 		t.Fatalf("RecentRuns[0].ReportID = %q, want empty", got.RecentRuns[0].ReportID)
+	}
+	if got.RecentRuns[0].LinkedCaseSummary.TotalCaseCount != 0 {
+		t.Fatalf("RecentRuns[0].LinkedCaseSummary.TotalCaseCount = %d, want 0", got.RecentRuns[0].LinkedCaseSummary.TotalCaseCount)
+	}
+	if got.RecentRuns[0].PreferredCaseAction.Mode != "none" {
+		t.Fatalf("RecentRuns[0].PreferredCaseAction.Mode = %q, want %q", got.RecentRuns[0].PreferredCaseAction.Mode, "none")
 	}
 }
 
@@ -983,7 +1010,7 @@ func TestEvalDatasetCaseQueueActionPrefersQueueWhenLatestCaseIsClosed(t *testing
 	}
 }
 
-func TestEvalDatasetRunBackedCaseActionPrefersQueueWhenLatestCaseIsClosed(t *testing.T) {
+func TestEvalDatasetRunBackedCaseActionClearsWhenOnlyClosedCaseRemains(t *testing.T) {
 	ctx := context.Background()
 	caseService := casesvc.NewService()
 	evalCaseService := evalsvc.NewService(caseService, nil)
@@ -991,75 +1018,29 @@ func TestEvalDatasetRunBackedCaseActionPrefersQueueWhenLatestCaseIsClosed(t *tes
 	runService := evalsvc.NewRunService(datasetService)
 	reportService := evalsvc.NewEvalReportServiceWithDependencies(nil, runService)
 
-	evalCaseItem, err := evalCaseService.CreateEvalCase(ctx, evalsvc.CreateEvalCaseInput{
-		TenantID:   "tenant-1",
-		SourceCase: mustCreateCase(t, caseService, casesvc.CreateInput{TenantID: "tenant-1", Title: "dataset source"}),
-		CreatedBy:  "dataset-operator",
-	})
+	reportID := materializeEvalRunReport(
+		t,
+		"tenant-dataset-run-backed-queue",
+		evalsvc.RunStatusFailed,
+		"failure detail",
+		caseService,
+		evalCaseService,
+		datasetService,
+		runService,
+		reportService,
+		"Dataset Run-backed Queue",
+		"Dataset Run-backed Queue Source",
+	)
+	reportItem, err := reportService.GetEvalReport(ctx, reportID)
 	if err != nil {
-		t.Fatalf("CreateEvalCase() error = %v", err)
+		t.Fatalf("GetEvalReport() error = %v", err)
 	}
 
-	datasetItem, err := datasetService.CreateDataset(ctx, evalsvc.CreateDatasetInput{
-		TenantID:    "tenant-1",
-		Name:        "Regression Dataset",
-		EvalCaseIDs: []string{evalCaseItem.ID},
-		CreatedBy:   "dataset-operator",
-	})
-	if err != nil {
-		t.Fatalf("CreateDataset() error = %v", err)
-	}
-	datasetItem, err = datasetService.PublishDataset(ctx, datasetItem.ID, evalsvc.PublishDatasetInput{
-		TenantID:    "tenant-1",
-		PublishedBy: "dataset-operator",
-	})
-	if err != nil {
-		t.Fatalf("PublishDataset() error = %v", err)
-	}
-
-	runItem, err := runService.CreateRun(ctx, evalsvc.CreateRunInput{
-		TenantID:    "tenant-1",
-		DatasetID:   datasetItem.ID,
-		TriggeredBy: "dataset-operator",
-	})
-	if err != nil {
-		t.Fatalf("CreateRun() error = %v", err)
-	}
-	runItem, err = runService.StartRun(ctx, runItem.ID, evalsvc.StartRunInput{TenantID: "tenant-1"})
-	if err != nil {
-		t.Fatalf("StartRun() error = %v", err)
-	}
-	runItem, err = runService.CompleteRun(ctx, runItem.ID, evalsvc.CompleteRunInput{
-		TenantID:    "tenant-1",
-		Status:      evalsvc.RunStatusFailed,
-		RecordedBy:  "judge-operator",
-		ItemResults: []evalsvc.ItemResult{{EvalCaseID: evalCaseItem.ID, Verdict: evalsvc.ItemVerdictFailed, Score: 0}},
-	})
-	if err != nil {
-		t.Fatalf("CompleteRun() error = %v", err)
-	}
-
-	reportItem, err := reportService.MaterializeRunReport(ctx, runItem.ID)
-	if err != nil {
-		t.Fatalf("MaterializeRunReport() error = %v", err)
-	}
-
-	openRunCase, err := caseService.CreateCase(ctx, casesvc.CreateInput{
-		TenantID:         "tenant-1",
-		Title:            "Older open run-backed case",
-		SourceEvalRunID:  reportItem.RunID,
-		SourceEvalCaseID: evalCaseItem.ID,
-		CreatedBy:        "operator-open",
-	})
-	if err != nil {
-		t.Fatalf("CreateCase(openRunCase) error = %v", err)
-	}
 	closedRunCase, err := caseService.CreateCase(ctx, casesvc.CreateInput{
-		TenantID:         "tenant-1",
-		Title:            "Latest closed run-backed case",
-		SourceEvalRunID:  reportItem.RunID,
-		SourceEvalCaseID: evalCaseItem.ID,
-		CreatedBy:        "operator-closed",
+		TenantID:        "tenant-dataset-run-backed-queue",
+		Title:           "Closed run-backed case",
+		SourceEvalRunID: reportItem.RunID,
+		CreatedBy:       "operator-closed",
 	})
 	if err != nil {
 		t.Fatalf("CreateCase(closedRunCase) error = %v", err)
@@ -1070,14 +1051,14 @@ func TestEvalDatasetRunBackedCaseActionPrefersQueueWhenLatestCaseIsClosed(t *tes
 
 	server := httptest.NewServer(NewHandlerWithDependencies(Dependencies{
 		Cases:        caseService,
-		Evals:        evalCaseService,
+		EvalCases:    evalCaseService,
 		EvalDatasets: datasetService,
 		EvalRuns:     runService,
 		EvalReports:  reportService,
 	}))
 	defer server.Close()
 
-	resp, err := http.Get(server.URL + "/api/v1/eval-datasets/" + datasetItem.ID + "?tenant_id=tenant-1")
+	resp, err := http.Get(server.URL + "/api/v1/eval-datasets/" + reportItem.DatasetID + "?tenant_id=tenant-dataset-run-backed-queue")
 	if err != nil {
 		t.Fatalf("Get() error = %v", err)
 	}
@@ -1090,11 +1071,11 @@ func TestEvalDatasetRunBackedCaseActionPrefersQueueWhenLatestCaseIsClosed(t *tes
 	if err := json.NewDecoder(resp.Body).Decode(&got); err != nil {
 		t.Fatalf("Decode() error = %v", err)
 	}
-	if got.RunBackedCaseSummary.TotalCaseCount != 2 {
-		t.Fatalf("RunBackedCaseSummary.TotalCaseCount = %d, want 2", got.RunBackedCaseSummary.TotalCaseCount)
+	if got.RunBackedCaseSummary.TotalCaseCount != 1 {
+		t.Fatalf("RunBackedCaseSummary.TotalCaseCount = %d, want 1", got.RunBackedCaseSummary.TotalCaseCount)
 	}
-	if got.RunBackedCaseSummary.OpenCaseCount != 1 {
-		t.Fatalf("RunBackedCaseSummary.OpenCaseCount = %d, want 1", got.RunBackedCaseSummary.OpenCaseCount)
+	if got.RunBackedCaseSummary.OpenCaseCount != 0 {
+		t.Fatalf("RunBackedCaseSummary.OpenCaseCount = %d, want 0", got.RunBackedCaseSummary.OpenCaseCount)
 	}
 	if got.RunBackedCaseSummary.LatestCaseID != closedRunCase.ID {
 		t.Fatalf("RunBackedCaseSummary.LatestCaseID = %q, want %q", got.RunBackedCaseSummary.LatestCaseID, closedRunCase.ID)
@@ -1102,17 +1083,38 @@ func TestEvalDatasetRunBackedCaseActionPrefersQueueWhenLatestCaseIsClosed(t *tes
 	if got.RunBackedCaseSummary.LatestCaseStatus != casesvc.StatusClosed {
 		t.Fatalf("RunBackedCaseSummary.LatestCaseStatus = %q, want %q", got.RunBackedCaseSummary.LatestCaseStatus, casesvc.StatusClosed)
 	}
-	if got.PreferredRunBackedCaseAction.Mode != "open_existing_queue" {
-		t.Fatalf("PreferredRunBackedCaseAction.Mode = %q, want %q", got.PreferredRunBackedCaseAction.Mode, "open_existing_queue")
+	if got.PreferredRunBackedCaseAction.Mode != "none" {
+		t.Fatalf("PreferredRunBackedCaseAction.Mode = %q, want %q", got.PreferredRunBackedCaseAction.Mode, "none")
 	}
 	if got.PreferredRunBackedCaseAction.CaseID != "" {
 		t.Fatalf("PreferredRunBackedCaseAction.CaseID = %q, want empty", got.PreferredRunBackedCaseAction.CaseID)
 	}
-	if got.PreferredRunBackedCaseAction.SourceEvalRunID != reportItem.RunID {
-		t.Fatalf("PreferredRunBackedCaseAction.SourceEvalRunID = %q, want %q", got.PreferredRunBackedCaseAction.SourceEvalRunID, reportItem.RunID)
+	if got.PreferredRunBackedCaseAction.SourceEvalRunID != "" {
+		t.Fatalf("PreferredRunBackedCaseAction.SourceEvalRunID = %q, want empty", got.PreferredRunBackedCaseAction.SourceEvalRunID)
 	}
-	if openRunCase.ID == got.RunBackedCaseSummary.LatestCaseID {
-		t.Fatal("RunBackedCaseSummary.LatestCaseID reused older open case, want newest closed case plus queue action")
+	if len(got.RecentRuns) == 0 {
+		t.Fatal("RecentRuns is empty, want latest run summary")
+	}
+	if got.RecentRuns[0].LinkedCaseSummary.TotalCaseCount != 1 {
+		t.Fatalf("RecentRuns[0].LinkedCaseSummary.TotalCaseCount = %d, want 1", got.RecentRuns[0].LinkedCaseSummary.TotalCaseCount)
+	}
+	if got.RecentRuns[0].LinkedCaseSummary.OpenCaseCount != 0 {
+		t.Fatalf("RecentRuns[0].LinkedCaseSummary.OpenCaseCount = %d, want 0", got.RecentRuns[0].LinkedCaseSummary.OpenCaseCount)
+	}
+	if got.RecentRuns[0].LinkedCaseSummary.LatestCaseID != closedRunCase.ID {
+		t.Fatalf("RecentRuns[0].LinkedCaseSummary.LatestCaseID = %q, want %q", got.RecentRuns[0].LinkedCaseSummary.LatestCaseID, closedRunCase.ID)
+	}
+	if got.RecentRuns[0].LinkedCaseSummary.LatestCaseStatus != casesvc.StatusClosed {
+		t.Fatalf("RecentRuns[0].LinkedCaseSummary.LatestCaseStatus = %q, want %q", got.RecentRuns[0].LinkedCaseSummary.LatestCaseStatus, casesvc.StatusClosed)
+	}
+	if got.RecentRuns[0].PreferredCaseAction.Mode != "none" {
+		t.Fatalf("RecentRuns[0].PreferredCaseAction.Mode = %q, want %q", got.RecentRuns[0].PreferredCaseAction.Mode, "none")
+	}
+	if got.RecentRuns[0].PreferredCaseAction.CaseID != "" {
+		t.Fatalf("RecentRuns[0].PreferredCaseAction.CaseID = %q, want empty", got.RecentRuns[0].PreferredCaseAction.CaseID)
+	}
+	if got.RecentRuns[0].PreferredCaseAction.SourceEvalRunID != "" {
+		t.Fatalf("RecentRuns[0].PreferredCaseAction.SourceEvalRunID = %q, want empty", got.RecentRuns[0].PreferredCaseAction.SourceEvalRunID)
 	}
 }
 
