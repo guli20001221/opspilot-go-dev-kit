@@ -754,12 +754,40 @@ func (a *appHandler) evalDatasetLinkedCaseSummaries(ctx context.Context, tenantI
 
 func (a *appHandler) evalDatasetRunBackedCaseSummaries(ctx context.Context, tenantID string, latestRunSummaries map[string]evalDatasetLatestRunSummary) (map[string]evalDatasetLinkedCaseSummaryResponse, error) {
 	summaries := make(map[string]evalDatasetLinkedCaseSummaryResponse, len(latestRunSummaries))
-	for datasetID, latestRun := range latestRunSummaries {
-		summary, err := a.evalDatasetRunBackedCaseSummary(ctx, tenantID, latestRun)
-		if err != nil {
-			return nil, fmt.Errorf("build run-backed case summary for dataset %q: %w", datasetID, err)
+	if a.cases == nil || tenantID == "" || len(latestRunSummaries) == 0 {
+		return summaries, nil
+	}
+
+	runIDs := make([]string, 0, len(latestRunSummaries))
+	runIDSet := make(map[string]struct{}, len(latestRunSummaries))
+	for _, latestRun := range latestRunSummaries {
+		if latestRun.LatestRunID == "" {
+			continue
 		}
-		summaries[datasetID] = summary
+		if _, ok := runIDSet[latestRun.LatestRunID]; ok {
+			continue
+		}
+		runIDSet[latestRun.LatestRunID] = struct{}{}
+		runIDs = append(runIDs, latestRun.LatestRunID)
+	}
+	if len(runIDs) == 0 {
+		return summaries, nil
+	}
+
+	runSummaries, err := a.cases.SummarizeBySourceEvalRunIDs(ctx, tenantID, runIDs)
+	if err != nil {
+		return nil, fmt.Errorf("summarize run-backed cases for tenant %q: %w", tenantID, err)
+	}
+
+	for datasetID, latestRun := range latestRunSummaries {
+		runSummary := runSummaries[latestRun.LatestRunID]
+		summaries[datasetID] = evalDatasetLinkedCaseSummaryResponse{
+			TotalCaseCount:   runSummary.FollowUpCaseCount,
+			OpenCaseCount:    runSummary.OpenFollowUpCaseCount,
+			LatestCaseID:     runSummary.LatestFollowUpCaseID,
+			LatestCaseStatus: runSummary.LatestFollowUpCaseStatus,
+			LatestAssignedTo: runSummary.LatestFollowUpAssignedTo,
+		}
 	}
 	return summaries, nil
 }
