@@ -487,6 +487,7 @@ func (a *appHandler) buildEvalReportListResponse(ctx context.Context, tenantID s
 	var err error
 	followUpSummaries := map[string]casesvc.EvalReportFollowUpSummary{}
 	compareFollowUpSummaries := map[string]casesvc.EvalReportCompareFollowUpSummary{}
+	linkedCaseSummaries := map[string]*evalReportLinkedCaseSummaryResponse{}
 	if a.cases != nil && len(reportIDs) > 0 {
 		followUpSummaries, err = a.cases.SummarizeBySourceEvalReportIDs(ctx, tenantID, reportIDs)
 		if err != nil {
@@ -496,6 +497,13 @@ func (a *appHandler) buildEvalReportListResponse(ctx context.Context, tenantID s
 		if err != nil {
 			return listEvalReportsResponse{}, fmt.Errorf("%w: %v", errEvalReportFollowUpSummaryFailed, err)
 		}
+		for _, item := range page.Reports {
+			linkedSummary, linkedErr := a.evalReportLinkedCaseSummary(ctx, tenantID, item.ID, followUpSummaries[item.ID])
+			if linkedErr != nil {
+				return listEvalReportsResponse{}, fmt.Errorf("eval report %q: %w: %v", item.ID, errEvalReportFollowUpSummaryFailed, linkedErr)
+			}
+			linkedCaseSummaries[item.ID] = linkedSummary
+		}
 	}
 	badCaseWithoutOpenFollowUpCounts, err := a.evalReportBadCaseWithoutOpenFollowUpCounts(ctx, tenantID, page.Reports)
 	if err != nil {
@@ -504,7 +512,7 @@ func (a *appHandler) buildEvalReportListResponse(ctx context.Context, tenantID s
 	for _, item := range page.Reports {
 		summary := followUpSummaries[item.ID]
 		compareSummary := compareFollowUpSummaries[item.ID]
-		resp.Reports = append(resp.Reports, newEvalReportResponse(item, false, summary, compareSummary, nil, nil, len(item.BadCases), badCaseWithoutOpenFollowUpCounts[item.ID]))
+		resp.Reports = append(resp.Reports, newEvalReportResponse(item, false, summary, compareSummary, linkedCaseSummaries[item.ID], nil, len(item.BadCases), badCaseWithoutOpenFollowUpCounts[item.ID]))
 	}
 	return resp, nil
 }

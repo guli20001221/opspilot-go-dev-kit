@@ -3711,6 +3711,7 @@ components:
         - average_score
         - follow_up_case_count
         - open_follow_up_case_count
+        - linked_case_summary
         - created_at
         - updated_at
         - ready_at
@@ -3769,6 +3770,8 @@ components:
           enum:
             - open
             - closed
+        linked_case_summary:
+          $ref: '#/components/schemas/EvalReportLinkedCaseSummary'
         created_at:
           type: string
           format: date-time

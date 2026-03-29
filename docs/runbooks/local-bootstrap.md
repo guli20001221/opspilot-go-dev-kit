@@ -167,6 +167,7 @@ The current chat stream implementation is a Milestone 1 skeleton:
 - once a run reaches a terminal state, the worker also materializes a durable aggregated eval report carrying top-line metrics, bad-case lineage, and judge metadata for later comparison/reporting slices
 - use `GET /api/v1/eval-reports?tenant_id=<tenant>` when you need the lightweight tenant-scoped browse lane for those durable eval reports
 - that same eval-report list now also includes `follow_up_case_count`, `open_follow_up_case_count`, and `latest_follow_up_case_status`, so `/admin/eval-reports` can surface regression follow-up pressure directly from the canonical list contract
+- that same eval-report list now also includes `linked_case_summary`, so `/admin/eval-reports` rows can show linked-open pressure and latest linked-case owner before opening detail
 - that same eval-report detail now also includes typed `preferred_follow_up_action`, so `/admin/eval-reports` can render the primary report-level follow-up action from one backend-owned decision instead of recomputing create-versus-reuse from summary fields in the browser
 - use `needs_follow_up=true` on `GET /api/v1/eval-reports` when you want only eval reports with at least one open follow-up case, or `needs_follow_up=false` when you want reports whose follow-up queue is already clear
 - that same eval-report list now also includes `bad_case_without_open_follow_up_count`, so you can see unresolved bad-case pressure without opening report detail

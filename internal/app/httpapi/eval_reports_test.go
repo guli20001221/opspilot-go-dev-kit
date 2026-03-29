@@ -1133,6 +1133,82 @@ func TestListEvalReportsIncludesCompareFollowUpSummary(t *testing.T) {
 	}
 }
 
+func TestListEvalReportsIncludesLinkedCaseSummary(t *testing.T) {
+	caseService := casesvc.NewService()
+	evalCaseService := evalsvc.NewService(caseService, nil)
+	datasetService := evalsvc.NewDatasetService(evalCaseService)
+	runService := evalsvc.NewRunService(datasetService)
+	reportService := evalsvc.NewEvalReportServiceWithDependencies(nil, runService)
+	reportID := materializeEvalRunReport(t, "tenant-eval-report-linked-list", evalsvc.RunStatusFailed, "failure detail", caseService, evalCaseService, datasetService, runService, reportService, "Dataset Linked List", "Source Linked List")
+
+	closedCase, err := caseService.CreateCase(context.Background(), casesvc.CreateInput{
+		TenantID:           "tenant-eval-report-linked-list",
+		Title:              "Closed linked follow-up",
+		Summary:            "closed linked summary",
+		SourceEvalReportID: reportID,
+		CreatedBy:          "operator-linked",
+	})
+	if err != nil {
+		t.Fatalf("CreateCase(closed) error = %v", err)
+	}
+	if _, err := caseService.CloseCase(context.Background(), closedCase.ID, "operator-linked"); err != nil {
+		t.Fatalf("CloseCase() error = %v", err)
+	}
+	time.Sleep(2 * time.Millisecond)
+	openCase, err := caseService.CreateCase(context.Background(), casesvc.CreateInput{
+		TenantID:           "tenant-eval-report-linked-list",
+		Title:              "Open linked follow-up",
+		Summary:            "open linked summary",
+		SourceEvalReportID: reportID,
+		CreatedBy:          "operator-linked",
+	})
+	if err != nil {
+		t.Fatalf("CreateCase(open) error = %v", err)
+	}
+	if _, err := caseService.AssignCase(context.Background(), openCase, "owner-linked"); err != nil {
+		t.Fatalf("AssignCase(open) error = %v", err)
+	}
+
+	server := httptest.NewServer(NewHandlerWithDependencies(Dependencies{
+		Cases:       caseService,
+		EvalReports: reportService,
+	}))
+	defer server.Close()
+
+	resp, err := http.Get(server.URL + "/api/v1/eval-reports?tenant_id=tenant-eval-report-linked-list&status=ready&limit=10")
+	if err != nil {
+		t.Fatalf("Get() error = %v", err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("StatusCode = %d, want %d", resp.StatusCode, http.StatusOK)
+	}
+
+	var page listEvalReportsResponse
+	if err := json.NewDecoder(resp.Body).Decode(&page); err != nil {
+		t.Fatalf("Decode() error = %v", err)
+	}
+	if len(page.Reports) != 1 {
+		t.Fatalf("len(page.Reports) = %d, want 1", len(page.Reports))
+	}
+	got := page.Reports[0]
+	if got.LinkedCaseSummary == nil {
+		t.Fatal("LinkedCaseSummary is nil")
+	}
+	if got.LinkedCaseSummary.TotalCaseCount != 2 || got.LinkedCaseSummary.OpenCaseCount != 1 {
+		t.Fatalf("LinkedCaseSummary counts = %#v, want total=2 open=1", got.LinkedCaseSummary)
+	}
+	if got.LinkedCaseSummary.LatestCaseID != openCase.ID {
+		t.Fatalf("LatestCaseID = %q, want %q", got.LinkedCaseSummary.LatestCaseID, openCase.ID)
+	}
+	if got.LinkedCaseSummary.LatestCaseStatus != casesvc.StatusOpen {
+		t.Fatalf("LatestCaseStatus = %q, want %q", got.LinkedCaseSummary.LatestCaseStatus, casesvc.StatusOpen)
+	}
+	if got.LinkedCaseSummary.LatestAssignedTo != "owner-linked" {
+		t.Fatalf("LatestAssignedTo = %q, want %q", got.LinkedCaseSummary.LatestAssignedTo, "owner-linked")
+	}
+}
+
 func TestListEvalReportsSupportsBadCaseNeedsFollowUpFilter(t *testing.T) {
 	caseService := casesvc.NewService()
 	evalCaseService := evalsvc.NewService(caseService, nil)

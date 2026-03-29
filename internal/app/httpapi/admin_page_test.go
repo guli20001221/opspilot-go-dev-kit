@@ -1089,6 +1089,9 @@ func TestAdminEvalReportsPageRendersHTML(t *testing.T) {
 	if !strings.Contains(body, "Open latest case") {
 		t.Fatal("latest case handoff missing from eval reports page HTML")
 	}
+	if !strings.Contains(body, "linked-open") {
+		t.Fatal("linked case list summary missing from eval reports page HTML")
+	}
 	if !strings.Contains(body, "Open unresolved bad cases") {
 		t.Fatal("unresolved bad-case row handoff missing from eval reports page HTML")
 	}
@@ -1667,11 +1670,17 @@ async function assertCasePayload(page, apiBaseURL, caseID, tenantID, expectedRep
   if (!followUpSummary.includes("7 open")) {
     throw new Error("open follow-up case count missing from list row: " + followUpSummary);
   }
+  if (!followUpSummary.includes("7 linked-open")) {
+    throw new Error("linked open case count missing from list row: " + followUpSummary);
+  }
   if (!followUpSummary.includes("1 compare-open")) {
     throw new Error("compare-origin follow-up count missing from list row: " + followUpSummary);
   }
   if (!followUpSummary.includes("latest open")) {
     throw new Error("latest follow-up case status missing from list row: " + followUpSummary);
+  }
+  if (!followUpSummary.includes("owner operator-eval")) {
+    throw new Error("linked case owner missing from list row: " + followUpSummary);
   }
   const latestCaseHref = await page.getAttribute("#reportRows tr td:nth-child(5) a", "href");
   if (!latestCaseHref || !latestCaseHref.includes("/admin/cases?") || !latestCaseHref.includes("case_id=")) {
