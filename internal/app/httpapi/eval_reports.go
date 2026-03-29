@@ -141,6 +141,7 @@ type evalReportComparisonItemResponse struct {
 	LatestFollowUpCaseID            string                                  `json:"latest_follow_up_case_id,omitempty"`
 	LatestFollowUpCaseStatus        string                                  `json:"latest_follow_up_case_status,omitempty"`
 	LinkedCaseSummary               *evalReportLinkedCaseSummaryResponse    `json:"linked_case_summary,omitempty"`
+	PreferredLinkedCaseAction       evalReportLinkedCaseActionResponse      `json:"preferred_linked_case_action"`
 	CompareFollowUpCaseCount        int                                     `json:"compare_follow_up_case_count"`
 	OpenCompareFollowUpCaseCount    int                                     `json:"open_compare_follow_up_case_count"`
 	LatestCompareFollowUpCaseID     string                                  `json:"latest_compare_follow_up_case_id,omitempty"`
@@ -779,6 +780,7 @@ func newEvalReportComparisonItemResponse(item evalsvc.EvalReport, followUpSummar
 		LatestFollowUpCaseID:            followUpSummary.LatestFollowUpCaseID,
 		LatestFollowUpCaseStatus:        followUpSummary.LatestFollowUpCaseStatus,
 		LinkedCaseSummary:               linkedCaseSummary,
+		PreferredLinkedCaseAction:       newEvalReportLinkedCaseActionResponse(item.ID, linkedCaseSummary),
 		CompareFollowUpCaseCount:        compareFollowUpSummary.CompareFollowUpCaseCount,
 		OpenCompareFollowUpCaseCount:    compareFollowUpSummary.OpenCompareFollowUpCaseCount,
 		LatestCompareFollowUpCaseID:     compareFollowUpSummary.LatestCompareFollowUpCaseID,

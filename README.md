@@ -170,7 +170,7 @@ Current Milestone 1 slice:
 - the same canonical eval-report list now also supports `needs_follow_up=true|false`, and `/admin/eval-reports` uses it for a `Needs follow-up` quick view instead of issuing per-row case queries from the browser
 - that same canonical eval-report list now also carries `latest_follow_up_case_id`, so `/admin/eval-reports` rows can hand off directly into the freshest linked case without loading detail first
 - `/admin/eval-reports` detail now surfaces that same `latest_follow_up_case_id` as a direct handoff action, so operators can jump into the freshest follow-up case from both list and detail
-- `/admin/eval-report-compare` now reuses the same canonical `latest_follow_up_case_id` on both sides, so operators can see whether either report already has active follow-up before creating a new case
+- `/admin/eval-report-compare` now exposes per-side `preferred_linked_case_action`, so linked-case handoff opens the latest linked case or the canonical linked-case queue from one backend-owned decision instead of branching on `latest_follow_up_case_id` in browser code
 - `/admin/eval-report-compare` now also shows per-side follow-up counts and latest follow-up status, so operators can judge existing triage pressure before opening or creating cases
 - `/admin/eval-report-compare` now also hands each side directly into `/admin/cases?source_eval_report_id=...`, so operators can inspect the full existing follow-up slice before opening another case
 - the same `/admin/eval-reports` page now also shows linked durable follow-up cases for the selected eval report by reusing the canonical case list filter `source_eval_report_id`

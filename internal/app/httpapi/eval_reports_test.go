@@ -533,6 +533,11 @@ func TestCompareEvalReportsReturnsTypedSummary(t *testing.T) {
 				LatestCaseStatus string `json:"latest_case_status"`
 				LatestAssignedTo string `json:"latest_assigned_to"`
 			} `json:"linked_case_summary"`
+			PreferredLinkedCaseAction struct {
+				Mode               string `json:"mode"`
+				CaseID             string `json:"case_id"`
+				SourceEvalReportID string `json:"source_eval_report_id"`
+			} `json:"preferred_linked_case_action"`
 			CompareFollowUpCaseCount        int    `json:"compare_follow_up_case_count"`
 			OpenCompareFollowUpCaseCount    int    `json:"open_compare_follow_up_case_count"`
 			LatestCompareFollowUpCaseID     string `json:"latest_compare_follow_up_case_id"`
@@ -572,6 +577,11 @@ func TestCompareEvalReportsReturnsTypedSummary(t *testing.T) {
 				LatestCaseStatus string `json:"latest_case_status"`
 				LatestAssignedTo string `json:"latest_assigned_to"`
 			} `json:"linked_case_summary"`
+			PreferredLinkedCaseAction struct {
+				Mode               string `json:"mode"`
+				CaseID             string `json:"case_id"`
+				SourceEvalReportID string `json:"source_eval_report_id"`
+			} `json:"preferred_linked_case_action"`
 			CompareFollowUpCaseCount        int    `json:"compare_follow_up_case_count"`
 			OpenCompareFollowUpCaseCount    int    `json:"open_compare_follow_up_case_count"`
 			LatestCompareFollowUpCaseID     string `json:"latest_compare_follow_up_case_id"`
@@ -636,6 +646,15 @@ func TestCompareEvalReportsReturnsTypedSummary(t *testing.T) {
 	if got.Left.LinkedCaseSummary.TotalCaseCount != 1 || got.Left.LinkedCaseSummary.OpenCaseCount != 1 || got.Left.LinkedCaseSummary.LatestCaseID != leftFollowUp.ID {
 		t.Fatalf("Left linked case summary = %#v, want 1 total / 1 open / latest %q", got.Left.LinkedCaseSummary, leftFollowUp.ID)
 	}
+	if got.Left.PreferredLinkedCaseAction.Mode != "open_existing_case" {
+		t.Fatalf("Left.PreferredLinkedCaseAction.Mode = %q, want %q", got.Left.PreferredLinkedCaseAction.Mode, "open_existing_case")
+	}
+	if got.Left.PreferredLinkedCaseAction.CaseID != leftFollowUp.ID {
+		t.Fatalf("Left.PreferredLinkedCaseAction.CaseID = %q, want %q", got.Left.PreferredLinkedCaseAction.CaseID, leftFollowUp.ID)
+	}
+	if got.Left.PreferredLinkedCaseAction.SourceEvalReportID != leftReportID {
+		t.Fatalf("Left.PreferredLinkedCaseAction.SourceEvalReportID = %q, want %q", got.Left.PreferredLinkedCaseAction.SourceEvalReportID, leftReportID)
+	}
 	if got.Left.CompareFollowUpCaseCount != 0 || got.Left.OpenCompareFollowUpCaseCount != 0 || got.Left.LatestCompareFollowUpCaseID != "" || got.Left.LatestCompareFollowUpCaseStatus != "" {
 		t.Fatalf("Left compare follow-up summary = %#v, want zero-value compare summary before compare-derived cases exist", got.Left)
 	}
@@ -653,6 +672,15 @@ func TestCompareEvalReportsReturnsTypedSummary(t *testing.T) {
 	}
 	if got.Right.LinkedCaseSummary.TotalCaseCount != 1 || got.Right.LinkedCaseSummary.OpenCaseCount != 1 || got.Right.LinkedCaseSummary.LatestCaseID != rightFollowUp.ID {
 		t.Fatalf("Right linked case summary = %#v, want 1 total / 1 open / latest %q", got.Right.LinkedCaseSummary, rightFollowUp.ID)
+	}
+	if got.Right.PreferredLinkedCaseAction.Mode != "open_existing_case" {
+		t.Fatalf("Right.PreferredLinkedCaseAction.Mode = %q, want %q", got.Right.PreferredLinkedCaseAction.Mode, "open_existing_case")
+	}
+	if got.Right.PreferredLinkedCaseAction.CaseID != rightFollowUp.ID {
+		t.Fatalf("Right.PreferredLinkedCaseAction.CaseID = %q, want %q", got.Right.PreferredLinkedCaseAction.CaseID, rightFollowUp.ID)
+	}
+	if got.Right.PreferredLinkedCaseAction.SourceEvalReportID != rightReportID {
+		t.Fatalf("Right.PreferredLinkedCaseAction.SourceEvalReportID = %q, want %q", got.Right.PreferredLinkedCaseAction.SourceEvalReportID, rightReportID)
 	}
 	if got.Right.CompareFollowUpCaseCount != 0 || got.Right.OpenCompareFollowUpCaseCount != 0 || got.Right.LatestCompareFollowUpCaseID != "" || got.Right.LatestCompareFollowUpCaseStatus != "" {
 		t.Fatalf("Right compare follow-up summary = %#v, want zero-value compare summary before compare-derived cases exist", got.Right)
@@ -787,6 +815,89 @@ func TestCompareEvalReportsIncludesCompareFollowUpSummary(t *testing.T) {
 	}
 	if got.Right.PreferredCompareFollowUpAction.SourceEvalReportID != rightReportID {
 		t.Fatalf("Right.PreferredCompareFollowUpAction.SourceEvalReportID = %q, want %q", got.Right.PreferredCompareFollowUpAction.SourceEvalReportID, rightReportID)
+	}
+}
+
+func TestCompareEvalReportsLinkedCaseActionPrefersQueueWhenLatestCaseClosed(t *testing.T) {
+	caseService := casesvc.NewService()
+	evalCaseService := evalsvc.NewService(caseService, nil)
+	datasetService := evalsvc.NewDatasetService(evalCaseService)
+	runService := evalsvc.NewRunService(datasetService)
+	reportService := evalsvc.NewEvalReportServiceWithDependencies(nil, runService)
+	leftReportID := materializeEvalRunReport(t, "tenant-eval-report-compare-linked-queue", evalsvc.RunStatusSucceeded, "success detail", caseService, evalCaseService, datasetService, runService, reportService, "Dataset Compare Queue A", "Source Left")
+	rightReportID := materializeEvalRunReport(t, "tenant-eval-report-compare-linked-queue", evalsvc.RunStatusFailed, "failure detail", caseService, evalCaseService, datasetService, runService, reportService, "Dataset Compare Queue B", "Source Right")
+
+	leftClosedCase, err := caseService.CreateCase(context.Background(), casesvc.CreateInput{
+		TenantID:           "tenant-eval-report-compare-linked-queue",
+		Title:              "Left closed linked case",
+		Summary:            "left closed linked summary",
+		SourceEvalReportID: leftReportID,
+		CreatedBy:          "operator-left",
+	})
+	if err != nil {
+		t.Fatalf("CreateCase(leftClosedCase) error = %v", err)
+	}
+	if _, err := caseService.CloseCase(context.Background(), leftClosedCase.ID, "operator-left"); err != nil {
+		t.Fatalf("CloseCase(leftClosedCase) error = %v", err)
+	}
+
+	server := httptest.NewServer(NewHandlerWithDependencies(Dependencies{
+		Cases:       caseService,
+		EvalReports: reportService,
+	}))
+	defer server.Close()
+
+	resp, err := http.Get(server.URL + "/api/v1/eval-report-compare?tenant_id=tenant-eval-report-compare-linked-queue&left_report_id=" + leftReportID + "&right_report_id=" + rightReportID)
+	if err != nil {
+		t.Fatalf("Get() error = %v", err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("StatusCode = %d, want %d", resp.StatusCode, http.StatusOK)
+	}
+
+	var got struct {
+		Left struct {
+			LinkedCaseSummary struct {
+				TotalCaseCount   int    `json:"total_case_count"`
+				OpenCaseCount    int    `json:"open_case_count"`
+				LatestCaseID     string `json:"latest_case_id"`
+				LatestCaseStatus string `json:"latest_case_status"`
+			} `json:"linked_case_summary"`
+			PreferredLinkedCaseAction struct {
+				Mode               string `json:"mode"`
+				CaseID             string `json:"case_id"`
+				SourceEvalReportID string `json:"source_eval_report_id"`
+			} `json:"preferred_linked_case_action"`
+		} `json:"left"`
+		Right struct {
+			PreferredLinkedCaseAction struct {
+				Mode               string `json:"mode"`
+				CaseID             string `json:"case_id"`
+				SourceEvalReportID string `json:"source_eval_report_id"`
+			} `json:"preferred_linked_case_action"`
+		} `json:"right"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&got); err != nil {
+		t.Fatalf("Decode() error = %v", err)
+	}
+	if got.Left.LinkedCaseSummary.TotalCaseCount != 1 || got.Left.LinkedCaseSummary.OpenCaseCount != 0 {
+		t.Fatalf("Left linked case summary = %#v, want total=1 open=0", got.Left.LinkedCaseSummary)
+	}
+	if got.Left.PreferredLinkedCaseAction.Mode != "open_existing_queue" {
+		t.Fatalf("Left.PreferredLinkedCaseAction.Mode = %q, want %q", got.Left.PreferredLinkedCaseAction.Mode, "open_existing_queue")
+	}
+	if got.Left.PreferredLinkedCaseAction.CaseID != "" {
+		t.Fatalf("Left.PreferredLinkedCaseAction.CaseID = %q, want empty", got.Left.PreferredLinkedCaseAction.CaseID)
+	}
+	if got.Left.PreferredLinkedCaseAction.SourceEvalReportID != leftReportID {
+		t.Fatalf("Left.PreferredLinkedCaseAction.SourceEvalReportID = %q, want %q", got.Left.PreferredLinkedCaseAction.SourceEvalReportID, leftReportID)
+	}
+	if got.Right.PreferredLinkedCaseAction.Mode != "none" {
+		t.Fatalf("Right.PreferredLinkedCaseAction.Mode = %q, want %q", got.Right.PreferredLinkedCaseAction.Mode, "none")
+	}
+	if got.Right.PreferredLinkedCaseAction.SourceEvalReportID != rightReportID {
+		t.Fatalf("Right.PreferredLinkedCaseAction.SourceEvalReportID = %q, want %q", got.Right.PreferredLinkedCaseAction.SourceEvalReportID, rightReportID)
 	}
 }
 

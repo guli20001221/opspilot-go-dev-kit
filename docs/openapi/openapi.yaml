@@ -4032,6 +4032,7 @@ components:
         - follow_up_case_count
         - open_follow_up_case_count
         - linked_case_summary
+        - preferred_linked_case_action
         - compare_follow_up_case_count
         - open_compare_follow_up_case_count
         - preferred_compare_follow_up_action
@@ -4103,6 +4104,8 @@ components:
             - closed
         linked_case_summary:
           $ref: '#/components/schemas/EvalReportLinkedCaseSummary'
+        preferred_linked_case_action:
+          $ref: '#/components/schemas/EvalReportLinkedCaseAction'
         compare_follow_up_case_count:
           type: integer
           minimum: 0

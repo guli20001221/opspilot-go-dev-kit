@@ -179,11 +179,12 @@ The current chat stream implementation is a Milestone 1 skeleton:
 - use the `Unresolved bad cases` quick view on `/admin/eval-reports` when you want only reports whose bad cases still have no open linked follow-up
 - use `Open latest case` on `/admin/eval-reports` rows when you want to jump straight into the freshest linked follow-up case from the canonical list slice
 - that same `Open latest case` handoff also appears inside the eval-report detail pane once a report is selected, so operators do not need to return to the table row to continue case triage
-- use `Open left latest case` / `Open right latest case` on `/admin/eval-report-compare` when you need to inspect existing follow-up before deciding whether to create another case from the comparison
+- use `Open left latest linked case` / `Open right latest linked case` on `/admin/eval-report-compare` when the canonical compare contract says that side already has an open linked follow-up case
 - check each compare card's follow-up summary on `/admin/eval-report-compare` when you need to know whether a side already has open regression work before creating another case
 - check each compare card's uncovered-bad-case count on `/admin/eval-report-compare` when you need to know which side still has bad cases without open linked follow-up
 - use `Open left unresolved bad cases` / `Open right unresolved bad cases` on `/admin/eval-report-compare` when you want to jump straight into that side's canonical unresolved bad-case report view
 - use `Open left linked cases` / `Open right linked cases` on `/admin/eval-report-compare` when you need the full canonical case slice for one side's `source_eval_report_id`, not just the latest linked case
+- when `/admin/eval-report-compare` shows `Open ... linked case queue`, treat that as the canonical linked-case handoff for a side whose latest linked case is no longer open; do not infer queue routing from `latest_follow_up_case_id` in browser code
 - use `Open left compare follow-ups` / `Open right compare follow-ups` on `/admin/eval-report-compare` when you need the open compare-origin case queue for one side's report instead of the broader source-eval-report case slice
 - that same eval-report compare contract now also includes typed `preferred_compare_follow_up_action` per side, so `/admin/eval-report-compare` can render `Create case from left/right` versus `Open ... compare queue` from one backend-owned decision instead of recomputing it from compare-follow-up counts in the browser
 - that same compare contract now also includes per-side `linked_case_summary`, so each compare card can show total/open linked follow-up pressure plus the latest linked case owner before you leave the compare lane

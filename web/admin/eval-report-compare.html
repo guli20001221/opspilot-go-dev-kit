@@ -256,6 +256,36 @@
       return { mode: "invalid", text: "Follow-up action unavailable", href: "", valid: false };
     }
 
+    function preferredLinkedCaseAction(item) {
+      const preferred = item && item.preferred_linked_case_action;
+      if (!preferred || typeof preferred.mode !== "string" || preferred.mode === "" || preferred.mode === "none") {
+        return { mode: "none", text: "No linked cases", href: "", valid: false };
+      }
+      if (preferred.mode === "open_existing_case") {
+        if (!preferred.case_id) {
+          return { mode: "invalid", text: "Linked-case handoff unavailable", href: "", valid: false };
+        }
+        return {
+          mode: "open-case",
+          text: "Open latest linked case",
+          href: `/admin/cases?tenant_id=${encodeURIComponent(item.tenant_id)}&case_id=${encodeURIComponent(preferred.case_id)}`,
+          valid: true
+        };
+      }
+      if (preferred.mode === "open_existing_queue") {
+        if (!preferred.source_eval_report_id) {
+          return { mode: "invalid", text: "Linked-case handoff unavailable", href: "", valid: false };
+        }
+        return {
+          mode: "open-queue",
+          text: "Open linked case queue",
+          href: `/admin/cases?tenant_id=${encodeURIComponent(item.tenant_id)}&source_eval_report_id=${encodeURIComponent(preferred.source_eval_report_id)}&status=open`,
+          valid: true
+        };
+      }
+      return { mode: "invalid", text: "Linked-case handoff unavailable", href: "", valid: false };
+    }
+
     function syncPrimaryActionButtons(disabled, activeSide) {
       const leftAction = sidePrimaryAction("left");
       const rightAction = sidePrimaryAction("right");
@@ -296,8 +326,12 @@
 
       leftReportAPILink.href = `${detailEndpointBase}${encodeURIComponent(payload.left.report_id)}?tenant_id=${encodeURIComponent(payload.left.tenant_id)}`;
       rightReportAPILink.href = `${detailEndpointBase}${encodeURIComponent(payload.right.report_id)}?tenant_id=${encodeURIComponent(payload.right.tenant_id)}`;
-      leftLinkedCasesLink.href = `/admin/cases?tenant_id=${encodeURIComponent(payload.left.tenant_id)}&source_eval_report_id=${encodeURIComponent(payload.left.report_id)}`;
-      rightLinkedCasesLink.href = `/admin/cases?tenant_id=${encodeURIComponent(payload.right.tenant_id)}&source_eval_report_id=${encodeURIComponent(payload.right.report_id)}`;
+      const leftLinkedAction = preferredLinkedCaseAction(payload.left);
+      const rightLinkedAction = preferredLinkedCaseAction(payload.right);
+      leftLinkedCasesLink.textContent = leftLinkedAction.valid ? leftLinkedAction.text : "Open left linked cases";
+      leftLinkedCasesLink.href = leftLinkedAction.valid ? leftLinkedAction.href : `/admin/cases?tenant_id=${encodeURIComponent(payload.left.tenant_id)}&source_eval_report_id=${encodeURIComponent(payload.left.report_id)}`;
+      rightLinkedCasesLink.textContent = rightLinkedAction.valid ? rightLinkedAction.text : "Open right linked cases";
+      rightLinkedCasesLink.href = rightLinkedAction.valid ? rightLinkedAction.href : `/admin/cases?tenant_id=${encodeURIComponent(payload.right.tenant_id)}&source_eval_report_id=${encodeURIComponent(payload.right.report_id)}`;
       if (leftAction.mode === "open-queue" && leftAction.href) {
         leftCompareCasesLink.hidden = false;
         leftCompareCasesLink.href = leftAction.href;
@@ -305,12 +339,14 @@
         leftCompareCasesLink.hidden = true;
         leftCompareCasesLink.href = "#";
       }
-      if (payload.left.latest_follow_up_case_id) {
+      if (leftLinkedAction.valid) {
         leftLatestCaseLink.hidden = false;
-        leftLatestCaseLink.href = `/admin/cases?tenant_id=${encodeURIComponent(payload.left.tenant_id)}&case_id=${encodeURIComponent(payload.left.latest_follow_up_case_id)}`;
+        leftLatestCaseLink.textContent = leftLinkedAction.text === "Open linked case queue" ? "Open left linked case queue" : "Open left latest linked case";
+        leftLatestCaseLink.href = leftLinkedAction.href;
       } else {
         leftLatestCaseLink.hidden = true;
         leftLatestCaseLink.href = "#";
+        leftLatestCaseLink.textContent = "Open left latest case";
       }
       if ((payload.left.bad_case_without_open_follow_up_count || 0) > 0) {
         leftBadCaseNeedsFollowUpLink.hidden = false;
@@ -319,12 +355,14 @@
         leftBadCaseNeedsFollowUpLink.hidden = true;
         leftBadCaseNeedsFollowUpLink.href = "#";
       }
-      if (payload.right.latest_follow_up_case_id) {
+      if (rightLinkedAction.valid) {
         rightLatestCaseLink.hidden = false;
-        rightLatestCaseLink.href = `/admin/cases?tenant_id=${encodeURIComponent(payload.right.tenant_id)}&case_id=${encodeURIComponent(payload.right.latest_follow_up_case_id)}`;
+        rightLatestCaseLink.textContent = rightLinkedAction.text === "Open linked case queue" ? "Open right linked case queue" : "Open right latest linked case";
+        rightLatestCaseLink.href = rightLinkedAction.href;
       } else {
         rightLatestCaseLink.hidden = true;
         rightLatestCaseLink.href = "#";
+        rightLatestCaseLink.textContent = "Open right latest case";
       }
       if ((payload.right.bad_case_without_open_follow_up_count || 0) > 0) {
         rightBadCaseNeedsFollowUpLink.hidden = false;

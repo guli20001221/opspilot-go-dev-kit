@@ -1221,6 +1221,9 @@ func TestAdminEvalReportComparePageRendersHTML(t *testing.T) {
 	if !strings.Contains(body, "Open left linked cases") {
 		t.Fatal("left linked-cases handoff missing from compare HTML")
 	}
+	if !strings.Contains(body, "Open left latest linked case") {
+		t.Fatal("left canonical linked-case handoff label missing from compare HTML")
+	}
 	if !strings.Contains(body, "Open left compare follow-ups") {
 		t.Fatal("left compare-follow-ups handoff missing from compare HTML")
 	}
@@ -1235,6 +1238,9 @@ func TestAdminEvalReportComparePageRendersHTML(t *testing.T) {
 	}
 	if !strings.Contains(body, "Open right linked cases") {
 		t.Fatal("right linked-cases handoff missing from compare HTML")
+	}
+	if !strings.Contains(body, "Open right latest linked case") {
+		t.Fatal("right canonical linked-case handoff label missing from compare HTML")
 	}
 	if !strings.Contains(body, "Open right compare follow-ups") {
 		t.Fatal("right compare-follow-ups handoff missing from compare HTML")
@@ -1354,9 +1360,13 @@ async function assertCaseSource(page, apiBaseURL, caseID, tenantID, expectedRepo
   if (!leftCaseHref || !leftCaseHref.includes("case_id=" + encodeURIComponent(leftCaseID))) {
     throw new Error("left latest-case handoff missing selected case");
   }
+  const leftCaseText = (await page.textContent("#leftLatestCaseLink")).trim();
+  if (leftCaseText !== "Open left latest linked case") {
+    throw new Error("left latest-case handoff should use canonical linked-case action");
+  }
   const leftLinkedCasesHref = await page.getAttribute("#leftLinkedCasesLink", "href");
-  if (!leftLinkedCasesHref || !leftLinkedCasesHref.includes("/admin/cases?") || !leftLinkedCasesHref.includes("source_eval_report_id=" + encodeURIComponent(leftReportID))) {
-    throw new Error("left linked-cases handoff missing selected source_eval_report_id");
+  if (!leftLinkedCasesHref || !leftLinkedCasesHref.includes("case_id=" + encodeURIComponent(leftCaseID))) {
+    throw new Error("left linked-cases handoff should reuse canonical linked-case action");
   }
   const leftCompareCasesHref = await page.getAttribute("#leftCompareCasesLink", "href");
   if (!leftCompareCasesHref || !leftCompareCasesHref.includes("/admin/cases?") || !leftCompareCasesHref.includes("source_eval_report_id=" + encodeURIComponent(leftReportID)) || !leftCompareCasesHref.includes("compare_origin_only=true") || !leftCompareCasesHref.includes("status=open")) {
@@ -1374,9 +1384,13 @@ async function assertCaseSource(page, apiBaseURL, caseID, tenantID, expectedRepo
 	if (!rightCaseHref || !rightCaseHref.includes("case_id=" + encodeURIComponent(rightCaseID))) {
 		throw new Error("right latest-case handoff missing selected case");
 	}
+  const rightCaseText = (await page.textContent("#rightLatestCaseLink")).trim();
+  if (rightCaseText !== "Open right latest linked case") {
+    throw new Error("right latest-case handoff should use canonical linked-case action");
+  }
   const rightLinkedCasesHref = await page.getAttribute("#rightLinkedCasesLink", "href");
-  if (!rightLinkedCasesHref || !rightLinkedCasesHref.includes("/admin/cases?") || !rightLinkedCasesHref.includes("source_eval_report_id=" + encodeURIComponent(rightReportID))) {
-    throw new Error("right linked-cases handoff missing selected source_eval_report_id");
+  if (!rightLinkedCasesHref || !rightLinkedCasesHref.includes("case_id=" + encodeURIComponent(rightCaseID))) {
+    throw new Error("right linked-cases handoff should reuse canonical linked-case action");
   }
   const rightCompareCasesHref = await page.getAttribute("#rightCompareCasesLink", "href");
   if (!rightCompareCasesHref || !rightCompareCasesHref.includes("/admin/cases?") || !rightCompareCasesHref.includes("source_eval_report_id=" + encodeURIComponent(rightReportID)) || !rightCompareCasesHref.includes("compare_origin_only=true") || !rightCompareCasesHref.includes("status=open")) {
