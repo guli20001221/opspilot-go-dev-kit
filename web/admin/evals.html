@@ -282,6 +282,26 @@
       return { mode: "invalid", targetHref: "", label: "Follow-up action unavailable", hasReuse: false, valid: false };
     }
 
+    function preferredPrimaryAction(item) {
+      const action = item && item.preferred_primary_action ? item.preferred_primary_action : null;
+      if (!action || !action.mode) {
+        return preferredFollowUpAction(item);
+      }
+      if (action.mode === "open_existing_case" && action.case_id) {
+        return { mode: action.mode, targetHref: `/admin/cases?tenant_id=${encodeURIComponent(item.tenant_id)}&case_id=${encodeURIComponent(action.case_id)}`, label: "Open existing case", hasReuse: true, valid: true };
+      }
+      if (action.mode === "open_existing_queue") {
+        if (action.source_eval_case_id) {
+          return { mode: action.mode, targetHref: buildEvalQueueHref(item, action.source_eval_case_id), label: "Open existing queue", hasReuse: true, valid: true };
+        }
+        return { mode: "invalid", targetHref: "", label: "Follow-up action unavailable", hasReuse: false, valid: false };
+      }
+      if (action.mode === "create") {
+        return { mode: action.mode, targetHref: "", label: "Create case", hasReuse: false, valid: true };
+      }
+      return preferredFollowUpAction(item);
+    }
+
     function preferredLinkedCaseAction(item) {
       const action = item && item.preferred_linked_case_action ? item.preferred_linked_case_action : null;
       if (!action || !action.mode || action.mode === "none") {
@@ -403,7 +423,7 @@
       evalListState.hidden = true;
       tableWrap.hidden = false;
       evalRows.innerHTML = currentItems.map((item) => {
-        const preferredAction = preferredFollowUpAction(item);
+        const preferredAction = preferredPrimaryAction(item);
         const linkedCaseAction = preferredLinkedCaseAction(item);
         const rowPreferredLink = preferredAction.valid && preferredAction.hasReuse ? `<br><a class="button-link ghost" href="${preferredAction.targetHref}">${preferredAction.label}</a>` : "";
         const queueHref = linkedCaseAction.valid && linkedCaseAction.mode === "open_existing_queue"
@@ -472,7 +492,7 @@
       if (currentDatasetDetail && currentDatasetDetail.dataset_id) {
         datasetTargetIDInput.value = currentDatasetDetail.dataset_id;
       }
-      const preferredAction = preferredFollowUpAction(item);
+      const preferredAction = preferredPrimaryAction(item);
       const linkedCaseAction = preferredLinkedCaseAction(item);
       const caseURL = `${caseEndpointBase}${encodeURIComponent(item.source_case_id)}?tenant_id=${encodeURIComponent(item.tenant_id)}`;
       const latestFollowUpCaseURL = linkedCaseAction.valid ? linkedCaseAction.targetHref : "";
@@ -483,9 +503,9 @@
       createCaseButton.textContent = preferredAction.label;
       createCaseButton.disabled = !preferredAction.valid;
       evalDetailStatusNote.textContent = !preferredAction.valid
-        ? "This eval case is missing a canonical preferred_follow_up_action; fix the backend contract before handoff."
+        ? "This eval case is missing a canonical preferred_primary_action; fix the backend contract before handoff."
         : preferredAction.hasReuse
-          ? "This eval case already has open follow-up work; reuse the canonical case before creating another."
+          ? "This eval case already has linked case history; reuse the canonical case or queue before creating another."
           : "Current eval case is ready for operator handoff.";
       const reportURL = item.source_report_id ? `${reportEndpointBase}${encodeURIComponent(item.source_report_id)}` : "";
       const taskURL = item.source_task_id ? `${taskEndpointBase}${encodeURIComponent(item.source_task_id)}` : "";

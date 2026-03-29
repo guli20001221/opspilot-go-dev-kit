@@ -31,6 +31,7 @@ type evalCaseResponse struct {
 	LatestFollowUpCaseStatus  string                              `json:"latest_follow_up_case_status,omitempty"`
 	LinkedCaseSummary         evalReportLinkedCaseSummaryResponse `json:"linked_case_summary"`
 	PreferredFollowUpAction   evalCaseFollowUpActionResponse      `json:"preferred_follow_up_action"`
+	PreferredPrimaryAction    evalCaseFollowUpActionResponse      `json:"preferred_primary_action"`
 	PreferredLinkedCaseAction evalCaseFollowUpActionResponse      `json:"preferred_linked_case_action"`
 	TraceID                   string                              `json:"trace_id,omitempty"`
 	VersionID                 string                              `json:"version_id,omitempty"`
@@ -179,6 +180,7 @@ func newEvalCaseResponse(item evalsvc.EvalCase) evalCaseResponse {
 			LatestCaseStatus: item.LatestFollowUpCaseStatus,
 		},
 		PreferredFollowUpAction:   newEvalCaseFollowUpActionResponse(item),
+		PreferredPrimaryAction:    newEvalCasePrimaryActionResponse(item),
 		PreferredLinkedCaseAction: newEvalCaseLinkedCaseActionResponse(item),
 		TraceID:                   item.TraceID,
 		VersionID:                 item.VersionID,
@@ -202,6 +204,14 @@ func newEvalCaseLinkedCaseActionResponse(item evalsvc.EvalCase) evalCaseFollowUp
 		item.LatestFollowUpCaseID,
 		item.LatestFollowUpCaseStatus,
 	)
+}
+
+func newEvalCasePrimaryActionResponse(item evalsvc.EvalCase) evalCaseFollowUpActionResponse {
+	linkedAction := newEvalCaseLinkedCaseActionResponse(item)
+	if linkedAction.Mode != "none" {
+		return linkedAction
+	}
+	return newEvalCaseFollowUpActionResponse(item)
 }
 
 func newEvalCaseLinkedCaseActionResponseFromSummary(evalCaseID string, followUpCaseCount int, openFollowUpCaseCount int, latestFollowUpCaseID string, latestFollowUpCaseStatus string) evalCaseFollowUpActionResponse {

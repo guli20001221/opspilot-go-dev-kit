@@ -96,6 +96,12 @@ func TestCreateAndGetEvalCaseEndpoint(t *testing.T) {
 	if created.PreferredFollowUpAction.SourceEvalCaseID != created.EvalCaseID {
 		t.Fatalf("PreferredFollowUpAction.SourceEvalCaseID = %q, want %q", created.PreferredFollowUpAction.SourceEvalCaseID, created.EvalCaseID)
 	}
+	if created.PreferredPrimaryAction.Mode != "create" {
+		t.Fatalf("PreferredPrimaryAction.Mode = %q, want %q", created.PreferredPrimaryAction.Mode, "create")
+	}
+	if created.PreferredPrimaryAction.SourceEvalCaseID != created.EvalCaseID {
+		t.Fatalf("PreferredPrimaryAction.SourceEvalCaseID = %q, want %q", created.PreferredPrimaryAction.SourceEvalCaseID, created.EvalCaseID)
+	}
 	if created.PreferredLinkedCaseAction.Mode != "none" {
 		t.Fatalf("PreferredLinkedCaseAction.Mode = %q, want %q", created.PreferredLinkedCaseAction.Mode, "none")
 	}
@@ -214,6 +220,12 @@ func TestCreateEvalCaseEndpointIsIdempotentBySourceCase(t *testing.T) {
 	}
 	if second.PreferredLinkedCaseAction.CaseID != second.LatestFollowUpCaseID {
 		t.Fatalf("second.PreferredLinkedCaseAction.CaseID = %q, want %q", second.PreferredLinkedCaseAction.CaseID, second.LatestFollowUpCaseID)
+	}
+	if second.PreferredPrimaryAction.Mode != "open_existing_case" {
+		t.Fatalf("second.PreferredPrimaryAction.Mode = %q, want %q", second.PreferredPrimaryAction.Mode, "open_existing_case")
+	}
+	if second.PreferredPrimaryAction.CaseID != second.LatestFollowUpCaseID {
+		t.Fatalf("second.PreferredPrimaryAction.CaseID = %q, want %q", second.PreferredPrimaryAction.CaseID, second.LatestFollowUpCaseID)
 	}
 }
 
@@ -603,6 +615,12 @@ func TestEvalCaseEndpointsReturnFollowUpCaseSummary(t *testing.T) {
 	if listBody.EvalCases[0].PreferredFollowUpAction.CaseID != followUp.ID {
 		t.Fatalf("PreferredFollowUpAction.CaseID = %q, want %q", listBody.EvalCases[0].PreferredFollowUpAction.CaseID, followUp.ID)
 	}
+	if listBody.EvalCases[0].PreferredPrimaryAction.Mode != "open_existing_case" {
+		t.Fatalf("PreferredPrimaryAction.Mode = %q, want %q", listBody.EvalCases[0].PreferredPrimaryAction.Mode, "open_existing_case")
+	}
+	if listBody.EvalCases[0].PreferredPrimaryAction.CaseID != followUp.ID {
+		t.Fatalf("PreferredPrimaryAction.CaseID = %q, want %q", listBody.EvalCases[0].PreferredPrimaryAction.CaseID, followUp.ID)
+	}
 	if listBody.EvalCases[0].PreferredLinkedCaseAction.Mode != "open_existing_case" {
 		t.Fatalf("PreferredLinkedCaseAction.Mode = %q, want %q", listBody.EvalCases[0].PreferredLinkedCaseAction.Mode, "open_existing_case")
 	}
@@ -646,6 +664,12 @@ func TestEvalCaseEndpointsReturnFollowUpCaseSummary(t *testing.T) {
 	}
 	if detail.PreferredFollowUpAction.CaseID != followUp.ID {
 		t.Fatalf("detail.PreferredFollowUpAction.CaseID = %q, want %q", detail.PreferredFollowUpAction.CaseID, followUp.ID)
+	}
+	if detail.PreferredPrimaryAction.Mode != "open_existing_case" {
+		t.Fatalf("detail.PreferredPrimaryAction.Mode = %q, want %q", detail.PreferredPrimaryAction.Mode, "open_existing_case")
+	}
+	if detail.PreferredPrimaryAction.CaseID != followUp.ID {
+		t.Fatalf("detail.PreferredPrimaryAction.CaseID = %q, want %q", detail.PreferredPrimaryAction.CaseID, followUp.ID)
 	}
 	if detail.PreferredLinkedCaseAction.Mode != "open_existing_case" {
 		t.Fatalf("detail.PreferredLinkedCaseAction.Mode = %q, want %q", detail.PreferredLinkedCaseAction.Mode, "open_existing_case")
@@ -720,6 +744,15 @@ func TestEvalCaseLinkedCaseActionPrefersQueueWhenLatestCaseClosed(t *testing.T) 
 	}
 	if got.PreferredLinkedCaseAction.SourceEvalCaseID != evalCase.ID {
 		t.Fatalf("PreferredLinkedCaseAction.SourceEvalCaseID = %q, want %q", got.PreferredLinkedCaseAction.SourceEvalCaseID, evalCase.ID)
+	}
+	if got.PreferredPrimaryAction.Mode != "open_existing_queue" {
+		t.Fatalf("PreferredPrimaryAction.Mode = %q, want %q", got.PreferredPrimaryAction.Mode, "open_existing_queue")
+	}
+	if got.PreferredPrimaryAction.CaseID != "" {
+		t.Fatalf("PreferredPrimaryAction.CaseID = %q, want empty", got.PreferredPrimaryAction.CaseID)
+	}
+	if got.PreferredPrimaryAction.SourceEvalCaseID != evalCase.ID {
+		t.Fatalf("PreferredPrimaryAction.SourceEvalCaseID = %q, want %q", got.PreferredPrimaryAction.SourceEvalCaseID, evalCase.ID)
 	}
 }
 
