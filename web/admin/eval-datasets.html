@@ -300,9 +300,22 @@
     }
 
     function datasetRunBackedCaseHref(item) {
-      const summary = item && item.run_backed_case_summary;
-      if (!summary || !summary.latest_case_id) return "";
-      return `/admin/cases?tenant_id=${encodeURIComponent(item.tenant_id)}&case_id=${encodeURIComponent(summary.latest_case_id)}`;
+      const action = item && item.preferred_run_backed_case_action;
+      if (!action || action.mode === "none") return "";
+      if (action.mode === "open_existing_case" && action.case_id) {
+        return `/admin/cases?tenant_id=${encodeURIComponent(item.tenant_id)}&case_id=${encodeURIComponent(action.case_id)}`;
+      }
+      if (action.mode === "open_existing_queue" && action.source_eval_run_id) {
+        return `/admin/cases?tenant_id=${encodeURIComponent(item.tenant_id)}&source_eval_run_id=${encodeURIComponent(action.source_eval_run_id)}&status=open`;
+      }
+      return "";
+    }
+
+    function datasetRunBackedCaseLabel(item) {
+      const action = item && item.preferred_run_backed_case_action;
+      if (!action || action.mode === "none") return "";
+      if (action.mode === "open_existing_queue") return "Open run-backed case queue";
+      return "Open latest run-backed case";
     }
 
     function datasetListFollowUpCaseSummary(item) {
@@ -407,7 +420,7 @@
                 <div style="display:flex; flex-wrap:wrap; gap:8px; margin-top:8px;">
                   ${datasetPreferredQueueHref(item) ? `<a class="button-link" href="${datasetPreferredQueueHref(item)}">${datasetPreferredQueueLabel(item)}</a>` : ""}
                   ${datasetScopedCaseQueueHref(item) ? `<a class="button-link ghost" href="${datasetScopedCaseQueueHref(item)}">${datasetScopedCaseQueueLabel(item)}</a>` : ""}
-                  ${datasetRunBackedCaseHref(item) ? `<a class="button-link ghost" href="${datasetRunBackedCaseHref(item)}">Open latest run-backed case</a>` : ""}
+                  ${datasetRunBackedCaseHref(item) ? `<a class="button-link ghost" href="${datasetRunBackedCaseHref(item)}">${datasetRunBackedCaseLabel(item)}</a>` : ""}
                   <a class="button-link ghost" href="/admin/eval-runs?tenant_id=${encodeURIComponent(item.tenant_id)}&dataset_id=${encodeURIComponent(item.dataset_id)}&run_id=${encodeURIComponent(item.latest_run_id)}">Open latest run</a>
                   ${item.latest_report_id ? `<a class="button-link ghost" href="/admin/eval-reports?tenant_id=${encodeURIComponent(item.tenant_id)}&report_id=${encodeURIComponent(item.latest_report_id)}&selected_report_id=${encodeURIComponent(item.latest_report_id)}">Open latest report</a>` : ""}
                 </div>
@@ -544,7 +557,7 @@
               <a class="button-link ghost" href="/admin/eval-runs?tenant_id=${encodeURIComponent(item.tenant_id)}&dataset_id=${encodeURIComponent(item.dataset_id)}">Open eval runs</a>
               ${datasetPreferredQueueHref(item) ? `<a class="button-link" href="${datasetPreferredQueueHref(item)}">${datasetPreferredQueueLabel(item)}</a>` : ""}
               ${datasetCaseQueueHref(item) ? `<a class="button-link ghost" href="${datasetCaseQueueHref(item)}">${datasetCaseQueueLabel(item)}</a>` : ""}
-              ${datasetRunBackedCaseHref(item) ? `<a class="button-link ghost" href="${datasetRunBackedCaseHref(item)}">Open latest run-backed case</a>` : ""}
+              ${datasetRunBackedCaseHref(item) ? `<a class="button-link ghost" href="${datasetRunBackedCaseHref(item)}">${datasetRunBackedCaseLabel(item)}</a>` : ""}
               ${item.latest_run_id ? `<a class="button-link ghost" href="/admin/eval-runs?tenant_id=${encodeURIComponent(item.tenant_id)}&dataset_id=${encodeURIComponent(item.dataset_id)}&run_id=${encodeURIComponent(item.latest_run_id)}">Open latest run</a>` : ""}
               ${item.latest_report_id ? `<a class="button-link ghost" href="/admin/eval-reports?tenant_id=${encodeURIComponent(item.tenant_id)}&report_id=${encodeURIComponent(item.latest_report_id)}&selected_report_id=${encodeURIComponent(item.latest_report_id)}">Open latest report</a>` : ""}
               <a class="button-link ghost" href="/admin/cases?tenant_id=${encodeURIComponent(item.tenant_id)}">Open Cases</a>

@@ -405,6 +405,15 @@ func TestListEvalDatasetsEndpointIncludesLatestRunSummary(t *testing.T) {
 	if got.RunBackedCaseSummary.LatestAssignedTo != "run-backed-operator" {
 		t.Fatalf("RunBackedCaseSummary.LatestAssignedTo = %q, want %q", got.RunBackedCaseSummary.LatestAssignedTo, "run-backed-operator")
 	}
+	if got.PreferredRunBackedCaseAction.Mode != "open_existing_case" {
+		t.Fatalf("PreferredRunBackedCaseAction.Mode = %q, want %q", got.PreferredRunBackedCaseAction.Mode, "open_existing_case")
+	}
+	if got.PreferredRunBackedCaseAction.CaseID != runBackedCase.ID {
+		t.Fatalf("PreferredRunBackedCaseAction.CaseID = %q, want %q", got.PreferredRunBackedCaseAction.CaseID, runBackedCase.ID)
+	}
+	if got.PreferredRunBackedCaseAction.SourceEvalRunID != reportItem.RunID {
+		t.Fatalf("PreferredRunBackedCaseAction.SourceEvalRunID = %q, want %q", got.PreferredRunBackedCaseAction.SourceEvalRunID, reportItem.RunID)
+	}
 }
 
 func TestListEvalDatasetsEndpointSupportsNeedsFollowUpFilter(t *testing.T) {
@@ -746,6 +755,15 @@ func TestGetEvalDatasetIncludesLatestRunSummary(t *testing.T) {
 	if got.RunBackedCaseSummary.LatestAssignedTo != "detail-run-operator" {
 		t.Fatalf("RunBackedCaseSummary.LatestAssignedTo = %q, want %q", got.RunBackedCaseSummary.LatestAssignedTo, "detail-run-operator")
 	}
+	if got.PreferredRunBackedCaseAction.Mode != "open_existing_case" {
+		t.Fatalf("PreferredRunBackedCaseAction.Mode = %q, want %q", got.PreferredRunBackedCaseAction.Mode, "open_existing_case")
+	}
+	if got.PreferredRunBackedCaseAction.CaseID != runBackedCase.ID {
+		t.Fatalf("PreferredRunBackedCaseAction.CaseID = %q, want %q", got.PreferredRunBackedCaseAction.CaseID, runBackedCase.ID)
+	}
+	if got.PreferredRunBackedCaseAction.SourceEvalRunID != reportItem.RunID {
+		t.Fatalf("PreferredRunBackedCaseAction.SourceEvalRunID = %q, want %q", got.PreferredRunBackedCaseAction.SourceEvalRunID, reportItem.RunID)
+	}
 	if len(got.RecentRuns) == 0 {
 		t.Fatal("RecentRuns is empty, want latest run summary")
 	}
@@ -847,6 +865,9 @@ func TestEvalDatasetFollowUpActionFallsBackToLatestRunQueue(t *testing.T) {
 	}
 	if got.PreferredCaseQueueAction.Mode != "none" {
 		t.Fatalf("PreferredCaseQueueAction.Mode = %q, want %q", got.PreferredCaseQueueAction.Mode, "none")
+	}
+	if got.PreferredRunBackedCaseAction.Mode != "none" {
+		t.Fatalf("PreferredRunBackedCaseAction.Mode = %q, want %q", got.PreferredRunBackedCaseAction.Mode, "none")
 	}
 	if len(got.RecentRuns) == 0 {
 		t.Fatal("RecentRuns is empty, want latest run summary")
