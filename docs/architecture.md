@@ -110,6 +110,8 @@ The current HTTP layer also exposes the same PostgreSQL-backed workflow records 
 - `/admin/eval-datasets` now exposes the first dataset-focused operator lane, keeping dataset list rows lightweight while reusing canonical dataset detail and source-lineage handoff paths
 - the canonical eval-dataset list now also carries latest run/report linkage plus unresolved follow-up pressure, so dataset-level regression triage stays backend-owned instead of being reconstructed in browser code
 - the canonical eval-dataset detail now mirrors that latest run/report triage summary, so `/admin/eval-datasets` detail does not rely on list-row state to surface current regression pressure
+- the same eval-dataset list/detail contracts now also expose a backend-owned `preferred_follow_up_action`, so the dataset lane can send operators to the latest unresolved report or run queue without browser heuristics
+- the same canonical dataset detail now also carries a recent eval-activity summary, including recent run/report linkage and unresolved counts, so operators can understand why a baseline needs follow-up without leaving the dataset lane
 - `POST /api/v1/eval-datasets/{dataset_id}/publish` now turns a durable draft into an immutable published baseline, recording `published_by` and `published_at` so later regression work can target stable dataset state instead of a moving draft
 - `internal/eval` now also holds the first durable eval-run kickoff model, which snapshots published dataset metadata into a queued run row before judge execution is connected
 - `POST /api/v1/eval-runs`, `GET /api/v1/eval-runs`, and `GET /api/v1/eval-runs/{run_id}` now expose that tenant-scoped run-kickoff contract

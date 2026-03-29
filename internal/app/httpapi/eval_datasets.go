@@ -43,40 +43,62 @@ type evalDatasetItemResponse struct {
 }
 
 type evalDatasetResponse struct {
-	DatasetID               string                    `json:"dataset_id"`
-	TenantID                string                    `json:"tenant_id"`
-	Name                    string                    `json:"name"`
-	Description             string                    `json:"description,omitempty"`
-	Status                  string                    `json:"status"`
-	CreatedBy               string                    `json:"created_by"`
-	CreatedAt               string                    `json:"created_at"`
-	UpdatedAt               string                    `json:"updated_at"`
-	PublishedBy             string                    `json:"published_by,omitempty"`
-	PublishedAt             string                    `json:"published_at,omitempty"`
-	LatestRunID             string                    `json:"latest_run_id,omitempty"`
-	LatestRunStatus         string                    `json:"latest_run_status,omitempty"`
-	LatestReportID          string                    `json:"latest_report_id,omitempty"`
-	LatestReportStatus      string                    `json:"latest_report_status,omitempty"`
-	UnresolvedFollowUpCount int                       `json:"unresolved_follow_up_count"`
-	NeedsFollowUp           bool                      `json:"needs_follow_up"`
-	Items                   []evalDatasetItemResponse `json:"items"`
+	DatasetID               string                            `json:"dataset_id"`
+	TenantID                string                            `json:"tenant_id"`
+	Name                    string                            `json:"name"`
+	Description             string                            `json:"description,omitempty"`
+	Status                  string                            `json:"status"`
+	CreatedBy               string                            `json:"created_by"`
+	CreatedAt               string                            `json:"created_at"`
+	UpdatedAt               string                            `json:"updated_at"`
+	PublishedBy             string                            `json:"published_by,omitempty"`
+	PublishedAt             string                            `json:"published_at,omitempty"`
+	LatestRunID             string                            `json:"latest_run_id,omitempty"`
+	LatestRunStatus         string                            `json:"latest_run_status,omitempty"`
+	LatestReportID          string                            `json:"latest_report_id,omitempty"`
+	LatestReportStatus      string                            `json:"latest_report_status,omitempty"`
+	UnresolvedFollowUpCount int                               `json:"unresolved_follow_up_count"`
+	NeedsFollowUp           bool                              `json:"needs_follow_up"`
+	PreferredFollowUpAction evalDatasetFollowUpActionResponse `json:"preferred_follow_up_action"`
+	RecentRuns              []evalDatasetRecentRunResponse    `json:"recent_runs"`
+	Items                   []evalDatasetItemResponse         `json:"items"`
 }
 
 type evalDatasetSummaryResponse struct {
-	DatasetID               string `json:"dataset_id"`
-	TenantID                string `json:"tenant_id"`
-	Name                    string `json:"name"`
-	Status                  string `json:"status"`
-	CreatedBy               string `json:"created_by"`
-	CreatedAt               string `json:"created_at"`
-	UpdatedAt               string `json:"updated_at"`
-	ItemCount               int    `json:"item_count"`
-	LatestRunID             string `json:"latest_run_id,omitempty"`
-	LatestRunStatus         string `json:"latest_run_status,omitempty"`
-	LatestReportID          string `json:"latest_report_id,omitempty"`
-	LatestReportStatus      string `json:"latest_report_status,omitempty"`
-	UnresolvedFollowUpCount int    `json:"unresolved_follow_up_count"`
-	NeedsFollowUp           bool   `json:"needs_follow_up"`
+	DatasetID               string                            `json:"dataset_id"`
+	TenantID                string                            `json:"tenant_id"`
+	Name                    string                            `json:"name"`
+	Status                  string                            `json:"status"`
+	CreatedBy               string                            `json:"created_by"`
+	CreatedAt               string                            `json:"created_at"`
+	UpdatedAt               string                            `json:"updated_at"`
+	ItemCount               int                               `json:"item_count"`
+	LatestRunID             string                            `json:"latest_run_id,omitempty"`
+	LatestRunStatus         string                            `json:"latest_run_status,omitempty"`
+	LatestReportID          string                            `json:"latest_report_id,omitempty"`
+	LatestReportStatus      string                            `json:"latest_report_status,omitempty"`
+	UnresolvedFollowUpCount int                               `json:"unresolved_follow_up_count"`
+	NeedsFollowUp           bool                              `json:"needs_follow_up"`
+	PreferredFollowUpAction evalDatasetFollowUpActionResponse `json:"preferred_follow_up_action"`
+}
+
+type evalDatasetFollowUpActionResponse struct {
+	Mode            string `json:"mode"`
+	SourceDatasetID string `json:"source_dataset_id"`
+	RunID           string `json:"run_id,omitempty"`
+	ReportID        string `json:"report_id,omitempty"`
+}
+
+type evalDatasetRecentRunResponse struct {
+	RunID                        string `json:"run_id"`
+	Status                       string `json:"status"`
+	CreatedAt                    string `json:"created_at"`
+	UpdatedAt                    string `json:"updated_at"`
+	FinishedAt                   string `json:"finished_at,omitempty"`
+	ItemWithoutOpenFollowUpCount int    `json:"item_without_open_follow_up_count"`
+	NeedsFollowUp                bool   `json:"needs_follow_up"`
+	ReportID                     string `json:"report_id,omitempty"`
+	ReportStatus                 string `json:"report_status,omitempty"`
 }
 
 type listEvalDatasetsResponse struct {
@@ -142,7 +164,7 @@ func (a *appHandler) handleCreateEvalDataset(w http.ResponseWriter, r *http.Requ
 		return
 	}
 
-	writeJSON(w, http.StatusCreated, newEvalDatasetResponse(item, evalDatasetLatestRunSummary{}))
+	writeJSON(w, http.StatusCreated, newEvalDatasetResponse(item, evalDatasetLatestRunSummary{}, nil))
 }
 
 func (a *appHandler) handleEvalDatasetByID(w http.ResponseWriter, r *http.Request) {
@@ -209,8 +231,13 @@ func (a *appHandler) handleGetEvalDataset(w http.ResponseWriter, r *http.Request
 		return
 	}
 	latestRun := latestRunSummaries[item.ID]
+	recentRuns, err := a.evalDatasetRecentRuns(r.Context(), item.TenantID, item.ID, 5)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "eval_dataset_recent_runs_failed", err.Error())
+		return
+	}
 
-	writeJSON(w, http.StatusOK, newEvalDatasetResponse(item, latestRun))
+	writeJSON(w, http.StatusOK, newEvalDatasetResponse(item, latestRun, recentRuns))
 }
 
 func (a *appHandler) handleAddEvalDatasetItem(w http.ResponseWriter, r *http.Request, datasetID string) {
@@ -245,7 +272,7 @@ func (a *appHandler) handleAddEvalDatasetItem(w http.ResponseWriter, r *http.Req
 		return
 	}
 
-	writeJSON(w, http.StatusOK, newEvalDatasetResponse(item, evalDatasetLatestRunSummary{}))
+	writeJSON(w, http.StatusOK, newEvalDatasetResponse(item, evalDatasetLatestRunSummary{}, nil))
 }
 
 func (a *appHandler) handlePublishEvalDataset(w http.ResponseWriter, r *http.Request, datasetID string) {
@@ -277,10 +304,10 @@ func (a *appHandler) handlePublishEvalDataset(w http.ResponseWriter, r *http.Req
 		return
 	}
 
-	writeJSON(w, http.StatusOK, newEvalDatasetResponse(item, evalDatasetLatestRunSummary{}))
+	writeJSON(w, http.StatusOK, newEvalDatasetResponse(item, evalDatasetLatestRunSummary{}, nil))
 }
 
-func newEvalDatasetResponse(item evalsvc.EvalDataset, latestRun evalDatasetLatestRunSummary) evalDatasetResponse {
+func newEvalDatasetResponse(item evalsvc.EvalDataset, latestRun evalDatasetLatestRunSummary, recentRuns []evalDatasetRecentRunResponse) evalDatasetResponse {
 	resp := evalDatasetResponse{
 		DatasetID:               item.ID,
 		TenantID:                item.TenantID,
@@ -296,8 +323,11 @@ func newEvalDatasetResponse(item evalsvc.EvalDataset, latestRun evalDatasetLates
 		LatestReportStatus:      latestRun.LatestReportStatus,
 		UnresolvedFollowUpCount: latestRun.UnresolvedFollowUpCount,
 		NeedsFollowUp:           latestRun.NeedsFollowUp,
+		PreferredFollowUpAction: newEvalDatasetFollowUpActionResponse(item.ID, latestRun),
+		RecentRuns:              make([]evalDatasetRecentRunResponse, 0, len(recentRuns)),
 		Items:                   make([]evalDatasetItemResponse, 0, len(item.Items)),
 	}
+	resp.RecentRuns = append(resp.RecentRuns, recentRuns...)
 	if item.PublishedBy != "" {
 		resp.PublishedBy = item.PublishedBy
 	}
@@ -344,7 +374,82 @@ func newEvalDatasetSummaryResponse(item evalsvc.EvalDatasetSummary, latestRun ev
 		LatestReportStatus:      latestRun.LatestReportStatus,
 		UnresolvedFollowUpCount: latestRun.UnresolvedFollowUpCount,
 		NeedsFollowUp:           latestRun.NeedsFollowUp,
+		PreferredFollowUpAction: newEvalDatasetFollowUpActionResponse(item.ID, latestRun),
 	}
+}
+
+func newEvalDatasetFollowUpActionResponse(datasetID string, latestRun evalDatasetLatestRunSummary) evalDatasetFollowUpActionResponse {
+	action := evalDatasetFollowUpActionResponse{
+		Mode:            "none",
+		SourceDatasetID: datasetID,
+	}
+	if !latestRun.NeedsFollowUp {
+		return action
+	}
+	if latestRun.LatestReportID != "" {
+		action.Mode = "open_latest_report_queue"
+		action.ReportID = latestRun.LatestReportID
+		return action
+	}
+	if latestRun.LatestRunID != "" {
+		action.Mode = "open_latest_run_queue"
+		action.RunID = latestRun.LatestRunID
+	}
+	return action
+}
+
+func (a *appHandler) evalDatasetRecentRuns(ctx context.Context, tenantID string, datasetID string, limit int) ([]evalDatasetRecentRunResponse, error) {
+	if a.evalRuns == nil || limit <= 0 {
+		return nil, nil
+	}
+
+	page, err := a.evalRuns.ListRuns(ctx, evalsvc.RunListFilter{
+		TenantID:  tenantID,
+		DatasetID: datasetID,
+		Limit:     limit,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("list recent eval runs for dataset %q: %w", datasetID, err)
+	}
+
+	rows := make([]evalDatasetRecentRunResponse, 0, len(page.Runs))
+	for _, run := range page.Runs {
+		resp := evalDatasetRecentRunResponse{
+			RunID:     run.ID,
+			Status:    run.Status,
+			CreatedAt: run.CreatedAt.Format(time.RFC3339Nano),
+			UpdatedAt: run.UpdatedAt.Format(time.RFC3339Nano),
+		}
+		if !run.FinishedAt.IsZero() {
+			resp.FinishedAt = run.FinishedAt.Format(time.RFC3339Nano)
+		}
+		if run.Status == evalsvc.RunStatusSucceeded || run.Status == evalsvc.RunStatusFailed {
+			followUpSummary, err := a.evalRunFollowUpSummary(ctx, run.ID, tenantID)
+			if err != nil {
+				return nil, fmt.Errorf("summarize follow-up for eval run %q: %w", run.ID, err)
+			}
+			resp.ItemWithoutOpenFollowUpCount = followUpSummary.ItemWithoutOpenFollowUpCount
+			resp.NeedsFollowUp = followUpSummary.ItemWithoutOpenFollowUpCount > 0
+			if a.evalReports != nil {
+				reportID := evalsvc.EvalReportIDFromRunID(run.ID)
+				reportItem, err := a.evalReports.GetEvalReport(ctx, reportID)
+				switch {
+				case err == nil && reportItem.TenantID == tenantID:
+					resp.ReportID = reportItem.ID
+					resp.ReportStatus = reportItem.Status
+				case err == nil:
+					// Ignore cross-tenant report rows.
+				case errors.Is(err, evalsvc.ErrEvalReportNotFound):
+					// Run can exist before durable report materialization.
+				default:
+					return nil, fmt.Errorf("lookup eval report for run %q: %w", run.ID, err)
+				}
+			}
+		}
+		rows = append(rows, resp)
+	}
+
+	return rows, nil
 }
 
 func parseEvalDatasetListFilter(r *http.Request) (evalsvc.DatasetListFilter, *bool, error) {

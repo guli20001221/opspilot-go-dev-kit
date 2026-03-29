@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -53,8 +54,16 @@ func TestCreateAndGetEvalDatasetEndpoint(t *testing.T) {
 		t.Fatalf("StatusCode = %d, want %d", resp.StatusCode, http.StatusCreated)
 	}
 
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		t.Fatalf("ReadAll() error = %v", err)
+	}
+	if !bytes.Contains(body, []byte(`"recent_runs":[]`)) {
+		t.Fatalf("create response body = %s, want recent_runs as an empty array", string(body))
+	}
+
 	var created evalDatasetResponse
-	if err := json.NewDecoder(resp.Body).Decode(&created); err != nil {
+	if err := json.Unmarshal(body, &created); err != nil {
 		t.Fatalf("Decode() error = %v", err)
 	}
 	if created.DatasetID == "" {
@@ -284,6 +293,12 @@ func TestListEvalDatasetsEndpointIncludesLatestRunSummary(t *testing.T) {
 	if !got.NeedsFollowUp {
 		t.Fatal("NeedsFollowUp = false, want true")
 	}
+	if got.PreferredFollowUpAction.Mode != "open_latest_report_queue" {
+		t.Fatalf("PreferredFollowUpAction.Mode = %q, want %q", got.PreferredFollowUpAction.Mode, "open_latest_report_queue")
+	}
+	if got.PreferredFollowUpAction.ReportID != reportID {
+		t.Fatalf("PreferredFollowUpAction.ReportID = %q, want %q", got.PreferredFollowUpAction.ReportID, reportID)
+	}
 }
 
 func TestListEvalDatasetsEndpointSupportsNeedsFollowUpFilter(t *testing.T) {
@@ -372,6 +387,9 @@ func TestListEvalDatasetsEndpointSupportsNeedsFollowUpFilter(t *testing.T) {
 	}
 	if withoutFollowUpPage.Datasets[0].NeedsFollowUp {
 		t.Fatal("withoutFollowUpPage.Datasets[0].NeedsFollowUp = true, want false")
+	}
+	if withoutFollowUpPage.Datasets[0].PreferredFollowUpAction.Mode != "none" {
+		t.Fatalf("PreferredFollowUpAction.Mode = %q, want %q", withoutFollowUpPage.Datasets[0].PreferredFollowUpAction.Mode, "none")
 	}
 }
 
@@ -510,6 +528,108 @@ func TestGetEvalDatasetIncludesLatestRunSummary(t *testing.T) {
 	}
 	if !got.NeedsFollowUp {
 		t.Fatal("NeedsFollowUp = false, want true")
+	}
+	if got.PreferredFollowUpAction.Mode != "open_latest_report_queue" {
+		t.Fatalf("PreferredFollowUpAction.Mode = %q, want %q", got.PreferredFollowUpAction.Mode, "open_latest_report_queue")
+	}
+	if got.PreferredFollowUpAction.ReportID != reportID {
+		t.Fatalf("PreferredFollowUpAction.ReportID = %q, want %q", got.PreferredFollowUpAction.ReportID, reportID)
+	}
+	if len(got.RecentRuns) == 0 {
+		t.Fatal("RecentRuns is empty, want latest run summary")
+	}
+	if got.RecentRuns[0].RunID != reportItem.RunID {
+		t.Fatalf("RecentRuns[0].RunID = %q, want %q", got.RecentRuns[0].RunID, reportItem.RunID)
+	}
+	if got.RecentRuns[0].ReportID != reportID {
+		t.Fatalf("RecentRuns[0].ReportID = %q, want %q", got.RecentRuns[0].ReportID, reportID)
+	}
+}
+
+func TestEvalDatasetFollowUpActionFallsBackToLatestRunQueue(t *testing.T) {
+	ctx := context.Background()
+	caseService := casesvc.NewService()
+	evalCaseService := evalsvc.NewService(caseService, nil)
+	datasetService := evalsvc.NewDatasetService(evalCaseService)
+	runService := evalsvc.NewRunService(datasetService)
+
+	sourceCase, err := caseService.CreateCase(ctx, casesvc.CreateInput{
+		TenantID: "tenant-dataset-run-fallback",
+		Title:    "Dataset run fallback source",
+	})
+	if err != nil {
+		t.Fatalf("CreateCase() error = %v", err)
+	}
+	evalCase, _, err := evalCaseService.PromoteCase(ctx, evalsvc.CreateInput{
+		TenantID:     "tenant-dataset-run-fallback",
+		SourceCaseID: sourceCase.ID,
+	})
+	if err != nil {
+		t.Fatalf("PromoteCase() error = %v", err)
+	}
+	dataset, err := datasetService.CreateDataset(ctx, evalsvc.CreateDatasetInput{
+		TenantID:    "tenant-dataset-run-fallback",
+		Name:        "Dataset run fallback",
+		EvalCaseIDs: []string{evalCase.ID},
+	})
+	if err != nil {
+		t.Fatalf("CreateDataset() error = %v", err)
+	}
+	if _, err := datasetService.PublishDataset(ctx, dataset.ID, evalsvc.PublishDatasetInput{TenantID: "tenant-dataset-run-fallback"}); err != nil {
+		t.Fatalf("PublishDataset() error = %v", err)
+	}
+	run, err := runService.CreateRun(ctx, evalsvc.CreateRunInput{
+		TenantID:  "tenant-dataset-run-fallback",
+		DatasetID: dataset.ID,
+	})
+	if err != nil {
+		t.Fatalf("CreateRun() error = %v", err)
+	}
+	if _, err := runService.ClaimQueuedRuns(ctx, 10); err != nil {
+		t.Fatalf("ClaimQueuedRuns() error = %v", err)
+	}
+	if _, err := runService.MarkRunFailed(ctx, run.ID, "fault injection: dataset run failed"); err != nil {
+		t.Fatalf("MarkRunFailed() error = %v", err)
+	}
+
+	server := httptest.NewServer(NewHandlerWithDependencies(Dependencies{
+		Cases:        caseService,
+		EvalCases:    evalCaseService,
+		EvalDatasets: datasetService,
+		EvalRuns:     runService,
+	}))
+	defer server.Close()
+
+	resp, err := http.Get(server.URL + "/api/v1/eval-datasets/" + dataset.ID + "?tenant_id=tenant-dataset-run-fallback")
+	if err != nil {
+		t.Fatalf("Get() error = %v", err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("StatusCode = %d, want %d", resp.StatusCode, http.StatusOK)
+	}
+
+	var got evalDatasetResponse
+	if err := json.NewDecoder(resp.Body).Decode(&got); err != nil {
+		t.Fatalf("Decode() error = %v", err)
+	}
+	if got.PreferredFollowUpAction.Mode != "open_latest_run_queue" {
+		t.Fatalf("PreferredFollowUpAction.Mode = %q, want %q", got.PreferredFollowUpAction.Mode, "open_latest_run_queue")
+	}
+	if got.PreferredFollowUpAction.RunID != run.ID {
+		t.Fatalf("PreferredFollowUpAction.RunID = %q, want %q", got.PreferredFollowUpAction.RunID, run.ID)
+	}
+	if got.PreferredFollowUpAction.ReportID != "" {
+		t.Fatalf("PreferredFollowUpAction.ReportID = %q, want empty", got.PreferredFollowUpAction.ReportID)
+	}
+	if len(got.RecentRuns) == 0 {
+		t.Fatal("RecentRuns is empty, want latest run summary")
+	}
+	if got.RecentRuns[0].RunID != run.ID {
+		t.Fatalf("RecentRuns[0].RunID = %q, want %q", got.RecentRuns[0].RunID, run.ID)
+	}
+	if got.RecentRuns[0].ReportID != "" {
+		t.Fatalf("RecentRuns[0].ReportID = %q, want empty", got.RecentRuns[0].ReportID)
 	}
 }
 

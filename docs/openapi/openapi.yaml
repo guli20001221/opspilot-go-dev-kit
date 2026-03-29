@@ -2936,6 +2936,56 @@ components:
           type: string
         version_id:
           type: string
+    EvalDatasetFollowUpAction:
+      type: object
+      required:
+        - mode
+        - source_dataset_id
+      properties:
+        mode:
+          type: string
+          enum:
+            - none
+            - open_latest_run_queue
+            - open_latest_report_queue
+        source_dataset_id:
+          type: string
+        run_id:
+          type: string
+        report_id:
+          type: string
+    EvalDatasetRecentRun:
+      type: object
+      required:
+        - run_id
+        - status
+        - created_at
+        - updated_at
+        - item_without_open_follow_up_count
+        - needs_follow_up
+      properties:
+        run_id:
+          type: string
+        status:
+          type: string
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+        finished_at:
+          type: string
+          format: date-time
+        item_without_open_follow_up_count:
+          type: integer
+          minimum: 0
+        needs_follow_up:
+          type: boolean
+        report_id:
+          type: string
+        report_status:
+          type: string
     EvalDataset:
       type: object
       required:
@@ -2948,6 +2998,8 @@ components:
         - updated_at
         - unresolved_follow_up_count
         - needs_follow_up
+        - preferred_follow_up_action
+        - recent_runs
         - items
       properties:
         dataset_id:
@@ -2995,6 +3047,12 @@ components:
         needs_follow_up:
           type: boolean
           description: Whether the latest durable eval run for this dataset still has at least one unresolved failed item.
+        preferred_follow_up_action:
+          $ref: '#/components/schemas/EvalDatasetFollowUpAction'
+        recent_runs:
+          type: array
+          items:
+            $ref: '#/components/schemas/EvalDatasetRecentRun'
         items:
           type: array
           items:
@@ -3012,6 +3070,7 @@ components:
         - item_count
         - unresolved_follow_up_count
         - needs_follow_up
+        - preferred_follow_up_action
       properties:
         dataset_id:
           type: string
@@ -3054,6 +3113,8 @@ components:
         needs_follow_up:
           type: boolean
           description: Whether the latest durable eval run for this dataset still has at least one unresolved failed item.
+        preferred_follow_up_action:
+          $ref: '#/components/schemas/EvalDatasetFollowUpAction'
     ListEvalCasesResponse:
       type: object
       required:
