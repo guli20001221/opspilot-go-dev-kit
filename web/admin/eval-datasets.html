@@ -270,25 +270,30 @@
     }
 
     function datasetCaseQueueHref(item) {
-      const datasetHref = datasetScopedCaseQueueHref(item);
-      if (datasetHref) return datasetHref;
-      const latestReportAction = item && item.preferred_case_queue_action;
-      if (!latestReportAction) return "";
-      if (latestReportAction.mode === "open_existing_case" && latestReportAction.case_id) {
-        return `/admin/cases?tenant_id=${encodeURIComponent(item.tenant_id)}&case_id=${encodeURIComponent(latestReportAction.case_id)}`;
+      const handoff = item && item.preferred_case_handoff_action;
+      if (!handoff) return "";
+      if (handoff.mode === "open_existing_case" && handoff.case_id) {
+        return `/admin/cases?tenant_id=${encodeURIComponent(item.tenant_id)}&case_id=${encodeURIComponent(handoff.case_id)}`;
       }
-      if (latestReportAction.mode === "open_existing_queue" && latestReportAction.source_eval_report_id) {
-        return `/admin/cases?tenant_id=${encodeURIComponent(item.tenant_id)}&source_eval_report_id=${encodeURIComponent(latestReportAction.source_eval_report_id)}&status=open`;
+      if (handoff.mode === "open_existing_queue" && handoff.source_eval_dataset_id) {
+        return `/admin/cases?tenant_id=${encodeURIComponent(item.tenant_id)}&source_eval_dataset_id=${encodeURIComponent(handoff.source_eval_dataset_id)}&status=open`;
+      }
+      if (handoff.mode === "open_existing_queue" && handoff.source_eval_report_id) {
+        return `/admin/cases?tenant_id=${encodeURIComponent(item.tenant_id)}&source_eval_report_id=${encodeURIComponent(handoff.source_eval_report_id)}&status=open`;
       }
       return "";
     }
 
     function datasetCaseQueueLabel(item) {
-      const datasetLabel = datasetScopedCaseQueueLabel(item);
-      if (datasetLabel) return datasetLabel;
-      const datasetAction = item && item.preferred_dataset_case_queue_action;
-      const latestReportAction = item && item.preferred_case_queue_action;
-      if (latestReportAction && latestReportAction.mode !== "none") {
+      const handoff = item && item.preferred_case_handoff_action;
+      if (!handoff || handoff.mode === "none") return "";
+      if (handoff.source_eval_dataset_id) {
+        if (handoff.mode === "open_existing_case") {
+          return "Open latest dataset case";
+        }
+        return "Open dataset case queue";
+      }
+      if (handoff.source_eval_report_id) {
         return "Open latest-report follow-up cases";
       }
       return "";

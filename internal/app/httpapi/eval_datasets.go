@@ -68,6 +68,7 @@ type evalDatasetResponse struct {
 	DatasetFollowUpCaseSummary      evalDatasetFollowUpCaseSummaryResponse `json:"dataset_follow_up_case_summary"`
 	DatasetOpenFollowUpCaseCount    int                                    `json:"dataset_open_follow_up_case_count"`
 	PreferredDatasetCaseQueueAction evalDatasetCaseQueueActionResponse     `json:"preferred_dataset_case_queue_action"`
+	PreferredCaseHandoffAction      evalDatasetCaseQueueActionResponse     `json:"preferred_case_handoff_action"`
 	RecentRuns                      []evalDatasetRecentRunResponse         `json:"recent_runs"`
 	Items                           []evalDatasetItemResponse              `json:"items"`
 }
@@ -94,6 +95,7 @@ type evalDatasetSummaryResponse struct {
 	DatasetFollowUpCaseSummary      evalDatasetFollowUpCaseSummaryResponse `json:"dataset_follow_up_case_summary"`
 	DatasetOpenFollowUpCaseCount    int                                    `json:"dataset_open_follow_up_case_count"`
 	PreferredDatasetCaseQueueAction evalDatasetCaseQueueActionResponse     `json:"preferred_dataset_case_queue_action"`
+	PreferredCaseHandoffAction      evalDatasetCaseQueueActionResponse     `json:"preferred_case_handoff_action"`
 }
 
 type evalDatasetFollowUpActionResponse struct {
@@ -373,6 +375,7 @@ func newEvalDatasetResponse(item evalsvc.EvalDataset, latestRun evalDatasetLates
 		DatasetFollowUpCaseSummary:      newEvalDatasetDatasetFollowUpCaseSummaryResponse(latestRun),
 		DatasetOpenFollowUpCaseCount:    latestRun.DatasetOpenFollowUpCaseCount,
 		PreferredDatasetCaseQueueAction: newEvalDatasetDatasetCaseQueueActionResponse(item.ID, latestRun),
+		PreferredCaseHandoffAction:      newEvalDatasetPreferredCaseHandoffActionResponse(item.ID, latestRun),
 		RecentRuns:                      make([]evalDatasetRecentRunResponse, 0, len(recentRuns)),
 		Items:                           make([]evalDatasetItemResponse, 0, len(item.Items)),
 	}
@@ -439,6 +442,7 @@ func newEvalDatasetSummaryResponse(item evalsvc.EvalDatasetSummary, latestRun ev
 		DatasetFollowUpCaseSummary:      newEvalDatasetDatasetFollowUpCaseSummaryResponse(latestRun),
 		DatasetOpenFollowUpCaseCount:    latestRun.DatasetOpenFollowUpCaseCount,
 		PreferredDatasetCaseQueueAction: newEvalDatasetDatasetCaseQueueActionResponse(item.ID, latestRun),
+		PreferredCaseHandoffAction:      newEvalDatasetPreferredCaseHandoffActionResponse(item.ID, latestRun),
 	}
 }
 
@@ -522,14 +526,22 @@ func newEvalDatasetDatasetCaseQueueActionResponse(datasetID string, latestRun ev
 	if datasetID == "" || latestRun.DatasetOpenFollowUpCaseCount <= 0 {
 		return action
 	}
+	action.SourceEvalDatasetID = datasetID
 	if latestRun.DatasetLatestFollowUpCaseID != "" && latestRun.DatasetLatestFollowUpCaseStatus == casesvc.StatusOpen {
 		action.Mode = "open_existing_case"
 		action.CaseID = latestRun.DatasetLatestFollowUpCaseID
 		return action
 	}
 	action.Mode = "open_existing_queue"
-	action.SourceEvalDatasetID = datasetID
 	return action
+}
+
+func newEvalDatasetPreferredCaseHandoffActionResponse(datasetID string, latestRun evalDatasetLatestRunSummary) evalDatasetCaseQueueActionResponse {
+	datasetAction := newEvalDatasetDatasetCaseQueueActionResponse(datasetID, latestRun)
+	if datasetAction.Mode != "none" {
+		return datasetAction
+	}
+	return newEvalDatasetCaseQueueActionResponse(latestRun)
 }
 
 func (a *appHandler) evalDatasetRecentRuns(ctx context.Context, tenantID string, datasetID string, limit int) ([]evalDatasetRecentRunResponse, error) {

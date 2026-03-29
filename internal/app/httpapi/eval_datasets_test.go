@@ -336,6 +336,18 @@ func TestListEvalDatasetsEndpointIncludesLatestRunSummary(t *testing.T) {
 	if got.PreferredDatasetCaseQueueAction.CaseID != followUpCase.ID {
 		t.Fatalf("PreferredDatasetCaseQueueAction.CaseID = %q, want %q", got.PreferredDatasetCaseQueueAction.CaseID, followUpCase.ID)
 	}
+	if got.PreferredDatasetCaseQueueAction.SourceEvalDatasetID != got.DatasetID {
+		t.Fatalf("PreferredDatasetCaseQueueAction.SourceEvalDatasetID = %q, want %q", got.PreferredDatasetCaseQueueAction.SourceEvalDatasetID, got.DatasetID)
+	}
+	if got.PreferredCaseHandoffAction.Mode != "open_existing_case" {
+		t.Fatalf("PreferredCaseHandoffAction.Mode = %q, want %q", got.PreferredCaseHandoffAction.Mode, "open_existing_case")
+	}
+	if got.PreferredCaseHandoffAction.CaseID != followUpCase.ID {
+		t.Fatalf("PreferredCaseHandoffAction.CaseID = %q, want %q", got.PreferredCaseHandoffAction.CaseID, followUpCase.ID)
+	}
+	if got.PreferredCaseHandoffAction.SourceEvalDatasetID != got.DatasetID {
+		t.Fatalf("PreferredCaseHandoffAction.SourceEvalDatasetID = %q, want %q", got.PreferredCaseHandoffAction.SourceEvalDatasetID, got.DatasetID)
+	}
 	if got.DatasetFollowUpCaseSummary.FollowUpCaseCount != 1 {
 		t.Fatalf("DatasetFollowUpCaseSummary.FollowUpCaseCount = %d, want 1", got.DatasetFollowUpCaseSummary.FollowUpCaseCount)
 	}
@@ -653,6 +665,18 @@ func TestGetEvalDatasetIncludesLatestRunSummary(t *testing.T) {
 	if got.PreferredDatasetCaseQueueAction.CaseID == "" {
 		t.Fatal("PreferredDatasetCaseQueueAction.CaseID is empty, want linked dataset-wide follow-up case")
 	}
+	if got.PreferredDatasetCaseQueueAction.SourceEvalDatasetID != reportItem.DatasetID {
+		t.Fatalf("PreferredDatasetCaseQueueAction.SourceEvalDatasetID = %q, want %q", got.PreferredDatasetCaseQueueAction.SourceEvalDatasetID, reportItem.DatasetID)
+	}
+	if got.PreferredCaseHandoffAction.Mode != "open_existing_case" {
+		t.Fatalf("PreferredCaseHandoffAction.Mode = %q, want %q", got.PreferredCaseHandoffAction.Mode, "open_existing_case")
+	}
+	if got.PreferredCaseHandoffAction.CaseID == "" {
+		t.Fatal("PreferredCaseHandoffAction.CaseID is empty, want linked dataset-wide follow-up case")
+	}
+	if got.PreferredCaseHandoffAction.SourceEvalDatasetID != reportItem.DatasetID {
+		t.Fatalf("PreferredCaseHandoffAction.SourceEvalDatasetID = %q, want %q", got.PreferredCaseHandoffAction.SourceEvalDatasetID, reportItem.DatasetID)
+	}
 	if got.LinkedCaseSummary.TotalCaseCount != 1 {
 		t.Fatalf("LinkedCaseSummary.TotalCaseCount = %d, want 1", got.LinkedCaseSummary.TotalCaseCount)
 	}
@@ -873,6 +897,12 @@ func TestEvalDatasetCaseQueueActionPrefersQueueWhenLatestCaseIsClosed(t *testing
 	if got.PreferredDatasetCaseQueueAction.SourceEvalDatasetID != reportItem.DatasetID {
 		t.Fatalf("PreferredDatasetCaseQueueAction.SourceEvalDatasetID = %q, want %q", got.PreferredDatasetCaseQueueAction.SourceEvalDatasetID, reportItem.DatasetID)
 	}
+	if got.PreferredCaseHandoffAction.Mode != "open_existing_queue" {
+		t.Fatalf("PreferredCaseHandoffAction.Mode = %q, want %q", got.PreferredCaseHandoffAction.Mode, "open_existing_queue")
+	}
+	if got.PreferredCaseHandoffAction.SourceEvalDatasetID != reportItem.DatasetID {
+		t.Fatalf("PreferredCaseHandoffAction.SourceEvalDatasetID = %q, want %q", got.PreferredCaseHandoffAction.SourceEvalDatasetID, reportItem.DatasetID)
+	}
 	if openCase.ID == "" {
 		t.Fatal("openCase.ID is empty")
 	}
@@ -1042,6 +1072,12 @@ func TestGetEvalDatasetAggregatesDatasetWideFollowUpCaseSummaryAcrossReports(t *
 	}
 	if got.PreferredDatasetCaseQueueAction.SourceEvalDatasetID != secondReport.DatasetID {
 		t.Fatalf("PreferredDatasetCaseQueueAction.SourceEvalDatasetID = %q, want %q", got.PreferredDatasetCaseQueueAction.SourceEvalDatasetID, secondReport.DatasetID)
+	}
+	if got.PreferredCaseHandoffAction.Mode != "open_existing_queue" {
+		t.Fatalf("PreferredCaseHandoffAction.Mode = %q, want %q", got.PreferredCaseHandoffAction.Mode, "open_existing_queue")
+	}
+	if got.PreferredCaseHandoffAction.SourceEvalDatasetID != secondReport.DatasetID {
+		t.Fatalf("PreferredCaseHandoffAction.SourceEvalDatasetID = %q, want %q", got.PreferredCaseHandoffAction.SourceEvalDatasetID, secondReport.DatasetID)
 	}
 	if latestOpenCase.ID == "" {
 		t.Fatal("latestOpenCase.ID is empty")
