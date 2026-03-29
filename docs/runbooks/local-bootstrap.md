@@ -197,6 +197,7 @@ The current chat stream implementation is a Milestone 1 skeleton:
 - use `Create case from bad case` on `/admin/eval-reports` when one failing eval case needs its own follow-up; that flow reuses `source_eval_case_id` so precise bad-case follow-up stays distinct from report-level follow-up
 - when one bad case already has open follow-up work, that row-level action will render as `Open existing bad-case case` or `Open bad-case queue` instead of `Create case from bad case`
 - the same eval-report detail now also shows per-bad-case follow-up counts plus `Open latest bad-case case` and `Open bad-case follow-up slice`, so one failing eval case can hand off directly into its existing durable operator work
+- the same eval-report detail now also carries `preferred_linked_case_action` on each bad case, so bad-case linked-case handoff opens the latest linked case or the canonical bad-case queue without browser-only routing logic
 - use `bad_case_needs_follow_up=true` or `bad_case_needs_follow_up=false` on `GET /api/v1/eval-reports/{report_id}` when you need the canonical report detail to return only unresolved bad cases or only already-cleared bad cases
 - use `bad_case_count` from that same eval-report detail when you need the canonical total bad-case count for report-level handoff, even if the visible `bad_cases` slice is filtered
 - use `GET /api/v1/eval-report-compare?tenant_id=<tenant>&left_report_id=<left>&right_report_id=<right>` when you need a canonical eval-report delta view with score change, metadata drift, and bad-case overlap

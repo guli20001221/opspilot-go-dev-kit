@@ -3866,6 +3866,7 @@ components:
         - follow_up_case_count
         - open_follow_up_case_count
         - preferred_follow_up_action
+        - preferred_linked_case_action
       properties:
         eval_case_id:
           type: string
@@ -3905,6 +3906,8 @@ components:
             - open
             - closed
         preferred_follow_up_action:
+          $ref: '#/components/schemas/EvalCaseFollowUpAction'
+        preferred_linked_case_action:
           $ref: '#/components/schemas/EvalCaseFollowUpAction'
     ListEvalRunsResponse:
       type: object

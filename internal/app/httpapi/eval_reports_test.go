@@ -293,6 +293,80 @@ func TestGetEvalReportIncludesBadCaseFollowUpCaseSummary(t *testing.T) {
 	if badCase.PreferredFollowUpAction.SourceEvalCaseID != evalCaseID {
 		t.Fatalf("BadCases[0].PreferredFollowUpAction.SourceEvalCaseID = %q, want %q", badCase.PreferredFollowUpAction.SourceEvalCaseID, evalCaseID)
 	}
+	if badCase.PreferredLinkedCaseAction.Mode != "open_existing_case" {
+		t.Fatalf("BadCases[0].PreferredLinkedCaseAction.Mode = %q, want %q", badCase.PreferredLinkedCaseAction.Mode, "open_existing_case")
+	}
+	if badCase.PreferredLinkedCaseAction.CaseID != openCase.ID {
+		t.Fatalf("BadCases[0].PreferredLinkedCaseAction.CaseID = %q, want %q", badCase.PreferredLinkedCaseAction.CaseID, openCase.ID)
+	}
+	if badCase.PreferredLinkedCaseAction.SourceEvalCaseID != evalCaseID {
+		t.Fatalf("BadCases[0].PreferredLinkedCaseAction.SourceEvalCaseID = %q, want %q", badCase.PreferredLinkedCaseAction.SourceEvalCaseID, evalCaseID)
+	}
+}
+
+func TestGetEvalReportBadCaseLinkedCaseActionPrefersQueueWhenLatestCaseClosed(t *testing.T) {
+	caseService := casesvc.NewService()
+	evalCaseService := evalsvc.NewService(caseService, nil)
+	datasetService := evalsvc.NewDatasetService(evalCaseService)
+	runService := evalsvc.NewRunService(datasetService)
+	reportService := evalsvc.NewEvalReportServiceWithDependencies(nil, runService)
+	reportID := materializeEvalRunReport(t, "tenant-eval-report-badcase-linked-queue", evalsvc.RunStatusFailed, "failure detail", caseService, evalCaseService, datasetService, runService, reportService, "Dataset Bad Case Linked Queue", "Source Bad Case Linked Queue")
+
+	report, err := reportService.GetEvalReport(context.Background(), reportID)
+	if err != nil {
+		t.Fatalf("GetEvalReport() error = %v", err)
+	}
+	if len(report.BadCases) != 1 {
+		t.Fatalf("len(report.BadCases) = %d, want 1", len(report.BadCases))
+	}
+	evalCaseID := report.BadCases[0].EvalCaseID
+
+	closedCase, err := caseService.CreateCase(context.Background(), casesvc.CreateInput{
+		TenantID:         "tenant-eval-report-badcase-linked-queue",
+		Title:            "Closed bad-case linked follow-up",
+		Summary:          "closed bad-case linked summary",
+		SourceEvalCaseID: evalCaseID,
+		CreatedBy:        "operator-followup",
+	})
+	if err != nil {
+		t.Fatalf("CreateCase(closedCase) error = %v", err)
+	}
+	if _, err := caseService.CloseCase(context.Background(), closedCase.ID, "operator-followup"); err != nil {
+		t.Fatalf("CloseCase(closedCase) error = %v", err)
+	}
+
+	server := httptest.NewServer(NewHandlerWithDependencies(Dependencies{
+		Cases:       caseService,
+		EvalReports: reportService,
+	}))
+	defer server.Close()
+
+	resp, err := http.Get(server.URL + "/api/v1/eval-reports/" + reportID + "?tenant_id=tenant-eval-report-badcase-linked-queue")
+	if err != nil {
+		t.Fatalf("Get() error = %v", err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("StatusCode = %d, want %d", resp.StatusCode, http.StatusOK)
+	}
+
+	var got evalReportResponse
+	if err := json.NewDecoder(resp.Body).Decode(&got); err != nil {
+		t.Fatalf("Decode() error = %v", err)
+	}
+	if len(got.BadCases) != 1 {
+		t.Fatalf("len(got.BadCases) = %d, want 1", len(got.BadCases))
+	}
+	badCase := got.BadCases[0]
+	if badCase.PreferredLinkedCaseAction.Mode != "open_existing_queue" {
+		t.Fatalf("BadCases[0].PreferredLinkedCaseAction.Mode = %q, want %q", badCase.PreferredLinkedCaseAction.Mode, "open_existing_queue")
+	}
+	if badCase.PreferredLinkedCaseAction.CaseID != "" {
+		t.Fatalf("BadCases[0].PreferredLinkedCaseAction.CaseID = %q, want empty", badCase.PreferredLinkedCaseAction.CaseID)
+	}
+	if badCase.PreferredLinkedCaseAction.SourceEvalCaseID != evalCaseID {
+		t.Fatalf("BadCases[0].PreferredLinkedCaseAction.SourceEvalCaseID = %q, want %q", badCase.PreferredLinkedCaseAction.SourceEvalCaseID, evalCaseID)
+	}
 }
 
 func TestGetEvalReportIncludesCompareFollowUpSummary(t *testing.T) {
