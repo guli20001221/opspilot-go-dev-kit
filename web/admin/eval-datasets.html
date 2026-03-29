@@ -249,7 +249,7 @@
       return "";
     }
 
-    function datasetCaseQueueHref(item) {
+    function datasetScopedCaseQueueHref(item) {
       const datasetAction = item && item.preferred_dataset_case_queue_action;
       if (datasetAction && datasetAction.mode === "open_existing_queue" && datasetAction.source_eval_dataset_id) {
         return `/admin/cases?tenant_id=${encodeURIComponent(item.tenant_id)}&source_eval_dataset_id=${encodeURIComponent(datasetAction.source_eval_dataset_id)}&status=open`;
@@ -257,6 +257,21 @@
       if (datasetAction && datasetAction.mode === "open_existing_case" && datasetAction.case_id) {
         return `/admin/cases?tenant_id=${encodeURIComponent(item.tenant_id)}&case_id=${encodeURIComponent(datasetAction.case_id)}`;
       }
+      return "";
+    }
+
+    function datasetScopedCaseQueueLabel(item) {
+      const datasetAction = item && item.preferred_dataset_case_queue_action;
+      if (!datasetAction || datasetAction.mode === "none") return "";
+      if (datasetAction.mode === "open_existing_case") {
+        return "Open latest dataset case";
+      }
+      return "Open dataset case queue";
+    }
+
+    function datasetCaseQueueHref(item) {
+      const datasetHref = datasetScopedCaseQueueHref(item);
+      if (datasetHref) return datasetHref;
       const latestReportAction = item && item.preferred_case_queue_action;
       if (!latestReportAction) return "";
       if (latestReportAction.mode === "open_existing_case" && latestReportAction.case_id) {
@@ -269,10 +284,9 @@
     }
 
     function datasetCaseQueueLabel(item) {
+      const datasetLabel = datasetScopedCaseQueueLabel(item);
+      if (datasetLabel) return datasetLabel;
       const datasetAction = item && item.preferred_dataset_case_queue_action;
-      if (datasetAction && datasetAction.mode !== "none") {
-        return "Open dataset follow-up cases";
-      }
       const latestReportAction = item && item.preferred_case_queue_action;
       if (latestReportAction && latestReportAction.mode !== "none") {
         return "Open latest-report follow-up cases";
@@ -280,11 +294,8 @@
       return "";
     }
 
-    function datasetFollowUpCaseSummary(item) {
-      if (item && item.dataset_follow_up_case_summary) {
-        return item.dataset_follow_up_case_summary;
-      }
-      return item && item.follow_up_case_summary ? item.follow_up_case_summary : null;
+    function datasetListFollowUpCaseSummary(item) {
+      return item && item.dataset_follow_up_case_summary ? item.dataset_follow_up_case_summary : null;
     }
 
     function escapeHTML(value) {
@@ -379,13 +390,13 @@
               <div><strong>${escapeHTML(item.latest_run_status || "unknown")}</strong></div>
               <div><small>${escapeHTML(item.latest_run_id)}</small></div>
               <div><small>${escapeHTML(String(item.unresolved_follow_up_count || 0))} unresolved follow-up items</small></div>
-              ${datasetFollowUpCaseSummary(item) ? `<div><small>${escapeHTML(`${datasetFollowUpCaseSummary(item).follow_up_case_count || 0} total / ${datasetFollowUpCaseSummary(item).open_follow_up_case_count || 0} open / ${datasetFollowUpCaseSummary(item).closed_follow_up_case_count || 0} closed dataset follow-up cases`)}</small></div>` : ""}
-              <div style="display:flex; flex-wrap:wrap; gap:8px; margin-top:8px;">
-                ${datasetPreferredQueueHref(item) ? `<a class="button-link" href="${datasetPreferredQueueHref(item)}">${datasetPreferredQueueLabel(item)}</a>` : ""}
-                ${datasetCaseQueueHref(item) ? `<a class="button-link ghost" href="${datasetCaseQueueHref(item)}">${datasetCaseQueueLabel(item)}</a>` : ""}
-                <a class="button-link ghost" href="/admin/eval-runs?tenant_id=${encodeURIComponent(item.tenant_id)}&dataset_id=${encodeURIComponent(item.dataset_id)}&run_id=${encodeURIComponent(item.latest_run_id)}">Open latest run</a>
-                ${item.latest_report_id ? `<a class="button-link ghost" href="/admin/eval-reports?tenant_id=${encodeURIComponent(item.tenant_id)}&report_id=${encodeURIComponent(item.latest_report_id)}&selected_report_id=${encodeURIComponent(item.latest_report_id)}">Open latest report</a>` : ""}
-              </div>
+                ${datasetListFollowUpCaseSummary(item) ? `<div><small>${escapeHTML(`${datasetListFollowUpCaseSummary(item).follow_up_case_count || 0} total / ${datasetListFollowUpCaseSummary(item).open_follow_up_case_count || 0} open / ${datasetListFollowUpCaseSummary(item).closed_follow_up_case_count || 0} closed dataset follow-up cases`)}</small></div>` : ""}
+                <div style="display:flex; flex-wrap:wrap; gap:8px; margin-top:8px;">
+                  ${datasetPreferredQueueHref(item) ? `<a class="button-link" href="${datasetPreferredQueueHref(item)}">${datasetPreferredQueueLabel(item)}</a>` : ""}
+                  ${datasetScopedCaseQueueHref(item) ? `<a class="button-link ghost" href="${datasetScopedCaseQueueHref(item)}">${datasetScopedCaseQueueLabel(item)}</a>` : ""}
+                  <a class="button-link ghost" href="/admin/eval-runs?tenant_id=${encodeURIComponent(item.tenant_id)}&dataset_id=${encodeURIComponent(item.dataset_id)}&run_id=${encodeURIComponent(item.latest_run_id)}">Open latest run</a>
+                  ${item.latest_report_id ? `<a class="button-link ghost" href="/admin/eval-reports?tenant_id=${encodeURIComponent(item.tenant_id)}&report_id=${encodeURIComponent(item.latest_report_id)}&selected_report_id=${encodeURIComponent(item.latest_report_id)}">Open latest report</a>` : ""}
+                </div>
             ` : `<small>No eval runs yet</small>`}
           </td>
           <td>${escapeHTML(fmtDate(item.updated_at))}</td>

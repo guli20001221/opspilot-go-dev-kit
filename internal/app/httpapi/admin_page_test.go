@@ -564,6 +564,9 @@ func TestAdminEvalDatasetsPageRendersHTML(t *testing.T) {
 	if !strings.Contains(body, "Open preferred queue") {
 		t.Fatal("preferred follow-up queue handoff missing from eval datasets page HTML")
 	}
+	if !strings.Contains(body, "Open dataset case queue") {
+		t.Fatal("dataset case queue handoff missing from eval datasets page HTML")
+	}
 	if !strings.Contains(body, "Open follow-up cases") {
 		t.Fatal("follow-up cases handoff missing from eval datasets page HTML")
 	}
@@ -705,12 +708,15 @@ const reportID = process.argv[6];
   await page.waitForSelector("#datasetRows tr");
   const firstRowText = await page.textContent("#datasetRows tr:first-child");
   if (!firstRowText.includes(runID)) throw new Error("latest run summary missing from dataset row");
-  if (!firstRowText.includes("1 unresolved follow-up items")) throw new Error("unresolved follow-up count missing from dataset row");
-  if (!firstRowText.includes("1 total / 1 open / 0 closed dataset follow-up cases")) throw new Error("dataset-wide follow-up summary missing from dataset row");
-  const latestRunHref = await page.getAttribute('a[href*="/admin/eval-runs?"][href*="run_id=' + encodeURIComponent(runID) + '"]', "href");
-  if (!latestRunHref) throw new Error("latest run handoff missing from dataset row");
-  const latestReportHref = await page.getAttribute('a[href*="/admin/eval-reports?"][href*="selected_report_id=' + encodeURIComponent(reportID) + '"]', "href");
-  if (!latestReportHref) throw new Error("latest report handoff missing from dataset row");
+    if (!firstRowText.includes("1 unresolved follow-up items")) throw new Error("unresolved follow-up count missing from dataset row");
+    if (!firstRowText.includes("1 total / 1 open / 0 closed dataset follow-up cases")) throw new Error("dataset-wide follow-up summary missing from dataset row");
+    if (!firstRowText.includes("Open dataset case queue")) throw new Error("dataset case queue handoff missing from dataset row");
+    const latestRunHref = await page.getAttribute('a[href*="/admin/eval-runs?"][href*="run_id=' + encodeURIComponent(runID) + '"]', "href");
+    if (!latestRunHref) throw new Error("latest run handoff missing from dataset row");
+    const latestReportHref = await page.getAttribute('a[href*="/admin/eval-reports?"][href*="selected_report_id=' + encodeURIComponent(reportID) + '"]', "href");
+    if (!latestReportHref) throw new Error("latest report handoff missing from dataset row");
+    const datasetRowQueueHref = await page.getAttribute('#datasetRows tr:first-child a[href*="/admin/cases?"][href*="source_eval_dataset_id=' + encodeURIComponent(datasetID) + '"]', "href");
+    if (!datasetRowQueueHref) throw new Error("dataset-wide case queue handoff missing from dataset row");
   const detailText = await page.textContent("#datasetDetail");
   if (!detailText.includes(runID)) throw new Error("latest run summary missing from dataset detail");
   if (!detailText.includes(reportID)) throw new Error("latest report summary missing from dataset detail");
