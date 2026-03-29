@@ -457,10 +457,7 @@ func (a *appHandler) buildEvalRunListRows(r *http.Request, items []evalsvc.EvalR
 		if err != nil {
 			return nil, err
 		}
-		linkedCaseSummary, err := a.evalRunLinkedCaseSummary(r.Context(), item.TenantID, summary.PerEvalCaseSummary)
-		if err != nil {
-			return nil, err
-		}
+		linkedCaseSummary := evalRunLinkedCaseSummary(summary.RunSummary)
 		reportSummary, err := a.evalRunReportSummary(r.Context(), item)
 		if err != nil {
 			return nil, err
@@ -498,48 +495,18 @@ func (a *appHandler) evalRunReportSummary(ctx context.Context, item evalsvc.Eval
 
 type evalRunFollowUpSummary struct {
 	PerEvalCaseSummary           map[string]casesvc.EvalCaseFollowUpSummary
+	RunSummary                   casesvc.EvalRunFollowUpSummary
 	ItemWithoutOpenFollowUpCount int
 }
 
-func (a *appHandler) evalRunLinkedCaseSummary(ctx context.Context, tenantID string, followUpSummaries map[string]casesvc.EvalCaseFollowUpSummary) (evalReportLinkedCaseSummaryResponse, error) {
-	summary := evalReportLinkedCaseSummaryResponse{}
-	if len(followUpSummaries) == 0 {
-		return summary, nil
+func evalRunLinkedCaseSummary(summary casesvc.EvalRunFollowUpSummary) evalReportLinkedCaseSummaryResponse {
+	return evalReportLinkedCaseSummaryResponse{
+		TotalCaseCount:   summary.FollowUpCaseCount,
+		OpenCaseCount:    summary.OpenFollowUpCaseCount,
+		LatestCaseID:     summary.LatestFollowUpCaseID,
+		LatestCaseStatus: summary.LatestFollowUpCaseStatus,
+		LatestAssignedTo: summary.LatestFollowUpAssignedTo,
 	}
-
-	var latestCase casesvc.Case
-	hasLatestCase := false
-	for _, item := range followUpSummaries {
-		summary.TotalCaseCount += item.FollowUpCaseCount
-		summary.OpenCaseCount += item.OpenFollowUpCaseCount
-		if a.cases == nil || item.LatestFollowUpCaseID == "" {
-			continue
-		}
-
-		linkedCase, err := a.cases.GetCase(ctx, item.LatestFollowUpCaseID)
-		if err != nil {
-			if errors.Is(err, casesvc.ErrCaseNotFound) {
-				continue
-			}
-			return evalReportLinkedCaseSummaryResponse{}, fmt.Errorf("get linked eval-run case %q: %w", item.LatestFollowUpCaseID, err)
-		}
-		if linkedCase.TenantID != tenantID {
-			continue
-		}
-		if !hasLatestCase ||
-			linkedCase.UpdatedAt.After(latestCase.UpdatedAt) ||
-			(linkedCase.UpdatedAt.Equal(latestCase.UpdatedAt) && linkedCase.CreatedAt.After(latestCase.CreatedAt)) ||
-			(linkedCase.UpdatedAt.Equal(latestCase.UpdatedAt) && linkedCase.CreatedAt.Equal(latestCase.CreatedAt) && linkedCase.ID > latestCase.ID) {
-			latestCase = linkedCase
-			hasLatestCase = true
-		}
-	}
-	if hasLatestCase {
-		summary.LatestCaseID = latestCase.ID
-		summary.LatestCaseStatus = latestCase.Status
-		summary.LatestAssignedTo = latestCase.AssignedTo
-	}
-	return summary, nil
 }
 
 func (a *appHandler) evalRunFollowUpSummary(ctx context.Context, runID string, tenantID string) (evalRunFollowUpSummary, error) {
@@ -567,6 +534,11 @@ func (a *appHandler) evalRunFollowUpSummary(ctx context.Context, runID string, t
 		evalCaseIDs = append(evalCaseIDs, result.EvalCaseID)
 	}
 	if len(evalCaseIDs) == 0 {
+		runSummaries, err := a.cases.SummarizeBySourceEvalRunIDs(ctx, tenantID, []string{runID})
+		if err != nil {
+			return evalRunFollowUpSummary{}, fmt.Errorf("summarize eval-run linked cases: %w", err)
+		}
+		summary.RunSummary = runSummaries[runID]
 		return summary, nil
 	}
 
@@ -574,6 +546,11 @@ func (a *appHandler) evalRunFollowUpSummary(ctx context.Context, runID string, t
 	if err != nil {
 		return evalRunFollowUpSummary{}, fmt.Errorf("summarize eval-run follow-up cases: %w", err)
 	}
+	runSummaries, err := a.cases.SummarizeBySourceEvalRunIDs(ctx, tenantID, []string{runID})
+	if err != nil {
+		return evalRunFollowUpSummary{}, fmt.Errorf("summarize eval-run linked cases: %w", err)
+	}
+	summary.RunSummary = runSummaries[runID]
 	for _, result := range detail.ItemResults {
 		if result.Status != evalsvc.RunItemResultFailed || result.EvalCaseID == "" {
 			continue
@@ -640,11 +617,16 @@ func (a *appHandler) writeEvalRunDetailResponse(w http.ResponseWriter, r *http.R
 		return
 	}
 
-	linkedCaseSummary, err := a.evalRunLinkedCaseSummary(r.Context(), tenantID, followUpSummaries)
-	if err != nil {
-		writeError(w, http.StatusInternalServerError, "eval_run_linked_case_summary_failed", err.Error())
-		return
+	runFollowUpSummary := casesvc.EvalRunFollowUpSummary{}
+	if a.cases != nil {
+		runSummaries, err := a.cases.SummarizeBySourceEvalRunIDs(r.Context(), tenantID, []string{runID})
+		if err != nil {
+			writeError(w, http.StatusInternalServerError, "eval_run_linked_case_summary_failed", err.Error())
+			return
+		}
+		runFollowUpSummary = runSummaries[runID]
 	}
+	linkedCaseSummary := evalRunLinkedCaseSummary(runFollowUpSummary)
 
 	writeJSON(w, statusCode, newEvalRunResponse(item, detail.Events, detail.Items, detail.ItemResults, followUpSummaries, linkedCaseSummary, reportSummary, itemWithoutOpenFollowUpCount))
 }

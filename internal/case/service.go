@@ -21,6 +21,7 @@ type Store interface {
 	SummarizeBySourceEvalReportIDs(ctx context.Context, tenantID string, reportIDs []string) (map[string]EvalReportFollowUpSummary, error)
 	SummarizeCompareOriginBySourceEvalReportIDs(ctx context.Context, tenantID string, reportIDs []string) (map[string]EvalReportCompareFollowUpSummary, error)
 	SummarizeBySourceEvalCaseIDs(ctx context.Context, tenantID string, evalCaseIDs []string) (map[string]EvalCaseFollowUpSummary, error)
+	SummarizeBySourceEvalRunIDs(ctx context.Context, tenantID string, runIDs []string) (map[string]EvalRunFollowUpSummary, error)
 	AppendNote(ctx context.Context, note Note) (Note, error)
 	ListNotes(ctx context.Context, caseID string, limit int) ([]Note, error)
 	Assign(ctx context.Context, caseID string, assignedTo string, assignedAt time.Time, expectedUpdatedAt time.Time) (Case, error)
@@ -166,6 +167,11 @@ func (s *Service) SummarizeCompareOriginBySourceEvalReportIDs(ctx context.Contex
 // SummarizeBySourceEvalCaseIDs returns follow-up case aggregates for source eval cases.
 func (s *Service) SummarizeBySourceEvalCaseIDs(ctx context.Context, tenantID string, evalCaseIDs []string) (map[string]EvalCaseFollowUpSummary, error) {
 	return s.store.SummarizeBySourceEvalCaseIDs(ctx, tenantID, evalCaseIDs)
+}
+
+// SummarizeBySourceEvalRunIDs returns follow-up case aggregates for source eval runs.
+func (s *Service) SummarizeBySourceEvalRunIDs(ctx context.Context, tenantID string, runIDs []string) (map[string]EvalRunFollowUpSummary, error) {
+	return s.store.SummarizeBySourceEvalRunIDs(ctx, tenantID, runIDs)
 }
 
 // ListCaseNotes returns recent append-only notes for a case.

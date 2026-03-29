@@ -163,6 +163,26 @@ INSERT INTO eval_cases (
 	if got.CompareOrigin.SelectedSide != want.CompareOrigin.SelectedSide {
 		t.Fatalf("Get().CompareOrigin.SelectedSide = %q, want %q", got.CompareOrigin.SelectedSide, want.CompareOrigin.SelectedSide)
 	}
+
+	runSummaries, err := store.SummarizeBySourceEvalRunIDs(ctx, "tenant-1", []string{"eval-run-roundtrip-1", "eval-run-roundtrip-2"})
+	if err != nil {
+		t.Fatalf("SummarizeBySourceEvalRunIDs() error = %v", err)
+	}
+	if got := runSummaries["eval-run-roundtrip-1"].FollowUpCaseCount; got != 1 {
+		t.Fatalf("runSummaries[eval-run-roundtrip-1].FollowUpCaseCount = %d, want 1", got)
+	}
+	if got := runSummaries["eval-run-roundtrip-1"].OpenFollowUpCaseCount; got != 1 {
+		t.Fatalf("runSummaries[eval-run-roundtrip-1].OpenFollowUpCaseCount = %d, want 1", got)
+	}
+	if got := runSummaries["eval-run-roundtrip-1"].LatestFollowUpCaseID; got != want.ID {
+		t.Fatalf("runSummaries[eval-run-roundtrip-1].LatestFollowUpCaseID = %q, want %q", got, want.ID)
+	}
+	if got := runSummaries["eval-run-roundtrip-1"].LatestFollowUpAssignedTo; got != "" {
+		t.Fatalf("runSummaries[eval-run-roundtrip-1].LatestFollowUpAssignedTo = %q, want empty", got)
+	}
+	if got := runSummaries["eval-run-roundtrip-2"].FollowUpCaseCount; got != 0 {
+		t.Fatalf("runSummaries[eval-run-roundtrip-2].FollowUpCaseCount = %d, want 0", got)
+	}
 }
 
 func TestCaseStoreSaveOrReuseOpenEvalRunCase(t *testing.T) {

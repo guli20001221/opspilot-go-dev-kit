@@ -441,6 +441,7 @@ func TestListEvalRunsEndpointIncludesFollowUpSummary(t *testing.T) {
 				Title:            "Follow-up for " + title,
 				Summary:          "Existing open follow-up",
 				SourceEvalCaseID: evalCase.ID,
+				SourceEvalRunID:  run.ID,
 				CreatedBy:        "operator-run",
 			})
 			if err != nil {
@@ -935,6 +936,7 @@ func TestGetEvalRunEndpointIncludesFollowUpReuseActions(t *testing.T) {
 		Title:            "Eval follow-up",
 		Summary:          "Existing eval follow-up",
 		SourceEvalCaseID: evalCase.ID,
+		SourceEvalRunID:  run.ID,
 		CreatedBy:        "operator-run",
 	})
 	if err != nil {
@@ -1060,6 +1062,7 @@ func TestGetEvalRunEndpointSuppressesDirectLinkedCaseActionForClosedLatestCase(t
 		Title:            "Closed eval follow-up",
 		Summary:          "Closed follow-up",
 		SourceEvalCaseID: evalCase.ID,
+		SourceEvalRunID:  run.ID,
 		CreatedBy:        "operator-run",
 	})
 	if err != nil {
@@ -1101,6 +1104,112 @@ func TestGetEvalRunEndpointSuppressesDirectLinkedCaseActionForClosedLatestCase(t
 	}
 	if got.PreferredLinkedCaseAction.CaseID != "" {
 		t.Fatalf("PreferredLinkedCaseAction.CaseID = %q, want empty", got.PreferredLinkedCaseAction.CaseID)
+	}
+}
+
+func TestGetEvalRunEndpointUsesRunBackedLinkedCaseSummary(t *testing.T) {
+	ctx := context.Background()
+	caseService := casesvc.NewService()
+	evalCaseService := evalsvc.NewService(caseService, nil)
+	datasetService := evalsvc.NewDatasetService(evalCaseService)
+	runService := evalsvc.NewRunService(datasetService)
+
+	sourceCase, err := caseService.CreateCase(ctx, casesvc.CreateInput{
+		TenantID: "tenant-run",
+		Title:    "Run-backed source",
+	})
+	if err != nil {
+		t.Fatalf("CreateCase() error = %v", err)
+	}
+	evalCase, _, err := evalCaseService.PromoteCase(ctx, evalsvc.CreateInput{
+		TenantID:     "tenant-run",
+		SourceCaseID: sourceCase.ID,
+	})
+	if err != nil {
+		t.Fatalf("PromoteCase() error = %v", err)
+	}
+	dataset, err := datasetService.CreateDataset(ctx, evalsvc.CreateDatasetInput{
+		TenantID:    "tenant-run",
+		Name:        "Run-backed queue",
+		EvalCaseIDs: []string{evalCase.ID},
+	})
+	if err != nil {
+		t.Fatalf("CreateDataset() error = %v", err)
+	}
+	if _, err := datasetService.PublishDataset(ctx, dataset.ID, evalsvc.PublishDatasetInput{TenantID: "tenant-run"}); err != nil {
+		t.Fatalf("PublishDataset() error = %v", err)
+	}
+
+	run, err := runService.CreateRun(ctx, evalsvc.CreateRunInput{
+		TenantID:  "tenant-run",
+		DatasetID: dataset.ID,
+	})
+	if err != nil {
+		t.Fatalf("CreateRun() error = %v", err)
+	}
+	if _, err := runService.ClaimQueuedRuns(ctx, 10); err != nil {
+		t.Fatalf("ClaimQueuedRuns() error = %v", err)
+	}
+	if _, err := runService.MarkRunFailed(ctx, run.ID, "fault injection: eval run failed"); err != nil {
+		t.Fatalf("MarkRunFailed() error = %v", err)
+	}
+
+	runBackedCase, err := caseService.CreateCase(ctx, casesvc.CreateInput{
+		TenantID:        "tenant-run",
+		Title:           "Run-backed only follow-up",
+		Summary:         "Created from run queue",
+		SourceEvalRunID: run.ID,
+		CreatedBy:       "operator-run",
+	})
+	if err != nil {
+		t.Fatalf("CreateCase(runBackedCase) error = %v", err)
+	}
+	runBackedCase, err = caseService.AssignCase(ctx, runBackedCase, "run-owner")
+	if err != nil {
+		t.Fatalf("AssignCase(runBackedCase) error = %v", err)
+	}
+
+	server := httptest.NewServer(NewHandlerWithDependencies(Dependencies{
+		Cases:        caseService,
+		EvalCases:    evalCaseService,
+		EvalDatasets: datasetService,
+		EvalRuns:     runService,
+	}))
+	defer server.Close()
+
+	resp, err := http.Get(server.URL + "/api/v1/eval-runs/" + run.ID + "?tenant_id=tenant-run")
+	if err != nil {
+		t.Fatalf("Get() error = %v", err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("StatusCode = %d, want %d", resp.StatusCode, http.StatusOK)
+	}
+
+	var got evalRunResponse
+	if err := json.NewDecoder(resp.Body).Decode(&got); err != nil {
+		t.Fatalf("Decode() error = %v", err)
+	}
+	if got.LinkedCaseSummary.TotalCaseCount != 1 {
+		t.Fatalf("LinkedCaseSummary.TotalCaseCount = %d, want 1", got.LinkedCaseSummary.TotalCaseCount)
+	}
+	if got.LinkedCaseSummary.OpenCaseCount != 1 {
+		t.Fatalf("LinkedCaseSummary.OpenCaseCount = %d, want 1", got.LinkedCaseSummary.OpenCaseCount)
+	}
+	if got.LinkedCaseSummary.LatestCaseID != runBackedCase.ID {
+		t.Fatalf("LinkedCaseSummary.LatestCaseID = %q, want %q", got.LinkedCaseSummary.LatestCaseID, runBackedCase.ID)
+	}
+	if got.LinkedCaseSummary.LatestAssignedTo != "run-owner" {
+		t.Fatalf("LinkedCaseSummary.LatestAssignedTo = %q, want %q", got.LinkedCaseSummary.LatestAssignedTo, "run-owner")
+	}
+	if got.PreferredLinkedCaseAction.Mode != "open_existing_case" {
+		t.Fatalf("PreferredLinkedCaseAction.Mode = %q, want %q", got.PreferredLinkedCaseAction.Mode, "open_existing_case")
+	}
+	if got.PreferredLinkedCaseAction.CaseID != runBackedCase.ID {
+		t.Fatalf("PreferredLinkedCaseAction.CaseID = %q, want %q", got.PreferredLinkedCaseAction.CaseID, runBackedCase.ID)
+	}
+	if got.Items[0].PreferredFollowUpAction.Mode != "create" {
+		t.Fatalf("Items[0].PreferredFollowUpAction.Mode = %q, want %q", got.Items[0].PreferredFollowUpAction.Mode, "create")
 	}
 }
 

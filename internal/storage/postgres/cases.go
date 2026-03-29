@@ -636,6 +636,90 @@ LEFT JOIN latest
 	return summaries, nil
 }
 
+// SummarizeBySourceEvalRunIDs aggregates follow-up case status by source eval run.
+func (s *CaseStore) SummarizeBySourceEvalRunIDs(ctx context.Context, tenantID string, runIDs []string) (map[string]casesvc.EvalRunFollowUpSummary, error) {
+	summaries := make(map[string]casesvc.EvalRunFollowUpSummary, len(runIDs))
+	if tenantID == "" || len(runIDs) == 0 {
+		return summaries, nil
+	}
+
+	const query = `
+WITH scoped AS (
+    SELECT
+        source_eval_run_id,
+        status,
+        assigned_to,
+        updated_at,
+        created_at,
+        id
+    FROM cases
+    WHERE tenant_id = $1
+      AND source_eval_run_id = ANY($2)
+),
+counts AS (
+    SELECT
+        source_eval_run_id,
+        COUNT(*) AS follow_up_case_count,
+        COUNT(*) FILTER (WHERE status = $3) AS open_follow_up_case_count
+    FROM scoped
+    GROUP BY source_eval_run_id
+),
+latest AS (
+    SELECT DISTINCT ON (source_eval_run_id)
+        source_eval_run_id,
+        id,
+        status,
+        assigned_to
+    FROM scoped
+    ORDER BY source_eval_run_id, updated_at DESC, created_at DESC, id DESC
+)
+SELECT
+    counts.source_eval_run_id,
+    counts.follow_up_case_count,
+    counts.open_follow_up_case_count,
+    COALESCE(latest.id, ''),
+    COALESCE(latest.status, ''),
+    COALESCE(latest.assigned_to, '')
+FROM counts
+LEFT JOIN latest
+  ON latest.source_eval_run_id = counts.source_eval_run_id`
+
+	rows, err := s.pool.Query(ctx, query, tenantID, runIDs, casesvc.StatusOpen)
+	if err != nil {
+		return nil, fmt.Errorf("summarize eval run follow-up cases: %w", err)
+	}
+	defer rows.Close()
+
+	for rows.Next() {
+		var summary casesvc.EvalRunFollowUpSummary
+		if err := rows.Scan(
+			&summary.SourceEvalRunID,
+			&summary.FollowUpCaseCount,
+			&summary.OpenFollowUpCaseCount,
+			&summary.LatestFollowUpCaseID,
+			&summary.LatestFollowUpCaseStatus,
+			&summary.LatestFollowUpAssignedTo,
+		); err != nil {
+			return nil, fmt.Errorf("scan eval run follow-up summary: %w", err)
+		}
+		summaries[summary.SourceEvalRunID] = summary
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("iterate eval run follow-up summaries: %w", err)
+	}
+
+	for _, runID := range runIDs {
+		if runID == "" {
+			continue
+		}
+		if _, ok := summaries[runID]; !ok {
+			summaries[runID] = casesvc.EvalRunFollowUpSummary{SourceEvalRunID: runID}
+		}
+	}
+
+	return summaries, nil
+}
+
 // AppendNote stores an append-only operator note for a case.
 func (s *CaseStore) AppendNote(ctx context.Context, note casesvc.Note) (casesvc.Note, error) {
 	tx, err := s.pool.Begin(ctx)

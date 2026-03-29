@@ -130,3 +130,13 @@ type EvalCaseFollowUpSummary struct {
 	LatestFollowUpCaseID     string
 	LatestFollowUpCaseStatus string
 }
+
+// EvalRunFollowUpSummary aggregates case follow-up state for one source eval run.
+type EvalRunFollowUpSummary struct {
+	SourceEvalRunID          string
+	FollowUpCaseCount        int
+	OpenFollowUpCaseCount    int
+	LatestFollowUpCaseID     string
+	LatestFollowUpCaseStatus string
+	LatestFollowUpAssignedTo string
+}
