@@ -494,6 +494,11 @@ func newEvalDatasetDatasetCaseQueueActionResponse(datasetID string, latestRun ev
 	if datasetID == "" || latestRun.DatasetOpenFollowUpCaseCount <= 0 {
 		return action
 	}
+	if latestRun.DatasetLatestFollowUpCaseID != "" && latestRun.DatasetLatestFollowUpCaseStatus == casesvc.StatusOpen {
+		action.Mode = "open_existing_case"
+		action.CaseID = latestRun.DatasetLatestFollowUpCaseID
+		return action
+	}
 	action.Mode = "open_existing_queue"
 	action.SourceEvalDatasetID = datasetID
 	return action

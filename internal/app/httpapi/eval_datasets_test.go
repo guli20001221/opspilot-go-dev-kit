@@ -326,11 +326,11 @@ func TestListEvalDatasetsEndpointIncludesLatestRunSummary(t *testing.T) {
 	if got.DatasetOpenFollowUpCaseCount != 1 {
 		t.Fatalf("DatasetOpenFollowUpCaseCount = %d, want 1", got.DatasetOpenFollowUpCaseCount)
 	}
-	if got.PreferredDatasetCaseQueueAction.Mode != "open_existing_queue" {
-		t.Fatalf("PreferredDatasetCaseQueueAction.Mode = %q, want %q", got.PreferredDatasetCaseQueueAction.Mode, "open_existing_queue")
+	if got.PreferredDatasetCaseQueueAction.Mode != "open_existing_case" {
+		t.Fatalf("PreferredDatasetCaseQueueAction.Mode = %q, want %q", got.PreferredDatasetCaseQueueAction.Mode, "open_existing_case")
 	}
-	if got.PreferredDatasetCaseQueueAction.SourceEvalDatasetID != reportItem.DatasetID {
-		t.Fatalf("PreferredDatasetCaseQueueAction.SourceEvalDatasetID = %q, want %q", got.PreferredDatasetCaseQueueAction.SourceEvalDatasetID, reportItem.DatasetID)
+	if got.PreferredDatasetCaseQueueAction.CaseID != followUpCase.ID {
+		t.Fatalf("PreferredDatasetCaseQueueAction.CaseID = %q, want %q", got.PreferredDatasetCaseQueueAction.CaseID, followUpCase.ID)
 	}
 	if got.DatasetFollowUpCaseSummary.FollowUpCaseCount != 1 {
 		t.Fatalf("DatasetFollowUpCaseSummary.FollowUpCaseCount = %d, want 1", got.DatasetFollowUpCaseSummary.FollowUpCaseCount)
@@ -623,11 +623,11 @@ func TestGetEvalDatasetIncludesLatestRunSummary(t *testing.T) {
 	if got.DatasetOpenFollowUpCaseCount != 1 {
 		t.Fatalf("DatasetOpenFollowUpCaseCount = %d, want 1", got.DatasetOpenFollowUpCaseCount)
 	}
-	if got.PreferredDatasetCaseQueueAction.Mode != "open_existing_queue" {
-		t.Fatalf("PreferredDatasetCaseQueueAction.Mode = %q, want %q", got.PreferredDatasetCaseQueueAction.Mode, "open_existing_queue")
+	if got.PreferredDatasetCaseQueueAction.Mode != "open_existing_case" {
+		t.Fatalf("PreferredDatasetCaseQueueAction.Mode = %q, want %q", got.PreferredDatasetCaseQueueAction.Mode, "open_existing_case")
 	}
-	if got.PreferredDatasetCaseQueueAction.SourceEvalDatasetID != reportItem.DatasetID {
-		t.Fatalf("PreferredDatasetCaseQueueAction.SourceEvalDatasetID = %q, want %q", got.PreferredDatasetCaseQueueAction.SourceEvalDatasetID, reportItem.DatasetID)
+	if got.PreferredDatasetCaseQueueAction.CaseID == "" {
+		t.Fatal("PreferredDatasetCaseQueueAction.CaseID is empty, want linked dataset-wide follow-up case")
 	}
 	if len(got.RecentRuns) == 0 {
 		t.Fatal("RecentRuns is empty, want latest run summary")
