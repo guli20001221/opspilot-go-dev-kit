@@ -260,6 +260,10 @@ func TestListEvalDatasetsEndpointIncludesLatestRunSummary(t *testing.T) {
 	if err != nil {
 		t.Fatalf("CreateCase(follow-up) error = %v", err)
 	}
+	followUpCase, err = caseService.AssignCase(ctx, followUpCase, "dataset-operator")
+	if err != nil {
+		t.Fatalf("AssignCase(follow-up) error = %v", err)
+	}
 
 	server := httptest.NewServer(NewHandlerWithDependencies(Dependencies{
 		Cases:        caseService,
@@ -346,6 +350,21 @@ func TestListEvalDatasetsEndpointIncludesLatestRunSummary(t *testing.T) {
 	}
 	if got.DatasetFollowUpCaseSummary.LatestFollowUpCaseStatus != casesvc.StatusOpen {
 		t.Fatalf("DatasetFollowUpCaseSummary.LatestFollowUpCaseStatus = %q, want %q", got.DatasetFollowUpCaseSummary.LatestFollowUpCaseStatus, casesvc.StatusOpen)
+	}
+	if got.LinkedCaseSummary.TotalCaseCount != 1 {
+		t.Fatalf("LinkedCaseSummary.TotalCaseCount = %d, want 1", got.LinkedCaseSummary.TotalCaseCount)
+	}
+	if got.LinkedCaseSummary.OpenCaseCount != 1 {
+		t.Fatalf("LinkedCaseSummary.OpenCaseCount = %d, want 1", got.LinkedCaseSummary.OpenCaseCount)
+	}
+	if got.LinkedCaseSummary.LatestCaseID != followUpCase.ID {
+		t.Fatalf("LinkedCaseSummary.LatestCaseID = %q, want %q", got.LinkedCaseSummary.LatestCaseID, followUpCase.ID)
+	}
+	if got.LinkedCaseSummary.LatestCaseStatus != casesvc.StatusOpen {
+		t.Fatalf("LinkedCaseSummary.LatestCaseStatus = %q, want %q", got.LinkedCaseSummary.LatestCaseStatus, casesvc.StatusOpen)
+	}
+	if got.LinkedCaseSummary.LatestAssignedTo != "dataset-operator" {
+		t.Fatalf("LinkedCaseSummary.LatestAssignedTo = %q, want %q", got.LinkedCaseSummary.LatestAssignedTo, "dataset-operator")
 	}
 }
 
@@ -542,12 +561,17 @@ func TestGetEvalDatasetIncludesLatestRunSummary(t *testing.T) {
 	if err != nil {
 		t.Fatalf("GetEvalReport() error = %v", err)
 	}
-	if _, err := caseService.CreateCase(ctx, casesvc.CreateInput{
+	followUpCase, err := caseService.CreateCase(ctx, casesvc.CreateInput{
 		TenantID:           "tenant-dataset-detail",
 		Title:              "Dataset detail follow-up",
 		SourceEvalReportID: reportID,
-	}); err != nil {
+	})
+	if err != nil {
 		t.Fatalf("CreateCase(follow-up) error = %v", err)
+	}
+	followUpCase, err = caseService.AssignCase(ctx, followUpCase, "detail-operator")
+	if err != nil {
+		t.Fatalf("AssignCase(follow-up) error = %v", err)
 	}
 
 	server := httptest.NewServer(NewHandlerWithDependencies(Dependencies{
@@ -628,6 +652,21 @@ func TestGetEvalDatasetIncludesLatestRunSummary(t *testing.T) {
 	}
 	if got.PreferredDatasetCaseQueueAction.CaseID == "" {
 		t.Fatal("PreferredDatasetCaseQueueAction.CaseID is empty, want linked dataset-wide follow-up case")
+	}
+	if got.LinkedCaseSummary.TotalCaseCount != 1 {
+		t.Fatalf("LinkedCaseSummary.TotalCaseCount = %d, want 1", got.LinkedCaseSummary.TotalCaseCount)
+	}
+	if got.LinkedCaseSummary.OpenCaseCount != 1 {
+		t.Fatalf("LinkedCaseSummary.OpenCaseCount = %d, want 1", got.LinkedCaseSummary.OpenCaseCount)
+	}
+	if got.LinkedCaseSummary.LatestCaseID != followUpCase.ID {
+		t.Fatalf("LinkedCaseSummary.LatestCaseID = %q, want %q", got.LinkedCaseSummary.LatestCaseID, followUpCase.ID)
+	}
+	if got.LinkedCaseSummary.LatestCaseStatus != casesvc.StatusOpen {
+		t.Fatalf("LinkedCaseSummary.LatestCaseStatus = %q, want %q", got.LinkedCaseSummary.LatestCaseStatus, casesvc.StatusOpen)
+	}
+	if got.LinkedCaseSummary.LatestAssignedTo != "detail-operator" {
+		t.Fatalf("LinkedCaseSummary.LatestAssignedTo = %q, want %q", got.LinkedCaseSummary.LatestAssignedTo, "detail-operator")
 	}
 	if len(got.RecentRuns) == 0 {
 		t.Fatal("RecentRuns is empty, want latest run summary")

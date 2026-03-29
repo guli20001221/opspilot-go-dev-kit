@@ -15,4 +15,5 @@ Promote dataset-wide follow-up work into canonical backend contracts so `/admin/
 - the frontend should consume backend-owned dataset queue actions instead of reconstructing report IDs in browser code
 - dataset summary rows should expose the same dataset-wide follow-up summary block that detail already has, so row rendering does not fall back to browser-only aggregation
 - row-level case handoff should prefer the canonical dataset queue action directly and only keep latest-report queue fallback inside dataset detail where that narrower context is explicit
+- once the dataset queue action is canonical, the dataset list/detail should also expose a lightweight linked-case summary so operators can see owner and latest status before opening `/admin/cases`
 - dataset queue actions should prefer a direct existing-case handoff when the newest dataset-wide linked case is still open, and fall back to the dataset-scoped queue only when that newest case has already closed

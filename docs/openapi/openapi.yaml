@@ -3045,6 +3045,7 @@ components:
         - needs_follow_up
         - preferred_follow_up_action
         - follow_up_case_summary
+        - linked_case_summary
         - open_follow_up_case_count
         - preferred_case_queue_action
         - dataset_follow_up_case_summary
@@ -3102,6 +3103,8 @@ components:
           $ref: '#/components/schemas/EvalDatasetFollowUpAction'
         follow_up_case_summary:
           $ref: '#/components/schemas/EvalDatasetFollowUpCaseSummary'
+        linked_case_summary:
+          $ref: '#/components/schemas/EvalReportLinkedCaseSummary'
         open_follow_up_case_count:
           type: integer
           minimum: 0
@@ -3139,6 +3142,7 @@ components:
           - needs_follow_up
           - preferred_follow_up_action
           - open_follow_up_case_count
+          - linked_case_summary
           - preferred_case_queue_action
           - dataset_follow_up_case_summary
           - dataset_open_follow_up_case_count
@@ -3191,6 +3195,8 @@ components:
             type: integer
             minimum: 0
             description: Open follow-up cases already linked to the latest durable eval report for this dataset.
+          linked_case_summary:
+            $ref: '#/components/schemas/EvalReportLinkedCaseSummary'
           preferred_case_queue_action:
             $ref: '#/components/schemas/EvalDatasetCaseQueueAction'
           dataset_follow_up_case_summary:

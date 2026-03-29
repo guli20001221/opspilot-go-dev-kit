@@ -564,8 +564,8 @@ func TestAdminEvalDatasetsPageRendersHTML(t *testing.T) {
 	if !strings.Contains(body, "Open preferred queue") {
 		t.Fatal("preferred follow-up queue handoff missing from eval datasets page HTML")
 	}
-	if !strings.Contains(body, "Open dataset case queue") {
-		t.Fatal("dataset case queue handoff missing from eval datasets page HTML")
+	if !strings.Contains(body, "Open latest dataset case") {
+		t.Fatal("latest dataset case handoff missing from eval datasets page HTML")
 	}
 	if !strings.Contains(body, "Open follow-up cases") {
 		t.Fatal("follow-up cases handoff missing from eval datasets page HTML")
@@ -578,6 +578,9 @@ func TestAdminEvalDatasetsPageRendersHTML(t *testing.T) {
 	}
 	if !strings.Contains(body, "Dataset-wide follow-up case summary") {
 		t.Fatal("dataset-wide follow-up case summary panel missing from eval datasets page HTML")
+	}
+	if !strings.Contains(body, "Linked dataset case summary") {
+		t.Fatal("linked dataset case summary panel missing from eval datasets page HTML")
 	}
 	if !strings.Contains(body, "Latest-report follow-up case summary") {
 		t.Fatal("latest-report follow-up case summary panel missing from eval datasets page HTML")
@@ -677,6 +680,18 @@ func TestAdminEvalDatasetsPageRuntimeSmoke(t *testing.T) {
 	if err != nil {
 		t.Fatalf("GetEvalReport() error = %v", err)
 	}
+	followUpCase, err := caseService.CreateCase(ctx, casesvc.CreateInput{
+		TenantID:           "tenant-dataset-admin-smoke",
+		Title:              "Dataset admin follow-up",
+		SourceEvalReportID: reportID,
+	})
+	if err != nil {
+		t.Fatalf("CreateCase(follow-up) error = %v", err)
+	}
+	followUpCase, err = caseService.AssignCase(ctx, followUpCase, "dataset-smoke-operator")
+	if err != nil {
+		t.Fatalf("AssignCase(follow-up) error = %v", err)
+	}
 
 	server := httptest.NewServer(NewHandlerWithDependencies(Dependencies{
 		Cases:        caseService,
@@ -706,26 +721,29 @@ const reportID = process.argv[6];
   const page = await browser.newPage();
   await page.goto(baseURL + "/admin/eval-datasets?tenant_id=" + encodeURIComponent(tenantID) + "&limit=10");
   await page.waitForSelector("#datasetRows tr");
-  const firstRowText = await page.textContent("#datasetRows tr:first-child");
-  if (!firstRowText.includes(runID)) throw new Error("latest run summary missing from dataset row");
+    const firstRowText = await page.textContent("#datasetRows tr:first-child");
+    if (!firstRowText.includes(runID)) throw new Error("latest run summary missing from dataset row");
     if (!firstRowText.includes("1 unresolved follow-up items")) throw new Error("unresolved follow-up count missing from dataset row");
     if (!firstRowText.includes("1 total / 1 open / 0 closed dataset follow-up cases")) throw new Error("dataset-wide follow-up summary missing from dataset row");
-    if (!firstRowText.includes("Open dataset case queue")) throw new Error("dataset case queue handoff missing from dataset row");
+    if (!firstRowText.includes("Latest dataset case: ` + followUpCase.ID + ` (open, assigned to dataset-smoke-operator)")) throw new Error("linked dataset case summary missing from dataset row");
+    if (!firstRowText.includes("Open latest dataset case")) throw new Error("latest dataset case handoff missing from dataset row");
     const latestRunHref = await page.getAttribute('a[href*="/admin/eval-runs?"][href*="run_id=' + encodeURIComponent(runID) + '"]', "href");
     if (!latestRunHref) throw new Error("latest run handoff missing from dataset row");
     const latestReportHref = await page.getAttribute('a[href*="/admin/eval-reports?"][href*="selected_report_id=' + encodeURIComponent(reportID) + '"]', "href");
     if (!latestReportHref) throw new Error("latest report handoff missing from dataset row");
-    const datasetRowQueueHref = await page.getAttribute('#datasetRows tr:first-child a[href*="/admin/cases?"][href*="source_eval_dataset_id=' + encodeURIComponent(datasetID) + '"]', "href");
-    if (!datasetRowQueueHref) throw new Error("dataset-wide case queue handoff missing from dataset row");
+    const datasetRowCaseHref = await page.getAttribute('#datasetRows tr:first-child a[href*="/admin/cases?"][href*="case_id=' + encodeURIComponent("` + followUpCase.ID + `") + '"]', "href");
+    if (!datasetRowCaseHref) throw new Error("latest dataset case handoff missing from dataset row");
   const detailText = await page.textContent("#datasetDetail");
   if (!detailText.includes(runID)) throw new Error("latest run summary missing from dataset detail");
   if (!detailText.includes(reportID)) throw new Error("latest report summary missing from dataset detail");
-  if (!detailText.includes("Dataset-wide follow-up case summary")) throw new Error("dataset-wide follow-up case summary section missing from dataset detail");
-  if (!detailText.includes("Latest-report follow-up case summary")) throw new Error("latest-report follow-up case summary section missing from dataset detail");
-  if (!detailText.includes("Total follow-up cases")) throw new Error("follow-up case total missing from dataset detail");
-  if (!detailText.includes("Closed follow-up cases")) throw new Error("closed follow-up case count missing from dataset detail");
-  const datasetQueueHref = await page.getAttribute('a[href*="/admin/cases?"][href*="source_eval_dataset_id=' + encodeURIComponent(datasetID) + '"]', "href");
-  if (!datasetQueueHref) throw new Error("dataset-wide follow-up case handoff missing from dataset detail");
+    if (!detailText.includes("Dataset-wide follow-up case summary")) throw new Error("dataset-wide follow-up case summary section missing from dataset detail");
+    if (!detailText.includes("Linked dataset case summary")) throw new Error("linked dataset case summary section missing from dataset detail");
+    if (!detailText.includes("Latest-report follow-up case summary")) throw new Error("latest-report follow-up case summary section missing from dataset detail");
+    if (!detailText.includes("Total follow-up cases")) throw new Error("follow-up case total missing from dataset detail");
+    if (!detailText.includes("Closed follow-up cases")) throw new Error("closed follow-up case count missing from dataset detail");
+    if (!detailText.includes("dataset-smoke-operator")) throw new Error("linked dataset case owner missing from dataset detail");
+    const datasetCaseHref = await page.getAttribute('a[href*="/admin/cases?"][href*="case_id=' + encodeURIComponent("` + followUpCase.ID + `") + '"]', "href");
+    if (!datasetCaseHref) throw new Error("linked dataset case handoff missing from dataset detail");
   await page.click("#needsFollowUpQuickView");
   await page.waitForFunction(() => document.querySelector("#visibleCount")?.textContent?.trim() === "1");
   const currentURL = new URL(page.url());
