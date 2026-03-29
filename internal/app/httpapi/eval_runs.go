@@ -21,26 +21,27 @@ type createEvalRunRequest struct {
 }
 
 type evalRunResponse struct {
-	RunID                        string                        `json:"run_id"`
-	TenantID                     string                        `json:"tenant_id"`
-	DatasetID                    string                        `json:"dataset_id"`
-	DatasetName                  string                        `json:"dataset_name"`
-	DatasetItemCount             int                           `json:"dataset_item_count"`
-	ResultSummary                *evalRunResultSummaryResponse `json:"result_summary,omitempty"`
-	ItemWithoutOpenFollowUpCount int                           `json:"item_without_open_follow_up_count"`
-	NeedsFollowUp                bool                          `json:"needs_follow_up"`
-	ReportID                     string                        `json:"report_id,omitempty"`
-	ReportStatus                 string                        `json:"report_status,omitempty"`
-	Status                       string                        `json:"status"`
-	CreatedBy                    string                        `json:"created_by"`
-	ErrorReason                  string                        `json:"error_reason,omitempty"`
-	CreatedAt                    string                        `json:"created_at"`
-	UpdatedAt                    string                        `json:"updated_at"`
-	StartedAt                    string                        `json:"started_at,omitempty"`
-	FinishedAt                   string                        `json:"finished_at,omitempty"`
-	Events                       []evalRunEventResponse        `json:"events,omitempty"`
-	Items                        []evalRunItemResponse         `json:"items,omitempty"`
-	ItemResults                  []evalRunItemResultResponse   `json:"item_results,omitempty"`
+	RunID                        string                              `json:"run_id"`
+	TenantID                     string                              `json:"tenant_id"`
+	DatasetID                    string                              `json:"dataset_id"`
+	DatasetName                  string                              `json:"dataset_name"`
+	DatasetItemCount             int                                 `json:"dataset_item_count"`
+	ResultSummary                *evalRunResultSummaryResponse       `json:"result_summary,omitempty"`
+	ItemWithoutOpenFollowUpCount int                                 `json:"item_without_open_follow_up_count"`
+	NeedsFollowUp                bool                                `json:"needs_follow_up"`
+	LinkedCaseSummary            evalReportLinkedCaseSummaryResponse `json:"linked_case_summary"`
+	ReportID                     string                              `json:"report_id,omitempty"`
+	ReportStatus                 string                              `json:"report_status,omitempty"`
+	Status                       string                              `json:"status"`
+	CreatedBy                    string                              `json:"created_by"`
+	ErrorReason                  string                              `json:"error_reason,omitempty"`
+	CreatedAt                    string                              `json:"created_at"`
+	UpdatedAt                    string                              `json:"updated_at"`
+	StartedAt                    string                              `json:"started_at,omitempty"`
+	FinishedAt                   string                              `json:"finished_at,omitempty"`
+	Events                       []evalRunEventResponse              `json:"events,omitempty"`
+	Items                        []evalRunItemResponse               `json:"items,omitempty"`
+	ItemResults                  []evalRunItemResultResponse         `json:"item_results,omitempty"`
 }
 
 type listEvalRunsResponse struct {
@@ -179,7 +180,7 @@ func (a *appHandler) handleRetryEvalRun(w http.ResponseWriter, r *http.Request, 
 		return
 	}
 
-	writeJSON(w, http.StatusOK, newEvalRunResponse(retried, nil, nil, nil, nil, evalRunReportSummary{}, 0))
+	writeJSON(w, http.StatusOK, newEvalRunResponse(retried, nil, nil, nil, nil, evalReportLinkedCaseSummaryResponse{}, evalRunReportSummary{}, 0))
 }
 
 func (a *appHandler) handleCreateEvalRun(w http.ResponseWriter, r *http.Request) {
@@ -212,7 +213,7 @@ func (a *appHandler) handleCreateEvalRun(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	writeJSON(w, http.StatusCreated, newEvalRunResponse(item, nil, nil, nil, nil, evalRunReportSummary{}, 0))
+	writeJSON(w, http.StatusCreated, newEvalRunResponse(item, nil, nil, nil, nil, evalReportLinkedCaseSummaryResponse{}, evalRunReportSummary{}, 0))
 }
 
 func (a *appHandler) handleListEvalRuns(w http.ResponseWriter, r *http.Request) {
@@ -274,7 +275,7 @@ func parseEvalRunListFilter(r *http.Request) (evalsvc.RunListFilter, *bool, erro
 	return filter, needsFollowUp, nil
 }
 
-func newEvalRunResponse(item evalsvc.EvalRun, events []evalsvc.EvalRunEvent, items []evalsvc.EvalRunItem, results []evalsvc.EvalRunItemResult, followUpSummaries map[string]casesvc.EvalCaseFollowUpSummary, reportSummary evalRunReportSummary, itemWithoutOpenFollowUpCount int) evalRunResponse {
+func newEvalRunResponse(item evalsvc.EvalRun, events []evalsvc.EvalRunEvent, items []evalsvc.EvalRunItem, results []evalsvc.EvalRunItemResult, followUpSummaries map[string]casesvc.EvalCaseFollowUpSummary, linkedCaseSummary evalReportLinkedCaseSummaryResponse, reportSummary evalRunReportSummary, itemWithoutOpenFollowUpCount int) evalRunResponse {
 	resp := evalRunResponse{
 		RunID:                        item.ID,
 		TenantID:                     item.TenantID,
@@ -283,6 +284,7 @@ func newEvalRunResponse(item evalsvc.EvalRun, events []evalsvc.EvalRunEvent, ite
 		DatasetItemCount:             item.DatasetItemCount,
 		ItemWithoutOpenFollowUpCount: itemWithoutOpenFollowUpCount,
 		NeedsFollowUp:                itemWithoutOpenFollowUpCount > 0,
+		LinkedCaseSummary:            linkedCaseSummary,
 		ReportID:                     reportSummary.ReportID,
 		ReportStatus:                 reportSummary.ReportStatus,
 		Status:                       item.Status,
@@ -438,11 +440,15 @@ func (a *appHandler) buildEvalRunListRows(r *http.Request, items []evalsvc.EvalR
 		if err != nil {
 			return nil, err
 		}
+		linkedCaseSummary, err := a.evalRunLinkedCaseSummary(r.Context(), item.TenantID, summary.PerEvalCaseSummary)
+		if err != nil {
+			return nil, err
+		}
 		reportSummary, err := a.evalRunReportSummary(r.Context(), item)
 		if err != nil {
 			return nil, err
 		}
-		rows = append(rows, newEvalRunResponse(item, nil, nil, nil, nil, reportSummary, summary.ItemWithoutOpenFollowUpCount))
+		rows = append(rows, newEvalRunResponse(item, nil, nil, nil, nil, linkedCaseSummary, reportSummary, summary.ItemWithoutOpenFollowUpCount))
 	}
 	return rows, nil
 }
@@ -476,6 +482,47 @@ func (a *appHandler) evalRunReportSummary(ctx context.Context, item evalsvc.Eval
 type evalRunFollowUpSummary struct {
 	PerEvalCaseSummary           map[string]casesvc.EvalCaseFollowUpSummary
 	ItemWithoutOpenFollowUpCount int
+}
+
+func (a *appHandler) evalRunLinkedCaseSummary(ctx context.Context, tenantID string, followUpSummaries map[string]casesvc.EvalCaseFollowUpSummary) (evalReportLinkedCaseSummaryResponse, error) {
+	summary := evalReportLinkedCaseSummaryResponse{}
+	if len(followUpSummaries) == 0 {
+		return summary, nil
+	}
+
+	var latestCase casesvc.Case
+	hasLatestCase := false
+	for _, item := range followUpSummaries {
+		summary.TotalCaseCount += item.FollowUpCaseCount
+		summary.OpenCaseCount += item.OpenFollowUpCaseCount
+		if a.cases == nil || item.LatestFollowUpCaseID == "" {
+			continue
+		}
+
+		linkedCase, err := a.cases.GetCase(ctx, item.LatestFollowUpCaseID)
+		if err != nil {
+			if errors.Is(err, casesvc.ErrCaseNotFound) {
+				continue
+			}
+			return evalReportLinkedCaseSummaryResponse{}, fmt.Errorf("get linked eval-run case %q: %w", item.LatestFollowUpCaseID, err)
+		}
+		if linkedCase.TenantID != tenantID {
+			continue
+		}
+		if !hasLatestCase ||
+			linkedCase.UpdatedAt.After(latestCase.UpdatedAt) ||
+			(linkedCase.UpdatedAt.Equal(latestCase.UpdatedAt) && linkedCase.CreatedAt.After(latestCase.CreatedAt)) ||
+			(linkedCase.UpdatedAt.Equal(latestCase.UpdatedAt) && linkedCase.CreatedAt.Equal(latestCase.CreatedAt) && linkedCase.ID > latestCase.ID) {
+			latestCase = linkedCase
+			hasLatestCase = true
+		}
+	}
+	if hasLatestCase {
+		summary.LatestCaseID = latestCase.ID
+		summary.LatestCaseStatus = latestCase.Status
+		summary.LatestAssignedTo = latestCase.AssignedTo
+	}
+	return summary, nil
 }
 
 func (a *appHandler) evalRunFollowUpSummary(ctx context.Context, runID string, tenantID string) (evalRunFollowUpSummary, error) {
@@ -576,7 +623,13 @@ func (a *appHandler) writeEvalRunDetailResponse(w http.ResponseWriter, r *http.R
 		return
 	}
 
-	writeJSON(w, statusCode, newEvalRunResponse(item, detail.Events, detail.Items, detail.ItemResults, followUpSummaries, reportSummary, itemWithoutOpenFollowUpCount))
+	linkedCaseSummary, err := a.evalRunLinkedCaseSummary(r.Context(), tenantID, followUpSummaries)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "eval_run_linked_case_summary_failed", err.Error())
+		return
+	}
+
+	writeJSON(w, statusCode, newEvalRunResponse(item, detail.Events, detail.Items, detail.ItemResults, followUpSummaries, linkedCaseSummary, reportSummary, itemWithoutOpenFollowUpCount))
 }
 
 func parseEvalRunPath(path string) (runID string, action string, ok bool) {

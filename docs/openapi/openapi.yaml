@@ -3247,6 +3247,7 @@ components:
         - dataset_item_count
         - item_without_open_follow_up_count
         - needs_follow_up
+        - linked_case_summary
         - status
         - created_by
         - created_at
@@ -3275,6 +3276,8 @@ components:
         needs_follow_up:
           type: boolean
           description: Whether this run still has at least one failed item without an open follow-up case.
+        linked_case_summary:
+          $ref: '#/components/schemas/EvalReportLinkedCaseSummary'
         report_id:
           type: string
           description: Stable eval-report ID when this terminal run has already materialized a durable eval report artifact.
@@ -3324,6 +3327,9 @@ components:
         - dataset_id
         - dataset_name
         - dataset_item_count
+        - item_without_open_follow_up_count
+        - needs_follow_up
+        - linked_case_summary
         - status
         - created_by
         - created_at
@@ -3345,6 +3351,15 @@ components:
             Optional terminal-only summary derived from durable per-item results.
             Omitted when no run-item results have been recorded yet.
           $ref: '#/components/schemas/EvalRunResultSummary'
+        item_without_open_follow_up_count:
+          type: integer
+          minimum: 0
+          description: Failed item results in this run that still lack an open follow-up case.
+        needs_follow_up:
+          type: boolean
+          description: Whether this run still has at least one failed item without an open follow-up case.
+        linked_case_summary:
+          $ref: '#/components/schemas/EvalReportLinkedCaseSummary'
         status:
           type: string
           enum:

@@ -841,8 +841,14 @@ func TestAdminEvalRunsPageRendersHTML(t *testing.T) {
 	if !strings.Contains(body, "Open eval report API detail") {
 		t.Fatal("eval report api handoff missing from eval runs page HTML")
 	}
+	if !strings.Contains(body, "Open latest run case") {
+		t.Fatal("latest run case handoff missing from eval runs page HTML")
+	}
 	if !strings.Contains(body, "Eval report ID") {
 		t.Fatal("eval report identity missing from eval runs page HTML")
+	}
+	if !strings.Contains(body, "Linked run case summary") {
+		t.Fatal("linked run case summary missing from eval runs page HTML")
 	}
 	if !strings.Contains(body, "Create case from result") {
 		t.Fatal("result-level create-case action missing from eval runs page HTML")

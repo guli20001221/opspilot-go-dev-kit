@@ -392,7 +392,7 @@ func TestListEvalRunsEndpointIncludesFollowUpSummary(t *testing.T) {
 	datasetService := evalsvc.NewDatasetService(evalCaseService)
 	runService := evalsvc.NewRunService(datasetService)
 
-	makeFailedRun := func(title string, withOpenFollowUp bool) evalsvc.EvalRun {
+	makeFailedRun := func(title string, withOpenFollowUp bool) (evalsvc.EvalRun, casesvc.Case) {
 		t.Helper()
 		sourceCase, err := caseService.CreateCase(ctx, casesvc.CreateInput{
 			TenantID: "tenant-run",
@@ -434,22 +434,28 @@ func TestListEvalRunsEndpointIncludesFollowUpSummary(t *testing.T) {
 		if _, err := runService.MarkRunFailed(ctx, run.ID, "fault injection: eval run failed"); err != nil {
 			t.Fatalf("MarkRunFailed(%q) error = %v", title, err)
 		}
+		var followUpCase casesvc.Case
 		if withOpenFollowUp {
-			if _, err := caseService.CreateCase(ctx, casesvc.CreateInput{
+			followUpCase, err = caseService.CreateCase(ctx, casesvc.CreateInput{
 				TenantID:         "tenant-run",
 				Title:            "Follow-up for " + title,
 				Summary:          "Existing open follow-up",
 				SourceEvalCaseID: evalCase.ID,
 				CreatedBy:        "operator-run",
-			}); err != nil {
+			})
+			if err != nil {
 				t.Fatalf("CreateCase(follow-up %q) error = %v", title, err)
 			}
+			followUpCase, err = caseService.AssignCase(ctx, followUpCase, "run-operator")
+			if err != nil {
+				t.Fatalf("AssignCase(follow-up %q) error = %v", title, err)
+			}
 		}
-		return run
+		return run, followUpCase
 	}
 
-	uncoveredRun := makeFailedRun("Needs follow-up", false)
-	coveredRun := makeFailedRun("Already covered", true)
+	uncoveredRun, _ := makeFailedRun("Needs follow-up", false)
+	coveredRun, coveredFollowUpCase := makeFailedRun("Already covered", true)
 
 	server := httptest.NewServer(NewHandlerWithDependencies(Dependencies{
 		Cases:        caseService,
@@ -491,6 +497,21 @@ func TestListEvalRunsEndpointIncludesFollowUpSummary(t *testing.T) {
 	}
 	if byID[coveredRun.ID].NeedsFollowUp {
 		t.Fatal("covered NeedsFollowUp = true, want false")
+	}
+	if got := byID[coveredRun.ID].LinkedCaseSummary.TotalCaseCount; got != 1 {
+		t.Fatalf("covered LinkedCaseSummary.TotalCaseCount = %d, want 1", got)
+	}
+	if got := byID[coveredRun.ID].LinkedCaseSummary.OpenCaseCount; got != 1 {
+		t.Fatalf("covered LinkedCaseSummary.OpenCaseCount = %d, want 1", got)
+	}
+	if got := byID[coveredRun.ID].LinkedCaseSummary.LatestCaseID; got != coveredFollowUpCase.ID {
+		t.Fatalf("covered LinkedCaseSummary.LatestCaseID = %q, want %q", got, coveredFollowUpCase.ID)
+	}
+	if got := byID[coveredRun.ID].LinkedCaseSummary.LatestCaseStatus; got != casesvc.StatusOpen {
+		t.Fatalf("covered LinkedCaseSummary.LatestCaseStatus = %q, want %q", got, casesvc.StatusOpen)
+	}
+	if got := byID[coveredRun.ID].LinkedCaseSummary.LatestAssignedTo; got != "run-operator" {
+		t.Fatalf("covered LinkedCaseSummary.LatestAssignedTo = %q, want %q", got, "run-operator")
 	}
 }
 
@@ -913,6 +934,10 @@ func TestGetEvalRunEndpointIncludesFollowUpReuseActions(t *testing.T) {
 	if err != nil {
 		t.Fatalf("CreateCase(followUpCase) error = %v", err)
 	}
+	followUpCase, err = caseService.AssignCase(ctx, followUpCase, "detail-run-operator")
+	if err != nil {
+		t.Fatalf("AssignCase(followUpCase) error = %v", err)
+	}
 
 	server := httptest.NewServer(NewHandlerWithDependencies(Dependencies{
 		Cases:        caseService,
@@ -952,6 +977,21 @@ func TestGetEvalRunEndpointIncludesFollowUpReuseActions(t *testing.T) {
 	}
 	if got.ItemResults[0].PreferredFollowUpAction.CaseID != followUpCase.ID {
 		t.Fatalf("ItemResults[0].PreferredFollowUpAction.CaseID = %q, want %q", got.ItemResults[0].PreferredFollowUpAction.CaseID, followUpCase.ID)
+	}
+	if got.LinkedCaseSummary.TotalCaseCount != 1 {
+		t.Fatalf("LinkedCaseSummary.TotalCaseCount = %d, want 1", got.LinkedCaseSummary.TotalCaseCount)
+	}
+	if got.LinkedCaseSummary.OpenCaseCount != 1 {
+		t.Fatalf("LinkedCaseSummary.OpenCaseCount = %d, want 1", got.LinkedCaseSummary.OpenCaseCount)
+	}
+	if got.LinkedCaseSummary.LatestCaseID != followUpCase.ID {
+		t.Fatalf("LinkedCaseSummary.LatestCaseID = %q, want %q", got.LinkedCaseSummary.LatestCaseID, followUpCase.ID)
+	}
+	if got.LinkedCaseSummary.LatestCaseStatus != casesvc.StatusOpen {
+		t.Fatalf("LinkedCaseSummary.LatestCaseStatus = %q, want %q", got.LinkedCaseSummary.LatestCaseStatus, casesvc.StatusOpen)
+	}
+	if got.LinkedCaseSummary.LatestAssignedTo != "detail-run-operator" {
+		t.Fatalf("LinkedCaseSummary.LatestAssignedTo = %q, want %q", got.LinkedCaseSummary.LatestAssignedTo, "detail-run-operator")
 	}
 }
 
