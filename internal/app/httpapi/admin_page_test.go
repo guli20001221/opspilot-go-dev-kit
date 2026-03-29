@@ -1233,6 +1233,9 @@ func TestAdminEvalReportComparePageRendersHTML(t *testing.T) {
 	if !strings.Contains(body, "Open right compare follow-ups") {
 		t.Fatal("right compare-follow-ups handoff missing from compare HTML")
 	}
+	if !strings.Contains(body, "Linked follow-up cases") {
+		t.Fatal("linked follow-up summary missing from compare HTML")
+	}
 	if !strings.Contains(body, "Follow-up") {
 		t.Fatal("follow-up summary missing from compare HTML")
 	}
@@ -1385,12 +1388,18 @@ async function assertCaseSource(page, apiBaseURL, caseID, tenantID, expectedRepo
   if (!leftFollowUpText.includes("1 cases / 1 open")) {
     throw new Error("left follow-up summary missing from compare detail");
   }
+  if (!leftFollowUpText.includes("Linked follow-up cases") || !leftFollowUpText.includes(leftCaseID)) {
+    throw new Error("left linked-case summary missing from compare detail");
+  }
   if (!leftFollowUpText.includes("Compare follow-up") || !leftFollowUpText.includes("1 cases / 1 open")) {
     throw new Error("left compare-derived summary missing from compare detail");
   }
   const rightFollowUpText = (await page.textContent("#rightReportDetail")).trim();
   if (!rightFollowUpText.includes("1 cases / 1 open")) {
     throw new Error("right follow-up summary missing from compare detail");
+  }
+  if (!rightFollowUpText.includes("Linked follow-up cases") || !rightFollowUpText.includes(rightCaseID)) {
+    throw new Error("right linked-case summary missing from compare detail");
   }
   if (!rightFollowUpText.includes("Compare follow-up") || !rightFollowUpText.includes("1 cases / 1 open")) {
     throw new Error("right compare-derived summary missing from compare detail");

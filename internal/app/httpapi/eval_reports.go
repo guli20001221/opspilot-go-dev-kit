@@ -133,6 +133,7 @@ type evalReportComparisonItemResponse struct {
 	OpenFollowUpCaseCount           int                                     `json:"open_follow_up_case_count"`
 	LatestFollowUpCaseID            string                                  `json:"latest_follow_up_case_id,omitempty"`
 	LatestFollowUpCaseStatus        string                                  `json:"latest_follow_up_case_status,omitempty"`
+	LinkedCaseSummary               *evalReportLinkedCaseSummaryResponse    `json:"linked_case_summary,omitempty"`
 	CompareFollowUpCaseCount        int                                     `json:"compare_follow_up_case_count"`
 	OpenCompareFollowUpCaseCount    int                                     `json:"open_compare_follow_up_case_count"`
 	LatestCompareFollowUpCaseID     string                                  `json:"latest_compare_follow_up_case_id,omitempty"`
@@ -228,6 +229,7 @@ func (a *appHandler) handleEvalReportCompare(w http.ResponseWriter, r *http.Requ
 	followUpSummaries := map[string]casesvc.EvalReportFollowUpSummary{}
 	badCaseWithoutOpenFollowUpCounts := map[string]int{}
 	compareFollowUpSummaries := map[string]casesvc.EvalReportCompareFollowUpSummary{}
+	linkedCaseSummaries := map[string]*evalReportLinkedCaseSummaryResponse{}
 	if a.cases != nil {
 		followUpSummaries, err = a.cases.SummarizeBySourceEvalReportIDs(r.Context(), tenantID, []string{comparison.Left.ID, comparison.Right.ID})
 		if err != nil {
@@ -239,6 +241,14 @@ func (a *appHandler) handleEvalReportCompare(w http.ResponseWriter, r *http.Requ
 			writeError(w, http.StatusInternalServerError, "eval_report_follow_up_summary_failed", err.Error())
 			return
 		}
+		for _, report := range []evalsvc.EvalReport{comparison.Left, comparison.Right} {
+			linkedSummary, linkedErr := a.evalReportLinkedCaseSummary(r.Context(), tenantID, report.ID, followUpSummaries[report.ID])
+			if linkedErr != nil {
+				writeError(w, http.StatusInternalServerError, "eval_report_linked_case_summary_failed", linkedErr.Error())
+				return
+			}
+			linkedCaseSummaries[report.ID] = linkedSummary
+		}
 	}
 	badCaseWithoutOpenFollowUpCounts, err = a.evalReportBadCaseWithoutOpenFollowUpCounts(r.Context(), tenantID, []evalsvc.EvalReport{comparison.Left, comparison.Right})
 	if err != nil {
@@ -247,8 +257,8 @@ func (a *appHandler) handleEvalReportCompare(w http.ResponseWriter, r *http.Requ
 	}
 
 	writeJSON(w, http.StatusOK, evalReportComparisonResponse{
-		Left:  newEvalReportComparisonItemResponse(comparison.Left, followUpSummaries[comparison.Left.ID], compareFollowUpSummaries[comparison.Left.ID], badCaseWithoutOpenFollowUpCounts[comparison.Left.ID]),
-		Right: newEvalReportComparisonItemResponse(comparison.Right, followUpSummaries[comparison.Right.ID], compareFollowUpSummaries[comparison.Right.ID], badCaseWithoutOpenFollowUpCounts[comparison.Right.ID]),
+		Left:  newEvalReportComparisonItemResponse(comparison.Left, followUpSummaries[comparison.Left.ID], linkedCaseSummaries[comparison.Left.ID], compareFollowUpSummaries[comparison.Left.ID], badCaseWithoutOpenFollowUpCounts[comparison.Left.ID]),
+		Right: newEvalReportComparisonItemResponse(comparison.Right, followUpSummaries[comparison.Right.ID], linkedCaseSummaries[comparison.Right.ID], compareFollowUpSummaries[comparison.Right.ID], badCaseWithoutOpenFollowUpCounts[comparison.Right.ID]),
 		Summary: evalReportComparisonSummaryResponse{
 			SameTenant:           comparison.Summary.SameTenant,
 			SameDataset:          comparison.Summary.SameDataset,
@@ -711,7 +721,7 @@ func newEvalReportCompareQueueActionResponse(reportID string, compareFollowUpSum
 	return action
 }
 
-func newEvalReportComparisonItemResponse(item evalsvc.EvalReport, followUpSummary casesvc.EvalReportFollowUpSummary, compareFollowUpSummary casesvc.EvalReportCompareFollowUpSummary, badCaseWithoutOpenFollowUpCount int) evalReportComparisonItemResponse {
+func newEvalReportComparisonItemResponse(item evalsvc.EvalReport, followUpSummary casesvc.EvalReportFollowUpSummary, linkedCaseSummary *evalReportLinkedCaseSummaryResponse, compareFollowUpSummary casesvc.EvalReportCompareFollowUpSummary, badCaseWithoutOpenFollowUpCount int) evalReportComparisonItemResponse {
 	return evalReportComparisonItemResponse{
 		ReportID:                        item.ID,
 		TenantID:                        item.TenantID,
@@ -735,6 +745,7 @@ func newEvalReportComparisonItemResponse(item evalsvc.EvalReport, followUpSummar
 		OpenFollowUpCaseCount:           followUpSummary.OpenFollowUpCaseCount,
 		LatestFollowUpCaseID:            followUpSummary.LatestFollowUpCaseID,
 		LatestFollowUpCaseStatus:        followUpSummary.LatestFollowUpCaseStatus,
+		LinkedCaseSummary:               linkedCaseSummary,
 		CompareFollowUpCaseCount:        compareFollowUpSummary.CompareFollowUpCaseCount,
 		OpenCompareFollowUpCaseCount:    compareFollowUpSummary.OpenCompareFollowUpCaseCount,
 		LatestCompareFollowUpCaseID:     compareFollowUpSummary.LatestCompareFollowUpCaseID,

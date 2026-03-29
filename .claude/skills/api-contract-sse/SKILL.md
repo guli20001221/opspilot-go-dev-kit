@@ -66,6 +66,7 @@ Keep the HTTP surface explicit, documented, stable, and friendly to streaming ag
 35. Once canonical eval-dataset reads already expose run-backed case summary for the latest durable run, add a typed preferred run-backed case handoff action on that same contract instead of leaving the browser to decide between an existing case and the open run-backed queue.
 36. Once canonical eval-run detail already exposes item-level follow-up actions, add a lightweight `linked_case_summary` on those same `items` and `item_results` instead of forcing operator pages to infer follow-up pressure from only `latest_follow_up_case_id`.
 37. Once canonical eval-case reads already expose follow-up counts, add a lightweight `linked_case_summary` on that same contract instead of leaving `/admin/evals` to infer total/open/latest linked follow-up state from only `latest_follow_up_case_id`.
+38. Once canonical eval-report compare reads already expose follow-up counts per side, add a lightweight `linked_case_summary` on those same compare items instead of leaving `/admin/eval-report-compare` to infer owner or queue state from only `latest_follow_up_case_id`.
 
 ## Output contract
 When you finish, always report:
@@ -92,3 +93,4 @@ When you finish, always report:
 - once canonical eval-dataset detail already exposes `recent_runs[]` with unresolved pressure and report linkage, add a typed `preferred_follow_up_action` on those same rows instead of leaving `/admin/eval-datasets` to decide between report and run queues from `report_id` plus `needs_follow_up`
 - once canonical eval-run detail already exposes item-level follow-up actions, prefer adding `linked_case_summary` on those same rows instead of leaving `/admin/eval-runs` to infer total/open/latest follow-up state from one latest case ID
 - once canonical eval-case reads already expose follow-up counts, prefer adding `linked_case_summary` on that same contract instead of leaving `/admin/evals` to infer total/open/latest linked follow-up state from only `latest_follow_up_case_id`
+- once canonical eval-report compare reads already expose follow-up counts per side, prefer adding `linked_case_summary` on those same compare items instead of leaving `/admin/eval-report-compare` to infer owner or queue state from only `latest_follow_up_case_id`

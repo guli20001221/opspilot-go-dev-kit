@@ -517,10 +517,17 @@ func TestCompareEvalReportsReturnsTypedSummary(t *testing.T) {
 			OpenFollowUpCaseCount           int     `json:"open_follow_up_case_count"`
 			LatestFollowUpCaseID            string  `json:"latest_follow_up_case_id"`
 			LatestFollowUpCaseStatus        string  `json:"latest_follow_up_case_status"`
-			CompareFollowUpCaseCount        int     `json:"compare_follow_up_case_count"`
-			OpenCompareFollowUpCaseCount    int     `json:"open_compare_follow_up_case_count"`
-			LatestCompareFollowUpCaseID     string  `json:"latest_compare_follow_up_case_id"`
-			LatestCompareFollowUpCaseStatus string  `json:"latest_compare_follow_up_case_status"`
+			LinkedCaseSummary               struct {
+				TotalCaseCount   int    `json:"total_case_count"`
+				OpenCaseCount    int    `json:"open_case_count"`
+				LatestCaseID     string `json:"latest_case_id"`
+				LatestCaseStatus string `json:"latest_case_status"`
+				LatestAssignedTo string `json:"latest_assigned_to"`
+			} `json:"linked_case_summary"`
+			CompareFollowUpCaseCount        int    `json:"compare_follow_up_case_count"`
+			OpenCompareFollowUpCaseCount    int    `json:"open_compare_follow_up_case_count"`
+			LatestCompareFollowUpCaseID     string `json:"latest_compare_follow_up_case_id"`
+			LatestCompareFollowUpCaseStatus string `json:"latest_compare_follow_up_case_status"`
 			PreferredCompareFollowUpAction  struct {
 				Mode               string `json:"mode"`
 				SourceEvalReportID string `json:"source_eval_report_id"`
@@ -549,10 +556,17 @@ func TestCompareEvalReportsReturnsTypedSummary(t *testing.T) {
 			OpenFollowUpCaseCount           int     `json:"open_follow_up_case_count"`
 			LatestFollowUpCaseID            string  `json:"latest_follow_up_case_id"`
 			LatestFollowUpCaseStatus        string  `json:"latest_follow_up_case_status"`
-			CompareFollowUpCaseCount        int     `json:"compare_follow_up_case_count"`
-			OpenCompareFollowUpCaseCount    int     `json:"open_compare_follow_up_case_count"`
-			LatestCompareFollowUpCaseID     string  `json:"latest_compare_follow_up_case_id"`
-			LatestCompareFollowUpCaseStatus string  `json:"latest_compare_follow_up_case_status"`
+			LinkedCaseSummary               struct {
+				TotalCaseCount   int    `json:"total_case_count"`
+				OpenCaseCount    int    `json:"open_case_count"`
+				LatestCaseID     string `json:"latest_case_id"`
+				LatestCaseStatus string `json:"latest_case_status"`
+				LatestAssignedTo string `json:"latest_assigned_to"`
+			} `json:"linked_case_summary"`
+			CompareFollowUpCaseCount        int    `json:"compare_follow_up_case_count"`
+			OpenCompareFollowUpCaseCount    int    `json:"open_compare_follow_up_case_count"`
+			LatestCompareFollowUpCaseID     string `json:"latest_compare_follow_up_case_id"`
+			LatestCompareFollowUpCaseStatus string `json:"latest_compare_follow_up_case_status"`
 			PreferredCompareFollowUpAction  struct {
 				Mode               string `json:"mode"`
 				SourceEvalReportID string `json:"source_eval_report_id"`
@@ -610,6 +624,9 @@ func TestCompareEvalReportsReturnsTypedSummary(t *testing.T) {
 	if got.Left.FollowUpCaseCount != 1 || got.Left.OpenFollowUpCaseCount != 1 || got.Left.LatestFollowUpCaseStatus != casesvc.StatusOpen {
 		t.Fatalf("Left follow-up summary = %#v, want count=1 open=1 status=open", got.Left)
 	}
+	if got.Left.LinkedCaseSummary.TotalCaseCount != 1 || got.Left.LinkedCaseSummary.OpenCaseCount != 1 || got.Left.LinkedCaseSummary.LatestCaseID != leftFollowUp.ID {
+		t.Fatalf("Left linked case summary = %#v, want 1 total / 1 open / latest %q", got.Left.LinkedCaseSummary, leftFollowUp.ID)
+	}
 	if got.Left.CompareFollowUpCaseCount != 0 || got.Left.OpenCompareFollowUpCaseCount != 0 || got.Left.LatestCompareFollowUpCaseID != "" || got.Left.LatestCompareFollowUpCaseStatus != "" {
 		t.Fatalf("Left compare follow-up summary = %#v, want zero-value compare summary before compare-derived cases exist", got.Left)
 	}
@@ -624,6 +641,9 @@ func TestCompareEvalReportsReturnsTypedSummary(t *testing.T) {
 	}
 	if got.Right.FollowUpCaseCount != 1 || got.Right.OpenFollowUpCaseCount != 1 || got.Right.LatestFollowUpCaseStatus != casesvc.StatusOpen {
 		t.Fatalf("Right follow-up summary = %#v, want count=1 open=1 status=open", got.Right)
+	}
+	if got.Right.LinkedCaseSummary.TotalCaseCount != 1 || got.Right.LinkedCaseSummary.OpenCaseCount != 1 || got.Right.LinkedCaseSummary.LatestCaseID != rightFollowUp.ID {
+		t.Fatalf("Right linked case summary = %#v, want 1 total / 1 open / latest %q", got.Right.LinkedCaseSummary, rightFollowUp.ID)
 	}
 	if got.Right.CompareFollowUpCaseCount != 0 || got.Right.OpenCompareFollowUpCaseCount != 0 || got.Right.LatestCompareFollowUpCaseID != "" || got.Right.LatestCompareFollowUpCaseStatus != "" {
 		t.Fatalf("Right compare follow-up summary = %#v, want zero-value compare summary before compare-derived cases exist", got.Right)
