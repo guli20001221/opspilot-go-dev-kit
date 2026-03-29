@@ -216,6 +216,7 @@ Current Milestone 1 slice:
 - the same canonical eval-run list/detail contracts now also expose `linked_case_summary`, so `/admin/eval-runs` can show latest linked case status and owner before operators leave the run lane
 - the same eval-run contracts now also expose a typed `preferred_linked_case_action`, so `/admin/eval-runs` only offers `Open latest run case` when that latest linked case is still open
 - that same canonical eval-run linked-case summary is now resolved from durable `source_eval_run_id` lineage instead of being inferred from per-item eval-case follow-up, so run-backed operator work stays visible even when no per-item case has been opened yet
+- `000025_case_eval_run_backfill.sql` now backfills legacy eval-run follow-up rows that still carry the older `Follow up eval run <run_id> result for <eval_case_id>` summary pattern, so the canonical run-backed queues remain visible for pre-lineage data too
 - the durable case contract now also carries `source_eval_run_id`, so follow-up created from `/admin/eval-runs` keeps canonical eval-run lineage instead of collapsing back to eval-case-only provenance
 - `GET /api/v1/cases` now also supports `source_eval_run_id` and `run_backed_only`, and `/admin/cases` uses that contract for a `Run-backed cases` queue plus direct handoff back into `/admin/eval-runs`
 - `POST /api/v1/cases` now also reuses the newest open run-backed case for the same `tenant_id + source_eval_run_id`, so repeated eval-run follow-up clicks return operators to the canonical queue item instead of creating duplicates

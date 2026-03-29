@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"os"
+	"path/filepath"
 	"testing"
 	"time"
 
@@ -255,6 +256,74 @@ func TestCaseStoreSaveOrReuseOpenEvalRunCase(t *testing.T) {
 	}
 	if len(page.Cases) != 1 {
 		t.Fatalf("len(page.Cases) = %d, want 1", len(page.Cases))
+	}
+}
+
+func TestCaseEvalRunBackfillMigration(t *testing.T) {
+	dsn := os.Getenv("OPSPILOT_TEST_POSTGRES_DSN")
+	if dsn == "" {
+		t.Skip("OPSPILOT_TEST_POSTGRES_DSN not set")
+	}
+
+	ctx := context.Background()
+	pool, err := OpenPool(ctx, dsn)
+	if err != nil {
+		t.Fatalf("OpenPool() error = %v", err)
+	}
+	defer pool.Close()
+
+	applyMigration(t, ctx, pool)
+	if _, err := pool.Exec(ctx, "TRUNCATE eval_run_item_results, eval_run_items, eval_run_events, eval_runs, eval_datasets, eval_dataset_items, eval_cases, case_notes, cases, reports, workflow_task_events, workflow_tasks RESTART IDENTITY CASCADE"); err != nil {
+		t.Fatalf("TRUNCATE eval run backfill tables error = %v", err)
+	}
+
+	runStore := NewEvalRunStore(pool)
+	if _, err := runStore.CreateRun(ctx, evalsvc.EvalRun{
+		ID:               "eval-run-backfill-1",
+		TenantID:         "tenant-backfill",
+		DatasetID:        "dataset-backfill",
+		DatasetName:      "Dataset Backfill",
+		DatasetItemCount: 1,
+		Status:           evalsvc.RunStatusFailed,
+		CreatedBy:        "operator-backfill",
+		CreatedAt:        time.Unix(1700031000, 0).UTC(),
+		UpdatedAt:        time.Unix(1700031000, 0).UTC(),
+	}, evalsvc.EvalRunItem{
+		EvalCaseID:   "eval-case-backfill-1",
+		Title:        "Backfill eval case",
+		SourceCaseID: "case-source-backfill-1",
+		TraceID:      "trace-backfill-1",
+	}); err != nil {
+		t.Fatalf("CreateRun() error = %v", err)
+	}
+
+	if _, err := pool.Exec(ctx, `
+INSERT INTO cases (
+    id, tenant_id, status, title, summary,
+    source_eval_case_id, created_by, created_at, updated_at
+) VALUES (
+    'case-backfill-1', 'tenant-backfill', 'open', 'Legacy eval-run case',
+    'Follow up eval run eval-run-backfill-1 result for eval-case-backfill-1',
+    'eval-case-backfill-1', 'operator-backfill', NOW(), NOW()
+)`); err != nil {
+		t.Fatalf("insert legacy case error = %v", err)
+	}
+
+	migrationSQL, err := os.ReadFile(filepath.Join("..", "..", "..", "db", "migrations", "000025_case_eval_run_backfill.sql"))
+	if err != nil {
+		t.Fatalf("ReadFile(backfill migration) error = %v", err)
+	}
+	if _, err := pool.Exec(ctx, string(migrationSQL)); err != nil {
+		t.Fatalf("apply backfill migration error = %v", err)
+	}
+
+	store := NewCaseStore(pool)
+	got, err := store.Get(ctx, "case-backfill-1")
+	if err != nil {
+		t.Fatalf("Get() error = %v", err)
+	}
+	if got.SourceEvalRunID != "eval-run-backfill-1" {
+		t.Fatalf("Get().SourceEvalRunID = %q, want %q", got.SourceEvalRunID, "eval-run-backfill-1")
 	}
 }
 
