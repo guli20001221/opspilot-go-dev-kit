@@ -143,6 +143,7 @@ type evalDatasetRecentRunResponse struct {
 	NeedsFollowUp                bool                                 `json:"needs_follow_up"`
 	ReportID                     string                               `json:"report_id,omitempty"`
 	ReportStatus                 string                               `json:"report_status,omitempty"`
+	PreferredFollowUpAction      evalDatasetFollowUpActionResponse    `json:"preferred_follow_up_action"`
 	LinkedCaseSummary            evalDatasetLinkedCaseSummaryResponse `json:"linked_case_summary"`
 	PreferredCaseAction          evalDatasetCaseQueueActionResponse   `json:"preferred_case_action"`
 }
@@ -632,11 +633,29 @@ func (a *appHandler) evalDatasetRecentRuns(ctx context.Context, tenantID string,
 					return nil, fmt.Errorf("lookup eval report for run %q: %w", run.ID, err)
 				}
 			}
+			resp.PreferredFollowUpAction = newEvalDatasetRecentRunFollowUpActionResponse(run.ID, resp.ReportID, resp.NeedsFollowUp)
 		}
 		rows = append(rows, resp)
 	}
 
 	return rows, nil
+}
+
+func newEvalDatasetRecentRunFollowUpActionResponse(runID string, reportID string, needsFollowUp bool) evalDatasetFollowUpActionResponse {
+	action := evalDatasetFollowUpActionResponse{Mode: "none"}
+	if !needsFollowUp {
+		return action
+	}
+	if reportID != "" {
+		action.Mode = "open_latest_report_queue"
+		action.ReportID = reportID
+		return action
+	}
+	if runID != "" {
+		action.Mode = "open_latest_run_queue"
+		action.RunID = runID
+	}
+	return action
 }
 
 func newEvalDatasetRecentRunCaseActionResponse(runID string, summary evalDatasetLinkedCaseSummaryResponse) evalDatasetCaseQueueActionResponse {

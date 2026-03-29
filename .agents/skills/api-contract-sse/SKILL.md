@@ -89,3 +89,4 @@ When you finish, always report:
 - no streaming format invented ad hoc per endpoint
 - do not return internal stack traces to clients
 - once canonical eval-dataset reads expose run-backed case summary, prefer adding a typed run-backed case handoff field on that same contract instead of leaving `/admin/eval-datasets` to route straight from `latest_case_id`
+- once canonical eval-dataset detail already exposes `recent_runs[]` with unresolved pressure and report linkage, add a typed `preferred_follow_up_action` on those same rows instead of leaving `/admin/eval-datasets` to decide between report and run queues from `report_id` plus `needs_follow_up`

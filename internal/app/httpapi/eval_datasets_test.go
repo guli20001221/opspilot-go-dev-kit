@@ -773,6 +773,15 @@ func TestGetEvalDatasetIncludesLatestRunSummary(t *testing.T) {
 	if got.RecentRuns[0].ReportID != reportID {
 		t.Fatalf("RecentRuns[0].ReportID = %q, want %q", got.RecentRuns[0].ReportID, reportID)
 	}
+	if got.RecentRuns[0].PreferredFollowUpAction.Mode != "open_latest_report_queue" {
+		t.Fatalf("RecentRuns[0].PreferredFollowUpAction.Mode = %q, want %q", got.RecentRuns[0].PreferredFollowUpAction.Mode, "open_latest_report_queue")
+	}
+	if got.RecentRuns[0].PreferredFollowUpAction.ReportID != reportID {
+		t.Fatalf("RecentRuns[0].PreferredFollowUpAction.ReportID = %q, want %q", got.RecentRuns[0].PreferredFollowUpAction.ReportID, reportID)
+	}
+	if got.RecentRuns[0].PreferredFollowUpAction.RunID != "" {
+		t.Fatalf("RecentRuns[0].PreferredFollowUpAction.RunID = %q, want empty", got.RecentRuns[0].PreferredFollowUpAction.RunID)
+	}
 	if got.RecentRuns[0].LinkedCaseSummary.TotalCaseCount != 1 {
 		t.Fatalf("RecentRuns[0].LinkedCaseSummary.TotalCaseCount = %d, want 1", got.RecentRuns[0].LinkedCaseSummary.TotalCaseCount)
 	}
@@ -898,6 +907,15 @@ func TestEvalDatasetFollowUpActionFallsBackToLatestRunQueue(t *testing.T) {
 	}
 	if got.RecentRuns[0].ReportID != "" {
 		t.Fatalf("RecentRuns[0].ReportID = %q, want empty", got.RecentRuns[0].ReportID)
+	}
+	if got.RecentRuns[0].PreferredFollowUpAction.Mode != "open_latest_run_queue" {
+		t.Fatalf("RecentRuns[0].PreferredFollowUpAction.Mode = %q, want %q", got.RecentRuns[0].PreferredFollowUpAction.Mode, "open_latest_run_queue")
+	}
+	if got.RecentRuns[0].PreferredFollowUpAction.RunID != run.ID {
+		t.Fatalf("RecentRuns[0].PreferredFollowUpAction.RunID = %q, want %q", got.RecentRuns[0].PreferredFollowUpAction.RunID, run.ID)
+	}
+	if got.RecentRuns[0].PreferredFollowUpAction.ReportID != "" {
+		t.Fatalf("RecentRuns[0].PreferredFollowUpAction.ReportID = %q, want empty", got.RecentRuns[0].PreferredFollowUpAction.ReportID)
 	}
 	if got.RecentRuns[0].LinkedCaseSummary.TotalCaseCount != 0 {
 		t.Fatalf("RecentRuns[0].LinkedCaseSummary.TotalCaseCount = %d, want 0", got.RecentRuns[0].LinkedCaseSummary.TotalCaseCount)
