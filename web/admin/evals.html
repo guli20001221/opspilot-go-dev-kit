@@ -282,6 +282,20 @@
       return { mode: "invalid", targetHref: "", label: "Follow-up action unavailable", hasReuse: false, valid: false };
     }
 
+    function preferredLinkedCaseAction(item) {
+      const action = item && item.preferred_linked_case_action ? item.preferred_linked_case_action : null;
+      if (!action || !action.mode || action.mode === "none") {
+        return { mode: "none", targetHref: "", label: "", valid: false };
+      }
+      if (action.mode === "open_existing_case" && action.case_id) {
+        return { mode: action.mode, targetHref: `/admin/cases?tenant_id=${encodeURIComponent(item.tenant_id)}&case_id=${encodeURIComponent(action.case_id)}`, label: "Open latest case", valid: true };
+      }
+      if (action.mode === "open_existing_queue" && action.source_eval_case_id) {
+        return { mode: action.mode, targetHref: buildEvalQueueHref(item, action.source_eval_case_id), label: "Open queue", valid: true };
+      }
+      return { mode: "invalid", targetHref: "", label: "", valid: false };
+    }
+
     function escapeHTML(value) {
       return String(value ?? "")
         .replaceAll("&", "&amp;")
@@ -390,8 +404,15 @@
       tableWrap.hidden = false;
       evalRows.innerHTML = currentItems.map((item) => {
         const preferredAction = preferredFollowUpAction(item);
+        const linkedCaseAction = preferredLinkedCaseAction(item);
         const rowPreferredLink = preferredAction.valid && preferredAction.hasReuse ? `<br><a class="button-link ghost" href="${preferredAction.targetHref}">${preferredAction.label}</a>` : "";
-        const queueLink = preferredAction.mode === "open_existing_queue" ? "" : `<br><a class="button-link ghost" href="${buildEvalQueueHref(item, item.eval_case_id)}">Open queue</a>`;
+        const queueHref = linkedCaseAction.valid && linkedCaseAction.mode === "open_existing_queue"
+          ? linkedCaseAction.targetHref
+          : buildEvalQueueHref(item, item.eval_case_id);
+        const queueLabel = linkedCaseAction.valid && linkedCaseAction.mode === "open_existing_queue"
+          ? linkedCaseAction.label
+          : "Open queue";
+        const queueLink = `<br><a class="button-link ghost" href="${queueHref}">${escapeHTML(queueLabel)}</a>`;
         const actionWarning = preferredAction.valid ? "" : `<br><small>Canonical follow-up action unavailable</small>`;
         return `
         <tr data-eval-row="${escapeHTML(item.eval_case_id)}">
@@ -452,8 +473,10 @@
         datasetTargetIDInput.value = currentDatasetDetail.dataset_id;
       }
       const preferredAction = preferredFollowUpAction(item);
+      const linkedCaseAction = preferredLinkedCaseAction(item);
       const caseURL = `${caseEndpointBase}${encodeURIComponent(item.source_case_id)}?tenant_id=${encodeURIComponent(item.tenant_id)}`;
-      const latestFollowUpCaseURL = item.latest_follow_up_case_id ? `/admin/cases?tenant_id=${encodeURIComponent(item.tenant_id)}&case_id=${encodeURIComponent(item.latest_follow_up_case_id)}` : "";
+      const latestFollowUpCaseURL = linkedCaseAction.valid ? linkedCaseAction.targetHref : "";
+      const latestFollowUpCaseLabel = linkedCaseAction.valid ? linkedCaseAction.label : "";
       const followUpSliceURL = buildEvalQueueHref(item, item.eval_case_id);
       createCaseButton.dataset.action = preferredAction.valid ? (preferredAction.mode === "create" ? "create" : "open-existing") : "invalid";
       createCaseButton.dataset.targetHref = preferredAction.targetHref || "";
@@ -497,7 +520,7 @@
               ${currentDatasetDetail ? `<a class="button-link ghost" href="${datasetEndpoint}/${encodeURIComponent(currentDatasetDetail.dataset_id)}?tenant_id=${encodeURIComponent(item.tenant_id)}" target="_blank" rel="noreferrer">Open dataset API detail</a>` : ""}
               ${currentDatasetDetail ? `<a class="button-link ghost" href="/admin/eval-datasets?tenant_id=${encodeURIComponent(item.tenant_id)}&dataset_id=${encodeURIComponent(currentDatasetDetail.dataset_id)}">Open dataset lane</a>` : ""}
               <a class="button-link ghost" href="${caseURL}" target="_blank" rel="noreferrer">Open case API detail</a>
-              ${latestFollowUpCaseURL ? `<a class="button-link ghost" href="${latestFollowUpCaseURL}">Open latest follow-up case</a>` : ""}
+              ${latestFollowUpCaseURL ? `<a class="button-link ghost" href="${latestFollowUpCaseURL}">${escapeHTML(latestFollowUpCaseLabel)}</a>` : ""}
               <a class="button-link ghost" href="${followUpSliceURL}">Open follow-up slice</a>
               ${reportURL ? `<a class="button-link ghost" href="${reportURL}" target="_blank" rel="noreferrer">Open report API detail</a>` : ""}
               ${taskURL ? `<a class="button-link ghost" href="${taskURL}" target="_blank" rel="noreferrer">Open task API detail</a>` : ""}

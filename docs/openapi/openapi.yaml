@@ -2876,6 +2876,7 @@ components:
         - open_follow_up_case_count
         - linked_case_summary
         - preferred_follow_up_action
+        - preferred_linked_case_action
         - created_by
         - created_at
       properties:
@@ -2913,6 +2914,8 @@ components:
         linked_case_summary:
           $ref: '#/components/schemas/EvalReportLinkedCaseSummary'
         preferred_follow_up_action:
+          $ref: '#/components/schemas/EvalCaseFollowUpAction'
+        preferred_linked_case_action:
           $ref: '#/components/schemas/EvalCaseFollowUpAction'
         operator_note:
           type: string
@@ -3480,6 +3483,8 @@ components:
         linked_case_summary:
           $ref: '#/components/schemas/EvalReportLinkedCaseSummary'
         preferred_follow_up_action:
+          $ref: '#/components/schemas/EvalCaseFollowUpAction'
+        preferred_linked_case_action:
           $ref: '#/components/schemas/EvalCaseFollowUpAction'
         trace_id:
           type: string

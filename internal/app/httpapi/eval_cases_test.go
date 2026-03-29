@@ -96,6 +96,12 @@ func TestCreateAndGetEvalCaseEndpoint(t *testing.T) {
 	if created.PreferredFollowUpAction.SourceEvalCaseID != created.EvalCaseID {
 		t.Fatalf("PreferredFollowUpAction.SourceEvalCaseID = %q, want %q", created.PreferredFollowUpAction.SourceEvalCaseID, created.EvalCaseID)
 	}
+	if created.PreferredLinkedCaseAction.Mode != "none" {
+		t.Fatalf("PreferredLinkedCaseAction.Mode = %q, want %q", created.PreferredLinkedCaseAction.Mode, "none")
+	}
+	if created.PreferredLinkedCaseAction.SourceEvalCaseID != created.EvalCaseID {
+		t.Fatalf("PreferredLinkedCaseAction.SourceEvalCaseID = %q, want %q", created.PreferredLinkedCaseAction.SourceEvalCaseID, created.EvalCaseID)
+	}
 	if created.LinkedCaseSummary.TotalCaseCount != 0 {
 		t.Fatalf("LinkedCaseSummary.TotalCaseCount = %d, want 0", created.LinkedCaseSummary.TotalCaseCount)
 	}
@@ -202,6 +208,12 @@ func TestCreateEvalCaseEndpointIsIdempotentBySourceCase(t *testing.T) {
 	}
 	if second.PreferredFollowUpAction.CaseID != second.LatestFollowUpCaseID {
 		t.Fatalf("second.PreferredFollowUpAction.CaseID = %q, want %q", second.PreferredFollowUpAction.CaseID, second.LatestFollowUpCaseID)
+	}
+	if second.PreferredLinkedCaseAction.Mode != "open_existing_case" {
+		t.Fatalf("second.PreferredLinkedCaseAction.Mode = %q, want %q", second.PreferredLinkedCaseAction.Mode, "open_existing_case")
+	}
+	if second.PreferredLinkedCaseAction.CaseID != second.LatestFollowUpCaseID {
+		t.Fatalf("second.PreferredLinkedCaseAction.CaseID = %q, want %q", second.PreferredLinkedCaseAction.CaseID, second.LatestFollowUpCaseID)
 	}
 }
 
@@ -578,6 +590,12 @@ func TestEvalCaseEndpointsReturnFollowUpCaseSummary(t *testing.T) {
 	if listBody.EvalCases[0].PreferredFollowUpAction.CaseID != followUp.ID {
 		t.Fatalf("PreferredFollowUpAction.CaseID = %q, want %q", listBody.EvalCases[0].PreferredFollowUpAction.CaseID, followUp.ID)
 	}
+	if listBody.EvalCases[0].PreferredLinkedCaseAction.Mode != "open_existing_case" {
+		t.Fatalf("PreferredLinkedCaseAction.Mode = %q, want %q", listBody.EvalCases[0].PreferredLinkedCaseAction.Mode, "open_existing_case")
+	}
+	if listBody.EvalCases[0].PreferredLinkedCaseAction.CaseID != followUp.ID {
+		t.Fatalf("PreferredLinkedCaseAction.CaseID = %q, want %q", listBody.EvalCases[0].PreferredLinkedCaseAction.CaseID, followUp.ID)
+	}
 
 	detailResp, err := http.Get(server.URL + "/api/v1/eval-cases/" + created.ID + "?tenant_id=tenant-follow-up")
 	if err != nil {
@@ -615,6 +633,80 @@ func TestEvalCaseEndpointsReturnFollowUpCaseSummary(t *testing.T) {
 	}
 	if detail.PreferredFollowUpAction.CaseID != followUp.ID {
 		t.Fatalf("detail.PreferredFollowUpAction.CaseID = %q, want %q", detail.PreferredFollowUpAction.CaseID, followUp.ID)
+	}
+	if detail.PreferredLinkedCaseAction.Mode != "open_existing_case" {
+		t.Fatalf("detail.PreferredLinkedCaseAction.Mode = %q, want %q", detail.PreferredLinkedCaseAction.Mode, "open_existing_case")
+	}
+	if detail.PreferredLinkedCaseAction.CaseID != followUp.ID {
+		t.Fatalf("detail.PreferredLinkedCaseAction.CaseID = %q, want %q", detail.PreferredLinkedCaseAction.CaseID, followUp.ID)
+	}
+}
+
+func TestEvalCaseLinkedCaseActionPrefersQueueWhenLatestCaseClosed(t *testing.T) {
+	caseService := casesvc.NewService()
+	evalCaseService := evalsvc.NewService(caseService, nil)
+
+	sourceCase, err := caseService.CreateCase(context.Background(), casesvc.CreateInput{
+		TenantID:  "tenant-eval-linked-queue",
+		Title:     "Eval linked queue source",
+		Summary:   "source summary",
+		CreatedBy: "operator",
+	})
+	if err != nil {
+		t.Fatalf("CreateCase(sourceCase) error = %v", err)
+	}
+	evalCase, _, err := evalCaseService.PromoteCase(context.Background(), evalsvc.CreateInput{
+		TenantID:     sourceCase.TenantID,
+		SourceCaseID: sourceCase.ID,
+		CreatedBy:    "operator",
+	})
+	if err != nil {
+		t.Fatalf("PromoteCase() error = %v", err)
+	}
+	closedFollowUp, err := caseService.CreateCase(context.Background(), casesvc.CreateInput{
+		TenantID:         sourceCase.TenantID,
+		Title:            "Closed eval linked case",
+		Summary:          "closed linked summary",
+		SourceEvalCaseID: evalCase.ID,
+		CreatedBy:        "operator",
+	})
+	if err != nil {
+		t.Fatalf("CreateCase(closedFollowUp) error = %v", err)
+	}
+	if _, err := caseService.CloseCase(context.Background(), closedFollowUp.ID, "operator"); err != nil {
+		t.Fatalf("CloseCase(closedFollowUp) error = %v", err)
+	}
+
+	server := httptest.NewServer(NewHandlerWithDependencies(Dependencies{
+		Cases:     caseService,
+		EvalCases: evalCaseService,
+	}))
+	defer server.Close()
+
+	resp, err := http.Get(server.URL + "/api/v1/eval-cases/" + evalCase.ID + "?tenant_id=" + sourceCase.TenantID)
+	if err != nil {
+		t.Fatalf("Get() error = %v", err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("StatusCode = %d, want %d", resp.StatusCode, http.StatusOK)
+	}
+
+	var got evalCaseResponse
+	if err := json.NewDecoder(resp.Body).Decode(&got); err != nil {
+		t.Fatalf("Decode() error = %v", err)
+	}
+	if got.LinkedCaseSummary.TotalCaseCount != 1 || got.LinkedCaseSummary.OpenCaseCount != 0 {
+		t.Fatalf("LinkedCaseSummary = %#v, want total=1 open=0", got.LinkedCaseSummary)
+	}
+	if got.PreferredLinkedCaseAction.Mode != "open_existing_queue" {
+		t.Fatalf("PreferredLinkedCaseAction.Mode = %q, want %q", got.PreferredLinkedCaseAction.Mode, "open_existing_queue")
+	}
+	if got.PreferredLinkedCaseAction.CaseID != "" {
+		t.Fatalf("PreferredLinkedCaseAction.CaseID = %q, want empty", got.PreferredLinkedCaseAction.CaseID)
+	}
+	if got.PreferredLinkedCaseAction.SourceEvalCaseID != evalCase.ID {
+		t.Fatalf("PreferredLinkedCaseAction.SourceEvalCaseID = %q, want %q", got.PreferredLinkedCaseAction.SourceEvalCaseID, evalCase.ID)
 	}
 }
 

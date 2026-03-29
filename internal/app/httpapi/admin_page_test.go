@@ -330,8 +330,8 @@ func TestAdminEvalsPageRendersHTML(t *testing.T) {
 	if !strings.Contains(body, "Open case API detail") {
 		t.Fatal("case handoff missing from eval page HTML")
 	}
-	if !strings.Contains(body, "Open latest follow-up case") {
-		t.Fatal("latest follow-up case handoff missing from eval page HTML")
+	if !strings.Contains(body, "Open latest case") {
+		t.Fatal("latest linked case handoff missing from eval page HTML")
 	}
 	if !strings.Contains(body, "Open queue") {
 		t.Fatal("row-level eval queue handoff missing from eval page HTML")
@@ -420,6 +420,39 @@ func TestAdminEvalsPageRuntimeSmoke(t *testing.T) {
 	if err != nil {
 		t.Fatalf("CreateCase(openFollowUp) error = %v", err)
 	}
+	queueSourceCase, err := caseService.CreateCase(context.Background(), casesvc.CreateInput{
+		TenantID:       sourceCase.TenantID,
+		Title:          "Eval queue source case",
+		Summary:        "Eval queue source summary",
+		SourceTaskID:   "task-eval-page-queue",
+		SourceReportID: "report-eval-page-queue",
+		CreatedBy:      "operator-eval-page",
+	})
+	if err != nil {
+		t.Fatalf("CreateCase(queueSourceCase) error = %v", err)
+	}
+	queueEvalCase, _, err := evalCaseService.PromoteCase(context.Background(), evalsvc.CreateInput{
+		TenantID:     queueSourceCase.TenantID,
+		SourceCaseID: queueSourceCase.ID,
+		OperatorNote: "promote closed-follow-up queue case",
+		CreatedBy:    "operator-eval-page",
+	})
+	if err != nil {
+		t.Fatalf("PromoteCase(queueEvalCase) error = %v", err)
+	}
+	closedFollowUp, err := caseService.CreateCase(context.Background(), casesvc.CreateInput{
+		TenantID:         queueSourceCase.TenantID,
+		Title:            "Closed eval follow-up",
+		Summary:          "Closed eval follow-up summary",
+		SourceEvalCaseID: queueEvalCase.ID,
+		CreatedBy:        "operator-eval-page",
+	})
+	if err != nil {
+		t.Fatalf("CreateCase(closedFollowUp) error = %v", err)
+	}
+	if _, err := caseService.CloseCase(context.Background(), closedFollowUp.ID, "operator-eval-page"); err != nil {
+		t.Fatalf("CloseCase(closedFollowUp) error = %v", err)
+	}
 
 	server := httptest.NewServer(NewHandlerWithDependencies(Dependencies{
 		Cases:     caseService,
@@ -438,6 +471,7 @@ const baseURL = process.argv[2];
 const tenantID = process.argv[3];
 const evalCaseID = process.argv[4];
 const latestFollowUpID = process.argv[5];
+const queueEvalCaseID = process.argv[6];
 
 async function main() {
   const browser = await chromium.launch({ headless: true });
@@ -461,6 +495,21 @@ async function main() {
   });
   if (!rowQueueHref || !rowQueueHref.includes("source_eval_case_id=" + encodeURIComponent(evalCaseID))) {
     throw new Error("row-level eval queue handoff missing");
+  }
+  const queueRowText = (await page.textContent('[data-eval-row="' + queueEvalCaseID + '"] td:nth-child(4)')).trim();
+  if (!queueRowText.includes("1 cases / 0 open") || !queueRowText.includes("Open queue")) {
+    throw new Error("queue-mode eval row missing canonical queue handoff: " + queueRowText);
+  }
+  const queueRowLatestCaseHref = await page.locator('[data-eval-row="' + queueEvalCaseID + '"] td:nth-child(4) a[href*="case_id="]').count();
+  if (queueRowLatestCaseHref !== 0) {
+    throw new Error("queue-mode eval row should not expose stale latest case handoff");
+  }
+  const queueModeHref = await page.locator('[data-eval-row="' + queueEvalCaseID + '"] td:nth-child(4) a').evaluateAll((elements) => {
+    const match = elements.find((element) => element.textContent && element.textContent.includes("Open queue"));
+    return match ? match.getAttribute("href") : "";
+  });
+  if (!queueModeHref || !queueModeHref.includes("source_eval_case_id=" + encodeURIComponent(queueEvalCaseID))) {
+    throw new Error("queue-mode eval row missing queue href");
   }
   const primaryAction = (await page.textContent("#createCaseButton")).trim();
   if (primaryAction !== "Open existing case") {
@@ -504,7 +553,7 @@ main().catch((error) => {
 		t.Fatalf("WriteFile(scriptPath) error = %v", err)
 	}
 
-	cmd := exec.Command("node", scriptPath, server.URL, sourceCase.TenantID, evalCase.ID, openFollowUp.ID)
+	cmd := exec.Command("node", scriptPath, server.URL, sourceCase.TenantID, evalCase.ID, openFollowUp.ID, queueEvalCase.ID)
 	cmd.Env = append(os.Environ(), "NODE_PATH="+nodePathRoot)
 	output, err := cmd.CombinedOutput()
 	if err != nil {
