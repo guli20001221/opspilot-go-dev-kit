@@ -157,6 +157,7 @@ type evalReportComparisonItemResponse struct {
 	PreferredBadCaseQueueAction     evalReportBadCaseQueueActionResponse    `json:"preferred_bad_case_queue_action"`
 	LinkedCaseSummary               *evalReportLinkedCaseSummaryResponse    `json:"linked_case_summary,omitempty"`
 	PreferredLinkedCaseAction       evalReportLinkedCaseActionResponse      `json:"preferred_linked_case_action"`
+	PreferredPrimaryAction          evalReportPrimaryActionResponse         `json:"preferred_primary_action"`
 	CompareFollowUpCaseCount        int                                     `json:"compare_follow_up_case_count"`
 	OpenCompareFollowUpCaseCount    int                                     `json:"open_compare_follow_up_case_count"`
 	LatestCompareFollowUpCaseID     string                                  `json:"latest_compare_follow_up_case_id,omitempty"`
@@ -846,6 +847,7 @@ func newEvalReportComparisonItemResponse(item evalsvc.EvalReport, followUpSummar
 		PreferredBadCaseQueueAction:     newEvalReportBadCaseQueueActionResponse(item.ID, badCaseWithoutOpenFollowUpCount),
 		LinkedCaseSummary:               linkedCaseSummary,
 		PreferredLinkedCaseAction:       newEvalReportLinkedCaseActionResponse(item.ID, linkedCaseSummary),
+		PreferredPrimaryAction:          newEvalReportComparePrimaryActionResponse(item.ID, linkedCaseSummary, compareFollowUpSummary),
 		CompareFollowUpCaseCount:        compareFollowUpSummary.CompareFollowUpCaseCount,
 		OpenCompareFollowUpCaseCount:    compareFollowUpSummary.OpenCompareFollowUpCaseCount,
 		LatestCompareFollowUpCaseID:     compareFollowUpSummary.LatestCompareFollowUpCaseID,
@@ -866,6 +868,23 @@ func newEvalReportCompareFollowUpActionResponse(reportID string, compareFollowUp
 		action.Mode = "open_existing_queue"
 	}
 	return action
+}
+
+func newEvalReportComparePrimaryActionResponse(reportID string, linkedCaseSummary *evalReportLinkedCaseSummaryResponse, compareFollowUpSummary casesvc.EvalReportCompareFollowUpSummary) evalReportPrimaryActionResponse {
+	linkedAction := newEvalReportLinkedCaseActionResponse(reportID, linkedCaseSummary)
+	if linkedAction.Mode != "none" {
+		return evalReportPrimaryActionResponse{
+			Mode:               linkedAction.Mode,
+			CaseID:             linkedAction.CaseID,
+			SourceEvalReportID: linkedAction.SourceEvalReportID,
+		}
+	}
+
+	compareAction := newEvalReportCompareFollowUpActionResponse(reportID, compareFollowUpSummary)
+	return evalReportPrimaryActionResponse{
+		Mode:               compareAction.Mode,
+		SourceEvalReportID: compareAction.SourceEvalReportID,
+	}
 }
 
 func firstEvalReportVersionID(raw json.RawMessage) string {
