@@ -223,6 +223,296 @@ func TestListEvalDatasetsEndpointRequiresTenant(t *testing.T) {
 	}
 }
 
+func TestListEvalDatasetsEndpointIncludesLatestRunSummary(t *testing.T) {
+	ctx := context.Background()
+	caseService := casesvc.NewService()
+	evalCaseService := evalsvc.NewService(caseService, nil)
+	datasetService := evalsvc.NewDatasetService(evalCaseService)
+	runService := evalsvc.NewRunService(datasetService)
+	reportService := evalsvc.NewEvalReportServiceWithDependencies(nil, runService)
+
+	reportID := materializeEvalRunReport(t, "tenant-dataset-summary", evalsvc.RunStatusFailed, "failure detail", caseService, evalCaseService, datasetService, runService, reportService, "Dataset Summary", "Dataset Source")
+	reportItem, err := reportService.GetEvalReport(ctx, reportID)
+	if err != nil {
+		t.Fatalf("GetEvalReport() error = %v", err)
+	}
+
+	server := httptest.NewServer(NewHandlerWithDependencies(Dependencies{
+		Cases:        caseService,
+		EvalCases:    evalCaseService,
+		EvalDatasets: datasetService,
+		EvalRuns:     runService,
+		EvalReports:  reportService,
+	}))
+	defer server.Close()
+
+	resp, err := http.Get(server.URL + "/api/v1/eval-datasets?tenant_id=tenant-dataset-summary&limit=10")
+	if err != nil {
+		t.Fatalf("Get() error = %v", err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("StatusCode = %d, want %d", resp.StatusCode, http.StatusOK)
+	}
+
+	var page listEvalDatasetsResponse
+	if err := json.NewDecoder(resp.Body).Decode(&page); err != nil {
+		t.Fatalf("Decode() error = %v", err)
+	}
+	if len(page.Datasets) != 1 {
+		t.Fatalf("len(page.Datasets) = %d, want 1", len(page.Datasets))
+	}
+	got := page.Datasets[0]
+	if got.DatasetID != reportItem.DatasetID {
+		t.Fatalf("DatasetID = %q, want %q", got.DatasetID, reportItem.DatasetID)
+	}
+	if got.LatestRunID != reportItem.RunID {
+		t.Fatalf("LatestRunID = %q, want %q", got.LatestRunID, reportItem.RunID)
+	}
+	if got.LatestRunStatus != evalsvc.RunStatusFailed {
+		t.Fatalf("LatestRunStatus = %q, want %q", got.LatestRunStatus, evalsvc.RunStatusFailed)
+	}
+	if got.LatestReportID != reportID {
+		t.Fatalf("LatestReportID = %q, want %q", got.LatestReportID, reportID)
+	}
+	if got.LatestReportStatus != evalsvc.EvalReportStatusReady {
+		t.Fatalf("LatestReportStatus = %q, want %q", got.LatestReportStatus, evalsvc.EvalReportStatusReady)
+	}
+	if got.UnresolvedFollowUpCount != 1 {
+		t.Fatalf("UnresolvedFollowUpCount = %d, want 1", got.UnresolvedFollowUpCount)
+	}
+	if !got.NeedsFollowUp {
+		t.Fatal("NeedsFollowUp = false, want true")
+	}
+}
+
+func TestListEvalDatasetsEndpointSupportsNeedsFollowUpFilter(t *testing.T) {
+	ctx := context.Background()
+	caseService := casesvc.NewService()
+	evalCaseService := evalsvc.NewService(caseService, nil)
+	datasetService := evalsvc.NewDatasetService(evalCaseService)
+	runService := evalsvc.NewRunService(datasetService)
+	reportService := evalsvc.NewEvalReportServiceWithDependencies(nil, runService)
+
+	reportID := materializeEvalRunReport(t, "tenant-dataset-followup", evalsvc.RunStatusFailed, "failure detail", caseService, evalCaseService, datasetService, runService, reportService, "Dataset Needs Follow-up", "Dataset Needs Follow-up Source")
+	reportItem, err := reportService.GetEvalReport(ctx, reportID)
+	if err != nil {
+		t.Fatalf("GetEvalReport() error = %v", err)
+	}
+
+	sourceCase, err := caseService.CreateCase(ctx, casesvc.CreateInput{
+		TenantID: "tenant-dataset-followup",
+		Title:    "Dataset without run source",
+	})
+	if err != nil {
+		t.Fatalf("CreateCase() error = %v", err)
+	}
+	evalCase, _, err := evalCaseService.PromoteCase(ctx, evalsvc.CreateInput{
+		TenantID:     "tenant-dataset-followup",
+		SourceCaseID: sourceCase.ID,
+	})
+	if err != nil {
+		t.Fatalf("PromoteCase() error = %v", err)
+	}
+	withoutRun, err := datasetService.CreateDataset(ctx, evalsvc.CreateDatasetInput{
+		TenantID:    "tenant-dataset-followup",
+		Name:        "Dataset Without Run",
+		EvalCaseIDs: []string{evalCase.ID},
+		CreatedBy:   "operator-dataset",
+	})
+	if err != nil {
+		t.Fatalf("CreateDataset() error = %v", err)
+	}
+
+	server := httptest.NewServer(NewHandlerWithDependencies(Dependencies{
+		Cases:        caseService,
+		EvalCases:    evalCaseService,
+		EvalDatasets: datasetService,
+		EvalRuns:     runService,
+		EvalReports:  reportService,
+	}))
+	defer server.Close()
+
+	withFollowUpResp, err := http.Get(server.URL + "/api/v1/eval-datasets?tenant_id=tenant-dataset-followup&needs_follow_up=true&limit=10")
+	if err != nil {
+		t.Fatalf("Get(needs_follow_up=true) error = %v", err)
+	}
+	defer withFollowUpResp.Body.Close()
+	if withFollowUpResp.StatusCode != http.StatusOK {
+		t.Fatalf("StatusCode(true) = %d, want %d", withFollowUpResp.StatusCode, http.StatusOK)
+	}
+	var withFollowUpPage listEvalDatasetsResponse
+	if err := json.NewDecoder(withFollowUpResp.Body).Decode(&withFollowUpPage); err != nil {
+		t.Fatalf("Decode(withFollowUpPage) error = %v", err)
+	}
+	if len(withFollowUpPage.Datasets) != 1 {
+		t.Fatalf("len(withFollowUpPage.Datasets) = %d, want 1", len(withFollowUpPage.Datasets))
+	}
+	if withFollowUpPage.Datasets[0].DatasetID != reportItem.DatasetID {
+		t.Fatalf("withFollowUpPage.Datasets[0].DatasetID = %q, want %q", withFollowUpPage.Datasets[0].DatasetID, reportItem.DatasetID)
+	}
+
+	withoutFollowUpResp, err := http.Get(server.URL + "/api/v1/eval-datasets?tenant_id=tenant-dataset-followup&needs_follow_up=false&limit=10")
+	if err != nil {
+		t.Fatalf("Get(needs_follow_up=false) error = %v", err)
+	}
+	defer withoutFollowUpResp.Body.Close()
+	if withoutFollowUpResp.StatusCode != http.StatusOK {
+		t.Fatalf("StatusCode(false) = %d, want %d", withoutFollowUpResp.StatusCode, http.StatusOK)
+	}
+	var withoutFollowUpPage listEvalDatasetsResponse
+	if err := json.NewDecoder(withoutFollowUpResp.Body).Decode(&withoutFollowUpPage); err != nil {
+		t.Fatalf("Decode(withoutFollowUpPage) error = %v", err)
+	}
+	if len(withoutFollowUpPage.Datasets) != 1 {
+		t.Fatalf("len(withoutFollowUpPage.Datasets) = %d, want 1", len(withoutFollowUpPage.Datasets))
+	}
+	if withoutFollowUpPage.Datasets[0].DatasetID != withoutRun.ID {
+		t.Fatalf("withoutFollowUpPage.Datasets[0].DatasetID = %q, want %q", withoutFollowUpPage.Datasets[0].DatasetID, withoutRun.ID)
+	}
+	if withoutFollowUpPage.Datasets[0].NeedsFollowUp {
+		t.Fatal("withoutFollowUpPage.Datasets[0].NeedsFollowUp = true, want false")
+	}
+}
+
+func TestListEvalDatasetsEndpointSupportsNeedsFollowUpPagination(t *testing.T) {
+	ctx := context.Background()
+	caseService := casesvc.NewService()
+	evalCaseService := evalsvc.NewService(caseService, nil)
+	datasetService := evalsvc.NewDatasetService(evalCaseService)
+	runService := evalsvc.NewRunService(datasetService)
+	reportService := evalsvc.NewEvalReportServiceWithDependencies(nil, runService)
+
+	firstReportID := materializeEvalRunReport(t, "tenant-dataset-pagination", evalsvc.RunStatusFailed, "failure detail", caseService, evalCaseService, datasetService, runService, reportService, "Dataset Older Match", "Dataset Older Match Source")
+	secondReportID := materializeEvalRunReport(t, "tenant-dataset-pagination", evalsvc.RunStatusFailed, "failure detail", caseService, evalCaseService, datasetService, runService, reportService, "Dataset Newer Match", "Dataset Newer Match Source")
+
+	firstReport, err := reportService.GetEvalReport(ctx, firstReportID)
+	if err != nil {
+		t.Fatalf("GetEvalReport(first) error = %v", err)
+	}
+	secondReport, err := reportService.GetEvalReport(ctx, secondReportID)
+	if err != nil {
+		t.Fatalf("GetEvalReport(second) error = %v", err)
+	}
+
+	server := httptest.NewServer(NewHandlerWithDependencies(Dependencies{
+		Cases:        caseService,
+		EvalCases:    evalCaseService,
+		EvalDatasets: datasetService,
+		EvalRuns:     runService,
+		EvalReports:  reportService,
+	}))
+	defer server.Close()
+
+	firstPageResp, err := http.Get(server.URL + "/api/v1/eval-datasets?tenant_id=tenant-dataset-pagination&needs_follow_up=true&limit=1")
+	if err != nil {
+		t.Fatalf("Get(first page) error = %v", err)
+	}
+	defer firstPageResp.Body.Close()
+	if firstPageResp.StatusCode != http.StatusOK {
+		t.Fatalf("StatusCode(first page) = %d, want %d", firstPageResp.StatusCode, http.StatusOK)
+	}
+	var firstPage listEvalDatasetsResponse
+	if err := json.NewDecoder(firstPageResp.Body).Decode(&firstPage); err != nil {
+		t.Fatalf("Decode(firstPage) error = %v", err)
+	}
+	if len(firstPage.Datasets) != 1 {
+		t.Fatalf("len(firstPage.Datasets) = %d, want 1", len(firstPage.Datasets))
+	}
+	if firstPage.Datasets[0].DatasetID != secondReport.DatasetID {
+		t.Fatalf("firstPage.Datasets[0].DatasetID = %q, want %q", firstPage.Datasets[0].DatasetID, secondReport.DatasetID)
+	}
+	if !firstPage.HasMore || firstPage.NextOffset == nil || *firstPage.NextOffset != 1 {
+		t.Fatalf("firstPage pagination = %#v, want has_more with next_offset=1", firstPage)
+	}
+
+	secondPageResp, err := http.Get(server.URL + "/api/v1/eval-datasets?tenant_id=tenant-dataset-pagination&needs_follow_up=true&limit=1&offset=1")
+	if err != nil {
+		t.Fatalf("Get(second page) error = %v", err)
+	}
+	defer secondPageResp.Body.Close()
+	if secondPageResp.StatusCode != http.StatusOK {
+		t.Fatalf("StatusCode(second page) = %d, want %d", secondPageResp.StatusCode, http.StatusOK)
+	}
+	var secondPage listEvalDatasetsResponse
+	if err := json.NewDecoder(secondPageResp.Body).Decode(&secondPage); err != nil {
+		t.Fatalf("Decode(secondPage) error = %v", err)
+	}
+	if len(secondPage.Datasets) != 1 {
+		t.Fatalf("len(secondPage.Datasets) = %d, want 1", len(secondPage.Datasets))
+	}
+	if secondPage.Datasets[0].DatasetID != firstReport.DatasetID {
+		t.Fatalf("secondPage.Datasets[0].DatasetID = %q, want %q", secondPage.Datasets[0].DatasetID, firstReport.DatasetID)
+	}
+	if secondPage.HasMore {
+		t.Fatalf("secondPage.HasMore = true, want false")
+	}
+}
+
+func TestListEvalDatasetsEndpointRejectsInvalidNeedsFollowUp(t *testing.T) {
+	server := httptest.NewServer(NewHandler())
+	defer server.Close()
+
+	resp, err := http.Get(server.URL + "/api/v1/eval-datasets?tenant_id=tenant-dataset&needs_follow_up=maybe")
+	if err != nil {
+		t.Fatalf("Get() error = %v", err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusBadRequest {
+		t.Fatalf("StatusCode = %d, want %d", resp.StatusCode, http.StatusBadRequest)
+	}
+}
+
+func TestGetEvalDatasetIncludesLatestRunSummary(t *testing.T) {
+	ctx := context.Background()
+	caseService := casesvc.NewService()
+	evalCaseService := evalsvc.NewService(caseService, nil)
+	datasetService := evalsvc.NewDatasetService(evalCaseService)
+	runService := evalsvc.NewRunService(datasetService)
+	reportService := evalsvc.NewEvalReportServiceWithDependencies(nil, runService)
+
+	reportID := materializeEvalRunReport(t, "tenant-dataset-detail", evalsvc.RunStatusFailed, "failure detail", caseService, evalCaseService, datasetService, runService, reportService, "Dataset Detail", "Dataset Detail Source")
+	reportItem, err := reportService.GetEvalReport(ctx, reportID)
+	if err != nil {
+		t.Fatalf("GetEvalReport() error = %v", err)
+	}
+
+	server := httptest.NewServer(NewHandlerWithDependencies(Dependencies{
+		Cases:        caseService,
+		EvalCases:    evalCaseService,
+		EvalDatasets: datasetService,
+		EvalRuns:     runService,
+		EvalReports:  reportService,
+	}))
+	defer server.Close()
+
+	resp, err := http.Get(server.URL + "/api/v1/eval-datasets/" + reportItem.DatasetID + "?tenant_id=tenant-dataset-detail")
+	if err != nil {
+		t.Fatalf("Get() error = %v", err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("StatusCode = %d, want %d", resp.StatusCode, http.StatusOK)
+	}
+
+	var got evalDatasetResponse
+	if err := json.NewDecoder(resp.Body).Decode(&got); err != nil {
+		t.Fatalf("Decode() error = %v", err)
+	}
+	if got.LatestRunID != reportItem.RunID {
+		t.Fatalf("LatestRunID = %q, want %q", got.LatestRunID, reportItem.RunID)
+	}
+	if got.LatestReportID != reportID {
+		t.Fatalf("LatestReportID = %q, want %q", got.LatestReportID, reportID)
+	}
+	if got.UnresolvedFollowUpCount != 1 {
+		t.Fatalf("UnresolvedFollowUpCount = %d, want 1", got.UnresolvedFollowUpCount)
+	}
+	if !got.NeedsFollowUp {
+		t.Fatal("NeedsFollowUp = false, want true")
+	}
+}
+
 func TestCreateEvalDatasetEndpointRejectsDuplicateEvalCaseIDs(t *testing.T) {
 	ctx := context.Background()
 	caseService := casesvc.NewService()

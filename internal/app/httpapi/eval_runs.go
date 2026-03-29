@@ -434,7 +434,7 @@ func (a *appHandler) listEvalRunsResponse(r *http.Request, filter evalsvc.RunLis
 func (a *appHandler) buildEvalRunListRows(r *http.Request, items []evalsvc.EvalRun) ([]evalRunResponse, error) {
 	rows := make([]evalRunResponse, 0, len(items))
 	for _, item := range items {
-		summary, err := a.evalRunFollowUpSummary(r, item.ID, item.TenantID)
+		summary, err := a.evalRunFollowUpSummary(r.Context(), item.ID, item.TenantID)
 		if err != nil {
 			return nil, err
 		}
@@ -478,7 +478,7 @@ type evalRunFollowUpSummary struct {
 	ItemWithoutOpenFollowUpCount int
 }
 
-func (a *appHandler) evalRunFollowUpSummary(r *http.Request, runID string, tenantID string) (evalRunFollowUpSummary, error) {
+func (a *appHandler) evalRunFollowUpSummary(ctx context.Context, runID string, tenantID string) (evalRunFollowUpSummary, error) {
 	summary := evalRunFollowUpSummary{
 		PerEvalCaseSummary: make(map[string]casesvc.EvalCaseFollowUpSummary),
 	}
@@ -486,7 +486,7 @@ func (a *appHandler) evalRunFollowUpSummary(r *http.Request, runID string, tenan
 		return summary, nil
 	}
 
-	detail, err := a.evalRuns.GetRunDetail(r.Context(), runID)
+	detail, err := a.evalRuns.GetRunDetail(ctx, runID)
 	if err != nil {
 		return evalRunFollowUpSummary{}, err
 	}
@@ -506,7 +506,7 @@ func (a *appHandler) evalRunFollowUpSummary(r *http.Request, runID string, tenan
 		return summary, nil
 	}
 
-	summary.PerEvalCaseSummary, err = a.cases.SummarizeBySourceEvalCaseIDs(r.Context(), tenantID, evalCaseIDs)
+	summary.PerEvalCaseSummary, err = a.cases.SummarizeBySourceEvalCaseIDs(ctx, tenantID, evalCaseIDs)
 	if err != nil {
 		return evalRunFollowUpSummary{}, fmt.Errorf("summarize eval-run follow-up cases: %w", err)
 	}

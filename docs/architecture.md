@@ -108,10 +108,13 @@ The current HTTP layer also exposes the same PostgreSQL-backed workflow records 
 - the same `/admin/evals` page now also supports direct case creation from one durable eval case, reusing `POST /api/v1/cases` with standalone `source_eval_case_id` and handing off into `/admin/cases`
 - when that eval-case follow-up already has open work, the same `/admin/evals` primary action now flips to `Open existing case` or `Open existing queue`, so reuse is visible in the operator flow before any write is attempted
 - `/admin/eval-datasets` now exposes the first dataset-focused operator lane, keeping dataset list rows lightweight while reusing canonical dataset detail and source-lineage handoff paths
+- the canonical eval-dataset list now also carries latest run/report linkage plus unresolved follow-up pressure, so dataset-level regression triage stays backend-owned instead of being reconstructed in browser code
+- the canonical eval-dataset detail now mirrors that latest run/report triage summary, so `/admin/eval-datasets` detail does not rely on list-row state to surface current regression pressure
 - `POST /api/v1/eval-datasets/{dataset_id}/publish` now turns a durable draft into an immutable published baseline, recording `published_by` and `published_at` so later regression work can target stable dataset state instead of a moving draft
 - `internal/eval` now also holds the first durable eval-run kickoff model, which snapshots published dataset metadata into a queued run row before judge execution is connected
 - `POST /api/v1/eval-runs`, `GET /api/v1/eval-runs`, and `GET /api/v1/eval-runs/{run_id}` now expose that tenant-scoped run-kickoff contract
 - `/admin/eval-runs` is the first eval-run operator lane, and `/admin/eval-datasets` now hands published baselines into it through `Run dataset`
+- `/admin/eval-datasets` now also has a canonical `Needs follow-up` queue and direct `latest run/report` handoff, so operators can enter unresolved regression work from the dataset lane without first opening `/admin/eval-runs`
 - `/admin/eval-reports` is the first eval-report operator lane, reusing the canonical eval-report list/detail contracts instead of reconstructing aggregated artifacts from run detail in the browser
 - the same eval-report lane now also carries follow-up case summary directly on canonical list rows, so queue-level triage does not need a second case-list fetch per row
 - the same canonical eval-report detail now also carries backend-owned `preferred_follow_up_action`, so `/admin/eval-reports` can render `Create case` versus reuse actions from one typed read-model field instead of recomputing that decision from follow-up counts and IDs in the browser

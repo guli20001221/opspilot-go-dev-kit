@@ -1425,6 +1425,11 @@ paths:
           required: false
           schema:
             type: string
+        - name: needs_follow_up
+          in: query
+          required: false
+          schema:
+            type: boolean
         - name: limit
           in: query
           required: false
@@ -2941,6 +2946,8 @@ components:
         - created_by
         - created_at
         - updated_at
+        - unresolved_follow_up_count
+        - needs_follow_up
         - items
       properties:
         dataset_id:
@@ -2969,6 +2976,25 @@ components:
         published_at:
           type: string
           format: date-time
+        latest_run_id:
+          type: string
+          description: Stable eval-run ID for the latest durable run kicked off from this dataset.
+        latest_run_status:
+          type: string
+          description: Lifecycle state of the latest durable eval run for this dataset.
+        latest_report_id:
+          type: string
+          description: Stable eval-report ID when the latest terminal eval run has already materialized a durable report artifact.
+        latest_report_status:
+          type: string
+          description: Eval-report lifecycle state for the latest linked durable report artifact.
+        unresolved_follow_up_count:
+          type: integer
+          minimum: 0
+          description: Failed items in the latest durable eval run that still lack an open follow-up case.
+        needs_follow_up:
+          type: boolean
+          description: Whether the latest durable eval run for this dataset still has at least one unresolved failed item.
         items:
           type: array
           items:
@@ -2984,6 +3010,8 @@ components:
         - created_at
         - updated_at
         - item_count
+        - unresolved_follow_up_count
+        - needs_follow_up
       properties:
         dataset_id:
           type: string
@@ -3007,6 +3035,25 @@ components:
         item_count:
           type: integer
           minimum: 0
+        latest_run_id:
+          type: string
+          description: Stable eval-run ID for the latest durable run kicked off from this dataset.
+        latest_run_status:
+          type: string
+          description: Lifecycle state of the latest durable eval run for this dataset.
+        latest_report_id:
+          type: string
+          description: Stable eval-report ID when the latest terminal eval run has already materialized a durable report artifact.
+        latest_report_status:
+          type: string
+          description: Eval-report lifecycle state for the latest linked durable report artifact.
+        unresolved_follow_up_count:
+          type: integer
+          minimum: 0
+          description: Failed items in the latest durable eval run that still lack an open follow-up case.
+        needs_follow_up:
+          type: boolean
+          description: Whether the latest durable eval run for this dataset still has at least one unresolved failed item.
     ListEvalCasesResponse:
       type: object
       required:

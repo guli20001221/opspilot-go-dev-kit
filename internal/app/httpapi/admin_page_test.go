@@ -549,6 +549,21 @@ func TestAdminEvalDatasetsPageRendersHTML(t *testing.T) {
 	if !strings.Contains(body, "Run dataset") {
 		t.Fatal("dataset run action missing from eval datasets page HTML")
 	}
+	if !strings.Contains(body, "Needs follow-up") {
+		t.Fatal("needs-follow-up quick view missing from eval datasets page HTML")
+	}
+	if !strings.Contains(body, "needs_follow_up") {
+		t.Fatal("needs_follow_up filter missing from eval datasets page HTML")
+	}
+	if !strings.Contains(body, "Open latest run") {
+		t.Fatal("latest run handoff missing from eval datasets page HTML")
+	}
+	if !strings.Contains(body, "Open latest report") {
+		t.Fatal("latest report handoff missing from eval datasets page HTML")
+	}
+	if !strings.Contains(body, "Unresolved follow-up items") {
+		t.Fatal("unresolved follow-up summary missing from eval datasets page HTML")
+	}
 	if !strings.Contains(body, "/admin/eval-runs") {
 		t.Fatal("eval run lane handoff missing from eval datasets page HTML")
 	}
@@ -599,6 +614,112 @@ func TestAdminEvalDatasetsPageRejectsUnknownSubpath(t *testing.T) {
 
 	if resp.StatusCode != http.StatusNotFound {
 		t.Fatalf("StatusCode = %d, want %d", resp.StatusCode, http.StatusNotFound)
+	}
+}
+
+func TestAdminEvalDatasetsPageRuntimeSmoke(t *testing.T) {
+	ctx := context.Background()
+	caseService := casesvc.NewService()
+	evalCaseService := evalsvc.NewService(caseService, nil)
+	datasetService := evalsvc.NewDatasetService(evalCaseService)
+	runService := evalsvc.NewRunService(datasetService)
+	reportService := evalsvc.NewEvalReportServiceWithDependencies(nil, runService)
+
+	olderSourceCase, err := caseService.CreateCase(ctx, casesvc.CreateInput{
+		TenantID: "tenant-dataset-admin-smoke",
+		Title:    "Older dataset source",
+	})
+	if err != nil {
+		t.Fatalf("CreateCase(older) error = %v", err)
+	}
+	olderEvalCase, _, err := evalCaseService.PromoteCase(ctx, evalsvc.CreateInput{
+		TenantID:     "tenant-dataset-admin-smoke",
+		SourceCaseID: olderSourceCase.ID,
+	})
+	if err != nil {
+		t.Fatalf("PromoteCase(older) error = %v", err)
+	}
+	if _, err := datasetService.CreateDataset(ctx, evalsvc.CreateDatasetInput{
+		TenantID:    "tenant-dataset-admin-smoke",
+		Name:        "Dataset Without Run",
+		EvalCaseIDs: []string{olderEvalCase.ID},
+		CreatedBy:   "operator-dataset",
+	}); err != nil {
+		t.Fatalf("CreateDataset(older) error = %v", err)
+	}
+
+	reportID := materializeEvalRunReport(t, "tenant-dataset-admin-smoke", evalsvc.RunStatusFailed, "failure detail", caseService, evalCaseService, datasetService, runService, reportService, "Dataset With Run", "Dataset With Run Source")
+	reportItem, err := reportService.GetEvalReport(ctx, reportID)
+	if err != nil {
+		t.Fatalf("GetEvalReport() error = %v", err)
+	}
+
+	server := httptest.NewServer(NewHandlerWithDependencies(Dependencies{
+		Cases:        caseService,
+		EvalCases:    evalCaseService,
+		EvalDatasets: datasetService,
+		EvalRuns:     runService,
+		EvalReports:  reportService,
+	}))
+	defer server.Close()
+
+	nodePathRoot, err := npmGlobalRoot()
+	if err != nil {
+		t.Skipf("skipping playwright runtime smoke: %v", err)
+	}
+
+	scriptPath := filepath.Join(t.TempDir(), "eval_datasets_smoke.js")
+	script := `
+const { chromium } = require("playwright");
+const baseURL = process.argv[2];
+const tenantID = process.argv[3];
+const datasetID = process.argv[4];
+const runID = process.argv[5];
+const reportID = process.argv[6];
+
+(async () => {
+  const browser = await chromium.launch({ headless: true });
+  const page = await browser.newPage();
+  await page.goto(baseURL + "/admin/eval-datasets?tenant_id=" + encodeURIComponent(tenantID) + "&limit=10");
+  await page.waitForSelector("#datasetRows tr");
+  const firstRowText = await page.textContent("#datasetRows tr:first-child");
+  if (!firstRowText.includes(runID)) throw new Error("latest run summary missing from dataset row");
+  if (!firstRowText.includes("1 unresolved follow-up items")) throw new Error("unresolved follow-up count missing from dataset row");
+  const latestRunHref = await page.getAttribute('a[href*="/admin/eval-runs?"][href*="run_id=' + encodeURIComponent(runID) + '"]', "href");
+  if (!latestRunHref) throw new Error("latest run handoff missing from dataset row");
+  const latestReportHref = await page.getAttribute('a[href*="/admin/eval-reports?"][href*="selected_report_id=' + encodeURIComponent(reportID) + '"]', "href");
+  if (!latestReportHref) throw new Error("latest report handoff missing from dataset row");
+  const detailText = await page.textContent("#datasetDetail");
+  if (!detailText.includes(runID)) throw new Error("latest run summary missing from dataset detail");
+  if (!detailText.includes(reportID)) throw new Error("latest report summary missing from dataset detail");
+  await page.click("#needsFollowUpQuickView");
+  await page.waitForFunction(() => document.querySelector("#visibleCount")?.textContent?.trim() === "1");
+  const currentURL = new URL(page.url());
+  if (currentURL.searchParams.get("needs_follow_up") !== "true") throw new Error("needs_follow_up filter not synced to URL");
+  const filterValue = await page.$eval("#needs_follow_up", (node) => node.value);
+  if (filterValue !== "true") throw new Error("needs_follow_up filter control not synced");
+  const selectedRow = await page.getAttribute('[data-dataset-row="' + datasetID + '"]', "aria-current");
+  if (selectedRow !== "true") throw new Error("selected dataset row did not stay synced");
+  await browser.close();
+})().catch((error) => {
+  console.error(error && error.stack ? error.stack : String(error));
+  process.exit(1);
+});
+`
+	if err := os.WriteFile(scriptPath, []byte(script), 0o600); err != nil {
+		t.Fatalf("WriteFile(scriptPath) error = %v", err)
+	}
+
+	cmd := exec.Command("node", scriptPath, server.URL, "tenant-dataset-admin-smoke", reportItem.DatasetID, reportItem.RunID, reportID)
+	cmd.Env = append(os.Environ(), "NODE_PATH="+nodePathRoot)
+	output, err := cmd.CombinedOutput()
+	if err != nil {
+		outText := string(output)
+		if strings.Contains(outText, "Please run the following command to download new browsers") ||
+			strings.Contains(outText, "Executable doesn't exist") {
+			t.Skip("skipping playwright runtime smoke: browser binaries not installed")
+		}
+		t.Fatalf("playwright runtime smoke failed: %v\n%s", err, outText)
 	}
 }
 

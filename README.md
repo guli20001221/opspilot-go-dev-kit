@@ -111,6 +111,8 @@ Current Milestone 1 slice:
 - `POST /api/v1/eval-datasets`, `GET /api/v1/eval-datasets`, and `GET /api/v1/eval-datasets/{dataset_id}` now expose the first durable dataset-draft contract plus its lightweight tenant-scoped browse surface
 - `POST /api/v1/eval-datasets/{dataset_id}/items` now lets operators append new durable eval cases into an existing draft dataset without rebuilding the dataset from scratch
 - `POST /api/v1/eval-datasets/{dataset_id}/publish` now freezes a draft dataset into an immutable published baseline with `published_by` and `published_at`
+- the canonical `GET /api/v1/eval-datasets` list now also carries the latest eval-run/report linkage plus `unresolved_follow_up_count` and `needs_follow_up`, so dataset-level regression pressure is visible before drilling into runs
+- the canonical `GET /api/v1/eval-datasets/{dataset_id}` detail now mirrors that latest run/report triage summary, so the dataset detail pane does not depend on list-row-only state
 - `POST /api/v1/eval-runs`, `GET /api/v1/eval-runs`, and `GET /api/v1/eval-runs/{run_id}` now expose the first durable eval-run kickoff contract, seeded only from published dataset baselines and intentionally stopping at queued run records before execution is wired
 - the worker now also processes queued eval runs through the first execution lifecycle, advancing them from `queued` to `running` to `succeeded` or `failed` with placeholder execution and durable timestamps
 - failed eval runs can now be re-queued through `POST /api/v1/eval-runs/{run_id}/retry`, which clears the prior failure fields on the same durable run record instead of creating a brand-new run
@@ -143,6 +145,7 @@ Current Milestone 1 slice:
 - `/admin/eval-datasets` now exposes the first dataset-focused operator page, backed by the canonical eval-dataset list/detail contracts instead of frontend-only saved views
 - the same `/admin/eval-datasets` page now also supports `Publish dataset`, and published datasets render as immutable read-only baselines instead of mutable drafts
 - the same `/admin/eval-datasets` page now also supports `Run dataset`, handing a published baseline straight into the shared `/admin/eval-runs` lane
+- that same `/admin/eval-datasets` lane now also exposes a backend-owned `Needs follow-up` slice plus direct `Open latest run` and `Open latest report` handoff from canonical dataset list rows
 - `/admin/eval-runs` now exposes the first eval-run operator page, backed directly by the canonical run list/detail contracts with handoff back to datasets and evals
 - `/admin/eval-reports` now exposes the first eval-report operator page, backed directly by the canonical eval-report list/detail contracts with bad-case and metadata drill-down
 - the same `/admin/eval-reports` list now also surfaces durable follow-up case summary from the canonical eval-report list contract, so operators can see follow-up pressure before drilling into linked cases

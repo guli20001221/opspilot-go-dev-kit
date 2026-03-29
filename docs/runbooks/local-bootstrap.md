@@ -138,6 +138,7 @@ The current chat stream implementation is a Milestone 1 skeleton:
 - use `needs_follow_up=true` on `GET /api/v1/eval-cases` when you want only eval cases that still have open linked operator work, or `needs_follow_up=false` when you want eval cases whose follow-up queue is already clear
 - use `POST /api/v1/eval-datasets` when you need to turn one or more durable eval cases into a draft dataset for later regression work
 - use `GET /api/v1/eval-datasets?tenant_id=<tenant>` when you need the lightweight dataset lane without pulling full membership payloads into the list response
+- the same canonical dataset list now also carries `latest_run_id`, `latest_report_id`, `unresolved_follow_up_count`, and `needs_follow_up`, so dataset-level regression pressure is visible without first opening `/api/v1/eval-runs`
 - use `POST /api/v1/eval-datasets/{dataset_id}/items` when you need to append another durable eval case into an existing draft dataset instead of creating a new draft
 - use `POST /api/v1/eval-datasets/{dataset_id}/publish` when curation is complete and you need an immutable baseline for later eval runs
 - use `POST /api/v1/eval-runs` when you need to create a durable queued eval run from a published dataset baseline
@@ -198,6 +199,7 @@ The current chat stream implementation is a Milestone 1 skeleton:
 - open `http://localhost:18080/admin/eval-datasets` when you want the first dataset-focused operator page, including dataset membership detail plus eval/case/task/report/version/trace handoff links
 - use `Publish dataset` on `/admin/eval-datasets` when you want to freeze the selected draft and make the page read-only for that baseline
 - use `Run dataset` on `/admin/eval-datasets` when you want to create a durable queued eval run from the selected published baseline and land on the matching `/admin/eval-runs` detail
+- use `Needs follow-up` on `/admin/eval-datasets` when you want the canonical slice of datasets whose latest durable run still has unresolved failed items, and use `Open latest run` / `Open latest report` when you want to jump straight into the newest regression artifact for that baseline
 - open `http://localhost:18080/admin/eval-runs` when you want the first eval-run operator page, including run detail plus dataset and eval handoff links
 - set `OPSPILOT_EVAL_RUN_FAIL_ALL=true` on the worker when you want every claimed eval run to fail for local recovery and operator-surface testing
 - use `Retry run` on `/admin/eval-runs` when you want to re-queue the selected failed run back into the worker lane from the same detail panel
