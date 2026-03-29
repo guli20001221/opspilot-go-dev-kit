@@ -126,8 +126,10 @@ The current chat stream implementation is a Milestone 1 skeleton:
 - use `GET /api/v1/reports/report-<task_id>` when you need the canonical report read model behind a successful report task, without parsing task audit history yourself
 - use `POST /api/v1/cases` when you need a durable operator follow-up object that can point at a source task, a source report, or both
 - that same canonical case contract now also accepts standalone `source_eval_case_id`, so one durable eval case can open or reuse precise follow-up work without a matching `source_eval_report_id`
+- that same canonical case contract now also accepts `source_eval_run_id`, so follow-up created from `/admin/eval-runs` keeps canonical run lineage
 - use `GET /api/v1/cases` when you need to inspect the current durable case slice for a tenant, status, or source linkage
 - the same case list now also supports `source_eval_dataset_id`, so one dataset-wide follow-up queue can be opened without first enumerating every `source_eval_report_id`
+- use `run_backed_only=true` on `GET /api/v1/cases` or the `Run-backed cases` quick view on `/admin/cases` when you want only eval-run-backed follow-up work
 - use `GET /api/v1/cases/{case_id}` when you need the canonical case record for that follow-up object
 - use `POST /api/v1/cases/{case_id}/close?tenant_id=<tenant>` when you need to close an open follow-up object and capture who closed it
 - use `POST /api/v1/cases/{case_id}/assign?tenant_id=<tenant>` when you need to claim or reassign an open follow-up object and capture who owns it
@@ -275,6 +277,7 @@ docker compose exec -T postgres psql -U opspilot -d opspilot -f /docker-entrypoi
 docker compose exec -T postgres psql -U opspilot -d opspilot -f /docker-entrypoint-initdb.d/000021_case_eval_report_source.sql
 docker compose exec -T postgres psql -U opspilot -d opspilot -f /docker-entrypoint-initdb.d/000022_case_compare_origin.sql
 docker compose exec -T postgres psql -U opspilot -d opspilot -f /docker-entrypoint-initdb.d/000023_case_eval_case_source.sql
+docker compose exec -T postgres psql -U opspilot -d opspilot -f /docker-entrypoint-initdb.d/000024_case_eval_run_source.sql
 ```
 
 If you change Compose environment variables such as `OPSPILOT_POSTGRES_DSN`, `OPSPILOT_TEMPORAL_ENABLED`, or `OPSPILOT_WORKER_POLL_INTERVAL`, recreate the app containers instead of only restarting them:

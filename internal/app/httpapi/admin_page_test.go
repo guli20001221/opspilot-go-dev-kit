@@ -2224,6 +2224,18 @@ func TestAdminCasesPageRendersHTML(t *testing.T) {
 	if !strings.Contains(body, "Source eval case") {
 		t.Fatal("source eval case detail missing from cases page HTML")
 	}
+	if !strings.Contains(body, "Run-backed cases") {
+		t.Fatal("run-backed-cases quick view missing from cases page HTML")
+	}
+	if !strings.Contains(body, "Source eval run") {
+		t.Fatal("source eval run detail missing from cases page HTML")
+	}
+	if !strings.Contains(body, "Open eval run") {
+		t.Fatal("eval run handoff missing from cases page HTML")
+	}
+	if !strings.Contains(body, "Open eval run API detail") {
+		t.Fatal("eval run api handoff missing from cases page HTML")
+	}
 	if !strings.Contains(body, "Open cases") {
 		t.Fatal("open-cases quick view missing from cases page HTML")
 	}
@@ -2316,6 +2328,17 @@ func TestAdminCasesPageRuntimeSmoke(t *testing.T) {
 	if err != nil {
 		t.Fatalf("CreateCase(missing) error = %v", err)
 	}
+	runBackedCase, err := caseService.CreateCase(ctx, casesvc.CreateInput{
+		TenantID:         "tenant-case-admin-smoke",
+		Title:            "Investigate failed eval run",
+		Summary:          "Follow up a durable eval run directly from cases",
+		SourceEvalRunID:  reportItem.RunID,
+		SourceEvalCaseID: reportItem.BadCases[0].EvalCaseID,
+		CreatedBy:        "operator-case",
+	})
+	if err != nil {
+		t.Fatalf("CreateCase(runBacked) error = %v", err)
+	}
 
 	server := httptest.NewServer(NewHandlerWithDependencies(Dependencies{
 		Cases:       caseService,
@@ -2341,6 +2364,8 @@ const runStatus = process.argv[8];
 const summary = process.argv[9];
 const badCaseCount = process.argv[10];
 const compareRightReportID = process.argv[11];
+const runBackedCaseID = process.argv[12];
+const evalRunID = process.argv[13];
 
 (async () => {
   const browser = await chromium.launch({ headless: true });
@@ -2469,6 +2494,33 @@ const compareRightReportID = process.argv[11];
   if (failedURL.searchParams.get("case_id") !== missingCaseID) {
     throw new Error("selected case_id drifted after source eval report lookup failure");
   }
+  await page.goto(baseURL + "/admin/cases?tenant_id=" + encodeURIComponent(tenantID) + "&limit=10&case_id=" + encodeURIComponent(runBackedCaseID));
+  await page.waitForFunction(
+    (caseID) => {
+      const row = document.querySelector('[data-case-row="' + caseID + '"]');
+      return row && row.textContent && row.textContent.includes("Eval run-backed");
+    },
+    runBackedCaseID
+  );
+  const runDetailText = await page.textContent("#caseDetail");
+  if (!runDetailText.includes("Source eval run")) throw new Error("missing source eval run detail section");
+  if (!runDetailText.includes(evalRunID)) throw new Error("missing source eval run id in detail");
+  const evalRunHref = await page.getAttribute("#openEvalRunLink", "href");
+  if (!evalRunHref || !evalRunHref.includes("run_id=" + encodeURIComponent(evalRunID))) {
+    throw new Error("eval run handoff drifted");
+  }
+  const evalRunAPIHref = await page.getAttribute("#openEvalRunAPILink", "href");
+  if (!evalRunAPIHref || !evalRunAPIHref.includes("/api/v1/eval-runs/" + encodeURIComponent(evalRunID))) {
+    throw new Error("eval run api handoff drifted");
+  }
+  await page.click("#runBackedCasesQuickView");
+  await page.waitForFunction(() => document.querySelector("#visibleCount")?.textContent?.trim() === "1");
+  const runURL = new URL(page.url());
+  if (runURL.searchParams.get("run_backed_only") !== "true") {
+    throw new Error("run-backed quick view did not sync run_backed_only");
+  }
+  const runVisibleCount = await page.textContent("#visibleCount");
+  if (runVisibleCount.trim() !== "1") throw new Error("run-backed quick view did not narrow to run-backed cases");
   await browser.close();
 })().catch((error) => {
   console.error(error && error.stack ? error.stack : String(error));
@@ -2492,6 +2544,8 @@ const compareRightReportID = process.argv[11];
 		reportItem.Summary,
 		strconv.Itoa(len(reportItem.BadCases)),
 		compareRightReportID,
+		runBackedCase.ID,
+		reportItem.RunID,
 	)
 	cmd.Env = append(os.Environ(), "NODE_PATH="+nodePathRoot)
 	output, err := cmd.CombinedOutput()

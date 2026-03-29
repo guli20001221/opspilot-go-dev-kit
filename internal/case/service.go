@@ -60,6 +60,7 @@ func (s *Service) CreateCase(ctx context.Context, input CreateInput) (Case, erro
 		SourceReportID:     input.SourceReportID,
 		SourceEvalReportID: input.SourceEvalReportID,
 		SourceEvalCaseID:   input.SourceEvalCaseID,
+		SourceEvalRunID:    input.SourceEvalRunID,
 		CompareOrigin:      input.CompareOrigin,
 		CreatedBy:          fallbackString(input.CreatedBy, "operator"),
 		CreatedAt:          now,

@@ -78,6 +78,9 @@ func (s *memoryStore) List(_ context.Context, filter ListFilter) (ListPage, erro
 		if filter.EvalBackedOnly && item.SourceEvalReportID == "" {
 			continue
 		}
+		if filter.RunBackedOnly && item.SourceEvalRunID == "" {
+			continue
+		}
 		if filter.CompareOriginOnly && (item.CompareOrigin.LeftEvalReportID == "" || item.CompareOrigin.RightEvalReportID == "" || item.CompareOrigin.SelectedSide == "") {
 			continue
 		}
@@ -102,6 +105,9 @@ func (s *memoryStore) List(_ context.Context, filter ListFilter) (ListPage, erro
 			}
 		}
 		if filter.SourceEvalCaseID != "" && item.SourceEvalCaseID != filter.SourceEvalCaseID {
+			continue
+		}
+		if filter.SourceEvalRunID != "" && item.SourceEvalRunID != filter.SourceEvalRunID {
 			continue
 		}
 		items = append(items, item)

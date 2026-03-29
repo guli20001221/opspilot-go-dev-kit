@@ -59,6 +59,7 @@ Keep the HTTP surface explicit, documented, stable, and friendly to streaming ag
 28. Before per-item judging lands, prefer adding durable placeholder `item_results` only on the single-run detail contract, keep create/list/retry responses lightweight, and clear stale item results when retry re-queues the same canonical run.
 29. Once placeholder `item_results` exist, prefer a lightweight `result_summary` on terminal eval-run reads for operator scanning instead of leaking full per-item payloads into list, create, or retry responses.
 30. Before a real judge provider is wired, keep placeholder eval item results structured: expose normalized verdict/score fields plus raw judge output on detail reads so later provider integration stays backward-compatible.
+31. When durable follow-up objects such as cases link eval-run lineage, expose `source_eval_run_id` on the canonical case read and write contracts and prefer backend-owned queue filters such as `source_eval_run_id` or `run_backed_only=true` over browser-built run-follow-up slices.
 
 ## Output contract
 When you finish, always report:

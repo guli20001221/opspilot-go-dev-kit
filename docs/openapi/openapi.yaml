@@ -800,12 +800,22 @@ paths:
           required: false
           schema:
             type: string
+        - name: source_eval_run_id
+          in: query
+          required: false
+          schema:
+            type: string
         - name: source_eval_dataset_id
           in: query
           required: false
           schema:
             type: string
         - name: eval_backed_only
+          in: query
+          required: false
+          schema:
+            type: boolean
+        - name: run_backed_only
           in: query
           required: false
           schema:
@@ -2641,6 +2651,8 @@ components:
           type: string
         source_eval_case_id:
           type: string
+        source_eval_run_id:
+          type: string
         compare_origin:
           $ref: '#/components/schemas/CaseCompareOrigin'
         created_by:
@@ -2797,6 +2809,8 @@ components:
         source_eval_report_id:
           type: string
         source_eval_case_id:
+          type: string
+        source_eval_run_id:
           type: string
         compare_origin:
           $ref: '#/components/schemas/CaseCompareOrigin'

@@ -35,6 +35,7 @@ type Case struct {
 	SourceReportID     string
 	SourceEvalReportID string
 	SourceEvalCaseID   string
+	SourceEvalRunID    string
 	CompareOrigin      CompareOrigin
 	CreatedBy          string
 	AssignedTo         string
@@ -70,6 +71,7 @@ type CreateInput struct {
 	SourceReportID     string
 	SourceEvalReportID string
 	SourceEvalCaseID   string
+	SourceEvalRunID    string
 	CompareOrigin      CompareOrigin
 	CreatedBy          string
 }
@@ -81,6 +83,7 @@ type ListFilter struct {
 	AssignedTo           string
 	UnassignedOnly       bool
 	EvalBackedOnly       bool
+	RunBackedOnly        bool
 	CompareOriginOnly    bool
 	ExcludeCompareOrigin bool
 	PlainEvalReportOnly  bool
@@ -89,6 +92,7 @@ type ListFilter struct {
 	SourceEvalReportID   string
 	SourceEvalReportIDs  []string
 	SourceEvalCaseID     string
+	SourceEvalRunID      string
 	Limit                int
 	Offset               int
 }

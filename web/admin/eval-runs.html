@@ -173,7 +173,7 @@
       const runItem = findRunItem(evalCaseID);
       runDetailStatusNote.textContent=`Creating follow-up case for ${evalCaseID}...`;
       try{
-        const response=await fetch("/api/v1/cases",{method:"POST",headers:{"Accept":"application/json","Content-Type":"application/json"},body:JSON.stringify({tenant_id:currentRunDetail.tenant_id,title:(runItem&&runItem.title)||`Follow-up for ${evalCaseID}`,summary:`Follow up eval run ${currentRunDetail.run_id} result for ${evalCaseID}`,source_eval_case_id:evalCaseID,created_by:"eval-runs-operator"})});
+        const response=await fetch("/api/v1/cases",{method:"POST",headers:{"Accept":"application/json","Content-Type":"application/json"},body:JSON.stringify({tenant_id:currentRunDetail.tenant_id,title:(runItem&&runItem.title)||`Follow-up for ${evalCaseID}`,summary:`Follow up eval run ${currentRunDetail.run_id} result for ${evalCaseID}`,source_eval_case_id:evalCaseID,source_eval_run_id:currentRunDetail.run_id,created_by:"eval-runs-operator"})});
         const created=await response.json().catch(()=>({}));
         if(!response.ok){throw new Error(created.message||`Case creation failed: ${response.statusText}`);}
         window.location.assign(`/admin/cases?tenant_id=${encodeURIComponent(currentRunDetail.tenant_id)}&case_id=${encodeURIComponent(created.case_id)}`);

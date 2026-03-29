@@ -25,11 +25,12 @@ func TestCaseStoreRoundTrip(t *testing.T) {
 	defer pool.Close()
 
 	applyMigration(t, ctx, pool)
-	if _, err := pool.Exec(ctx, "TRUNCATE cases, reports, workflow_task_events, workflow_tasks RESTART IDENTITY CASCADE"); err != nil {
-		t.Fatalf("TRUNCATE cases, reports, workflow_task_events, workflow_tasks error = %v", err)
+	if _, err := pool.Exec(ctx, "TRUNCATE eval_cases, eval_reports, eval_runs, cases, reports, workflow_task_events, workflow_tasks RESTART IDENTITY CASCADE"); err != nil {
+		t.Fatalf("TRUNCATE eval lineage and workflow tables error = %v", err)
 	}
 
 	store := NewCaseStore(pool)
+	runStore := NewEvalRunStore(pool)
 	want := casesvc.Case{
 		ID:                 "case-roundtrip-1",
 		TenantID:           "tenant-1",
@@ -40,6 +41,7 @@ func TestCaseStoreRoundTrip(t *testing.T) {
 		SourceReportID:     "report-source-1",
 		SourceEvalReportID: "eval-report-roundtrip-1",
 		SourceEvalCaseID:   "eval-case-roundtrip-1",
+		SourceEvalRunID:    "eval-run-roundtrip-1",
 		CompareOrigin: casesvc.CompareOrigin{
 			LeftEvalReportID:  "eval-report-roundtrip-1",
 			RightEvalReportID: "eval-report-roundtrip-2",
@@ -57,6 +59,34 @@ INSERT INTO workflow_tasks (
     'succeeded', 'workflow_required', '', '', false, NOW(), NOW()
 )`); err != nil {
 		t.Fatalf("insert workflow task error = %v", err)
+	}
+	for _, run := range []evalsvc.EvalRun{
+		{
+			ID:               "eval-run-roundtrip-1",
+			TenantID:         "tenant-1",
+			DatasetID:        "dataset-roundtrip-1",
+			DatasetName:      "Dataset Roundtrip",
+			DatasetItemCount: 1,
+			Status:           evalsvc.RunStatusFailed,
+			CreatedBy:        "operator-1",
+			CreatedAt:        time.Unix(1700024000, 0).UTC(),
+			UpdatedAt:        time.Unix(1700024000, 0).UTC(),
+		},
+		{
+			ID:               "eval-run-roundtrip-2",
+			TenantID:         "tenant-1",
+			DatasetID:        "dataset-roundtrip-1",
+			DatasetName:      "Dataset Roundtrip",
+			DatasetItemCount: 1,
+			Status:           evalsvc.RunStatusSucceeded,
+			CreatedBy:        "operator-1",
+			CreatedAt:        time.Unix(1700024001, 0).UTC(),
+			UpdatedAt:        time.Unix(1700024001, 0).UTC(),
+		},
+	} {
+		if _, err := runStore.CreateRun(ctx, run); err != nil {
+			t.Fatalf("CreateRun(%s) error = %v", run.ID, err)
+		}
 	}
 	if _, err := pool.Exec(ctx, `
 INSERT INTO reports (
@@ -120,6 +150,9 @@ INSERT INTO eval_cases (
 	}
 	if got.SourceEvalCaseID != want.SourceEvalCaseID {
 		t.Fatalf("Get().SourceEvalCaseID = %q, want %q", got.SourceEvalCaseID, want.SourceEvalCaseID)
+	}
+	if got.SourceEvalRunID != want.SourceEvalRunID {
+		t.Fatalf("Get().SourceEvalRunID = %q, want %q", got.SourceEvalRunID, want.SourceEvalRunID)
 	}
 	if got.CompareOrigin.LeftEvalReportID != want.CompareOrigin.LeftEvalReportID {
 		t.Fatalf("Get().CompareOrigin.LeftEvalReportID = %q, want %q", got.CompareOrigin.LeftEvalReportID, want.CompareOrigin.LeftEvalReportID)
@@ -362,11 +395,12 @@ func TestCaseStoreListSupportsEvalReportFilters(t *testing.T) {
 	defer pool.Close()
 
 	applyMigration(t, ctx, pool)
-	if _, err := pool.Exec(ctx, "TRUNCATE eval_reports, case_notes, cases, reports, workflow_task_events, workflow_tasks RESTART IDENTITY CASCADE"); err != nil {
-		t.Fatalf("TRUNCATE eval_reports and lineage tables error = %v", err)
+	if _, err := pool.Exec(ctx, "TRUNCATE eval_cases, eval_reports, eval_runs, case_notes, cases, reports, workflow_task_events, workflow_tasks RESTART IDENTITY CASCADE"); err != nil {
+		t.Fatalf("TRUNCATE eval run/report lineage tables error = %v", err)
 	}
 
 	reportStore := NewEvalReportStore(pool)
+	runStore := NewEvalRunStore(pool)
 	now := time.Unix(1700002070, 0).UTC()
 	for _, item := range []evalsvc.EvalReport{
 		{
@@ -416,6 +450,34 @@ func TestCaseStoreListSupportsEvalReportFilters(t *testing.T) {
 			t.Fatalf("SaveEvalReport(%s) error = %v", item.ID, err)
 		}
 	}
+	for _, item := range []evalsvc.EvalRun{
+		{
+			ID:               "eval-run-filter-1",
+			TenantID:         "tenant-1",
+			DatasetID:        "dataset-filter-1",
+			DatasetName:      "Dataset One",
+			DatasetItemCount: 1,
+			Status:           evalsvc.RunStatusFailed,
+			CreatedBy:        "operator-1",
+			CreatedAt:        now,
+			UpdatedAt:        now,
+		},
+		{
+			ID:               "eval-run-filter-2",
+			TenantID:         "tenant-1",
+			DatasetID:        "dataset-filter-1",
+			DatasetName:      "Dataset One",
+			DatasetItemCount: 1,
+			Status:           evalsvc.RunStatusFailed,
+			CreatedBy:        "operator-1",
+			CreatedAt:        now.Add(time.Second),
+			UpdatedAt:        now.Add(time.Second),
+		},
+	} {
+		if _, err := runStore.CreateRun(ctx, item); err != nil {
+			t.Fatalf("CreateRun(%s) error = %v", item.ID, err)
+		}
+	}
 	for _, item := range []evalsvc.EvalCase{
 		{
 			ID:             "eval-case-filter-1",
@@ -454,6 +516,7 @@ func TestCaseStoreListSupportsEvalReportFilters(t *testing.T) {
 			Title:              "Eval-backed one",
 			SourceEvalReportID: "eval-report-filter-1",
 			SourceEvalCaseID:   "eval-case-filter-1",
+			SourceEvalRunID:    "eval-run-filter-1",
 			CreatedBy:          "operator-1",
 			CreatedAt:          now,
 			UpdatedAt:          now,
@@ -465,6 +528,7 @@ func TestCaseStoreListSupportsEvalReportFilters(t *testing.T) {
 			Title:              "Eval-backed two",
 			SourceEvalReportID: "eval-report-filter-2",
 			SourceEvalCaseID:   "eval-case-filter-2",
+			SourceEvalRunID:    "eval-run-filter-2",
 			CreatedBy:          "operator-1",
 			CreatedAt:          now.Add(time.Second),
 			UpdatedAt:          now.Add(time.Second),
@@ -576,6 +640,38 @@ func TestCaseStoreListSupportsEvalReportFilters(t *testing.T) {
 	}
 	if evalCasePage.Cases[0].ID != "case-eval-filter-2" {
 		t.Fatalf("evalCasePage.Cases[0].ID = %q, want %q", evalCasePage.Cases[0].ID, "case-eval-filter-2")
+	}
+
+	evalRunPage, err := store.List(ctx, casesvc.ListFilter{
+		TenantID:        "tenant-1",
+		SourceEvalRunID: "eval-run-filter-2",
+		Limit:           10,
+	})
+	if err != nil {
+		t.Fatalf("List(evalRunPage) error = %v", err)
+	}
+	if len(evalRunPage.Cases) != 1 {
+		t.Fatalf("len(evalRunPage.Cases) = %d, want %d", len(evalRunPage.Cases), 1)
+	}
+	if evalRunPage.Cases[0].ID != "case-eval-filter-2" {
+		t.Fatalf("evalRunPage.Cases[0].ID = %q, want %q", evalRunPage.Cases[0].ID, "case-eval-filter-2")
+	}
+
+	runBackedPage, err := store.List(ctx, casesvc.ListFilter{
+		TenantID:      "tenant-1",
+		RunBackedOnly: true,
+		Limit:         10,
+	})
+	if err != nil {
+		t.Fatalf("List(runBackedPage) error = %v", err)
+	}
+	if len(runBackedPage.Cases) != 2 {
+		t.Fatalf("len(runBackedPage.Cases) = %d, want %d", len(runBackedPage.Cases), 2)
+	}
+	for _, item := range runBackedPage.Cases {
+		if item.SourceEvalRunID == "" {
+			t.Fatal("run-backed filter returned a case without source_eval_run_id")
+		}
 	}
 }
 

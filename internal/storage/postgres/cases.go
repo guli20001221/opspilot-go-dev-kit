@@ -43,6 +43,7 @@ INSERT INTO cases (
     source_report_id,
     source_eval_report_id,
     source_eval_case_id,
+    source_eval_run_id,
     compare_left_eval_report_id,
     compare_right_eval_report_id,
     compare_selected_side,
@@ -53,7 +54,7 @@ INSERT INTO cases (
     created_at,
     updated_at
 ) VALUES (
-    $1, $2, $3, $4, $5, NULLIF($6, ''), NULLIF($7, ''), NULLIF($8, ''), NULLIF($9, ''), NULLIF($10, ''), NULLIF($11, ''), $12, $13, $14, $15, $16, $17, $18
+    $1, $2, $3, $4, $5, NULLIF($6, ''), NULLIF($7, ''), NULLIF($8, ''), NULLIF($9, ''), NULLIF($10, ''), NULLIF($11, ''), NULLIF($12, ''), $13, $14, $15, $16, $17, $18, $19
 )
 ON CONFLICT (id) DO UPDATE SET
     tenant_id = EXCLUDED.tenant_id,
@@ -64,6 +65,7 @@ ON CONFLICT (id) DO UPDATE SET
     source_report_id = EXCLUDED.source_report_id,
     source_eval_report_id = EXCLUDED.source_eval_report_id,
     source_eval_case_id = EXCLUDED.source_eval_case_id,
+    source_eval_run_id = EXCLUDED.source_eval_run_id,
     compare_left_eval_report_id = EXCLUDED.compare_left_eval_report_id,
     compare_right_eval_report_id = EXCLUDED.compare_right_eval_report_id,
     compare_selected_side = EXCLUDED.compare_selected_side,
@@ -83,6 +85,7 @@ RETURNING
     COALESCE(source_report_id, ''),
     COALESCE(source_eval_report_id, ''),
     COALESCE(source_eval_case_id, ''),
+    COALESCE(source_eval_run_id, ''),
     COALESCE(compare_left_eval_report_id, ''),
     COALESCE(compare_right_eval_report_id, ''),
     compare_selected_side,
@@ -105,6 +108,7 @@ RETURNING
 		item.SourceReportID,
 		item.SourceEvalReportID,
 		item.SourceEvalCaseID,
+		item.SourceEvalRunID,
 		item.CompareOrigin.LeftEvalReportID,
 		item.CompareOrigin.RightEvalReportID,
 		item.CompareOrigin.SelectedSide,
@@ -132,6 +136,7 @@ SELECT
     COALESCE(source_report_id, ''),
     COALESCE(source_eval_report_id, ''),
     COALESCE(source_eval_case_id, ''),
+    COALESCE(source_eval_run_id, ''),
     COALESCE(compare_left_eval_report_id, ''),
     COALESCE(compare_right_eval_report_id, ''),
     compare_selected_side,
@@ -178,6 +183,7 @@ SELECT
     COALESCE(source_report_id, ''),
     COALESCE(source_eval_report_id, ''),
     COALESCE(source_eval_case_id, ''),
+    COALESCE(source_eval_run_id, ''),
     COALESCE(compare_left_eval_report_id, ''),
     COALESCE(compare_right_eval_report_id, ''),
     compare_selected_side,
@@ -193,16 +199,18 @@ WHERE ($1 = '' OR tenant_id = $1)
   AND ($3 = '' OR assigned_to = $3)
   AND (NOT $4::boolean OR assigned_to = '')
   AND (NOT $5::boolean OR source_eval_report_id IS NOT NULL)
-  AND (NOT $6::boolean OR compare_selected_side <> '')
-  AND (NOT $7::boolean OR compare_selected_side = '')
-  AND (NOT $8::boolean OR COALESCE(source_eval_case_id, '') = '')
-  AND ($9 = '' OR source_task_id = $9)
-  AND ($10 = '' OR source_report_id = $10)
-  AND ($11 = '' OR source_eval_report_id = $11)
-  AND (cardinality($12::text[]) = 0 OR source_eval_report_id = ANY($12))
-  AND ($13 = '' OR source_eval_case_id = $13)
+  AND (NOT $6::boolean OR source_eval_run_id IS NOT NULL)
+  AND (NOT $7::boolean OR compare_selected_side <> '')
+  AND (NOT $8::boolean OR compare_selected_side = '')
+  AND (NOT $9::boolean OR COALESCE(source_eval_case_id, '') = '')
+  AND ($10 = '' OR source_task_id = $10)
+  AND ($11 = '' OR source_report_id = $11)
+  AND ($12 = '' OR source_eval_report_id = $12)
+  AND (cardinality($13::text[]) = 0 OR source_eval_report_id = ANY($13))
+  AND ($14 = '' OR source_eval_case_id = $14)
+  AND ($15 = '' OR source_eval_run_id = $15)
 ORDER BY updated_at DESC, created_at DESC, id DESC
-LIMIT $14 OFFSET $15`
+LIMIT $16 OFFSET $17`
 
 	sourceEvalReportIDs := filter.SourceEvalReportIDs
 	if len(sourceEvalReportIDs) == 0 {
@@ -217,6 +225,7 @@ LIMIT $14 OFFSET $15`
 		filter.AssignedTo,
 		filter.UnassignedOnly,
 		filter.EvalBackedOnly,
+		filter.RunBackedOnly,
 		filter.CompareOriginOnly,
 		filter.ExcludeCompareOrigin,
 		filter.PlainEvalReportOnly,
@@ -225,6 +234,7 @@ LIMIT $14 OFFSET $15`
 		filter.SourceEvalReportID,
 		sourceEvalReportIDs,
 		filter.SourceEvalCaseID,
+		filter.SourceEvalRunID,
 		limit+1,
 		offset,
 	)
@@ -274,6 +284,7 @@ SELECT
     COALESCE(source_report_id, ''),
     COALESCE(source_eval_report_id, ''),
     COALESCE(source_eval_case_id, ''),
+    COALESCE(source_eval_run_id, ''),
     COALESCE(compare_left_eval_report_id, ''),
     COALESCE(compare_right_eval_report_id, ''),
     compare_selected_side,
@@ -659,6 +670,7 @@ RETURNING
     COALESCE(source_report_id, ''),
     COALESCE(source_eval_report_id, ''),
     COALESCE(source_eval_case_id, ''),
+    COALESCE(source_eval_run_id, ''),
     COALESCE(compare_left_eval_report_id, ''),
     COALESCE(compare_right_eval_report_id, ''),
     compare_selected_side,
@@ -714,6 +726,7 @@ RETURNING
     COALESCE(source_report_id, ''),
     COALESCE(source_eval_report_id, ''),
     COALESCE(source_eval_case_id, ''),
+    COALESCE(source_eval_run_id, ''),
     COALESCE(compare_left_eval_report_id, ''),
     COALESCE(compare_right_eval_report_id, ''),
     compare_selected_side,
@@ -793,6 +806,7 @@ RETURNING
     COALESCE(source_report_id, ''),
     COALESCE(source_eval_report_id, ''),
     COALESCE(source_eval_case_id, ''),
+    COALESCE(source_eval_run_id, ''),
     COALESCE(compare_left_eval_report_id, ''),
     COALESCE(compare_right_eval_report_id, ''),
     compare_selected_side,
@@ -853,6 +867,7 @@ RETURNING
     COALESCE(source_report_id, ''),
     COALESCE(source_eval_report_id, ''),
     COALESCE(source_eval_case_id, ''),
+    COALESCE(source_eval_run_id, ''),
     COALESCE(compare_left_eval_report_id, ''),
     COALESCE(compare_right_eval_report_id, ''),
     compare_selected_side,
@@ -928,6 +943,7 @@ func scanCase(row caseQuerierRow) (casesvc.Case, error) {
 		&item.SourceReportID,
 		&item.SourceEvalReportID,
 		&item.SourceEvalCaseID,
+		&item.SourceEvalRunID,
 		&item.CompareOrigin.LeftEvalReportID,
 		&item.CompareOrigin.RightEvalReportID,
 		&item.CompareOrigin.SelectedSide,

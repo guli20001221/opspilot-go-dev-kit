@@ -24,6 +24,7 @@ type createCaseRequest struct {
 	SourceReportID     string                    `json:"source_report_id,omitempty"`
 	SourceEvalReportID string                    `json:"source_eval_report_id,omitempty"`
 	SourceEvalCaseID   string                    `json:"source_eval_case_id,omitempty"`
+	SourceEvalRunID    string                    `json:"source_eval_run_id,omitempty"`
 	CompareOrigin      *caseCompareOriginRequest `json:"compare_origin,omitempty"`
 	CreatedBy          string                    `json:"created_by,omitempty"`
 }
@@ -38,6 +39,7 @@ type caseResponse struct {
 	SourceReportID     string                     `json:"source_report_id,omitempty"`
 	SourceEvalReportID string                     `json:"source_eval_report_id,omitempty"`
 	SourceEvalCaseID   string                     `json:"source_eval_case_id,omitempty"`
+	SourceEvalRunID    string                     `json:"source_eval_run_id,omitempty"`
 	CompareOrigin      *caseCompareOriginResponse `json:"compare_origin,omitempty"`
 	CreatedBy          string                     `json:"created_by"`
 	AssignedTo         string                     `json:"assigned_to,omitempty"`
@@ -169,6 +171,7 @@ func (a *appHandler) handleCreateCase(w http.ResponseWriter, r *http.Request) {
 		SourceReportID:     req.SourceReportID,
 		SourceEvalReportID: req.SourceEvalReportID,
 		SourceEvalCaseID:   req.SourceEvalCaseID,
+		SourceEvalRunID:    req.SourceEvalRunID,
 		CompareOrigin:      newCaseCompareOriginModel(req.CompareOrigin),
 		CreatedBy:          req.CreatedBy,
 	})
@@ -572,8 +575,8 @@ func validateCreateCaseRequest(req createCaseRequest) error {
 		if req.CompareOrigin.LeftEvalReportID == "" || req.CompareOrigin.RightEvalReportID == "" {
 			return errors.New("compare_origin.left_eval_report_id and compare_origin.right_eval_report_id are required")
 		}
-		if req.SourceTaskID != "" || req.SourceReportID != "" || req.SourceEvalCaseID != "" {
-			return errors.New("compare_origin cannot be combined with source_task_id, source_report_id, or source_eval_case_id")
+		if req.SourceTaskID != "" || req.SourceReportID != "" || req.SourceEvalCaseID != "" || req.SourceEvalRunID != "" {
+			return errors.New("compare_origin cannot be combined with source_task_id, source_report_id, source_eval_case_id, or source_eval_run_id")
 		}
 		if req.CompareOrigin.SelectedSide != "left" && req.CompareOrigin.SelectedSide != "right" {
 			return errors.New("compare_origin.selected_side must be left or right")
@@ -598,11 +601,13 @@ func parseCaseListFilter(r *http.Request) (casesvc.ListFilter, string, error) {
 		AssignedTo:         r.URL.Query().Get("assigned_to"),
 		UnassignedOnly:     false,
 		EvalBackedOnly:     false,
+		RunBackedOnly:      false,
 		CompareOriginOnly:  false,
 		SourceTaskID:       r.URL.Query().Get("source_task_id"),
 		SourceReportID:     r.URL.Query().Get("source_report_id"),
 		SourceEvalReportID: r.URL.Query().Get("source_eval_report_id"),
 		SourceEvalCaseID:   r.URL.Query().Get("source_eval_case_id"),
+		SourceEvalRunID:    r.URL.Query().Get("source_eval_run_id"),
 		Limit:              20,
 	}
 	sourceEvalDatasetID := strings.TrimSpace(r.URL.Query().Get("source_eval_dataset_id"))
@@ -622,6 +627,13 @@ func parseCaseListFilter(r *http.Request) (casesvc.ListFilter, string, error) {
 			return casesvc.ListFilter{}, "", fmt.Errorf("eval_backed_only must be a boolean")
 		}
 		filter.EvalBackedOnly = value
+	}
+	if rawRunBackedOnly := r.URL.Query().Get("run_backed_only"); rawRunBackedOnly != "" {
+		value, err := strconv.ParseBool(rawRunBackedOnly)
+		if err != nil {
+			return casesvc.ListFilter{}, "", fmt.Errorf("run_backed_only must be a boolean")
+		}
+		filter.RunBackedOnly = value
 	}
 	if rawCompareOriginOnly := r.URL.Query().Get("compare_origin_only"); rawCompareOriginOnly != "" {
 		value, err := strconv.ParseBool(rawCompareOriginOnly)
@@ -730,6 +742,15 @@ func (a *appHandler) validateCaseSources(r *http.Request, req createCaseRequest)
 			return report.Report{}, errInvalidEvalCaseSource
 		}
 	}
+	if req.SourceEvalRunID != "" {
+		item, err := a.evalRuns.GetRun(r.Context(), req.SourceEvalRunID)
+		if err != nil {
+			return report.Report{}, err
+		}
+		if item.TenantID != req.TenantID {
+			return report.Report{}, errInvalidCaseSource
+		}
+	}
 	if req.CompareOrigin != nil {
 		for _, reportID := range []string{req.CompareOrigin.LeftEvalReportID, req.CompareOrigin.RightEvalReportID} {
 			item, err := a.evalReports.GetEvalReport(r.Context(), reportID)
@@ -758,6 +779,8 @@ func writeCaseSourceError(w http.ResponseWriter, err error) {
 		writeError(w, http.StatusNotFound, "eval_report_not_found", "eval report not found")
 	case errors.Is(err, evalsvc.ErrEvalCaseNotFound):
 		writeError(w, http.StatusNotFound, "eval_case_not_found", "eval case not found")
+	case errors.Is(err, evalsvc.ErrEvalRunNotFound):
+		writeError(w, http.StatusNotFound, "eval_run_not_found", "eval run not found")
 	case errors.Is(err, errInvalidCaseSource):
 		writeError(w, http.StatusConflict, "invalid_case_source", err.Error())
 	case errors.Is(err, errInvalidEvalCaseSource):
@@ -778,6 +801,7 @@ func newCaseResponse(item casesvc.Case, notes ...[]casesvc.Note) caseResponse {
 		SourceReportID:     item.SourceReportID,
 		SourceEvalReportID: item.SourceEvalReportID,
 		SourceEvalCaseID:   item.SourceEvalCaseID,
+		SourceEvalRunID:    item.SourceEvalRunID,
 		CompareOrigin:      newCaseCompareOriginResponse(item.CompareOrigin),
 		CreatedBy:          item.CreatedBy,
 		AssignedTo:         item.AssignedTo,

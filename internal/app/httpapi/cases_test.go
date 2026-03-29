@@ -203,6 +203,71 @@ func TestCreateAndGetCaseEndpointWithEvalCaseSource(t *testing.T) {
 	}
 }
 
+func TestCreateAndGetCaseEndpointWithEvalRunSource(t *testing.T) {
+	caseService := casesvc.NewService()
+	evalCaseService := evalsvc.NewService(caseService, nil)
+	datasetService := evalsvc.NewDatasetService(evalCaseService)
+	runService := evalsvc.NewRunService(datasetService)
+	reportService := evalsvc.NewEvalReportServiceWithDependencies(nil, runService)
+	evalReportID := materializeEvalRunReport(t, "tenant-eval-run-case-source", evalsvc.RunStatusFailed, "failure detail", caseService, evalCaseService, datasetService, runService, reportService, "Dataset Eval Run Source", "Source Eval Run Source")
+	reportItem, err := reportService.GetEvalReport(context.Background(), evalReportID)
+	if err != nil {
+		t.Fatalf("GetEvalReport() error = %v", err)
+	}
+	if len(reportItem.BadCases) == 0 {
+		t.Fatal("BadCases = 0, want at least one")
+	}
+
+	server := httptest.NewServer(NewHandlerWithDependencies(Dependencies{
+		Cases:     caseService,
+		EvalCases: evalCaseService,
+		EvalRuns:  runService,
+	}))
+	defer server.Close()
+
+	body := bytes.NewBufferString(`{"tenant_id":"tenant-eval-run-case-source","title":"Investigate eval run","summary":"Follow up one eval run result","source_eval_case_id":"` + reportItem.BadCases[0].EvalCaseID + `","source_eval_run_id":"` + reportItem.RunID + `","created_by":"operator-eval-run"}`)
+	resp, err := http.Post(server.URL+"/api/v1/cases", "application/json", body)
+	if err != nil {
+		t.Fatalf("Post() error = %v", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusCreated {
+		t.Fatalf("StatusCode = %d, want %d", resp.StatusCode, http.StatusCreated)
+	}
+
+	var created caseResponse
+	if err := json.NewDecoder(resp.Body).Decode(&created); err != nil {
+		t.Fatalf("Decode(created) error = %v", err)
+	}
+	if created.SourceEvalCaseID != reportItem.BadCases[0].EvalCaseID {
+		t.Fatalf("SourceEvalCaseID = %q, want %q", created.SourceEvalCaseID, reportItem.BadCases[0].EvalCaseID)
+	}
+	if created.SourceEvalRunID != reportItem.RunID {
+		t.Fatalf("SourceEvalRunID = %q, want %q", created.SourceEvalRunID, reportItem.RunID)
+	}
+
+	getResp, err := http.Get(server.URL + "/api/v1/cases/" + created.CaseID + "?tenant_id=tenant-eval-run-case-source")
+	if err != nil {
+		t.Fatalf("Get() error = %v", err)
+	}
+	defer getResp.Body.Close()
+	if getResp.StatusCode != http.StatusOK {
+		t.Fatalf("StatusCode = %d, want %d", getResp.StatusCode, http.StatusOK)
+	}
+
+	var got caseResponse
+	if err := json.NewDecoder(getResp.Body).Decode(&got); err != nil {
+		t.Fatalf("Decode(get) error = %v", err)
+	}
+	if got.SourceEvalRunID != reportItem.RunID {
+		t.Fatalf("Get().SourceEvalRunID = %q, want %q", got.SourceEvalRunID, reportItem.RunID)
+	}
+	if got.SourceEvalCaseID != reportItem.BadCases[0].EvalCaseID {
+		t.Fatalf("Get().SourceEvalCaseID = %q, want %q", got.SourceEvalCaseID, reportItem.BadCases[0].EvalCaseID)
+	}
+}
+
 func TestCreateAndGetCaseEndpointWithStandaloneEvalCaseSource(t *testing.T) {
 	caseService := casesvc.NewService()
 	evalCaseService := evalsvc.NewService(caseService, nil)
@@ -904,8 +969,8 @@ func TestCreateCaseRejectsCompareOriginMixedWithTaskOrReportSources(t *testing.T
 	if got.Code != "invalid_case" {
 		t.Fatalf("Code = %q, want %q", got.Code, "invalid_case")
 	}
-	if got.Message != "compare_origin cannot be combined with source_task_id, source_report_id, or source_eval_case_id" {
-		t.Fatalf("Message = %q, want %q", got.Message, "compare_origin cannot be combined with source_task_id, source_report_id, or source_eval_case_id")
+	if got.Message != "compare_origin cannot be combined with source_task_id, source_report_id, source_eval_case_id, or source_eval_run_id" {
+		t.Fatalf("Message = %q, want %q", got.Message, "compare_origin cannot be combined with source_task_id, source_report_id, source_eval_case_id, or source_eval_run_id")
 	}
 }
 
@@ -1375,6 +1440,125 @@ func TestListCasesEndpointSupportsEvalBackedOnlyFilter(t *testing.T) {
 	}
 }
 
+func TestListCasesEndpointSupportsEvalRunSourceFilter(t *testing.T) {
+	caseService := casesvc.NewService()
+
+	runBackedA, err := caseService.CreateCase(context.Background(), casesvc.CreateInput{
+		TenantID:         "tenant-1",
+		Title:            "Run-backed case A",
+		SourceEvalRunID:  "eval-run-1",
+		SourceEvalCaseID: "eval-case-1",
+	})
+	if err != nil {
+		t.Fatalf("CreateCase(runBackedA) error = %v", err)
+	}
+	if _, err := caseService.CreateCase(context.Background(), casesvc.CreateInput{
+		TenantID:         "tenant-1",
+		Title:            "Run-backed case B",
+		SourceEvalRunID:  "eval-run-2",
+		SourceEvalCaseID: "eval-case-2",
+	}); err != nil {
+		t.Fatalf("CreateCase(runBackedB) error = %v", err)
+	}
+	if _, err := caseService.CreateCase(context.Background(), casesvc.CreateInput{
+		TenantID: "tenant-1",
+		Title:    "Manual case",
+	}); err != nil {
+		t.Fatalf("CreateCase(manual) error = %v", err)
+	}
+
+	server := httptest.NewServer(NewHandlerWithDependencies(Dependencies{
+		Cases: caseService,
+	}))
+	defer server.Close()
+
+	resp, err := http.Get(server.URL + "/api/v1/cases?tenant_id=tenant-1&source_eval_run_id=eval-run-1&limit=10")
+	if err != nil {
+		t.Fatalf("Get() error = %v", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("StatusCode = %d, want %d", resp.StatusCode, http.StatusOK)
+	}
+
+	var page listCasesResponse
+	if err := json.NewDecoder(resp.Body).Decode(&page); err != nil {
+		t.Fatalf("Decode() error = %v", err)
+	}
+	if len(page.Cases) != 1 {
+		t.Fatalf("len(page.Cases) = %d, want %d", len(page.Cases), 1)
+	}
+	if page.Cases[0].CaseID != runBackedA.ID {
+		t.Fatalf("page.Cases[0].CaseID = %q, want %q", page.Cases[0].CaseID, runBackedA.ID)
+	}
+	if page.Cases[0].SourceEvalRunID != "eval-run-1" {
+		t.Fatalf("page.Cases[0].SourceEvalRunID = %q, want %q", page.Cases[0].SourceEvalRunID, "eval-run-1")
+	}
+}
+
+func TestListCasesEndpointSupportsRunBackedOnlyFilter(t *testing.T) {
+	caseService := casesvc.NewService()
+
+	firstRunBacked, err := caseService.CreateCase(context.Background(), casesvc.CreateInput{
+		TenantID:        "tenant-1",
+		Title:           "First run-backed case",
+		SourceEvalRunID: "eval-run-1",
+	})
+	if err != nil {
+		t.Fatalf("CreateCase(firstRunBacked) error = %v", err)
+	}
+	secondRunBacked, err := caseService.CreateCase(context.Background(), casesvc.CreateInput{
+		TenantID:        "tenant-1",
+		Title:           "Second run-backed case",
+		SourceEvalRunID: "eval-run-2",
+	})
+	if err != nil {
+		t.Fatalf("CreateCase(secondRunBacked) error = %v", err)
+	}
+	if _, err := caseService.CreateCase(context.Background(), casesvc.CreateInput{
+		TenantID:           "tenant-1",
+		Title:              "Eval report-backed case",
+		SourceEvalReportID: "eval-report-1",
+	}); err != nil {
+		t.Fatalf("CreateCase(evalBacked) error = %v", err)
+	}
+
+	server := httptest.NewServer(NewHandlerWithDependencies(Dependencies{
+		Cases: caseService,
+	}))
+	defer server.Close()
+
+	resp, err := http.Get(server.URL + "/api/v1/cases?tenant_id=tenant-1&run_backed_only=true&limit=10")
+	if err != nil {
+		t.Fatalf("Get() error = %v", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("StatusCode = %d, want %d", resp.StatusCode, http.StatusOK)
+	}
+
+	var page listCasesResponse
+	if err := json.NewDecoder(resp.Body).Decode(&page); err != nil {
+		t.Fatalf("Decode() error = %v", err)
+	}
+	if len(page.Cases) != 2 {
+		t.Fatalf("len(page.Cases) = %d, want %d", len(page.Cases), 2)
+	}
+	if page.Cases[0].CaseID != secondRunBacked.ID {
+		t.Fatalf("page.Cases[0].CaseID = %q, want %q", page.Cases[0].CaseID, secondRunBacked.ID)
+	}
+	if page.Cases[1].CaseID != firstRunBacked.ID {
+		t.Fatalf("page.Cases[1].CaseID = %q, want %q", page.Cases[1].CaseID, firstRunBacked.ID)
+	}
+	for _, item := range page.Cases {
+		if item.SourceEvalRunID == "" {
+			t.Fatal("run_backed_only returned a case without source_eval_run_id")
+		}
+	}
+}
+
 func TestListCasesEndpointSupportsCompareOriginOnlyFilter(t *testing.T) {
 	caseService := casesvc.NewService()
 
@@ -1440,6 +1624,29 @@ func TestListCasesEndpointRejectsInvalidCompareOriginOnly(t *testing.T) {
 	defer server.Close()
 
 	resp, err := http.Get(server.URL + "/api/v1/cases?tenant_id=tenant-1&compare_origin_only=maybe")
+	if err != nil {
+		t.Fatalf("Get() error = %v", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusBadRequest {
+		t.Fatalf("StatusCode = %d, want %d", resp.StatusCode, http.StatusBadRequest)
+	}
+
+	var got errorResponse
+	if err := json.NewDecoder(resp.Body).Decode(&got); err != nil {
+		t.Fatalf("Decode() error = %v", err)
+	}
+	if got.Code != "invalid_query" {
+		t.Fatalf("Code = %q, want %q", got.Code, "invalid_query")
+	}
+}
+
+func TestListCasesEndpointRejectsInvalidRunBackedOnly(t *testing.T) {
+	server := httptest.NewServer(NewHandler())
+	defer server.Close()
+
+	resp, err := http.Get(server.URL + "/api/v1/cases?tenant_id=tenant-1&run_backed_only=maybe")
 	if err != nil {
 		t.Fatalf("Get() error = %v", err)
 	}
