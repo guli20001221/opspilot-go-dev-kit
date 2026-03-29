@@ -3598,6 +3598,7 @@ components:
         - follow_up_case_count
         - open_follow_up_case_count
         - preferred_follow_up_action
+        - preferred_bad_case_queue_action
         - compare_follow_up_case_count
         - open_compare_follow_up_case_count
         - preferred_compare_follow_up_action
@@ -3668,6 +3669,8 @@ components:
             - closed
         preferred_follow_up_action:
           $ref: '#/components/schemas/EvalReportFollowUpAction'
+        preferred_bad_case_queue_action:
+          $ref: '#/components/schemas/EvalReportBadCaseQueueAction'
         compare_follow_up_case_count:
           type: integer
           minimum: 0
@@ -3815,6 +3818,19 @@ components:
         source_eval_run_id:
           type: string
     EvalReportCompareQueueAction:
+      type: object
+      required:
+        - mode
+        - source_eval_report_id
+      properties:
+        mode:
+          type: string
+          enum:
+            - none
+            - open_existing_queue
+        source_eval_report_id:
+          type: string
+    EvalReportBadCaseQueueAction:
       type: object
       required:
         - mode
@@ -4043,6 +4059,7 @@ components:
         - bad_case_without_open_follow_up_count
         - follow_up_case_count
         - open_follow_up_case_count
+        - preferred_bad_case_queue_action
         - linked_case_summary
         - preferred_linked_case_action
         - compare_follow_up_case_count
@@ -4114,6 +4131,8 @@ components:
           enum:
             - open
             - closed
+        preferred_bad_case_queue_action:
+          $ref: '#/components/schemas/EvalReportBadCaseQueueAction'
         linked_case_summary:
           $ref: '#/components/schemas/EvalReportLinkedCaseSummary'
         preferred_linked_case_action:

@@ -178,6 +178,7 @@ The current chat stream implementation is a Milestone 1 skeleton:
 - open `http://localhost:18080/admin/eval-reports` when you want the first eval-report operator page, including bad-case drill-down plus run, dataset, eval, trace, and version handoff links
 - use the `Needs follow-up` quick view on `/admin/eval-reports` when you want the unresolved-regression slice without manually entering `needs_follow_up=true`
 - use the `Unresolved bad cases` quick view on `/admin/eval-reports` when you want only reports whose bad cases still have no open linked follow-up
+- use the canonical `preferred_bad_case_queue_action` on eval-report list/detail or compare-side reads when you need unresolved bad-case queue handoff; do not reconstruct that handoff from `report_id` in browser code
 - use `Open latest case` on `/admin/eval-reports` rows when you want to jump straight into the freshest linked follow-up case from the canonical list slice
 - that same `Open latest case` handoff also appears inside the eval-report detail pane once a report is selected, so operators do not need to return to the table row to continue case triage
 - use `Open left latest linked case` / `Open right latest linked case` on `/admin/eval-report-compare` when the canonical compare contract says that side already has an open linked follow-up case

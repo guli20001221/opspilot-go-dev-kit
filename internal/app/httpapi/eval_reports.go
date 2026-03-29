@@ -56,6 +56,7 @@ type evalReportResponse struct {
 	LatestFollowUpCaseID            string                               `json:"latest_follow_up_case_id,omitempty"`
 	LatestFollowUpCaseStatus        string                               `json:"latest_follow_up_case_status,omitempty"`
 	PreferredFollowUpAction         evalReportFollowUpActionResponse     `json:"preferred_follow_up_action"`
+	PreferredBadCaseQueueAction     evalReportBadCaseQueueActionResponse `json:"preferred_bad_case_queue_action"`
 	CompareFollowUpCaseCount        int                                  `json:"compare_follow_up_case_count"`
 	OpenCompareFollowUpCaseCount    int                                  `json:"open_compare_follow_up_case_count"`
 	LatestCompareFollowUpCaseID     string                               `json:"latest_compare_follow_up_case_id,omitempty"`
@@ -83,6 +84,11 @@ type evalReportLinkedCaseActionResponse struct {
 }
 
 type evalReportCompareQueueActionResponse struct {
+	Mode               string `json:"mode"`
+	SourceEvalReportID string `json:"source_eval_report_id,omitempty"`
+}
+
+type evalReportBadCaseQueueActionResponse struct {
 	Mode               string `json:"mode"`
 	SourceEvalReportID string `json:"source_eval_report_id,omitempty"`
 }
@@ -141,6 +147,7 @@ type evalReportComparisonItemResponse struct {
 	OpenFollowUpCaseCount           int                                     `json:"open_follow_up_case_count"`
 	LatestFollowUpCaseID            string                                  `json:"latest_follow_up_case_id,omitempty"`
 	LatestFollowUpCaseStatus        string                                  `json:"latest_follow_up_case_status,omitempty"`
+	PreferredBadCaseQueueAction     evalReportBadCaseQueueActionResponse    `json:"preferred_bad_case_queue_action"`
 	LinkedCaseSummary               *evalReportLinkedCaseSummaryResponse    `json:"linked_case_summary,omitempty"`
 	PreferredLinkedCaseAction       evalReportLinkedCaseActionResponse      `json:"preferred_linked_case_action"`
 	CompareFollowUpCaseCount        int                                     `json:"compare_follow_up_case_count"`
@@ -652,6 +659,7 @@ func newEvalReportResponse(item evalsvc.EvalReport, includeHeavy bool, followUpS
 		LatestFollowUpCaseID:            followUpSummary.LatestFollowUpCaseID,
 		LatestFollowUpCaseStatus:        followUpSummary.LatestFollowUpCaseStatus,
 		PreferredFollowUpAction:         newEvalReportFollowUpActionResponse(item.ID, followUpSummary),
+		PreferredBadCaseQueueAction:     newEvalReportBadCaseQueueActionResponse(item.ID, badCaseWithoutOpenFollowUpCount),
 		CompareFollowUpCaseCount:        compareFollowUpSummary.CompareFollowUpCaseCount,
 		OpenCompareFollowUpCaseCount:    compareFollowUpSummary.OpenCompareFollowUpCaseCount,
 		LatestCompareFollowUpCaseID:     compareFollowUpSummary.LatestCompareFollowUpCaseID,
@@ -745,6 +753,17 @@ func newEvalReportBadCaseLinkedCaseActionResponse(evalCaseID string, followUpSum
 	return action
 }
 
+func newEvalReportBadCaseQueueActionResponse(reportID string, badCaseWithoutOpenFollowUpCount int) evalReportBadCaseQueueActionResponse {
+	action := evalReportBadCaseQueueActionResponse{
+		Mode:               "none",
+		SourceEvalReportID: reportID,
+	}
+	if badCaseWithoutOpenFollowUpCount > 0 {
+		action.Mode = "open_existing_queue"
+	}
+	return action
+}
+
 func newEvalReportLinkedCaseActionResponse(reportID string, linkedCaseSummary *evalReportLinkedCaseSummaryResponse) evalReportLinkedCaseActionResponse {
 	action := evalReportLinkedCaseActionResponse{
 		Mode:               "none",
@@ -798,6 +817,7 @@ func newEvalReportComparisonItemResponse(item evalsvc.EvalReport, followUpSummar
 		OpenFollowUpCaseCount:           followUpSummary.OpenFollowUpCaseCount,
 		LatestFollowUpCaseID:            followUpSummary.LatestFollowUpCaseID,
 		LatestFollowUpCaseStatus:        followUpSummary.LatestFollowUpCaseStatus,
+		PreferredBadCaseQueueAction:     newEvalReportBadCaseQueueActionResponse(item.ID, badCaseWithoutOpenFollowUpCount),
 		LinkedCaseSummary:               linkedCaseSummary,
 		PreferredLinkedCaseAction:       newEvalReportLinkedCaseActionResponse(item.ID, linkedCaseSummary),
 		CompareFollowUpCaseCount:        compareFollowUpSummary.CompareFollowUpCaseCount,

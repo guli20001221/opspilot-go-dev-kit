@@ -68,6 +68,12 @@ func TestGetEvalReportReturnsMaterializedDetail(t *testing.T) {
 	if got.PreferredCompareFollowUpAction.SourceEvalReportID != reportID {
 		t.Fatalf("PreferredCompareFollowUpAction.SourceEvalReportID = %q, want %q", got.PreferredCompareFollowUpAction.SourceEvalReportID, reportID)
 	}
+	if got.PreferredBadCaseQueueAction.Mode != "open_existing_queue" {
+		t.Fatalf("PreferredBadCaseQueueAction.Mode = %q, want %q", got.PreferredBadCaseQueueAction.Mode, "open_existing_queue")
+	}
+	if got.PreferredBadCaseQueueAction.SourceEvalReportID != reportID {
+		t.Fatalf("PreferredBadCaseQueueAction.SourceEvalReportID = %q, want %q", got.PreferredBadCaseQueueAction.SourceEvalReportID, reportID)
+	}
 	if got.LinkedCaseSummary == nil {
 		t.Fatal("LinkedCaseSummary is nil")
 	}
@@ -167,6 +173,12 @@ func TestGetEvalReportIncludesFollowUpCaseSummary(t *testing.T) {
 	}
 	if got.PreferredFollowUpAction.SourceEvalReportID != reportID {
 		t.Fatalf("PreferredFollowUpAction.SourceEvalReportID = %q, want %q", got.PreferredFollowUpAction.SourceEvalReportID, reportID)
+	}
+	if got.PreferredBadCaseQueueAction.Mode != "open_existing_queue" {
+		t.Fatalf("PreferredBadCaseQueueAction.Mode = %q, want %q", got.PreferredBadCaseQueueAction.Mode, "open_existing_queue")
+	}
+	if got.PreferredBadCaseQueueAction.SourceEvalReportID != reportID {
+		t.Fatalf("PreferredBadCaseQueueAction.SourceEvalReportID = %q, want %q", got.PreferredBadCaseQueueAction.SourceEvalReportID, reportID)
 	}
 	if got.LinkedCaseSummary == nil {
 		t.Fatal("LinkedCaseSummary is nil")
@@ -620,6 +632,10 @@ func TestCompareEvalReportsReturnsTypedSummary(t *testing.T) {
 				Mode               string `json:"mode"`
 				SourceEvalReportID string `json:"source_eval_report_id"`
 			} `json:"preferred_compare_follow_up_action"`
+			PreferredBadCaseQueueAction struct {
+				Mode               string `json:"mode"`
+				SourceEvalReportID string `json:"source_eval_report_id"`
+			} `json:"preferred_bad_case_queue_action"`
 		} `json:"left"`
 		Right struct {
 			ReportID                        string  `json:"report_id"`
@@ -664,6 +680,10 @@ func TestCompareEvalReportsReturnsTypedSummary(t *testing.T) {
 				Mode               string `json:"mode"`
 				SourceEvalReportID string `json:"source_eval_report_id"`
 			} `json:"preferred_compare_follow_up_action"`
+			PreferredBadCaseQueueAction struct {
+				Mode               string `json:"mode"`
+				SourceEvalReportID string `json:"source_eval_report_id"`
+			} `json:"preferred_bad_case_queue_action"`
 		} `json:"right"`
 		Summary struct {
 			SameTenant          bool    `json:"same_tenant"`
@@ -738,6 +758,12 @@ func TestCompareEvalReportsReturnsTypedSummary(t *testing.T) {
 	if got.Left.PreferredCompareFollowUpAction.SourceEvalReportID != leftReportID {
 		t.Fatalf("Left.PreferredCompareFollowUpAction.SourceEvalReportID = %q, want %q", got.Left.PreferredCompareFollowUpAction.SourceEvalReportID, leftReportID)
 	}
+	if got.Left.PreferredBadCaseQueueAction.Mode != "none" {
+		t.Fatalf("Left.PreferredBadCaseQueueAction.Mode = %q, want %q", got.Left.PreferredBadCaseQueueAction.Mode, "none")
+	}
+	if got.Left.PreferredBadCaseQueueAction.SourceEvalReportID != leftReportID {
+		t.Fatalf("Left.PreferredBadCaseQueueAction.SourceEvalReportID = %q, want %q", got.Left.PreferredBadCaseQueueAction.SourceEvalReportID, leftReportID)
+	}
 	if got.Right.LatestFollowUpCaseID != rightFollowUp.ID {
 		t.Fatalf("Right.LatestFollowUpCaseID = %q, want %q", got.Right.LatestFollowUpCaseID, rightFollowUp.ID)
 	}
@@ -764,6 +790,12 @@ func TestCompareEvalReportsReturnsTypedSummary(t *testing.T) {
 	}
 	if got.Right.PreferredCompareFollowUpAction.SourceEvalReportID != rightReportID {
 		t.Fatalf("Right.PreferredCompareFollowUpAction.SourceEvalReportID = %q, want %q", got.Right.PreferredCompareFollowUpAction.SourceEvalReportID, rightReportID)
+	}
+	if got.Right.PreferredBadCaseQueueAction.Mode != "open_existing_queue" {
+		t.Fatalf("Right.PreferredBadCaseQueueAction.Mode = %q, want %q", got.Right.PreferredBadCaseQueueAction.Mode, "open_existing_queue")
+	}
+	if got.Right.PreferredBadCaseQueueAction.SourceEvalReportID != rightReportID {
+		t.Fatalf("Right.PreferredBadCaseQueueAction.SourceEvalReportID = %q, want %q", got.Right.PreferredBadCaseQueueAction.SourceEvalReportID, rightReportID)
 	}
 	if !got.Summary.SameTenant {
 		t.Fatal("SameTenant = false, want true")
@@ -1320,6 +1352,12 @@ func TestListEvalReportsIncludesCompareFollowUpSummary(t *testing.T) {
 		}
 		if got.PreferredCompareFollowUpAction.SourceEvalReportID != leftReportID {
 			t.Fatalf("PreferredCompareFollowUpAction.SourceEvalReportID = %q, want %q", got.PreferredCompareFollowUpAction.SourceEvalReportID, leftReportID)
+		}
+		if got.PreferredBadCaseQueueAction.Mode != "none" {
+			t.Fatalf("PreferredBadCaseQueueAction.Mode = %q, want %q", got.PreferredBadCaseQueueAction.Mode, "none")
+		}
+		if got.PreferredBadCaseQueueAction.SourceEvalReportID != leftReportID {
+			t.Fatalf("PreferredBadCaseQueueAction.SourceEvalReportID = %q, want %q", got.PreferredBadCaseQueueAction.SourceEvalReportID, leftReportID)
 		}
 	}
 	if !leftFound {
