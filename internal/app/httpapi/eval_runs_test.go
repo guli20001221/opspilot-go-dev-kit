@@ -513,6 +513,12 @@ func TestListEvalRunsEndpointIncludesFollowUpSummary(t *testing.T) {
 	if got := byID[coveredRun.ID].LinkedCaseSummary.LatestAssignedTo; got != "run-operator" {
 		t.Fatalf("covered LinkedCaseSummary.LatestAssignedTo = %q, want %q", got, "run-operator")
 	}
+	if got := byID[coveredRun.ID].PreferredLinkedCaseAction.Mode; got != "open_existing_case" {
+		t.Fatalf("covered PreferredLinkedCaseAction.Mode = %q, want %q", got, "open_existing_case")
+	}
+	if got := byID[coveredRun.ID].PreferredLinkedCaseAction.CaseID; got != coveredFollowUpCase.ID {
+		t.Fatalf("covered PreferredLinkedCaseAction.CaseID = %q, want %q", got, coveredFollowUpCase.ID)
+	}
 }
 
 func TestListEvalRunsEndpointSupportsNeedsFollowUpFilter(t *testing.T) {
@@ -992,6 +998,109 @@ func TestGetEvalRunEndpointIncludesFollowUpReuseActions(t *testing.T) {
 	}
 	if got.LinkedCaseSummary.LatestAssignedTo != "detail-run-operator" {
 		t.Fatalf("LinkedCaseSummary.LatestAssignedTo = %q, want %q", got.LinkedCaseSummary.LatestAssignedTo, "detail-run-operator")
+	}
+	if got.PreferredLinkedCaseAction.Mode != "open_existing_case" {
+		t.Fatalf("PreferredLinkedCaseAction.Mode = %q, want %q", got.PreferredLinkedCaseAction.Mode, "open_existing_case")
+	}
+	if got.PreferredLinkedCaseAction.CaseID != followUpCase.ID {
+		t.Fatalf("PreferredLinkedCaseAction.CaseID = %q, want %q", got.PreferredLinkedCaseAction.CaseID, followUpCase.ID)
+	}
+}
+
+func TestGetEvalRunEndpointSuppressesDirectLinkedCaseActionForClosedLatestCase(t *testing.T) {
+	ctx := context.Background()
+	caseService := casesvc.NewService()
+	evalCaseService := evalsvc.NewService(caseService, nil)
+	datasetService := evalsvc.NewDatasetService(evalCaseService)
+	runService := evalsvc.NewRunService(datasetService)
+
+	sourceCase, err := caseService.CreateCase(ctx, casesvc.CreateInput{
+		TenantID: "tenant-run",
+		Title:    "Run source closed latest case",
+	})
+	if err != nil {
+		t.Fatalf("CreateCase() error = %v", err)
+	}
+	evalCase, _, err := evalCaseService.PromoteCase(ctx, evalsvc.CreateInput{
+		TenantID:     "tenant-run",
+		SourceCaseID: sourceCase.ID,
+	})
+	if err != nil {
+		t.Fatalf("PromoteCase() error = %v", err)
+	}
+	dataset, err := datasetService.CreateDataset(ctx, evalsvc.CreateDatasetInput{
+		TenantID:    "tenant-run",
+		Name:        "Closed latest case baseline",
+		EvalCaseIDs: []string{evalCase.ID},
+	})
+	if err != nil {
+		t.Fatalf("CreateDataset() error = %v", err)
+	}
+	if _, err := datasetService.PublishDataset(ctx, dataset.ID, evalsvc.PublishDatasetInput{
+		TenantID: "tenant-run",
+	}); err != nil {
+		t.Fatalf("PublishDataset() error = %v", err)
+	}
+
+	run, err := runService.CreateRun(ctx, evalsvc.CreateRunInput{
+		TenantID:  "tenant-run",
+		DatasetID: dataset.ID,
+	})
+	if err != nil {
+		t.Fatalf("CreateRun() error = %v", err)
+	}
+	if _, err := runService.ClaimQueuedRuns(ctx, 10); err != nil {
+		t.Fatalf("ClaimQueuedRuns() error = %v", err)
+	}
+	if _, err := runService.MarkRunFailed(ctx, run.ID, "fault injection: eval run failed"); err != nil {
+		t.Fatalf("MarkRunFailed() error = %v", err)
+	}
+	followUpCase, err := caseService.CreateCase(ctx, casesvc.CreateInput{
+		TenantID:         "tenant-run",
+		Title:            "Closed eval follow-up",
+		Summary:          "Closed follow-up",
+		SourceEvalCaseID: evalCase.ID,
+		CreatedBy:        "operator-run",
+	})
+	if err != nil {
+		t.Fatalf("CreateCase(followUpCase) error = %v", err)
+	}
+	if _, err := caseService.CloseCase(ctx, followUpCase.ID, "detail-run-operator"); err != nil {
+		t.Fatalf("CloseCase(followUpCase) error = %v", err)
+	}
+
+	server := httptest.NewServer(NewHandlerWithDependencies(Dependencies{
+		Cases:        caseService,
+		EvalCases:    evalCaseService,
+		EvalDatasets: datasetService,
+		EvalRuns:     runService,
+	}))
+	defer server.Close()
+
+	resp, err := http.Get(server.URL + "/api/v1/eval-runs/" + run.ID + "?tenant_id=tenant-run")
+	if err != nil {
+		t.Fatalf("Get() error = %v", err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("StatusCode = %d, want %d", resp.StatusCode, http.StatusOK)
+	}
+
+	var got evalRunResponse
+	if err := json.NewDecoder(resp.Body).Decode(&got); err != nil {
+		t.Fatalf("Decode() error = %v", err)
+	}
+	if got.LinkedCaseSummary.LatestCaseID != followUpCase.ID {
+		t.Fatalf("LinkedCaseSummary.LatestCaseID = %q, want %q", got.LinkedCaseSummary.LatestCaseID, followUpCase.ID)
+	}
+	if got.LinkedCaseSummary.LatestCaseStatus != casesvc.StatusClosed {
+		t.Fatalf("LinkedCaseSummary.LatestCaseStatus = %q, want %q", got.LinkedCaseSummary.LatestCaseStatus, casesvc.StatusClosed)
+	}
+	if got.PreferredLinkedCaseAction.Mode != "none" {
+		t.Fatalf("PreferredLinkedCaseAction.Mode = %q, want %q", got.PreferredLinkedCaseAction.Mode, "none")
+	}
+	if got.PreferredLinkedCaseAction.CaseID != "" {
+		t.Fatalf("PreferredLinkedCaseAction.CaseID = %q, want empty", got.PreferredLinkedCaseAction.CaseID)
 	}
 }
 

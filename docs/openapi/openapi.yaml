@@ -3248,6 +3248,7 @@ components:
         - item_without_open_follow_up_count
         - needs_follow_up
         - linked_case_summary
+        - preferred_linked_case_action
         - status
         - created_by
         - created_at
@@ -3278,6 +3279,8 @@ components:
           description: Whether this run still has at least one failed item without an open follow-up case.
         linked_case_summary:
           $ref: '#/components/schemas/EvalReportLinkedCaseSummary'
+        preferred_linked_case_action:
+          $ref: '#/components/schemas/EvalRunLinkedCaseAction'
         report_id:
           type: string
           description: Stable eval-report ID when this terminal run has already materialized a durable eval report artifact.
@@ -3330,6 +3333,7 @@ components:
         - item_without_open_follow_up_count
         - needs_follow_up
         - linked_case_summary
+        - preferred_linked_case_action
         - status
         - created_by
         - created_at
@@ -3360,6 +3364,8 @@ components:
           description: Whether this run still has at least one failed item without an open follow-up case.
         linked_case_summary:
           $ref: '#/components/schemas/EvalReportLinkedCaseSummary'
+        preferred_linked_case_action:
+          $ref: '#/components/schemas/EvalRunLinkedCaseAction'
         status:
           type: string
           enum:
@@ -3501,6 +3507,18 @@ components:
         missing_results:
           type: integer
           minimum: 0
+    EvalRunLinkedCaseAction:
+      type: object
+      required:
+        - mode
+      properties:
+        mode:
+          type: string
+          enum:
+            - none
+            - open_existing_case
+        case_id:
+          type: string
     EvalReport:
       type: object
       required:

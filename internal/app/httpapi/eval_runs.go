@@ -30,6 +30,7 @@ type evalRunResponse struct {
 	ItemWithoutOpenFollowUpCount int                                 `json:"item_without_open_follow_up_count"`
 	NeedsFollowUp                bool                                `json:"needs_follow_up"`
 	LinkedCaseSummary            evalReportLinkedCaseSummaryResponse `json:"linked_case_summary"`
+	PreferredLinkedCaseAction    evalRunLinkedCaseActionResponse     `json:"preferred_linked_case_action"`
 	ReportID                     string                              `json:"report_id,omitempty"`
 	ReportStatus                 string                              `json:"report_status,omitempty"`
 	Status                       string                              `json:"status"`
@@ -94,6 +95,11 @@ type evalRunResultSummaryResponse struct {
 type evalRunReportSummary struct {
 	ReportID     string
 	ReportStatus string
+}
+
+type evalRunLinkedCaseActionResponse struct {
+	Mode   string `json:"mode"`
+	CaseID string `json:"case_id,omitempty"`
 }
 
 func (a *appHandler) handleEvalRuns(w http.ResponseWriter, r *http.Request) {
@@ -285,6 +291,7 @@ func newEvalRunResponse(item evalsvc.EvalRun, events []evalsvc.EvalRunEvent, ite
 		ItemWithoutOpenFollowUpCount: itemWithoutOpenFollowUpCount,
 		NeedsFollowUp:                itemWithoutOpenFollowUpCount > 0,
 		LinkedCaseSummary:            linkedCaseSummary,
+		PreferredLinkedCaseAction:    newEvalRunLinkedCaseActionResponse(linkedCaseSummary),
 		ReportID:                     reportSummary.ReportID,
 		ReportStatus:                 reportSummary.ReportStatus,
 		Status:                       item.Status,
@@ -356,6 +363,16 @@ func newEvalRunResponse(item evalsvc.EvalRun, events []evalsvc.EvalRunEvent, ite
 		}
 	}
 	return resp
+}
+
+func newEvalRunLinkedCaseActionResponse(linkedCaseSummary evalReportLinkedCaseSummaryResponse) evalRunLinkedCaseActionResponse {
+	if linkedCaseSummary.LatestCaseID == "" || linkedCaseSummary.LatestCaseStatus != casesvc.StatusOpen {
+		return evalRunLinkedCaseActionResponse{Mode: "none"}
+	}
+	return evalRunLinkedCaseActionResponse{
+		Mode:   "open_existing_case",
+		CaseID: linkedCaseSummary.LatestCaseID,
+	}
 }
 
 func (a *appHandler) listEvalRunsResponse(r *http.Request, filter evalsvc.RunListFilter, needsFollowUp *bool) (listEvalRunsResponse, error) {

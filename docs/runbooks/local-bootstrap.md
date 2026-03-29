@@ -223,6 +223,7 @@ The current chat stream implementation is a Milestone 1 skeleton:
 - use `Needs follow-up` on `/admin/eval-runs` when you want the backend-owned unresolved run queue, filtered by canonical `needs_follow_up=true` instead of browser-side missing-case inference
 - use `Open eval report` on `/admin/eval-runs` when you want to jump straight from a terminal run into the durable eval-report artifact that was materialized from that run
 - the same run lane now also reads `linked_case_summary`, so list rows and detail can show the latest linked follow-up case status and owner before you jump into `/admin/cases`
+- the same run lane now also uses `preferred_linked_case_action`, so `Open latest run case` only appears when the latest linked case is still open
 - use the `My open cases` shortcut on `/admin/cases` when you want a queue view for the current operator handle without manually composing `status=open&assigned_to=<actor>`
 - use the `Unassigned` shortcut on `/admin/cases` when you want the shared open backlog without manually composing `status=open&unassigned_only=true`
 - use the `Eval-backed cases` shortcut on `/admin/cases` when you want the durable follow-up slice created from eval regressions without manually composing `eval_backed_only=true`

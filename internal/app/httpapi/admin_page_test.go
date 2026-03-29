@@ -861,6 +861,149 @@ func TestAdminEvalRunsPageRendersHTML(t *testing.T) {
 	}
 }
 
+func TestAdminEvalRunsPageRuntimeSmoke(t *testing.T) {
+	caseService := casesvc.NewService()
+	evalCaseService := evalsvc.NewService(caseService, nil)
+	datasetService := evalsvc.NewDatasetService(evalCaseService)
+	runService := evalsvc.NewRunService(datasetService)
+
+	makeFailedRunWithFollowUp := func(title string, closeFollowUp bool) (evalsvc.EvalRun, casesvc.Case) {
+		t.Helper()
+		sourceCase, err := caseService.CreateCase(context.Background(), casesvc.CreateInput{
+			TenantID:  "tenant-eval-run-admin-smoke",
+			Title:     title + " source",
+			Summary:   title + " source summary",
+			CreatedBy: "operator-eval-run",
+		})
+		if err != nil {
+			t.Fatalf("CreateCase(sourceCase) error = %v", err)
+		}
+		evalCase, _, err := evalCaseService.PromoteCase(context.Background(), evalsvc.CreateInput{
+			TenantID:     sourceCase.TenantID,
+			SourceCaseID: sourceCase.ID,
+			CreatedBy:    "operator-eval-run",
+		})
+		if err != nil {
+			t.Fatalf("PromoteCase() error = %v", err)
+		}
+		dataset, err := datasetService.CreateDataset(context.Background(), evalsvc.CreateDatasetInput{
+			TenantID:    sourceCase.TenantID,
+			Name:        title + " dataset",
+			EvalCaseIDs: []string{evalCase.ID},
+		})
+		if err != nil {
+			t.Fatalf("CreateDataset() error = %v", err)
+		}
+		if _, err := datasetService.PublishDataset(context.Background(), dataset.ID, evalsvc.PublishDatasetInput{
+			TenantID: sourceCase.TenantID,
+		}); err != nil {
+			t.Fatalf("PublishDataset() error = %v", err)
+		}
+		run, err := runService.CreateRun(context.Background(), evalsvc.CreateRunInput{
+			TenantID:  sourceCase.TenantID,
+			DatasetID: dataset.ID,
+		})
+		if err != nil {
+			t.Fatalf("CreateRun() error = %v", err)
+		}
+		if _, err := runService.ClaimQueuedRuns(context.Background(), 10); err != nil {
+			t.Fatalf("ClaimQueuedRuns() error = %v", err)
+		}
+		if _, err := runService.MarkRunFailed(context.Background(), run.ID, "fault injection: eval run failed"); err != nil {
+			t.Fatalf("MarkRunFailed() error = %v", err)
+		}
+		followUpCase, err := caseService.CreateCase(context.Background(), casesvc.CreateInput{
+			TenantID:         sourceCase.TenantID,
+			Title:            title + " follow-up",
+			Summary:          title + " follow-up summary",
+			SourceEvalCaseID: evalCase.ID,
+			CreatedBy:        "operator-eval-run",
+		})
+		if err != nil {
+			t.Fatalf("CreateCase(followUpCase) error = %v", err)
+		}
+		if closeFollowUp {
+			if _, err := caseService.CloseCase(context.Background(), followUpCase.ID, "operator-eval-run"); err != nil {
+				t.Fatalf("CloseCase(followUpCase) error = %v", err)
+			}
+		}
+		return run, followUpCase
+	}
+
+	openRun, openCase := makeFailedRunWithFollowUp("Open latest case", false)
+	closedRun, closedCase := makeFailedRunWithFollowUp("Closed latest case", true)
+
+	server := httptest.NewServer(NewHandlerWithDependencies(Dependencies{
+		Cases:        caseService,
+		EvalCases:    evalCaseService,
+		EvalDatasets: datasetService,
+		EvalRuns:     runService,
+	}))
+	defer server.Close()
+
+	nodePathRoot, err := npmGlobalRoot()
+	if err != nil {
+		t.Skipf("skipping playwright runtime smoke: %v", err)
+	}
+
+	tempDir := t.TempDir()
+	scriptPath := filepath.Join(tempDir, "eval-runs-runtime-smoke.js")
+	const script = `
+const { chromium } = require("playwright");
+const baseURL = process.argv[2];
+const tenantID = process.argv[3];
+const openRunID = process.argv[4];
+const openCaseID = process.argv[5];
+const closedRunID = process.argv[6];
+const closedCaseID = process.argv[7];
+
+(async () => {
+  const browser = await chromium.launch({ headless: true });
+  const page = await browser.newPage();
+  await page.goto(baseURL + "/admin/eval-runs?tenant_id=" + encodeURIComponent(tenantID) + "&limit=10&run_id=" + encodeURIComponent(closedRunID));
+  await page.waitForSelector("#runRows tr");
+
+  const openRowHref = await page.getAttribute('[data-run-row="' + openRunID + '"] a[href*="case_id=' + encodeURIComponent(openCaseID) + '"]', "href");
+  if (!openRowHref) throw new Error("open latest run case handoff missing from open row");
+
+  const closedRowHref = await page.getAttribute('[data-run-row="' + closedRunID + '"] a[href*="case_id=' + encodeURIComponent(closedCaseID) + '"]', "href");
+  if (closedRowHref) throw new Error("closed latest run case handoff should be suppressed in row");
+
+  const detailText = await page.textContent("#runDetail");
+  if (!detailText.includes(closedCaseID)) throw new Error("closed linked case summary missing from detail");
+  if (!detailText.toLowerCase().includes("closed")) throw new Error("closed linked case status missing from detail");
+
+  const detailLinks = await page.locator('#runDetail a').evaluateAll((elements) => elements.map((element) => ({
+    text: (element.textContent || "").trim(),
+    href: element.getAttribute("href") || ""
+  })));
+  if (detailLinks.some((entry) => entry.text === "Open latest run case" && entry.href.includes("case_id=" + encodeURIComponent(closedCaseID)))) {
+    throw new Error("closed latest run case handoff should be suppressed in detail");
+  }
+
+  await browser.close();
+})().catch((error) => {
+  console.error(error && error.stack ? error.stack : String(error));
+  process.exit(1);
+});
+`
+	if err := os.WriteFile(scriptPath, []byte(script), 0o600); err != nil {
+		t.Fatalf("WriteFile(scriptPath) error = %v", err)
+	}
+
+	cmd := exec.Command("node", scriptPath, server.URL, "tenant-eval-run-admin-smoke", openRun.ID, openCase.ID, closedRun.ID, closedCase.ID)
+	cmd.Env = append(os.Environ(), "NODE_PATH="+nodePathRoot)
+	output, err := cmd.CombinedOutput()
+	if err != nil {
+		outText := string(output)
+		if strings.Contains(outText, "Please run the following command to download new browsers") ||
+			strings.Contains(outText, "Executable doesn't exist") {
+			t.Skip("skipping playwright runtime smoke: browser binaries not installed")
+		}
+		t.Fatalf("playwright runtime smoke failed: %v\n%s", err, string(output))
+	}
+}
+
 func TestAdminEvalReportsPageRendersHTML(t *testing.T) {
 	server := httptest.NewServer(NewHandler())
 	defer server.Close()
