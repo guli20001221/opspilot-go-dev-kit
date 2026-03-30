@@ -124,6 +124,22 @@
       }
       return { mode:"invalid", label:"Follow-up action unavailable", href:"", valid:false, creates:false, hasReuse:false };
     }
+    function preferredPrimaryAction(run, item){
+      const action = item && item.preferred_primary_action ? item.preferred_primary_action : null;
+      if (!action || !action.mode) {
+        return preferredFollowUpAction(run, item);
+      }
+      if (action.mode === "open_existing_case" && action.case_id) {
+        return { mode:action.mode, label:"Open existing case", href:`/admin/cases?tenant_id=${encodeURIComponent(run.tenant_id)}&case_id=${encodeURIComponent(action.case_id)}`, valid:true, creates:false, hasReuse:true };
+      }
+      if (action.mode === "open_existing_queue" && action.source_eval_case_id) {
+        return { mode:action.mode, label:"Open existing queue", href:buildEvalQueueHref(run.tenant_id, action.source_eval_case_id), valid:true, creates:false, hasReuse:true };
+      }
+      if (action.mode === "create") {
+        return { mode:action.mode, label:"Create case from result", href:"", valid:true, creates:true, hasReuse:false };
+      }
+      return preferredFollowUpAction(run, item);
+    }
     function preferredLinkedCaseAction(run, item){
       const action = item && item.preferred_linked_case_action ? item.preferred_linked_case_action : null;
       if (!action || !action.mode || action.mode === "none") {
@@ -161,7 +177,7 @@
       const items=Array.isArray(item.items)?item.items:[];
       if(!items.length){return '<div class="empty">No run membership snapshot recorded.</div>';}
       return `<ul style="margin:0;padding-left:18px;display:grid;gap:12px;">${items.map((runItem)=>{
-        const preferredAction = preferredFollowUpAction(item, runItem);
+        const preferredAction = preferredPrimaryAction(item, runItem);
         const linkedAction = preferredLinkedCaseAction(item, runItem);
         const followUpMarkup = preferredAction.valid
           ? preferredAction.creates
@@ -175,7 +191,7 @@
       const results=Array.isArray(item.item_results)?item.item_results:[];
       if(!results.length){return '<div class="empty">No item results recorded yet.</div>';}
       return `<ul style="margin:0;padding-left:18px;display:grid;gap:10px;">${results.map((result)=>{
-        const preferredAction = preferredFollowUpAction(item, result);
+        const preferredAction = preferredPrimaryAction(item, result);
         const linkedAction = preferredLinkedCaseAction(item, result);
         const rowItem = Array.isArray(item.items) ? item.items.find((candidate)=>candidate.eval_case_id===result.eval_case_id) : null;
         const followUpMarkup = preferredAction.valid

@@ -3470,87 +3470,93 @@ components:
         created_at:
           type: string
           format: date-time
-    EvalRunItem:
-      type: object
-      required:
-        - eval_case_id
-        - title
-        - source_case_id
-        - linked_case_summary
-        - preferred_follow_up_action
-        - preferred_linked_case_action
-        - trace_id
-      properties:
-        eval_case_id:
-          type: string
-        title:
-          type: string
-        source_case_id:
-          type: string
-        source_task_id:
-          type: string
-        source_report_id:
-          type: string
-        latest_follow_up_case_id:
-          type: string
-        linked_case_summary:
-          $ref: '#/components/schemas/EvalReportLinkedCaseSummary'
-        preferred_follow_up_action:
-          $ref: '#/components/schemas/EvalCaseFollowUpAction'
-        preferred_linked_case_action:
-          $ref: '#/components/schemas/EvalCaseFollowUpAction'
-        trace_id:
-          type: string
-        version_id:
-          type: string
-    EvalRunItemResult:
-      type: object
-      required:
-        - eval_case_id
-        - status
-        - verdict
-        - score
-        - judge_version
-        - judge_output
-        - linked_case_summary
-        - preferred_follow_up_action
-        - preferred_linked_case_action
-        - updated_at
-      properties:
-        eval_case_id:
-          type: string
-        status:
-          type: string
-          enum:
-            - succeeded
-            - failed
-        verdict:
-          type: string
-          enum:
-            - pass
-            - fail
-        detail:
-          type: string
-        score:
-          type: number
-          format: double
-          minimum: 0
-        judge_version:
-          type: string
-        judge_output:
-          description: Raw structured output from the current eval judge implementation.
-          type: object
-        latest_follow_up_case_id:
-          type: string
-        linked_case_summary:
-          $ref: '#/components/schemas/EvalReportLinkedCaseSummary'
-        preferred_follow_up_action:
-          $ref: '#/components/schemas/EvalCaseFollowUpAction'
-        preferred_linked_case_action:
-          $ref: '#/components/schemas/EvalCaseFollowUpAction'
-        updated_at:
-          type: string
-          format: date-time
+      EvalRunItem:
+        type: object
+        required:
+          - eval_case_id
+          - title
+          - source_case_id
+          - linked_case_summary
+          - preferred_follow_up_action
+          - preferred_primary_action
+          - preferred_linked_case_action
+          - trace_id
+        properties:
+          eval_case_id:
+            type: string
+          title:
+            type: string
+          source_case_id:
+            type: string
+          source_task_id:
+            type: string
+          source_report_id:
+            type: string
+          latest_follow_up_case_id:
+            type: string
+          linked_case_summary:
+            $ref: '#/components/schemas/EvalReportLinkedCaseSummary'
+          preferred_follow_up_action:
+            $ref: '#/components/schemas/EvalCaseFollowUpAction'
+          preferred_primary_action:
+            $ref: '#/components/schemas/EvalCaseFollowUpAction'
+          preferred_linked_case_action:
+            $ref: '#/components/schemas/EvalCaseFollowUpAction'
+          trace_id:
+            type: string
+          version_id:
+            type: string
+      EvalRunItemResult:
+        type: object
+        required:
+          - eval_case_id
+          - status
+          - verdict
+          - score
+          - judge_version
+          - judge_output
+          - linked_case_summary
+          - preferred_follow_up_action
+          - preferred_primary_action
+          - preferred_linked_case_action
+          - updated_at
+        properties:
+          eval_case_id:
+            type: string
+          status:
+            type: string
+            enum:
+              - succeeded
+              - failed
+          verdict:
+            type: string
+            enum:
+              - pass
+              - fail
+          detail:
+            type: string
+          score:
+            type: number
+            format: double
+            minimum: 0
+          judge_version:
+            type: string
+          judge_output:
+            description: Raw structured output from the current eval judge implementation.
+            type: object
+          latest_follow_up_case_id:
+            type: string
+          linked_case_summary:
+            $ref: '#/components/schemas/EvalReportLinkedCaseSummary'
+          preferred_follow_up_action:
+            $ref: '#/components/schemas/EvalCaseFollowUpAction'
+          preferred_primary_action:
+            $ref: '#/components/schemas/EvalCaseFollowUpAction'
+          preferred_linked_case_action:
+            $ref: '#/components/schemas/EvalCaseFollowUpAction'
+          updated_at:
+            type: string
+            format: date-time
     EvalRunResultSummary:
       type: object
       description: Lightweight operator-facing counts derived from durable eval-run item results.

@@ -143,6 +143,12 @@ func TestCreateAndGetEvalRunEndpoint(t *testing.T) {
 	if got.Items[0].PreferredFollowUpAction.SourceEvalCaseID != evalCase.ID {
 		t.Fatalf("Items[0].PreferredFollowUpAction.SourceEvalCaseID = %q, want %q", got.Items[0].PreferredFollowUpAction.SourceEvalCaseID, evalCase.ID)
 	}
+	if got.Items[0].PreferredPrimaryAction.Mode != "create" {
+		t.Fatalf("Items[0].PreferredPrimaryAction.Mode = %q, want %q", got.Items[0].PreferredPrimaryAction.Mode, "create")
+	}
+	if got.Items[0].PreferredPrimaryAction.SourceEvalCaseID != evalCase.ID {
+		t.Fatalf("Items[0].PreferredPrimaryAction.SourceEvalCaseID = %q, want %q", got.Items[0].PreferredPrimaryAction.SourceEvalCaseID, evalCase.ID)
+	}
 	if got.Items[0].PreferredLinkedCaseAction.Mode != "none" {
 		t.Fatalf("Items[0].PreferredLinkedCaseAction.Mode = %q, want %q", got.Items[0].PreferredLinkedCaseAction.Mode, "none")
 	}
@@ -834,6 +840,12 @@ func TestGetEvalRunEndpointReturnsUpdatedStatusFields(t *testing.T) {
 	if got.Items[0].PreferredFollowUpAction.SourceEvalCaseID != evalCase.ID {
 		t.Fatalf("Items[0].PreferredFollowUpAction.SourceEvalCaseID = %q, want %q", got.Items[0].PreferredFollowUpAction.SourceEvalCaseID, evalCase.ID)
 	}
+	if got.Items[0].PreferredPrimaryAction.Mode != "create" {
+		t.Fatalf("Items[0].PreferredPrimaryAction.Mode = %q, want %q", got.Items[0].PreferredPrimaryAction.Mode, "create")
+	}
+	if got.Items[0].PreferredPrimaryAction.SourceEvalCaseID != evalCase.ID {
+		t.Fatalf("Items[0].PreferredPrimaryAction.SourceEvalCaseID = %q, want %q", got.Items[0].PreferredPrimaryAction.SourceEvalCaseID, evalCase.ID)
+	}
 	if len(got.ItemResults) != 1 {
 		t.Fatalf("len(ItemResults) = %d, want 1 on detail response", len(got.ItemResults))
 	}
@@ -860,6 +872,12 @@ func TestGetEvalRunEndpointReturnsUpdatedStatusFields(t *testing.T) {
 	}
 	if got.ItemResults[0].PreferredFollowUpAction.SourceEvalCaseID != evalCase.ID {
 		t.Fatalf("ItemResults[0].PreferredFollowUpAction.SourceEvalCaseID = %q, want %q", got.ItemResults[0].PreferredFollowUpAction.SourceEvalCaseID, evalCase.ID)
+	}
+	if got.ItemResults[0].PreferredPrimaryAction.Mode != "create" {
+		t.Fatalf("ItemResults[0].PreferredPrimaryAction.Mode = %q, want %q", got.ItemResults[0].PreferredPrimaryAction.Mode, "create")
+	}
+	if got.ItemResults[0].PreferredPrimaryAction.SourceEvalCaseID != evalCase.ID {
+		t.Fatalf("ItemResults[0].PreferredPrimaryAction.SourceEvalCaseID = %q, want %q", got.ItemResults[0].PreferredPrimaryAction.SourceEvalCaseID, evalCase.ID)
 	}
 	if got.ItemResults[0].Score != 0 {
 		t.Fatalf("ItemResults[0].Score = %v, want 0", got.ItemResults[0].Score)
@@ -995,6 +1013,12 @@ func TestGetEvalRunEndpointIncludesFollowUpReuseActions(t *testing.T) {
 	if got.Items[0].PreferredFollowUpAction.CaseID != followUpCase.ID {
 		t.Fatalf("Items[0].PreferredFollowUpAction.CaseID = %q, want %q", got.Items[0].PreferredFollowUpAction.CaseID, followUpCase.ID)
 	}
+	if got.Items[0].PreferredPrimaryAction.Mode != "open_existing_case" {
+		t.Fatalf("Items[0].PreferredPrimaryAction.Mode = %q, want %q", got.Items[0].PreferredPrimaryAction.Mode, "open_existing_case")
+	}
+	if got.Items[0].PreferredPrimaryAction.CaseID != followUpCase.ID {
+		t.Fatalf("Items[0].PreferredPrimaryAction.CaseID = %q, want %q", got.Items[0].PreferredPrimaryAction.CaseID, followUpCase.ID)
+	}
 	if got.Items[0].PreferredLinkedCaseAction.Mode != "open_existing_case" {
 		t.Fatalf("Items[0].PreferredLinkedCaseAction.Mode = %q, want %q", got.Items[0].PreferredLinkedCaseAction.Mode, "open_existing_case")
 	}
@@ -1021,6 +1045,12 @@ func TestGetEvalRunEndpointIncludesFollowUpReuseActions(t *testing.T) {
 	}
 	if got.ItemResults[0].PreferredFollowUpAction.CaseID != followUpCase.ID {
 		t.Fatalf("ItemResults[0].PreferredFollowUpAction.CaseID = %q, want %q", got.ItemResults[0].PreferredFollowUpAction.CaseID, followUpCase.ID)
+	}
+	if got.ItemResults[0].PreferredPrimaryAction.Mode != "open_existing_case" {
+		t.Fatalf("ItemResults[0].PreferredPrimaryAction.Mode = %q, want %q", got.ItemResults[0].PreferredPrimaryAction.Mode, "open_existing_case")
+	}
+	if got.ItemResults[0].PreferredPrimaryAction.CaseID != followUpCase.ID {
+		t.Fatalf("ItemResults[0].PreferredPrimaryAction.CaseID = %q, want %q", got.ItemResults[0].PreferredPrimaryAction.CaseID, followUpCase.ID)
 	}
 	if got.ItemResults[0].PreferredLinkedCaseAction.Mode != "open_existing_case" {
 		t.Fatalf("ItemResults[0].PreferredLinkedCaseAction.Mode = %q, want %q", got.ItemResults[0].PreferredLinkedCaseAction.Mode, "open_existing_case")
@@ -1153,11 +1183,23 @@ func TestGetEvalRunEndpointSuppressesDirectLinkedCaseActionForClosedLatestCase(t
 	if got.Items[0].PreferredLinkedCaseAction.CaseID != "" {
 		t.Fatalf("Items[0].PreferredLinkedCaseAction.CaseID = %q, want empty", got.Items[0].PreferredLinkedCaseAction.CaseID)
 	}
+	if got.Items[0].PreferredPrimaryAction.Mode != "open_existing_queue" {
+		t.Fatalf("Items[0].PreferredPrimaryAction.Mode = %q, want %q", got.Items[0].PreferredPrimaryAction.Mode, "open_existing_queue")
+	}
+	if got.Items[0].PreferredPrimaryAction.SourceEvalCaseID != evalCase.ID {
+		t.Fatalf("Items[0].PreferredPrimaryAction.SourceEvalCaseID = %q, want %q", got.Items[0].PreferredPrimaryAction.SourceEvalCaseID, evalCase.ID)
+	}
 	if got.ItemResults[0].PreferredLinkedCaseAction.Mode != "open_existing_queue" {
 		t.Fatalf("ItemResults[0].PreferredLinkedCaseAction.Mode = %q, want %q", got.ItemResults[0].PreferredLinkedCaseAction.Mode, "open_existing_queue")
 	}
 	if got.ItemResults[0].PreferredLinkedCaseAction.CaseID != "" {
 		t.Fatalf("ItemResults[0].PreferredLinkedCaseAction.CaseID = %q, want empty", got.ItemResults[0].PreferredLinkedCaseAction.CaseID)
+	}
+	if got.ItemResults[0].PreferredPrimaryAction.Mode != "open_existing_queue" {
+		t.Fatalf("ItemResults[0].PreferredPrimaryAction.Mode = %q, want %q", got.ItemResults[0].PreferredPrimaryAction.Mode, "open_existing_queue")
+	}
+	if got.ItemResults[0].PreferredPrimaryAction.SourceEvalCaseID != evalCase.ID {
+		t.Fatalf("ItemResults[0].PreferredPrimaryAction.SourceEvalCaseID = %q, want %q", got.ItemResults[0].PreferredPrimaryAction.SourceEvalCaseID, evalCase.ID)
 	}
 }
 

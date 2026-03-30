@@ -68,6 +68,7 @@ type evalRunItemResponse struct {
 	LatestFollowUpCaseID      string                              `json:"latest_follow_up_case_id,omitempty"`
 	LinkedCaseSummary         evalReportLinkedCaseSummaryResponse `json:"linked_case_summary"`
 	PreferredFollowUpAction   evalCaseFollowUpActionResponse      `json:"preferred_follow_up_action"`
+	PreferredPrimaryAction    evalCaseFollowUpActionResponse      `json:"preferred_primary_action"`
 	PreferredLinkedCaseAction evalCaseFollowUpActionResponse      `json:"preferred_linked_case_action"`
 	TraceID                   string                              `json:"trace_id"`
 	VersionID                 string                              `json:"version_id,omitempty"`
@@ -84,6 +85,7 @@ type evalRunItemResultResponse struct {
 	LatestFollowUpCaseID      string                              `json:"latest_follow_up_case_id,omitempty"`
 	LinkedCaseSummary         evalReportLinkedCaseSummaryResponse `json:"linked_case_summary"`
 	PreferredFollowUpAction   evalCaseFollowUpActionResponse      `json:"preferred_follow_up_action"`
+	PreferredPrimaryAction    evalCaseFollowUpActionResponse      `json:"preferred_primary_action"`
 	PreferredLinkedCaseAction evalCaseFollowUpActionResponse      `json:"preferred_linked_case_action"`
 	UpdatedAt                 string                              `json:"updated_at"`
 }
@@ -344,6 +346,7 @@ func newEvalRunResponse(item evalsvc.EvalRun, events []evalsvc.EvalRunEvent, ite
 				LatestFollowUpCaseID:      summary.LatestFollowUpCaseID,
 				LinkedCaseSummary:         evalCaseLinkedCaseSummary(summary),
 				PreferredFollowUpAction:   newEvalCaseFollowUpActionResponseFromSummary(item.EvalCaseID, summary.OpenFollowUpCaseCount, summary.LatestFollowUpCaseID),
+				PreferredPrimaryAction:    newEvalRunPrimaryActionResponse(item.EvalCaseID, summary),
 				PreferredLinkedCaseAction: newEvalCaseLinkedCaseActionResponseFromSummary(item.EvalCaseID, summary.FollowUpCaseCount, summary.OpenFollowUpCaseCount, summary.LatestFollowUpCaseID, summary.LatestFollowUpCaseStatus),
 				TraceID:                   item.TraceID,
 				VersionID:                 item.VersionID,
@@ -365,12 +368,21 @@ func newEvalRunResponse(item evalsvc.EvalRun, events []evalsvc.EvalRunEvent, ite
 				LatestFollowUpCaseID:      summary.LatestFollowUpCaseID,
 				LinkedCaseSummary:         evalCaseLinkedCaseSummary(summary),
 				PreferredFollowUpAction:   newEvalCaseFollowUpActionResponseFromSummary(result.EvalCaseID, summary.OpenFollowUpCaseCount, summary.LatestFollowUpCaseID),
+				PreferredPrimaryAction:    newEvalRunPrimaryActionResponse(result.EvalCaseID, summary),
 				PreferredLinkedCaseAction: newEvalCaseLinkedCaseActionResponseFromSummary(result.EvalCaseID, summary.FollowUpCaseCount, summary.OpenFollowUpCaseCount, summary.LatestFollowUpCaseID, summary.LatestFollowUpCaseStatus),
 				UpdatedAt:                 result.UpdatedAt.Format(time.RFC3339Nano),
 			})
 		}
 	}
 	return resp
+}
+
+func newEvalRunPrimaryActionResponse(evalCaseID string, summary casesvc.EvalCaseFollowUpSummary) evalCaseFollowUpActionResponse {
+	linkedAction := newEvalCaseLinkedCaseActionResponseFromSummary(evalCaseID, summary.FollowUpCaseCount, summary.OpenFollowUpCaseCount, summary.LatestFollowUpCaseID, summary.LatestFollowUpCaseStatus)
+	if linkedAction.Mode != "none" {
+		return linkedAction
+	}
+	return newEvalCaseFollowUpActionResponseFromSummary(evalCaseID, summary.OpenFollowUpCaseCount, summary.LatestFollowUpCaseID)
 }
 
 func newEvalRunLinkedCaseActionResponse(linkedCaseSummary evalReportLinkedCaseSummaryResponse) evalRunLinkedCaseActionResponse {

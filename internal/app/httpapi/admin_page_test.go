@@ -1068,6 +1068,13 @@ const closedCaseID = process.argv[7];
   if (!closedQueueHref || !closedQueueHref.includes("source_eval_case_id=")) {
     throw new Error("closed linked-case queue handoff missing from row");
   }
+  const closedPrimaryActionText = await page.locator("#runDetail").locator('a,button').evaluateAll((elements) => {
+    const match = elements.find((element) => (element.textContent || "").includes("Open existing queue"));
+    return match ? (match.textContent || "").trim() : "";
+  });
+  if (closedPrimaryActionText !== "Open existing queue") {
+    throw new Error("closed item primary action did not switch to backend-owned queue reuse");
+  }
 
   const detailText = await page.textContent("#runDetail");
   if (!detailText.includes(closedCaseID)) throw new Error("closed linked case summary missing from detail");
@@ -1083,6 +1090,9 @@ const closedCaseID = process.argv[7];
   }
   if (!detailLinks.some((entry) => entry.text === "Open linked case queue" && entry.href.includes("source_eval_case_id="))) {
     throw new Error("closed linked-case queue handoff missing from detail");
+  }
+  if (!detailLinks.some((entry) => entry.text === "Open existing queue" && entry.href.includes("source_eval_case_id="))) {
+    throw new Error("closed primary action queue handoff missing from detail");
   }
 
   await browser.close();
