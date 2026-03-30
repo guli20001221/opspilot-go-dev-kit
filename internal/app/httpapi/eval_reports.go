@@ -30,6 +30,7 @@ type evalReportBadCaseResponse struct {
 	LatestFollowUpCaseID      string                         `json:"latest_follow_up_case_id,omitempty"`
 	LatestFollowUpCaseStatus  string                         `json:"latest_follow_up_case_status,omitempty"`
 	PreferredFollowUpAction   evalCaseFollowUpActionResponse `json:"preferred_follow_up_action"`
+	PreferredPrimaryAction    evalCaseFollowUpActionResponse `json:"preferred_primary_action"`
 	PreferredLinkedCaseAction evalCaseFollowUpActionResponse `json:"preferred_linked_case_action"`
 }
 
@@ -702,6 +703,7 @@ func newEvalReportResponse(item evalsvc.EvalReport, includeHeavy bool, followUpS
 					LatestFollowUpCaseID:      badCaseSummary.LatestFollowUpCaseID,
 					LatestFollowUpCaseStatus:  badCaseSummary.LatestFollowUpCaseStatus,
 					PreferredFollowUpAction:   newEvalReportBadCaseFollowUpActionResponse(badCase.EvalCaseID, badCaseSummary),
+					PreferredPrimaryAction:    newEvalReportBadCasePrimaryActionResponse(badCase.EvalCaseID, badCaseSummary),
 					PreferredLinkedCaseAction: newEvalReportBadCaseLinkedCaseActionResponse(badCase.EvalCaseID, badCaseSummary),
 				})
 			}
@@ -761,6 +763,14 @@ func newEvalReportBadCaseFollowUpActionResponse(evalCaseID string, followUpSumma
 	}
 	action.Mode = "open_existing_queue"
 	return action
+}
+
+func newEvalReportBadCasePrimaryActionResponse(evalCaseID string, followUpSummary casesvc.EvalCaseFollowUpSummary) evalCaseFollowUpActionResponse {
+	linkedAction := newEvalReportBadCaseLinkedCaseActionResponse(evalCaseID, followUpSummary)
+	if linkedAction.Mode != "none" {
+		return linkedAction
+	}
+	return newEvalReportBadCaseFollowUpActionResponse(evalCaseID, followUpSummary)
 }
 
 func newEvalReportBadCaseLinkedCaseActionResponse(evalCaseID string, followUpSummary casesvc.EvalCaseFollowUpSummary) evalCaseFollowUpActionResponse {

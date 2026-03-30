@@ -1828,6 +1828,10 @@ async function assertCasePayload(page, apiBaseURL, caseID, tenantID, expectedRep
   if (!existingBadCaseActionHref || !existingBadCaseActionHref.includes("case_id=" + encodeURIComponent(openBadCaseFollowUp.ID))) {
     throw new Error("existing bad-case reuse handoff missing from detail pane");
   }
+  const existingBadCasePrimaryActionHref = await page.locator("#reportDetail .bad-case-item .detail-actions a").evaluate((element) => element.getAttribute("href"));
+  if (!existingBadCasePrimaryActionHref || !existingBadCasePrimaryActionHref.includes("case_id=" + encodeURIComponent(openBadCaseFollowUp.ID))) {
+    throw new Error("bad-case primary action did not use canonical existing-case handoff");
+  }
   await page.click("#quickViewAllReports");
   await page.waitForFunction(() => new URL(window.location.href).searchParams.get("needs_follow_up") === null && new URL(window.location.href).searchParams.get("bad_case_needs_follow_up") === null);
   await page.click("#quickViewBadCaseNeedsFollowUp");
@@ -1951,6 +1955,10 @@ async function assertCasePayload(page, apiBaseURL, caseID, tenantID, expectedRep
   const unresolvedDetailText = await page.locator(".bad-case-item").first().textContent();
   if (!unresolvedDetailText.includes("0 open")) {
     throw new Error("expected unresolved bad-case detail after list quick view reset: " + unresolvedDetailText);
+  }
+  const unresolvedBadCasePrimaryActionText = (await page.locator(".bad-case-item .detail-actions").first().textContent()).trim();
+  if (!unresolvedBadCasePrimaryActionText.includes("Open bad-case queue")) {
+    throw new Error("bad-case primary action did not switch to canonical queue handoff: " + unresolvedBadCasePrimaryActionText);
   }
   await page.click("#quickViewAllReports");
   await page.waitForFunction(() => {
