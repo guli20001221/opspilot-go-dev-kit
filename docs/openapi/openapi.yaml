@@ -3000,6 +3000,7 @@ components:
         - updated_at
         - item_without_open_follow_up_count
         - needs_follow_up
+        - preferred_primary_action
         - preferred_follow_up_action
         - linked_case_summary
         - preferred_case_action
@@ -3026,12 +3027,35 @@ components:
           type: string
         report_status:
           type: string
+        preferred_primary_action:
+          $ref: '#/components/schemas/EvalDatasetRecentRunPrimaryAction'
         preferred_follow_up_action:
           $ref: '#/components/schemas/EvalDatasetFollowUpAction'
         linked_case_summary:
           $ref: '#/components/schemas/EvalReportLinkedCaseSummary'
         preferred_case_action:
           $ref: '#/components/schemas/EvalDatasetCaseQueueAction'
+    EvalDatasetRecentRunPrimaryAction:
+      type: object
+      required:
+        - mode
+      properties:
+        mode:
+          type: string
+          enum:
+            - none
+            - open_existing_case
+            - open_existing_queue
+            - open_latest_report_queue
+            - open_latest_run_queue
+            - open_report
+            - open_run
+        case_id:
+          type: string
+        run_id:
+          type: string
+        report_id:
+          type: string
     EvalDatasetCaseQueueAction:
       type: object
       required:

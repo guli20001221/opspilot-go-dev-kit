@@ -73,6 +73,7 @@ Turn prompt, routing, retrieval, and tool changes into measurable, repeatable qu
 41. Once canonical eval-report detail carries typed `preferred_primary_action` on each bad case, prefer consuming that backend-owned field for the main bad-case follow-up button instead of mixing follow-up and linked-case heuristics in admin pages.
 42. Once canonical eval-report detail supports a `bad_case_needs_follow_up` filter, prefer using that backend-owned slice for unresolved bad-case triage rather than re-implementing follow-up filtering inside admin pages.
 43. When operators need unresolved bad-case pressure at eval-report list scope, prefer durable list fields such as `bad_case_without_open_follow_up_count` and a canonical `bad_case_needs_follow_up` filter on `GET /api/v1/eval-reports` before introducing any second unresolved-regression queue.
+44. Once canonical eval-dataset `recent_runs[]` rows expose a typed `preferred_primary_action`, prefer consuming that backend-owned field for the main recent-run handoff instead of mixing run/report/queue/case routing in admin pages.
 44. When eval-report comparison needs unresolved bad-case pressure, prefer extending the canonical compare item with `bad_case_without_open_follow_up_count` and hand off into the existing unresolved report slice instead of inventing a compare-only follow-up model.
 
 ## Output contract

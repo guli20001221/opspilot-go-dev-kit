@@ -919,6 +919,15 @@ func TestGetEvalDatasetIncludesLatestRunSummary(t *testing.T) {
 	if got.RecentRuns[0].PreferredCaseAction.SourceEvalRunID != reportItem.RunID {
 		t.Fatalf("RecentRuns[0].PreferredCaseAction.SourceEvalRunID = %q, want %q", got.RecentRuns[0].PreferredCaseAction.SourceEvalRunID, reportItem.RunID)
 	}
+	if got.RecentRuns[0].PreferredPrimaryAction.Mode != "open_existing_case" {
+		t.Fatalf("RecentRuns[0].PreferredPrimaryAction.Mode = %q, want %q", got.RecentRuns[0].PreferredPrimaryAction.Mode, "open_existing_case")
+	}
+	if got.RecentRuns[0].PreferredPrimaryAction.CaseID != runBackedCase.ID {
+		t.Fatalf("RecentRuns[0].PreferredPrimaryAction.CaseID = %q, want %q", got.RecentRuns[0].PreferredPrimaryAction.CaseID, runBackedCase.ID)
+	}
+	if got.RecentRuns[0].PreferredPrimaryAction.RunID != reportItem.RunID {
+		t.Fatalf("RecentRuns[0].PreferredPrimaryAction.RunID = %q, want %q", got.RecentRuns[0].PreferredPrimaryAction.RunID, reportItem.RunID)
+	}
 }
 
 func TestEvalDatasetFollowUpActionFallsBackToLatestRunQueue(t *testing.T) {
@@ -1038,6 +1047,74 @@ func TestEvalDatasetFollowUpActionFallsBackToLatestRunQueue(t *testing.T) {
 	}
 	if got.RecentRuns[0].PreferredCaseAction.Mode != "none" {
 		t.Fatalf("RecentRuns[0].PreferredCaseAction.Mode = %q, want %q", got.RecentRuns[0].PreferredCaseAction.Mode, "none")
+	}
+	if got.RecentRuns[0].PreferredPrimaryAction.Mode != "open_latest_run_queue" {
+		t.Fatalf("RecentRuns[0].PreferredPrimaryAction.Mode = %q, want %q", got.RecentRuns[0].PreferredPrimaryAction.Mode, "open_latest_run_queue")
+	}
+	if got.RecentRuns[0].PreferredPrimaryAction.RunID != run.ID {
+		t.Fatalf("RecentRuns[0].PreferredPrimaryAction.RunID = %q, want %q", got.RecentRuns[0].PreferredPrimaryAction.RunID, run.ID)
+	}
+	if got.RecentRuns[0].PreferredPrimaryAction.ReportID != "" {
+		t.Fatalf("RecentRuns[0].PreferredPrimaryAction.ReportID = %q, want empty", got.RecentRuns[0].PreferredPrimaryAction.ReportID)
+	}
+}
+
+func TestEvalDatasetRecentRunPrimaryActionPrefersReportWhenNoQueueOrCase(t *testing.T) {
+	ctx := context.Background()
+	caseService := casesvc.NewService()
+	evalCaseService := evalsvc.NewService(caseService, nil)
+	datasetService := evalsvc.NewDatasetService(evalCaseService)
+	runService := evalsvc.NewRunService(datasetService)
+	reportService := evalsvc.NewEvalReportServiceWithDependencies(nil, runService)
+
+	reportID := materializeEvalRunReport(t, "tenant-dataset-report-primary", evalsvc.RunStatusSucceeded, "success detail", caseService, evalCaseService, datasetService, runService, reportService, "Dataset Report Primary", "Dataset Report Primary Source")
+	reportItem, err := reportService.GetEvalReport(ctx, reportID)
+	if err != nil {
+		t.Fatalf("GetEvalReport() error = %v", err)
+	}
+
+	server := httptest.NewServer(NewHandlerWithDependencies(Dependencies{
+		Cases:        caseService,
+		EvalCases:    evalCaseService,
+		EvalDatasets: datasetService,
+		EvalRuns:     runService,
+		EvalReports:  reportService,
+	}))
+	defer server.Close()
+
+	resp, err := http.Get(server.URL + "/api/v1/eval-datasets/" + reportItem.DatasetID + "?tenant_id=tenant-dataset-report-primary")
+	if err != nil {
+		t.Fatalf("Get() error = %v", err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("StatusCode = %d, want %d", resp.StatusCode, http.StatusOK)
+	}
+
+	var got evalDatasetResponse
+	if err := json.NewDecoder(resp.Body).Decode(&got); err != nil {
+		t.Fatalf("Decode() error = %v", err)
+	}
+	if len(got.RecentRuns) == 0 {
+		t.Fatal("RecentRuns is empty, want latest run summary")
+	}
+	if got.RecentRuns[0].RunID != reportItem.RunID {
+		t.Fatalf("RecentRuns[0].RunID = %q, want %q", got.RecentRuns[0].RunID, reportItem.RunID)
+	}
+	if got.RecentRuns[0].PreferredCaseAction.Mode != "none" {
+		t.Fatalf("RecentRuns[0].PreferredCaseAction.Mode = %q, want %q", got.RecentRuns[0].PreferredCaseAction.Mode, "none")
+	}
+	if got.RecentRuns[0].PreferredFollowUpAction.Mode != "none" {
+		t.Fatalf("RecentRuns[0].PreferredFollowUpAction.Mode = %q, want %q", got.RecentRuns[0].PreferredFollowUpAction.Mode, "none")
+	}
+	if got.RecentRuns[0].PreferredPrimaryAction.Mode != "open_report" {
+		t.Fatalf("RecentRuns[0].PreferredPrimaryAction.Mode = %q, want %q", got.RecentRuns[0].PreferredPrimaryAction.Mode, "open_report")
+	}
+	if got.RecentRuns[0].PreferredPrimaryAction.ReportID != reportID {
+		t.Fatalf("RecentRuns[0].PreferredPrimaryAction.ReportID = %q, want %q", got.RecentRuns[0].PreferredPrimaryAction.ReportID, reportID)
+	}
+	if got.RecentRuns[0].PreferredPrimaryAction.RunID != reportItem.RunID {
+		t.Fatalf("RecentRuns[0].PreferredPrimaryAction.RunID = %q, want %q", got.RecentRuns[0].PreferredPrimaryAction.RunID, reportItem.RunID)
 	}
 }
 

@@ -137,18 +137,26 @@ type evalDatasetLinkedCaseSummaryResponse struct {
 }
 
 type evalDatasetRecentRunResponse struct {
-	RunID                        string                               `json:"run_id"`
-	Status                       string                               `json:"status"`
-	CreatedAt                    string                               `json:"created_at"`
-	UpdatedAt                    string                               `json:"updated_at"`
-	FinishedAt                   string                               `json:"finished_at,omitempty"`
-	ItemWithoutOpenFollowUpCount int                                  `json:"item_without_open_follow_up_count"`
-	NeedsFollowUp                bool                                 `json:"needs_follow_up"`
-	ReportID                     string                               `json:"report_id,omitempty"`
-	ReportStatus                 string                               `json:"report_status,omitempty"`
-	PreferredFollowUpAction      evalDatasetFollowUpActionResponse    `json:"preferred_follow_up_action"`
-	LinkedCaseSummary            evalDatasetLinkedCaseSummaryResponse `json:"linked_case_summary"`
-	PreferredCaseAction          evalDatasetCaseQueueActionResponse   `json:"preferred_case_action"`
+	RunID                        string                                    `json:"run_id"`
+	Status                       string                                    `json:"status"`
+	CreatedAt                    string                                    `json:"created_at"`
+	UpdatedAt                    string                                    `json:"updated_at"`
+	FinishedAt                   string                                    `json:"finished_at,omitempty"`
+	ItemWithoutOpenFollowUpCount int                                       `json:"item_without_open_follow_up_count"`
+	NeedsFollowUp                bool                                      `json:"needs_follow_up"`
+	ReportID                     string                                    `json:"report_id,omitempty"`
+	ReportStatus                 string                                    `json:"report_status,omitempty"`
+	PreferredPrimaryAction       evalDatasetRecentRunPrimaryActionResponse `json:"preferred_primary_action"`
+	PreferredFollowUpAction      evalDatasetFollowUpActionResponse         `json:"preferred_follow_up_action"`
+	LinkedCaseSummary            evalDatasetLinkedCaseSummaryResponse      `json:"linked_case_summary"`
+	PreferredCaseAction          evalDatasetCaseQueueActionResponse        `json:"preferred_case_action"`
+}
+
+type evalDatasetRecentRunPrimaryActionResponse struct {
+	Mode     string `json:"mode"`
+	CaseID   string `json:"case_id,omitempty"`
+	RunID    string `json:"run_id,omitempty"`
+	ReportID string `json:"report_id,omitempty"`
 }
 
 type listEvalDatasetsResponse struct {
@@ -687,6 +695,7 @@ func (a *appHandler) evalDatasetRecentRuns(ctx context.Context, tenantID string,
 			}
 			resp.PreferredFollowUpAction = newEvalDatasetRecentRunFollowUpActionResponse(run.ID, resp.ReportID, resp.NeedsFollowUp)
 		}
+		resp.PreferredPrimaryAction = newEvalDatasetRecentRunPrimaryActionResponse(run.ID, resp.ReportID, resp.PreferredCaseAction, resp.PreferredFollowUpAction)
 		rows = append(rows, resp)
 	}
 
@@ -724,6 +733,41 @@ func newEvalDatasetRecentRunCaseActionResponse(runID string, summary evalDataset
 	}
 
 	action.Mode = "open_existing_queue"
+	return action
+}
+
+func newEvalDatasetRecentRunPrimaryActionResponse(runID string, reportID string, caseAction evalDatasetCaseQueueActionResponse, followUpAction evalDatasetFollowUpActionResponse) evalDatasetRecentRunPrimaryActionResponse {
+	action := evalDatasetRecentRunPrimaryActionResponse{
+		Mode:  "none",
+		RunID: runID,
+	}
+	if caseAction.Mode == "open_existing_case" && caseAction.CaseID != "" {
+		action.Mode = "open_existing_case"
+		action.CaseID = caseAction.CaseID
+		return action
+	}
+	if caseAction.Mode == "open_existing_queue" {
+		action.Mode = "open_existing_queue"
+		return action
+	}
+	switch followUpAction.Mode {
+	case "open_latest_report_queue":
+		action.Mode = "open_latest_report_queue"
+		action.ReportID = followUpAction.ReportID
+		return action
+	case "open_latest_run_queue":
+		action.Mode = "open_latest_run_queue"
+		return action
+	}
+	if reportID != "" {
+		action.Mode = "open_report"
+		action.ReportID = reportID
+		return action
+	}
+	if runID != "" {
+		action.Mode = "open_run"
+		return action
+	}
 	return action
 }
 

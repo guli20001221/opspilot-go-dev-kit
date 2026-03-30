@@ -628,6 +628,9 @@ func TestAdminEvalDatasetsPageRendersHTML(t *testing.T) {
 	if !strings.Contains(body, "Recent eval activity") {
 		t.Fatal("recent eval activity panel missing from eval datasets page HTML")
 	}
+	if !strings.Contains(body, "data-recent-run-primary-action") {
+		t.Fatal("recent run primary action handoff missing from eval datasets page HTML")
+	}
 	if !strings.Contains(body, "Open preferred queue") {
 		t.Fatal("preferred queue handoff missing from eval datasets page HTML")
 	}
@@ -823,6 +826,8 @@ const reportID = process.argv[6];
   if (!detailText.includes("dataset-smoke-operator")) throw new Error("linked dataset case owner missing from dataset detail");
   if (!detailText.includes("dataset-run-operator")) throw new Error("run-backed case owner missing from dataset detail");
   if (!detailText.includes("Run-backed cases: 1 total / 1 open")) throw new Error("recent activity run-backed case summary missing from dataset detail");
+  const recentRunPrimaryHref = await page.getAttribute('a[data-recent-run-primary-action="' + runID + '"]', "href");
+  if (!recentRunPrimaryHref || !recentRunPrimaryHref.includes("case_id=" + encodeURIComponent("` + runBackedCase.ID + `"))) throw new Error("recent activity primary handoff missing run-backed case reuse");
   const preferredQueueHref = await page.getAttribute('a[href*="/admin/eval-reports?"][href*="selected_report_id=' + encodeURIComponent(reportID) + '"][href*="bad_case_needs_follow_up=true"]', "href");
   if (!preferredQueueHref) throw new Error("recent activity preferred queue handoff missing from dataset detail");
   const datasetCaseHref = await page.getAttribute('a[href*="/admin/cases?"][href*="case_id=' + encodeURIComponent("` + followUpCase.ID + `") + '"]', "href");

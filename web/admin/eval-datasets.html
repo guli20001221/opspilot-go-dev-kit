@@ -318,6 +318,41 @@
       return "Open latest run-backed case";
     }
 
+    function recentRunPrimaryActionHref(item, run) {
+      const action = run && run.preferred_primary_action;
+      if (!action || action.mode === "none") return "";
+      if (action.mode === "open_existing_case" && action.case_id) {
+        return `/admin/cases?tenant_id=${encodeURIComponent(item.tenant_id)}&case_id=${encodeURIComponent(action.case_id)}`;
+      }
+      if (action.mode === "open_existing_queue" && action.run_id) {
+        return `/admin/cases?tenant_id=${encodeURIComponent(item.tenant_id)}&source_eval_run_id=${encodeURIComponent(action.run_id)}&status=open`;
+      }
+      if (action.mode === "open_latest_report_queue" && action.report_id) {
+        return `/admin/eval-reports?tenant_id=${encodeURIComponent(item.tenant_id)}&report_id=${encodeURIComponent(action.report_id)}&selected_report_id=${encodeURIComponent(action.report_id)}&bad_case_needs_follow_up=true`;
+      }
+      if (action.mode === "open_latest_run_queue" && action.run_id) {
+        return `/admin/eval-runs?tenant_id=${encodeURIComponent(item.tenant_id)}&dataset_id=${encodeURIComponent(item.dataset_id)}&run_id=${encodeURIComponent(action.run_id)}&needs_follow_up=true`;
+      }
+      if (action.mode === "open_report" && action.report_id) {
+        return `/admin/eval-reports?tenant_id=${encodeURIComponent(item.tenant_id)}&report_id=${encodeURIComponent(action.report_id)}&selected_report_id=${encodeURIComponent(action.report_id)}`;
+      }
+      if (action.mode === "open_run" && action.run_id) {
+        return `/admin/eval-runs?tenant_id=${encodeURIComponent(item.tenant_id)}&dataset_id=${encodeURIComponent(item.dataset_id)}&run_id=${encodeURIComponent(action.run_id)}`;
+      }
+      return "";
+    }
+
+    function recentRunPrimaryActionLabel(run) {
+      const action = run && run.preferred_primary_action;
+      if (!action || action.mode === "none") return "";
+      if (action.mode === "open_existing_case") return "Open latest run-backed case";
+      if (action.mode === "open_existing_queue") return "Open run-backed case queue";
+      if (action.mode === "open_latest_report_queue" || action.mode === "open_latest_run_queue") return "Open preferred queue";
+      if (action.mode === "open_report") return "Open report";
+      if (action.mode === "open_run") return "Open run";
+      return "";
+    }
+
     function recentRunCaseHref(item, run) {
       const action = run && run.preferred_case_action;
       if (!action || action.mode === "none") return "";
@@ -661,6 +696,7 @@
                     <div>Run-backed cases: ${escapeHTML(String(run.linked_case_summary?.total_case_count || 0))} total / ${escapeHTML(String(run.linked_case_summary?.open_case_count || 0))} open</div>
                     <div>Latest run-backed owner: ${escapeHTML(run.linked_case_summary?.latest_assigned_to || "unassigned")}</div>
                     <div>
+                      ${recentRunPrimaryActionHref(item, run) ? `<a class="button-link" data-recent-run-primary-action="${escapeHTML(run.run_id)}" href="${recentRunPrimaryActionHref(item, run)}">${recentRunPrimaryActionLabel(run)}</a>` : ""}
                       ${recentRunPreferredQueueHref(item, run) ? `<a class="button-link ghost" href="${recentRunPreferredQueueHref(item, run)}">${recentRunPreferredQueueLabel(run)}</a>` : ""}
                       <a class="button-link ghost" href="/admin/eval-runs?tenant_id=${encodeURIComponent(item.tenant_id)}&dataset_id=${encodeURIComponent(item.dataset_id)}&run_id=${encodeURIComponent(run.run_id)}">Open run</a>
                       ${run.report_id ? `<a class="button-link ghost" href="/admin/eval-reports?tenant_id=${encodeURIComponent(item.tenant_id)}&report_id=${encodeURIComponent(run.report_id)}&selected_report_id=${encodeURIComponent(run.report_id)}">Open report</a>` : ""}
