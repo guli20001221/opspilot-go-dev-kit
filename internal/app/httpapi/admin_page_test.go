@@ -700,6 +700,9 @@ func TestAdminEvalDatasetsPageRendersHTML(t *testing.T) {
 	if !strings.Contains(body, "Create case from item") {
 		t.Fatal("dataset item follow-up action missing from eval datasets page HTML")
 	}
+	if !strings.Contains(body, "Open case queue") {
+		t.Fatal("dataset item queue handoff missing from eval datasets page HTML")
+	}
 	if !strings.Contains(body, "task-row-selected") {
 		t.Fatal("selected dataset row styling missing from eval datasets page HTML")
 	}
@@ -763,6 +766,29 @@ func TestAdminEvalDatasetsPageRuntimeSmoke(t *testing.T) {
 	})
 	if err != nil {
 		t.Fatalf("CreateRun(older) error = %v", err)
+	}
+	queueItemSourceCase, err := caseService.CreateCase(ctx, casesvc.CreateInput{
+		TenantID: "tenant-dataset-admin-smoke",
+		Title:    "Queue item dataset source",
+	})
+	if err != nil {
+		t.Fatalf("CreateCase(queue-item-source) error = %v", err)
+	}
+	queueItemEvalCase, _, err := evalCaseService.PromoteCase(ctx, evalsvc.CreateInput{
+		TenantID:     "tenant-dataset-admin-smoke",
+		SourceCaseID: queueItemSourceCase.ID,
+	})
+	if err != nil {
+		t.Fatalf("PromoteCase(queue-item) error = %v", err)
+	}
+	queueItemDataset, err := datasetService.CreateDataset(ctx, evalsvc.CreateDatasetInput{
+		TenantID:    "tenant-dataset-admin-smoke",
+		Name:        "Dataset Queue Item",
+		EvalCaseIDs: []string{queueItemEvalCase.ID},
+		CreatedBy:   "operator-dataset-queue-item",
+	})
+	if err != nil {
+		t.Fatalf("CreateDataset(queue-item) error = %v", err)
 	}
 
 	reportID := materializeEvalRunReport(t, "tenant-dataset-admin-smoke", evalsvc.RunStatusFailed, "failure detail", caseService, evalCaseService, datasetService, runService, reportService, "Dataset With Run", "Dataset With Run Source")
@@ -829,6 +855,24 @@ func TestAdminEvalDatasetsPageRuntimeSmoke(t *testing.T) {
 	if _, err := caseService.CloseCase(ctx, queueClosedCase.ID, "dataset-queue-operator"); err != nil {
 		t.Fatalf("CloseCase(queue-closed) error = %v", err)
 	}
+	if _, err := caseService.CreateCase(ctx, casesvc.CreateInput{
+		TenantID:         "tenant-dataset-admin-smoke",
+		Title:            "Dataset queue item open follow-up",
+		SourceEvalCaseID: queueItemEvalCase.ID,
+	}); err != nil {
+		t.Fatalf("CreateCase(queue-item-open) error = %v", err)
+	}
+	queueItemClosedCase, err := caseService.CreateCase(ctx, casesvc.CreateInput{
+		TenantID:         "tenant-dataset-admin-smoke",
+		Title:            "Dataset queue item closed follow-up",
+		SourceEvalCaseID: queueItemEvalCase.ID,
+	})
+	if err != nil {
+		t.Fatalf("CreateCase(queue-item-closed) error = %v", err)
+	}
+	if _, err := caseService.CloseCase(ctx, queueItemClosedCase.ID, "dataset-item-queue-operator"); err != nil {
+		t.Fatalf("CloseCase(queue-item-closed) error = %v", err)
+	}
 
 	server := httptest.NewServer(NewHandlerWithDependencies(Dependencies{
 		Cases:        caseService,
@@ -857,8 +901,10 @@ const olderEvalCaseID = process.argv[8];
 const olderRunID = process.argv[9];
 const queueDatasetID = process.argv[10];
 const queueReportID = process.argv[11];
-const linkedEvalCaseID = process.argv[12];
-const linkedEvalCaseCaseID = process.argv[13];
+const queueItemDatasetID = process.argv[12];
+const queueItemEvalCaseID = process.argv[13];
+const linkedEvalCaseID = process.argv[14];
+const linkedEvalCaseCaseID = process.argv[15];
 
 (async () => {
   const browser = await chromium.launch({ headless: true });
@@ -942,6 +988,20 @@ const linkedEvalCaseCaseID = process.argv[13];
   }
   const queueRowPrimaryMode = await page.getAttribute('[data-dataset-primary-action="' + queueDatasetID + '"]', "data-action-mode");
   if (queueRowPrimaryMode !== "open_existing_queue") throw new Error("queue-mode dataset row primary action mode missing queue state: " + queueRowPrimaryMode);
+  await page.click('[data-dataset-row="' + queueItemDatasetID + '"] [data-dataset-id="' + queueItemDatasetID + '"]');
+  await page.waitForFunction((targetID) => {
+    const detail = document.querySelector("#datasetDetail");
+    return !!detail && detail.textContent && detail.textContent.includes(targetID);
+  }, queueItemDatasetID);
+  const queueItemAction = page.locator('[data-dataset-item-primary-action="' + queueItemEvalCaseID + '"]').first();
+  const queueItemText = ((await queueItemAction.textContent()) || "").trim();
+  if (queueItemText !== "Open case queue") throw new Error("dataset item queue primary action did not expose queue label: " + queueItemText);
+  const queueItemMode = await queueItemAction.getAttribute("data-action-mode");
+  if (queueItemMode !== "open_existing_queue") throw new Error("dataset item queue primary action mode missing queue state: " + queueItemMode);
+  const queueItemHref = await queueItemAction.getAttribute("href");
+  if (!queueItemHref || !queueItemHref.includes("/admin/cases?") || !queueItemHref.includes("source_eval_case_id=" + encodeURIComponent(queueItemEvalCaseID)) || !queueItemHref.includes("status=open")) {
+    throw new Error("dataset item queue primary action missing canonical queue handoff");
+  }
   await page.click('[data-dataset-row="' + olderDatasetID + '"] [data-dataset-id="' + olderDatasetID + '"]');
   await page.waitForFunction((targetID) => {
     const detail = document.querySelector("#datasetDetail");
@@ -986,7 +1046,7 @@ const linkedEvalCaseCaseID = process.argv[13];
 		t.Fatalf("WriteFile(scriptPath) error = %v", err)
 	}
 
-	cmd := exec.Command("node", scriptPath, server.URL, "tenant-dataset-admin-smoke", reportItem.DatasetID, reportItem.RunID, reportID, olderDataset.ID, olderEvalCase.ID, olderRun.ID, queueReportItem.DatasetID, queueReportID, reportItem.BadCases[0].EvalCaseID, itemBackedCase.ID)
+	cmd := exec.Command("node", scriptPath, server.URL, "tenant-dataset-admin-smoke", reportItem.DatasetID, reportItem.RunID, reportID, olderDataset.ID, olderEvalCase.ID, olderRun.ID, queueReportItem.DatasetID, queueReportID, queueItemDataset.ID, queueItemEvalCase.ID, reportItem.BadCases[0].EvalCaseID, itemBackedCase.ID)
 	cmd.Env = append(os.Environ(), "NODE_PATH="+nodePathRoot)
 	output, err := cmd.CombinedOutput()
 	if err != nil {
