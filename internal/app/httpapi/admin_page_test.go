@@ -964,6 +964,7 @@ func TestAdminEvalRunsPageRuntimeSmoke(t *testing.T) {
 	evalCaseService := evalsvc.NewService(caseService, nil)
 	datasetService := evalsvc.NewDatasetService(evalCaseService)
 	runService := evalsvc.NewRunService(datasetService)
+	reportService := evalsvc.NewEvalReportServiceWithDependencies(nil, runService)
 
 	makeFailedRunWithFollowUp := func(title string, closeFollowUp bool) (evalsvc.EvalRun, casesvc.Case) {
 		t.Helper()
@@ -1030,12 +1031,61 @@ func TestAdminEvalRunsPageRuntimeSmoke(t *testing.T) {
 
 	openRun, openCase := makeFailedRunWithFollowUp("Open latest case", false)
 	closedRun, closedCase := makeFailedRunWithFollowUp("Closed latest case", true)
+	reportID := materializeEvalRunReport(t, "tenant-eval-run-admin-smoke", evalsvc.RunStatusFailed, "report-backed failure detail", caseService, evalCaseService, datasetService, runService, reportService, "Dataset Report Backed", "Source Report Backed")
+	reportItem, err := reportService.GetEvalReport(context.Background(), reportID)
+	if err != nil {
+		t.Fatalf("GetEvalReport() error = %v", err)
+	}
+	uncoveredSourceCase, err := caseService.CreateCase(context.Background(), casesvc.CreateInput{
+		TenantID:  "tenant-eval-run-admin-smoke",
+		Title:     "Uncovered run source",
+		Summary:   "Uncovered run source summary",
+		CreatedBy: "operator-eval-run",
+	})
+	if err != nil {
+		t.Fatalf("CreateCase(uncoveredSourceCase) error = %v", err)
+	}
+	uncoveredEvalCase, _, err := evalCaseService.PromoteCase(context.Background(), evalsvc.CreateInput{
+		TenantID:     uncoveredSourceCase.TenantID,
+		SourceCaseID: uncoveredSourceCase.ID,
+		CreatedBy:    "operator-eval-run",
+	})
+	if err != nil {
+		t.Fatalf("PromoteCase(uncovered) error = %v", err)
+	}
+	uncoveredDataset, err := datasetService.CreateDataset(context.Background(), evalsvc.CreateDatasetInput{
+		TenantID:    uncoveredSourceCase.TenantID,
+		Name:        "Uncovered run dataset",
+		EvalCaseIDs: []string{uncoveredEvalCase.ID},
+	})
+	if err != nil {
+		t.Fatalf("CreateDataset(uncovered) error = %v", err)
+	}
+	if _, err := datasetService.PublishDataset(context.Background(), uncoveredDataset.ID, evalsvc.PublishDatasetInput{
+		TenantID: uncoveredSourceCase.TenantID,
+	}); err != nil {
+		t.Fatalf("PublishDataset(uncovered) error = %v", err)
+	}
+	uncoveredRun, err := runService.CreateRun(context.Background(), evalsvc.CreateRunInput{
+		TenantID:  uncoveredSourceCase.TenantID,
+		DatasetID: uncoveredDataset.ID,
+	})
+	if err != nil {
+		t.Fatalf("CreateRun(uncovered) error = %v", err)
+	}
+	if _, err := runService.ClaimQueuedRuns(context.Background(), 10); err != nil {
+		t.Fatalf("ClaimQueuedRuns(uncovered) error = %v", err)
+	}
+	if _, err := runService.MarkRunFailed(context.Background(), uncoveredRun.ID, "fault injection: uncovered eval run failed"); err != nil {
+		t.Fatalf("MarkRunFailed(uncovered) error = %v", err)
+	}
 
 	server := httptest.NewServer(NewHandlerWithDependencies(Dependencies{
 		Cases:        caseService,
 		EvalCases:    evalCaseService,
 		EvalDatasets: datasetService,
 		EvalRuns:     runService,
+		EvalReports:  reportService,
 	}))
 	defer server.Close()
 
@@ -1054,6 +1104,9 @@ const openRunID = process.argv[4];
 const openCaseID = process.argv[5];
 const closedRunID = process.argv[6];
 const closedCaseID = process.argv[7];
+const reportRunID = process.argv[8];
+const reportID = process.argv[9];
+const uncoveredRunID = process.argv[10];
 
 (async () => {
   const browser = await chromium.launch({ headless: true });
@@ -1063,6 +1116,29 @@ const closedCaseID = process.argv[7];
 
   const openRowHref = await page.getAttribute('[data-run-row="' + openRunID + '"] a[href*="case_id=' + encodeURIComponent(openCaseID) + '"]', "href");
   if (!openRowHref) throw new Error("open latest run case handoff missing from open row");
+  const openPrimaryActionHref = await page.locator('[data-run-row="' + openRunID + '"] td:last-child a, [data-run-row="' + openRunID + '"] td:last-child button').evaluateAll((elements) => {
+    const match = elements.find((element) => (element.textContent || "").includes("Open existing case"));
+    return match ? match.getAttribute("href") || "" : "";
+  });
+  if (!openPrimaryActionHref || !openPrimaryActionHref.includes("case_id=" + encodeURIComponent(openCaseID))) {
+    throw new Error("open row primary action did not honor backend-owned existing-case handoff");
+  }
+
+  const reportRowHref = await page.locator('[data-run-row="' + reportRunID + '"] td:last-child a').evaluateAll((elements) => {
+    const match = elements.find((element) => (element.textContent || "").includes("Open eval report"));
+    return match ? match.getAttribute("href") || "" : "";
+  });
+  if (!reportRowHref || !reportRowHref.includes("/admin/eval-reports?") || !reportRowHref.includes("report_id=" + encodeURIComponent(reportID))) {
+    throw new Error("report-backed row primary action did not honor backend-owned report handoff");
+  }
+
+  const uncoveredRowHref = await page.locator('[data-run-row="' + uncoveredRunID + '"] td:last-child a').evaluateAll((elements) => {
+    const match = elements.find((element) => (element.textContent || "").includes("Open run detail"));
+    return match ? match.getAttribute("href") || "" : "";
+  });
+  if (!uncoveredRowHref || !uncoveredRowHref.includes("/admin/eval-runs?") || !uncoveredRowHref.includes("run_id=" + encodeURIComponent(uncoveredRunID))) {
+    throw new Error("uncovered row primary action did not honor backend-owned run-detail handoff");
+  }
 
   const closedRowHref = await page.getAttribute('[data-run-row="' + closedRunID + '"] a[href*="case_id=' + encodeURIComponent(closedCaseID) + '"]', "href");
   if (closedRowHref) throw new Error("closed latest run case handoff should be suppressed in row");
@@ -1110,7 +1186,7 @@ const closedCaseID = process.argv[7];
 		t.Fatalf("WriteFile(scriptPath) error = %v", err)
 	}
 
-	cmd := exec.Command("node", scriptPath, server.URL, "tenant-eval-run-admin-smoke", openRun.ID, openCase.ID, closedRun.ID, closedCase.ID)
+	cmd := exec.Command("node", scriptPath, server.URL, "tenant-eval-run-admin-smoke", openRun.ID, openCase.ID, closedRun.ID, closedCase.ID, reportItem.RunID, reportID, uncoveredRun.ID)
 	cmd.Env = append(os.Environ(), "NODE_PATH="+nodePathRoot)
 	output, err := cmd.CombinedOutput()
 	if err != nil {

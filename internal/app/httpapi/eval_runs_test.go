@@ -532,6 +532,18 @@ func TestListEvalRunsEndpointIncludesFollowUpSummary(t *testing.T) {
 	if got := byID[coveredRun.ID].PreferredLinkedCaseAction.CaseID; got != coveredFollowUpCase.ID {
 		t.Fatalf("covered PreferredLinkedCaseAction.CaseID = %q, want %q", got, coveredFollowUpCase.ID)
 	}
+	if got := byID[coveredRun.ID].PreferredPrimaryAction.Mode; got != "open_existing_case" {
+		t.Fatalf("covered PreferredPrimaryAction.Mode = %q, want %q", got, "open_existing_case")
+	}
+	if got := byID[coveredRun.ID].PreferredPrimaryAction.CaseID; got != coveredFollowUpCase.ID {
+		t.Fatalf("covered PreferredPrimaryAction.CaseID = %q, want %q", got, coveredFollowUpCase.ID)
+	}
+	if got := byID[uncoveredRun.ID].PreferredPrimaryAction.Mode; got != "open_run" {
+		t.Fatalf("uncovered PreferredPrimaryAction.Mode = %q, want %q", got, "open_run")
+	}
+	if got := byID[uncoveredRun.ID].PreferredPrimaryAction.RunID; got != uncoveredRun.ID {
+		t.Fatalf("uncovered PreferredPrimaryAction.RunID = %q, want %q", got, uncoveredRun.ID)
+	}
 }
 
 func TestListEvalRunsEndpointSupportsNeedsFollowUpFilter(t *testing.T) {
@@ -1358,6 +1370,12 @@ func TestEvalRunEndpointsIncludeMaterializedReportLinkage(t *testing.T) {
 	if page.Runs[0].ReportStatus != evalsvc.EvalReportStatusReady {
 		t.Fatalf("page.Runs[0].ReportStatus = %q, want %q", page.Runs[0].ReportStatus, evalsvc.EvalReportStatusReady)
 	}
+	if page.Runs[0].PreferredPrimaryAction.Mode != "open_report" {
+		t.Fatalf("page.Runs[0].PreferredPrimaryAction.Mode = %q, want %q", page.Runs[0].PreferredPrimaryAction.Mode, "open_report")
+	}
+	if page.Runs[0].PreferredPrimaryAction.ReportID != reportID {
+		t.Fatalf("page.Runs[0].PreferredPrimaryAction.ReportID = %q, want %q", page.Runs[0].PreferredPrimaryAction.ReportID, reportID)
+	}
 
 	detailResp, err := http.Get(server.URL + "/api/v1/eval-runs/" + page.Runs[0].RunID + "?tenant_id=tenant-run-report-link")
 	if err != nil {
@@ -1377,6 +1395,12 @@ func TestEvalRunEndpointsIncludeMaterializedReportLinkage(t *testing.T) {
 	}
 	if detail.ReportStatus != evalsvc.EvalReportStatusReady {
 		t.Fatalf("detail.ReportStatus = %q, want %q", detail.ReportStatus, evalsvc.EvalReportStatusReady)
+	}
+	if detail.PreferredPrimaryAction.Mode != "open_report" {
+		t.Fatalf("detail.PreferredPrimaryAction.Mode = %q, want %q", detail.PreferredPrimaryAction.Mode, "open_report")
+	}
+	if detail.PreferredPrimaryAction.ReportID != reportID {
+		t.Fatalf("detail.PreferredPrimaryAction.ReportID = %q, want %q", detail.PreferredPrimaryAction.ReportID, reportID)
 	}
 }
 

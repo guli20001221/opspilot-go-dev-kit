@@ -30,6 +30,7 @@ type evalRunResponse struct {
 	ItemWithoutOpenFollowUpCount int                                 `json:"item_without_open_follow_up_count"`
 	NeedsFollowUp                bool                                `json:"needs_follow_up"`
 	LinkedCaseSummary            evalReportLinkedCaseSummaryResponse `json:"linked_case_summary"`
+	PreferredPrimaryAction       evalRunListPrimaryActionResponse    `json:"preferred_primary_action"`
 	PreferredLinkedCaseAction    evalRunLinkedCaseActionResponse     `json:"preferred_linked_case_action"`
 	ReportID                     string                              `json:"report_id,omitempty"`
 	ReportStatus                 string                              `json:"report_status,omitempty"`
@@ -43,6 +44,13 @@ type evalRunResponse struct {
 	Events                       []evalRunEventResponse              `json:"events,omitempty"`
 	Items                        []evalRunItemResponse               `json:"items,omitempty"`
 	ItemResults                  []evalRunItemResultResponse         `json:"item_results,omitempty"`
+}
+
+type evalRunListPrimaryActionResponse struct {
+	Mode     string `json:"mode"`
+	CaseID   string `json:"case_id,omitempty"`
+	RunID    string `json:"run_id,omitempty"`
+	ReportID string `json:"report_id,omitempty"`
 }
 
 type listEvalRunsResponse struct {
@@ -297,6 +305,7 @@ func newEvalRunResponse(item evalsvc.EvalRun, events []evalsvc.EvalRunEvent, ite
 		ItemWithoutOpenFollowUpCount: itemWithoutOpenFollowUpCount,
 		NeedsFollowUp:                itemWithoutOpenFollowUpCount > 0,
 		LinkedCaseSummary:            linkedCaseSummary,
+		PreferredPrimaryAction:       newEvalRunListPrimaryActionResponse(item.ID, linkedCaseSummary, reportSummary),
 		PreferredLinkedCaseAction:    newEvalRunLinkedCaseActionResponse(linkedCaseSummary),
 		ReportID:                     reportSummary.ReportID,
 		ReportStatus:                 reportSummary.ReportStatus,
@@ -375,6 +384,33 @@ func newEvalRunResponse(item evalsvc.EvalRun, events []evalsvc.EvalRunEvent, ite
 		}
 	}
 	return resp
+}
+
+func newEvalRunListPrimaryActionResponse(runID string, linkedCaseSummary evalReportLinkedCaseSummaryResponse, reportSummary evalRunReportSummary) evalRunListPrimaryActionResponse {
+	action := evalRunListPrimaryActionResponse{
+		Mode:  "none",
+		RunID: runID,
+	}
+	linkedAction := newEvalRunLinkedCaseActionResponse(linkedCaseSummary)
+	if linkedAction.Mode == "open_existing_case" && linkedAction.CaseID != "" {
+		action.Mode = "open_existing_case"
+		action.CaseID = linkedAction.CaseID
+		return action
+	}
+	if linkedAction.Mode == "open_existing_queue" {
+		action.Mode = "open_existing_queue"
+		return action
+	}
+	if reportSummary.ReportID != "" {
+		action.Mode = "open_report"
+		action.ReportID = reportSummary.ReportID
+		return action
+	}
+	if runID != "" {
+		action.Mode = "open_run"
+		return action
+	}
+	return action
 }
 
 func newEvalRunPrimaryActionResponse(evalCaseID string, summary casesvc.EvalCaseFollowUpSummary) evalCaseFollowUpActionResponse {

@@ -3356,6 +3356,7 @@ components:
         - item_without_open_follow_up_count
         - needs_follow_up
         - linked_case_summary
+        - preferred_primary_action
         - preferred_linked_case_action
         - status
         - created_by
@@ -3387,6 +3388,8 @@ components:
           description: Whether this run still has at least one failed item without an open follow-up case.
         linked_case_summary:
           $ref: '#/components/schemas/EvalReportLinkedCaseSummary'
+        preferred_primary_action:
+          $ref: '#/components/schemas/EvalRunListPrimaryAction'
         preferred_linked_case_action:
           $ref: '#/components/schemas/EvalRunLinkedCaseAction'
         report_id:
@@ -3441,6 +3444,7 @@ components:
         - item_without_open_follow_up_count
         - needs_follow_up
         - linked_case_summary
+        - preferred_primary_action
         - preferred_linked_case_action
         - status
         - created_by
@@ -3472,6 +3476,8 @@ components:
           description: Whether this run still has at least one failed item without an open follow-up case.
         linked_case_summary:
           $ref: '#/components/schemas/EvalReportLinkedCaseSummary'
+        preferred_primary_action:
+          $ref: '#/components/schemas/EvalRunListPrimaryAction'
         preferred_linked_case_action:
           $ref: '#/components/schemas/EvalRunLinkedCaseAction'
         status:
@@ -3644,6 +3650,24 @@ components:
             - none
             - open_existing_case
         case_id:
+          type: string
+    EvalRunListPrimaryAction:
+      type: object
+      required:
+        - mode
+      properties:
+        mode:
+          type: string
+          enum:
+            - none
+            - open_existing_case
+            - open_report
+            - open_run
+        case_id:
+          type: string
+        run_id:
+          type: string
+        report_id:
           type: string
     EvalReport:
       type: object
