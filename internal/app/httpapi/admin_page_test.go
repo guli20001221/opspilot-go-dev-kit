@@ -1155,12 +1155,18 @@ const uncoveredRunID = process.argv[10];
   if (!closedQueueHref || !closedQueueHref.includes("source_eval_case_id=")) {
     throw new Error("closed linked-case queue handoff missing from row");
   }
-  const closedPrimaryActionText = await page.locator("#runDetail").locator('a,button').evaluateAll((elements) => {
-    const match = elements.find((element) => (element.textContent || "").includes("Open existing queue"));
-    return match ? (match.textContent || "").trim() : "";
-  });
+  const closedResultAction = page.locator('#runDetail [data-run-result-primary-action]').first();
+  const closedPrimaryActionText = ((await closedResultAction.textContent()) || "").trim();
   if (closedPrimaryActionText !== "Open existing queue") {
-    throw new Error("closed item primary action did not switch to backend-owned queue reuse");
+    throw new Error("closed result primary action did not switch to backend-owned queue reuse: " + closedPrimaryActionText);
+  }
+  const closedPrimaryActionMode = await closedResultAction.getAttribute("data-action-mode");
+  if (closedPrimaryActionMode !== "open_existing_queue") {
+    throw new Error("closed result primary action mode missing queue reuse: " + closedPrimaryActionMode);
+  }
+  const closedPrimaryActionHref = await closedResultAction.getAttribute("href");
+  if (!closedPrimaryActionHref || !closedPrimaryActionHref.includes("source_eval_case_id=")) {
+    throw new Error("closed result primary action missing canonical queue handoff");
   }
 
   const detailText = await page.textContent("#runDetail");
@@ -1180,6 +1186,43 @@ const uncoveredRunID = process.argv[10];
   }
   if (!detailLinks.some((entry) => entry.text === "Open existing queue" && entry.href.includes("source_eval_case_id="))) {
     throw new Error("closed primary action queue handoff missing from detail");
+  }
+
+  await page.click('[data-run-row="' + openRunID + '"] [data-run-id="' + openRunID + '"]');
+  await page.waitForFunction((runID) => {
+    const detail = document.querySelector("#runDetail");
+    return !!detail && detail.textContent && detail.textContent.includes(runID);
+  }, openRunID);
+  const openResultAction = page.locator('#runDetail [data-run-result-primary-action]').first();
+  const openResultActionText = ((await openResultAction.textContent()) || "").trim();
+  if (openResultActionText !== "Open existing case") {
+    throw new Error("open result primary action did not switch to backend-owned case reuse: " + openResultActionText);
+  }
+  const openResultActionMode = await openResultAction.getAttribute("data-action-mode");
+  if (openResultActionMode !== "open_existing_case") {
+    throw new Error("open result primary action mode missing existing-case reuse: " + openResultActionMode);
+  }
+  const openResultActionHref = await openResultAction.getAttribute("href");
+  if (!openResultActionHref || !openResultActionHref.includes("case_id=" + encodeURIComponent(openCaseID))) {
+    throw new Error("open result primary action missing canonical case handoff");
+  }
+
+  await page.click('[data-run-row="' + uncoveredRunID + '"] [data-run-id="' + uncoveredRunID + '"]');
+  await page.waitForFunction((runID) => {
+    const detail = document.querySelector("#runDetail");
+    return !!detail && detail.textContent && detail.textContent.includes(runID);
+  }, uncoveredRunID);
+  const uncoveredResultAction = page.locator('#runDetail [data-run-result-primary-action]').first();
+  const uncoveredResultActionText = ((await uncoveredResultAction.textContent()) || "").trim();
+  if (uncoveredResultActionText !== "Create case from result") {
+    throw new Error("uncovered result primary action did not switch to backend-owned create flow: " + uncoveredResultActionText);
+  }
+  const uncoveredResultActionMode = await uncoveredResultAction.getAttribute("data-action-mode");
+  if (uncoveredResultActionMode !== "create") {
+    throw new Error("uncovered result primary action mode missing create state: " + uncoveredResultActionMode);
+  }
+  if ((await uncoveredResultAction.evaluate((element) => element.tagName.toLowerCase())) !== "button") {
+    throw new Error("uncovered result primary action should render as create button");
   }
 
   await browser.close();
