@@ -631,6 +631,12 @@ func TestAdminEvalDatasetsPageRendersHTML(t *testing.T) {
 	if !strings.Contains(body, "data-recent-run-primary-action") {
 		t.Fatal("recent run primary action handoff missing from eval datasets page HTML")
 	}
+	if !strings.Contains(body, "data-recent-run-queue-action") {
+		t.Fatal("recent run queue handoff selector missing from eval datasets page HTML")
+	}
+	if !strings.Contains(body, "data-recent-run-case-action") {
+		t.Fatal("recent run case handoff selector missing from eval datasets page HTML")
+	}
 	if !strings.Contains(body, "Open preferred queue") {
 		t.Fatal("preferred queue handoff missing from eval datasets page HTML")
 	}
@@ -742,6 +748,19 @@ func TestAdminEvalDatasetsPageRuntimeSmoke(t *testing.T) {
 	if err != nil {
 		t.Fatalf("CreateDataset(older) error = %v", err)
 	}
+	if _, err := datasetService.PublishDataset(ctx, olderDataset.ID, evalsvc.PublishDatasetInput{
+		TenantID: "tenant-dataset-admin-smoke",
+	}); err != nil {
+		t.Fatalf("PublishDataset(older) error = %v", err)
+	}
+	olderRun, err := runService.CreateRun(ctx, evalsvc.CreateRunInput{
+		TenantID:  "tenant-dataset-admin-smoke",
+		DatasetID: olderDataset.ID,
+		CreatedBy: "operator-dataset-run",
+	})
+	if err != nil {
+		t.Fatalf("CreateRun(older) error = %v", err)
+	}
 
 	reportID := materializeEvalRunReport(t, "tenant-dataset-admin-smoke", evalsvc.RunStatusFailed, "failure detail", caseService, evalCaseService, datasetService, runService, reportService, "Dataset With Run", "Dataset With Run Source")
 	reportItem, err := reportService.GetEvalReport(ctx, reportID)
@@ -809,8 +828,9 @@ const runID = process.argv[5];
 const reportID = process.argv[6];
 const olderDatasetID = process.argv[7];
 const olderEvalCaseID = process.argv[8];
-const linkedEvalCaseID = process.argv[9];
-const linkedEvalCaseCaseID = process.argv[10];
+const olderRunID = process.argv[9];
+const linkedEvalCaseID = process.argv[10];
+const linkedEvalCaseCaseID = process.argv[11];
 
 (async () => {
   const browser = await chromium.launch({ headless: true });
@@ -849,10 +869,20 @@ const linkedEvalCaseCaseID = process.argv[10];
     return match ? match.getAttribute("href") || "" : "";
   });
   if (!latestActivityDetailHref || !latestActivityDetailHref.includes("/admin/eval-reports?") || !latestActivityDetailHref.includes("selected_report_id=" + encodeURIComponent(reportID))) throw new Error("backend-owned latest activity handoff missing from dataset detail");
-  const recentRunPrimaryHref = await page.getAttribute('a[data-recent-run-primary-action="' + runID + '"]', "href");
-  if (!recentRunPrimaryHref || !recentRunPrimaryHref.includes("case_id=" + encodeURIComponent("` + runBackedCase.ID + `"))) throw new Error("recent activity primary handoff missing run-backed case reuse");
-  const preferredQueueHref = await page.getAttribute('a[href*="/admin/eval-reports?"][href*="selected_report_id=' + encodeURIComponent(reportID) + '"][href*="bad_case_needs_follow_up=true"]', "href");
-  if (!preferredQueueHref) throw new Error("recent activity preferred queue handoff missing from dataset detail");
+	const recentRunPrimaryHref = await page.getAttribute('a[data-recent-run-primary-action="' + runID + '"]', "href");
+	if (!recentRunPrimaryHref || !recentRunPrimaryHref.includes("case_id=" + encodeURIComponent("` + runBackedCase.ID + `"))) throw new Error("recent activity primary handoff missing run-backed case reuse");
+	const recentRunPrimaryMode = await page.getAttribute('a[data-recent-run-primary-action="' + runID + '"]', "data-action-mode");
+	if (recentRunPrimaryMode !== "open_existing_case") throw new Error("recent activity primary action mode missing run-backed reuse: " + recentRunPrimaryMode);
+	const recentRunQueueHref = await page.getAttribute('a[data-recent-run-queue-action="' + runID + '"]', "href");
+	if (!recentRunQueueHref || !recentRunQueueHref.includes("/admin/eval-reports?") || !recentRunQueueHref.includes("selected_report_id=" + encodeURIComponent(reportID)) || !recentRunQueueHref.includes("bad_case_needs_follow_up=true")) throw new Error("recent activity queue handoff missing canonical unresolved report target");
+	const recentRunQueueMode = await page.getAttribute('a[data-recent-run-queue-action="' + runID + '"]', "data-action-mode");
+	if (recentRunQueueMode !== "open_latest_report_queue") throw new Error("recent activity queue action mode missing canonical report-queue state: " + recentRunQueueMode);
+	const recentRunCaseHref = await page.getAttribute('a[data-recent-run-case-action="' + runID + '"]', "href");
+	if (!recentRunCaseHref || !recentRunCaseHref.includes("case_id=" + encodeURIComponent("` + runBackedCase.ID + `"))) throw new Error("recent activity case handoff missing run-backed case target");
+	const recentRunCaseMode = await page.getAttribute('a[data-recent-run-case-action="' + runID + '"]', "data-action-mode");
+	if (recentRunCaseMode !== "open_existing_case") throw new Error("recent activity case action mode missing run-backed case reuse: " + recentRunCaseMode);
+	const preferredQueueHref = await page.getAttribute('a[href*="/admin/eval-reports?"][href*="selected_report_id=' + encodeURIComponent(reportID) + '"][href*="bad_case_needs_follow_up=true"]', "href");
+	if (!preferredQueueHref) throw new Error("recent activity preferred queue handoff missing from dataset detail");
   const datasetCaseHref = await page.getAttribute('a[href*="/admin/cases?"][href*="case_id=' + encodeURIComponent("` + followUpCase.ID + `") + '"]', "href");
   if (!datasetCaseHref) throw new Error("linked dataset case handoff missing from dataset detail");
   const runBackedCaseHref = await page.getAttribute('a[href*="/admin/cases?"][href*="case_id=' + encodeURIComponent("` + runBackedCase.ID + `") + '"]', "href");
@@ -879,6 +909,22 @@ const linkedEvalCaseCaseID = process.argv[10];
     const detail = document.querySelector("#datasetDetail");
     return !!detail && detail.textContent && detail.textContent.includes(targetID);
   }, olderDatasetID);
+  const olderRowLinks = await page.$$eval('[data-dataset-row="' + olderDatasetID + '"] a', (elements) => elements.map((element) => ({
+    text: (element.textContent || "").trim(),
+    href: element.getAttribute("href") || ""
+  })));
+  const olderRowLatestRunLink = olderRowLinks.find((entry) => entry.text === "Open latest run");
+  if (!olderRowLatestRunLink || !olderRowLatestRunLink.href.includes("/admin/eval-runs?") || !olderRowLatestRunLink.href.includes("selected_run_id=" + encodeURIComponent(olderRunID))) {
+    throw new Error("latest-run-only dataset row did not expose canonical latest run handoff");
+  }
+  const olderDetailLinks = await page.$$eval('#datasetDetail a', (elements) => elements.map((element) => ({
+    text: (element.textContent || "").trim(),
+    href: element.getAttribute("href") || ""
+  })));
+  const olderLatestRunLink = olderDetailLinks.find((entry) => entry.text === "Open latest run");
+  if (!olderLatestRunLink || !olderLatestRunLink.href.includes("/admin/eval-runs?") || !olderLatestRunLink.href.includes("selected_run_id=" + encodeURIComponent(olderRunID))) {
+    throw new Error("latest-run-only dataset detail did not expose canonical latest run handoff");
+  }
   const createDatasetItemAction = page.locator('[data-dataset-item-primary-action="' + olderEvalCaseID + '"]').first();
   const createDatasetItemText = ((await createDatasetItemAction.textContent()) || "").trim();
   if (createDatasetItemText !== "Create case from item") throw new Error("draft dataset item primary action did not expose create flow: " + createDatasetItemText);
@@ -896,7 +942,7 @@ const linkedEvalCaseCaseID = process.argv[10];
 		t.Fatalf("WriteFile(scriptPath) error = %v", err)
 	}
 
-	cmd := exec.Command("node", scriptPath, server.URL, "tenant-dataset-admin-smoke", reportItem.DatasetID, reportItem.RunID, reportID, olderDataset.ID, olderEvalCase.ID, reportItem.BadCases[0].EvalCaseID, itemBackedCase.ID)
+	cmd := exec.Command("node", scriptPath, server.URL, "tenant-dataset-admin-smoke", reportItem.DatasetID, reportItem.RunID, reportID, olderDataset.ID, olderEvalCase.ID, olderRun.ID, reportItem.BadCases[0].EvalCaseID, itemBackedCase.ID)
 	cmd.Env = append(os.Environ(), "NODE_PATH="+nodePathRoot)
 	output, err := cmd.CombinedOutput()
 	if err != nil {
