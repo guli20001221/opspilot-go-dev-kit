@@ -409,8 +409,8 @@
       return "Open linked case";
     }
 
-    function datasetItemFollowUpAction(item, member) {
-      const action = member && member.preferred_follow_up_action;
+    function datasetItemPrimaryAction(item, member) {
+      const action = member && member.preferred_primary_action;
       const sourceEvalCaseID = (action && action.source_eval_case_id) || (member && member.eval_case_id) || "";
       if (!action || !action.mode) {
         return { mode: "invalid", targetHref: "", label: "Follow-up unavailable", sourceEvalCaseID };
@@ -596,6 +596,7 @@
       for (const member of item.items) {
         lines.push(`- ${member.eval_case_id}: ${member.title} | case=${member.source_case_id} | task=${member.source_task_id || "none"} | report=${member.source_report_id || "none"} | version=${member.version_id || "none"} | trace=${member.trace_id || "none"}`);
         lines.push(`  linked cases: ${member.linked_case_summary?.total_case_count || 0} total / ${member.linked_case_summary?.open_case_count || 0} open | latest=${member.linked_case_summary?.latest_case_id || "none"}${member.linked_case_summary?.latest_case_status ? " (" + member.linked_case_summary.latest_case_status + ")" : ""}`);
+        lines.push(`  preferred primary action: ${member.preferred_primary_action?.mode || "unknown"}`);
         lines.push(`  preferred follow-up: ${member.preferred_follow_up_action?.mode || "unknown"}`);
       }
       return lines.join("\n");
@@ -715,8 +716,8 @@
                   <strong>${escapeHTML(member.title)}</strong>
                   <div>Linked cases: ${escapeHTML(String(member.linked_case_summary?.total_case_count || 0))} total / ${escapeHTML(String(member.linked_case_summary?.open_case_count || 0))} open${member.linked_case_summary?.latest_case_id ? ` | Latest: ${escapeHTML(member.linked_case_summary.latest_case_id)} (${escapeHTML(member.linked_case_summary.latest_case_status || "unknown")})` : ""}</div>
                   <div>
-                    ${datasetItemFollowUpAction(item, member).mode === "create" ? `<button class="button-link ghost" type="button" data-create-dataset-item-case="${escapeHTML(member.eval_case_id)}">${escapeHTML(datasetItemFollowUpAction(item, member).label)}</button>` : ""}
-                    ${datasetItemFollowUpAction(item, member).mode === "open-existing" ? `<a class="button-link ghost" href="${datasetItemFollowUpAction(item, member).targetHref}">${escapeHTML(datasetItemFollowUpAction(item, member).label)}</a>` : ""}
+                    ${datasetItemPrimaryAction(item, member).mode === "create" ? `<button class="button-link ghost" type="button" data-create-dataset-item-case="${escapeHTML(member.eval_case_id)}">${escapeHTML(datasetItemPrimaryAction(item, member).label)}</button>` : ""}
+                    ${datasetItemPrimaryAction(item, member).mode === "open-existing" ? `<a class="button-link ghost" href="${datasetItemPrimaryAction(item, member).targetHref}">${escapeHTML(datasetItemPrimaryAction(item, member).label)}</a>` : ""}
                     <a class="button-link ghost" href="${evalCaseEndpointBase}${encodeURIComponent(member.eval_case_id)}?tenant_id=${encodeURIComponent(item.tenant_id)}" target="_blank" rel="noreferrer">Eval case API detail</a>
                     <a class="button-link ghost" href="${caseEndpointBase}${encodeURIComponent(member.source_case_id)}?tenant_id=${encodeURIComponent(item.tenant_id)}" target="_blank" rel="noreferrer">Case API detail</a>
                     ${member.source_task_id ? `<a class="button-link ghost" href="${taskEndpointBase}${encodeURIComponent(member.source_task_id)}" target="_blank" rel="noreferrer">Task API detail</a>` : ""}

@@ -43,6 +43,7 @@ type evalDatasetItemResponse struct {
 	VersionID                 string                              `json:"version_id,omitempty"`
 	LinkedCaseSummary         evalReportLinkedCaseSummaryResponse `json:"linked_case_summary"`
 	PreferredFollowUpAction   evalCaseFollowUpActionResponse      `json:"preferred_follow_up_action"`
+	PreferredPrimaryAction    evalCaseFollowUpActionResponse      `json:"preferred_primary_action"`
 	PreferredLinkedCaseAction evalCaseFollowUpActionResponse      `json:"preferred_linked_case_action"`
 }
 
@@ -438,6 +439,10 @@ func newEvalDatasetResponse(item evalsvc.EvalDataset, latestRun evalDatasetLates
 				followUpSummary.OpenFollowUpCaseCount,
 				followUpSummary.LatestFollowUpCaseID,
 			),
+			PreferredPrimaryAction: newEvalDatasetItemPrimaryActionResponse(
+				member.EvalCaseID,
+				followUpSummary,
+			),
 			PreferredLinkedCaseAction: newEvalCaseLinkedCaseActionResponseFromSummary(
 				member.EvalCaseID,
 				followUpSummary.FollowUpCaseCount,
@@ -449,6 +454,24 @@ func newEvalDatasetResponse(item evalsvc.EvalDataset, latestRun evalDatasetLates
 	}
 
 	return resp
+}
+
+func newEvalDatasetItemPrimaryActionResponse(evalCaseID string, summary casesvc.EvalCaseFollowUpSummary) evalCaseFollowUpActionResponse {
+	linkedAction := newEvalCaseLinkedCaseActionResponseFromSummary(
+		evalCaseID,
+		summary.FollowUpCaseCount,
+		summary.OpenFollowUpCaseCount,
+		summary.LatestFollowUpCaseID,
+		summary.LatestFollowUpCaseStatus,
+	)
+	if linkedAction.Mode != "none" {
+		return linkedAction
+	}
+	return newEvalCaseFollowUpActionResponseFromSummary(
+		evalCaseID,
+		summary.OpenFollowUpCaseCount,
+		summary.LatestFollowUpCaseID,
+	)
 }
 
 func (a *appHandler) evalDatasetItemFollowUpSummaries(ctx context.Context, tenantID string, item evalsvc.EvalDataset) (map[string]casesvc.EvalCaseFollowUpSummary, error) {

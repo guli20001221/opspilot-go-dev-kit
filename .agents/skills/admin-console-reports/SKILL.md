@@ -169,6 +169,7 @@ Provide a practical operator UI for evaluation and runtime analysis while keepin
 115. Once canonical eval-run detail rows also expose `preferred_primary_action`, prefer wiring the main `/admin/eval-runs` item and result follow-up buttons from that backend-owned field instead of mixing follow-up and linked-case signals in page code.
 116. Once canonical eval-dataset detail `items[]` also expose `linked_case_summary` and `preferred_linked_case_action`, prefer wiring member-level linked-case handoff from those backend-owned fields instead of branching on raw eval-case IDs inside `/admin/eval-datasets`.
 117. Once canonical eval-dataset detail `items[]` also expose `preferred_follow_up_action`, prefer wiring member-level `Create case` versus reuse handoff from that backend-owned field instead of inferring it from linked-case counts inside `/admin/eval-datasets`.
+118. Once canonical eval-dataset detail `items[]` also expose `preferred_primary_action`, prefer wiring the main member-level follow-up button from that backend-owned field instead of mixing linked-case and follow-up heuristics in page code.
 
 ## Output contract
 When you finish, always report:

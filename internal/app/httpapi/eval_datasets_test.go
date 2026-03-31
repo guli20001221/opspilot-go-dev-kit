@@ -78,6 +78,9 @@ func TestCreateAndGetEvalDatasetEndpoint(t *testing.T) {
 	if created.Items[0].PreferredFollowUpAction.Mode != "create" {
 		t.Fatalf("created.Items[0].PreferredFollowUpAction.Mode = %q, want %q", created.Items[0].PreferredFollowUpAction.Mode, "create")
 	}
+	if created.Items[0].PreferredPrimaryAction.Mode != "create" {
+		t.Fatalf("created.Items[0].PreferredPrimaryAction.Mode = %q, want %q", created.Items[0].PreferredPrimaryAction.Mode, "create")
+	}
 
 	followUpCase, err := caseService.CreateCase(ctx, casesvc.CreateInput{
 		TenantID:         "tenant-dataset",
@@ -123,6 +126,12 @@ func TestCreateAndGetEvalDatasetEndpoint(t *testing.T) {
 	}
 	if got.Items[0].PreferredFollowUpAction.CaseID != followUpCase.ID {
 		t.Fatalf("got.Items[0].PreferredFollowUpAction.CaseID = %q, want %q", got.Items[0].PreferredFollowUpAction.CaseID, followUpCase.ID)
+	}
+	if got.Items[0].PreferredPrimaryAction.Mode != "open_existing_case" {
+		t.Fatalf("got.Items[0].PreferredPrimaryAction.Mode = %q, want %q", got.Items[0].PreferredPrimaryAction.Mode, "open_existing_case")
+	}
+	if got.Items[0].PreferredPrimaryAction.CaseID != followUpCase.ID {
+		t.Fatalf("got.Items[0].PreferredPrimaryAction.CaseID = %q, want %q", got.Items[0].PreferredPrimaryAction.CaseID, followUpCase.ID)
 	}
 }
 
@@ -234,6 +243,12 @@ func TestGetEvalDatasetItemPreferredFollowUpActionCreatesWhenLatestCaseClosed(t 
 	}
 	if got.Items[0].PreferredFollowUpAction.SourceEvalCaseID != evalCase.ID {
 		t.Fatalf("got.Items[0].PreferredFollowUpAction.SourceEvalCaseID = %q, want %q", got.Items[0].PreferredFollowUpAction.SourceEvalCaseID, evalCase.ID)
+	}
+	if got.Items[0].PreferredPrimaryAction.Mode != "open_existing_queue" {
+		t.Fatalf("got.Items[0].PreferredPrimaryAction.Mode = %q, want %q", got.Items[0].PreferredPrimaryAction.Mode, "open_existing_queue")
+	}
+	if got.Items[0].PreferredPrimaryAction.SourceEvalCaseID != evalCase.ID {
+		t.Fatalf("got.Items[0].PreferredPrimaryAction.SourceEvalCaseID = %q, want %q", got.Items[0].PreferredPrimaryAction.SourceEvalCaseID, evalCase.ID)
 	}
 }
 
