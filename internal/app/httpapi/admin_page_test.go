@@ -984,6 +984,9 @@ func TestAdminEvalRunsPageRendersHTML(t *testing.T) {
 	if !strings.Contains(body, "Open linked run queue") {
 		t.Fatal("run-level linked queue handoff missing from eval runs page HTML")
 	}
+	if !strings.Contains(body, "data-run-row-linked-case-action") {
+		t.Fatal("row-level run linked queue selector missing from eval runs page HTML")
+	}
 	if !strings.Contains(body, "Open linked case queue") {
 		t.Fatal("linked case queue handoff missing from eval runs page HTML")
 	}
@@ -1187,13 +1190,19 @@ const uncoveredRunID = process.argv[10];
 
   const closedRowHref = await page.getAttribute('[data-run-row="' + closedRunID + '"] a[href*="case_id=' + encodeURIComponent(closedCaseID) + '"]', "href");
   if (closedRowHref) throw new Error("closed latest run case handoff should be suppressed in row");
-  const closedQueueHref = await page.locator('[data-run-row="' + closedRunID + '"] a').evaluateAll((elements) => {
-    const match = elements.find((element) => (element.textContent || "").includes("Open linked case queue"));
-    return match ? match.getAttribute("href") : "";
-  });
-  if (!closedQueueHref || !closedQueueHref.includes("source_eval_case_id=")) {
-    throw new Error("closed linked-case queue handoff missing from row");
-  }
+    const closedRowLinkedQueue = page.locator('[data-run-row-linked-case-action="' + closedRunID + '"]').first();
+    const closedQueueText = ((await closedRowLinkedQueue.textContent()) || "").trim();
+    if (closedQueueText !== "Open linked run queue") {
+      throw new Error("closed run-level linked queue handoff missing from row: " + closedQueueText);
+    }
+    const closedQueueMode = await closedRowLinkedQueue.getAttribute("data-action-mode");
+    if (closedQueueMode !== "open_existing_queue") {
+      throw new Error("closed run-level linked queue mode missing from row: " + closedQueueMode);
+    }
+    const closedQueueHref = await closedRowLinkedQueue.getAttribute("href");
+    if (!closedQueueHref || !closedQueueHref.includes("source_eval_run_id=" + encodeURIComponent(closedRunID))) {
+      throw new Error("closed run-level linked queue href missing from row");
+    }
   const closedResultAction = page.locator('#runDetail [data-run-result-primary-action]').first();
   const closedPrimaryActionText = ((await closedResultAction.textContent()) || "").trim();
   if (closedPrimaryActionText !== "Open existing queue") {
