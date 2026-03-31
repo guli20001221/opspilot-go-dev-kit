@@ -1377,6 +1377,9 @@ func TestAdminEvalReportsPageRendersHTML(t *testing.T) {
 	if !strings.Contains(body, "Open linked case queue") {
 		t.Fatal("linked case queue handoff missing from eval reports page HTML")
 	}
+	if !strings.Contains(body, "data-report-linked-case-action") {
+		t.Fatal("row-level linked-case selector missing from eval reports page HTML")
+	}
 	if !strings.Contains(body, "linked-open") {
 		t.Fatal("linked case list summary missing from eval reports page HTML")
 	}
@@ -1885,6 +1888,19 @@ func TestAdminEvalReportsPageRuntimeSmoke(t *testing.T) {
 	if _, err := caseService.CloseCase(context.Background(), closedBadCaseFollowUp.ID, "operator-eval"); err != nil {
 		t.Fatalf("CloseCase(closedBadCaseFollowUp) error = %v", err)
 	}
+	closedLinkedReportCase, err := caseService.CreateCase(context.Background(), casesvc.CreateInput{
+		TenantID:           "tenant-eval-admin-smoke",
+		Title:              "Closed report-level linked case",
+		Summary:            "Closed report-level linked case summary",
+		SourceEvalReportID: reportNoReuseID,
+		CreatedBy:          "operator-eval",
+	})
+	if err != nil {
+		t.Fatalf("CreateCase(closedLinkedReportCase) error = %v", err)
+	}
+	if _, err := caseService.CloseCase(context.Background(), closedLinkedReportCase.ID, "operator-eval"); err != nil {
+		t.Fatalf("CloseCase(closedLinkedReportCase) error = %v", err)
+	}
 	time.Sleep(2 * time.Millisecond)
 	openBadCaseFollowUp, err := caseService.CreateCase(context.Background(), casesvc.CreateInput{
 		TenantID:         "tenant-eval-admin-smoke",
@@ -1984,13 +2000,26 @@ async function assertCasePayload(page, apiBaseURL, caseID, tenantID, expectedRep
   if (!followUpSummary.includes("owner operator-eval")) {
     throw new Error("linked case owner missing from list row: " + followUpSummary);
   }
-  const latestCaseHref = await page.getAttribute("#reportRows tr td:nth-child(5) a", "href");
-  if (!latestCaseHref || !latestCaseHref.includes("/admin/cases?") || !latestCaseHref.includes("case_id=")) {
-    throw new Error("latest case handoff link missing from list row");
-  }
-  const compareQueueHref = await page.getAttribute("#reportRows tr td:nth-child(5) a:nth-of-type(2)", "href");
-  if (!compareQueueHref || !compareQueueHref.includes("/admin/cases?") || !compareQueueHref.includes("source_eval_report_id=" + encodeURIComponent(reportID)) || !compareQueueHref.includes("compare_origin_only=true") || !compareQueueHref.includes("status=open")) {
-    throw new Error("compare queue handoff missing from list row");
+	const latestCaseHref = await page.getAttribute("#reportRows tr td:nth-child(5) a", "href");
+	if (!latestCaseHref || !latestCaseHref.includes("/admin/cases?") || !latestCaseHref.includes("case_id=")) {
+	  throw new Error("latest case handoff link missing from list row");
+	}
+	const openLinkedRowAction = page.locator('[data-report-row="' + reportID + '"] [data-report-linked-case-action="' + reportID + '"]').first();
+	const openLinkedRowActionText = ((await openLinkedRowAction.textContent()) || "").trim();
+	if (openLinkedRowActionText !== "Open latest case") {
+	  throw new Error("row-level linked-case action did not render latest-case handoff: " + openLinkedRowActionText);
+	}
+	const openLinkedRowActionMode = await openLinkedRowAction.getAttribute("data-action-mode");
+	if (openLinkedRowActionMode !== "open-existing-case") {
+	  throw new Error("row-level linked-case action mode missing existing-case reuse: " + openLinkedRowActionMode);
+	}
+	const openLinkedRowActionHref = await openLinkedRowAction.getAttribute("href");
+	if (!openLinkedRowActionHref || !openLinkedRowActionHref.includes("case_id=")) {
+	  throw new Error("row-level linked-case action missing canonical latest-case handoff");
+	}
+	const compareQueueHref = await page.getAttribute("#reportRows tr td:nth-child(5) a:nth-of-type(2)", "href");
+	if (!compareQueueHref || !compareQueueHref.includes("/admin/cases?") || !compareQueueHref.includes("source_eval_report_id=" + encodeURIComponent(reportID)) || !compareQueueHref.includes("compare_origin_only=true") || !compareQueueHref.includes("status=open")) {
+	  throw new Error("compare queue handoff missing from list row");
   }
   const rowPrimaryActionText = (await page.textContent("#reportRows tr td:nth-child(7) a")).trim();
   if (rowPrimaryActionText !== "Open existing case") {
@@ -2065,14 +2094,27 @@ async function assertCasePayload(page, apiBaseURL, caseID, tenantID, expectedRep
     throw new Error("row-level unresolved bad-case handoff missing from eval report row");
   }
   await page.click("#quickViewAllReports");
-  await page.waitForFunction(() => {
-    const params = new URL(window.location.href).searchParams;
-    return params.get("needs_follow_up") === null && params.get("bad_case_needs_follow_up") === null;
-  });
-  await page.waitForFunction(() => document.querySelector("#visibleCount") && document.querySelector("#visibleCount").textContent.trim() === "2");
-  await page.waitForFunction((expectedReportID) => {
-    const params = new URL(window.location.href).searchParams;
-    return params.get("selected_report_id") === expectedReportID && params.get("report_id") === null;
+	await page.waitForFunction(() => {
+	  const params = new URL(window.location.href).searchParams;
+	  return params.get("needs_follow_up") === null && params.get("bad_case_needs_follow_up") === null;
+	});
+	await page.waitForFunction(() => document.querySelector("#visibleCount") && document.querySelector("#visibleCount").textContent.trim() === "2");
+	const queueLinkedRowAction = page.locator('[data-report-row="' + reportNoReuseID + '"] [data-report-linked-case-action="' + reportNoReuseID + '"]').first();
+	const queueLinkedRowActionText = ((await queueLinkedRowAction.textContent()) || "").trim();
+	if (queueLinkedRowActionText !== "Open linked case queue") {
+	  throw new Error("row-level linked-case action did not render queue handoff: " + queueLinkedRowActionText);
+	}
+	const queueLinkedRowActionMode = await queueLinkedRowAction.getAttribute("data-action-mode");
+	if (queueLinkedRowActionMode !== "open-existing-queue") {
+	  throw new Error("row-level linked-case queue mode missing canonical queue state: " + queueLinkedRowActionMode);
+	}
+	const queueLinkedRowActionHref = await queueLinkedRowAction.getAttribute("href");
+	if (!queueLinkedRowActionHref || !queueLinkedRowActionHref.includes("source_eval_report_id=" + encodeURIComponent(reportNoReuseID)) || !queueLinkedRowActionHref.includes("status=open")) {
+	  throw new Error("row-level linked-case queue handoff missing canonical report queue target");
+	}
+	await page.waitForFunction((expectedReportID) => {
+	  const params = new URL(window.location.href).searchParams;
+	  return params.get("selected_report_id") === expectedReportID && params.get("report_id") === null;
   }, reportID);
   const linkedCaseCount = (await page.textContent("#linkedCaseCount")).trim();
   if (linkedCaseCount !== "5+") {
