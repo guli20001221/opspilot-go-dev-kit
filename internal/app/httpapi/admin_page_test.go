@@ -808,10 +808,11 @@ const reportID = process.argv[6];
     if (!firstRowText.includes("Latest run-backed case: ` + runBackedCase.ID + ` (open, assigned to dataset-run-operator)")) throw new Error("run-backed case summary missing from dataset row");
     if (!firstRowText.includes("Open latest dataset case")) throw new Error("latest dataset case handoff missing from dataset row");
     if (!firstRowText.includes("Open latest run-backed case")) throw new Error("latest run-backed case handoff missing from dataset row");
-    const latestRunHref = await page.getAttribute('a[href*="/admin/eval-runs?"][href*="run_id=' + encodeURIComponent(runID) + '"]', "href");
-    if (!latestRunHref) throw new Error("latest run handoff missing from dataset row");
-    const latestReportHref = await page.getAttribute('a[href*="/admin/eval-reports?"][href*="selected_report_id=' + encodeURIComponent(reportID) + '"]', "href");
-    if (!latestReportHref) throw new Error("latest report handoff missing from dataset row");
+    const latestActivityHref = await page.locator('#datasetRows tr:first-child a').evaluateAll((elements) => {
+      const match = elements.find((element) => (element.textContent || "").includes("Open latest report"));
+      return match ? match.getAttribute("href") || "" : "";
+    });
+    if (!latestActivityHref || !latestActivityHref.includes("/admin/eval-reports?") || !latestActivityHref.includes("selected_report_id=" + encodeURIComponent(reportID))) throw new Error("backend-owned latest activity handoff missing from dataset row");
     const datasetRowCaseHref = await page.getAttribute('#datasetRows tr:first-child a[href*="/admin/cases?"][href*="case_id=' + encodeURIComponent("` + followUpCase.ID + `") + '"]', "href");
     if (!datasetRowCaseHref) throw new Error("latest dataset case handoff missing from dataset row");
   const detailText = await page.textContent("#datasetDetail");
@@ -826,6 +827,11 @@ const reportID = process.argv[6];
   if (!detailText.includes("dataset-smoke-operator")) throw new Error("linked dataset case owner missing from dataset detail");
   if (!detailText.includes("dataset-run-operator")) throw new Error("run-backed case owner missing from dataset detail");
   if (!detailText.includes("Run-backed cases: 1 total / 1 open")) throw new Error("recent activity run-backed case summary missing from dataset detail");
+  const latestActivityDetailHref = await page.locator('#datasetDetail a').evaluateAll((elements) => {
+    const match = elements.find((element) => (element.textContent || "").includes("Open latest report"));
+    return match ? match.getAttribute("href") || "" : "";
+  });
+  if (!latestActivityDetailHref || !latestActivityDetailHref.includes("/admin/eval-reports?") || !latestActivityDetailHref.includes("selected_report_id=" + encodeURIComponent(reportID))) throw new Error("backend-owned latest activity handoff missing from dataset detail");
   const recentRunPrimaryHref = await page.getAttribute('a[data-recent-run-primary-action="' + runID + '"]', "href");
   if (!recentRunPrimaryHref || !recentRunPrimaryHref.includes("case_id=" + encodeURIComponent("` + runBackedCase.ID + `"))) throw new Error("recent activity primary handoff missing run-backed case reuse");
   const preferredQueueHref = await page.getAttribute('a[href*="/admin/eval-reports?"][href*="selected_report_id=' + encodeURIComponent(reportID) + '"][href*="bad_case_needs_follow_up=true"]', "href");

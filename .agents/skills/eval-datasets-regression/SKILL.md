@@ -102,3 +102,4 @@ When you finish, always report:
 - once canonical `GET /api/v1/eval-runs` list/detail rows expose typed `preferred_primary_action`, prefer consuming that backend-owned field for the main run-row handoff instead of mixing linked-case reuse and report routing heuristics in admin pages
 - when eval-report comparison needs compare-origin follow-up pressure, prefer backend-owned per-side compare queue summary and handoff into canonical case filters instead of reconstructing compare-derived work in the browser
 - when compare-created follow-up is retriggered for the same side of the same comparison, prefer backend deduplication on exact compare lineage instead of relying on the page to suppress duplicate operator clicks
+- once canonical eval-dataset list/detail reads expose `preferred_latest_activity_action`, prefer handing operators to the newest durable run/report artifact from that field instead of re-deriving latest activity routing in `/admin/eval-datasets`

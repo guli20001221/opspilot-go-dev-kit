@@ -3111,6 +3111,7 @@ components:
         - updated_at
         - unresolved_follow_up_count
         - needs_follow_up
+        - preferred_latest_activity_action
         - preferred_follow_up_action
         - follow_up_case_summary
         - linked_case_summary
@@ -3162,6 +3163,8 @@ components:
         latest_report_status:
           type: string
           description: Eval-report lifecycle state for the latest linked durable report artifact.
+        preferred_latest_activity_action:
+          $ref: '#/components/schemas/EvalDatasetRecentRunPrimaryAction'
         unresolved_follow_up_count:
           type: integer
           minimum: 0
@@ -3216,6 +3219,7 @@ components:
           - item_count
           - unresolved_follow_up_count
           - needs_follow_up
+          - preferred_latest_activity_action
           - preferred_follow_up_action
           - preferred_primary_action
           - open_follow_up_case_count
@@ -3261,6 +3265,8 @@ components:
           latest_report_status:
             type: string
             description: Eval-report lifecycle state for the latest linked durable report artifact.
+          preferred_latest_activity_action:
+            $ref: '#/components/schemas/EvalDatasetRecentRunPrimaryAction'
           unresolved_follow_up_count:
             type: integer
             minimum: 0

@@ -449,6 +449,15 @@ func TestListEvalDatasetsEndpointIncludesLatestRunSummary(t *testing.T) {
 	if got.LatestReportStatus != evalsvc.EvalReportStatusReady {
 		t.Fatalf("LatestReportStatus = %q, want %q", got.LatestReportStatus, evalsvc.EvalReportStatusReady)
 	}
+	if got.PreferredLatestActivityAction.Mode != "open_report" {
+		t.Fatalf("PreferredLatestActivityAction.Mode = %q, want %q", got.PreferredLatestActivityAction.Mode, "open_report")
+	}
+	if got.PreferredLatestActivityAction.ReportID != reportID {
+		t.Fatalf("PreferredLatestActivityAction.ReportID = %q, want %q", got.PreferredLatestActivityAction.ReportID, reportID)
+	}
+	if got.PreferredLatestActivityAction.RunID != reportItem.RunID {
+		t.Fatalf("PreferredLatestActivityAction.RunID = %q, want %q", got.PreferredLatestActivityAction.RunID, reportItem.RunID)
+	}
 	if got.UnresolvedFollowUpCount != 1 {
 		t.Fatalf("UnresolvedFollowUpCount = %d, want 1", got.UnresolvedFollowUpCount)
 	}
@@ -949,6 +958,15 @@ func TestGetEvalDatasetIncludesLatestRunSummary(t *testing.T) {
 	if got.RecentRuns[0].PreferredPrimaryAction.RunID != reportItem.RunID {
 		t.Fatalf("RecentRuns[0].PreferredPrimaryAction.RunID = %q, want %q", got.RecentRuns[0].PreferredPrimaryAction.RunID, reportItem.RunID)
 	}
+	if got.PreferredLatestActivityAction.Mode != "open_report" {
+		t.Fatalf("PreferredLatestActivityAction.Mode = %q, want %q", got.PreferredLatestActivityAction.Mode, "open_report")
+	}
+	if got.PreferredLatestActivityAction.ReportID != reportID {
+		t.Fatalf("PreferredLatestActivityAction.ReportID = %q, want %q", got.PreferredLatestActivityAction.ReportID, reportID)
+	}
+	if got.PreferredLatestActivityAction.RunID != reportItem.RunID {
+		t.Fatalf("PreferredLatestActivityAction.RunID = %q, want %q", got.PreferredLatestActivityAction.RunID, reportItem.RunID)
+	}
 }
 
 func TestEvalDatasetFollowUpActionFallsBackToLatestRunQueue(t *testing.T) {
@@ -1077,6 +1095,15 @@ func TestEvalDatasetFollowUpActionFallsBackToLatestRunQueue(t *testing.T) {
 	}
 	if got.RecentRuns[0].PreferredPrimaryAction.ReportID != "" {
 		t.Fatalf("RecentRuns[0].PreferredPrimaryAction.ReportID = %q, want empty", got.RecentRuns[0].PreferredPrimaryAction.ReportID)
+	}
+	if got.PreferredLatestActivityAction.Mode != "open_run" {
+		t.Fatalf("PreferredLatestActivityAction.Mode = %q, want %q", got.PreferredLatestActivityAction.Mode, "open_run")
+	}
+	if got.PreferredLatestActivityAction.RunID != run.ID {
+		t.Fatalf("PreferredLatestActivityAction.RunID = %q, want %q", got.PreferredLatestActivityAction.RunID, run.ID)
+	}
+	if got.PreferredLatestActivityAction.ReportID != "" {
+		t.Fatalf("PreferredLatestActivityAction.ReportID = %q, want empty", got.PreferredLatestActivityAction.ReportID)
 	}
 }
 
