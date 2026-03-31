@@ -733,12 +733,13 @@ func TestAdminEvalDatasetsPageRuntimeSmoke(t *testing.T) {
 	if err != nil {
 		t.Fatalf("PromoteCase(older) error = %v", err)
 	}
-	if _, err := datasetService.CreateDataset(ctx, evalsvc.CreateDatasetInput{
+	olderDataset, err := datasetService.CreateDataset(ctx, evalsvc.CreateDatasetInput{
 		TenantID:    "tenant-dataset-admin-smoke",
 		Name:        "Dataset Without Run",
 		EvalCaseIDs: []string{olderEvalCase.ID},
 		CreatedBy:   "operator-dataset",
-	}); err != nil {
+	})
+	if err != nil {
 		t.Fatalf("CreateDataset(older) error = %v", err)
 	}
 
@@ -771,6 +772,18 @@ func TestAdminEvalDatasetsPageRuntimeSmoke(t *testing.T) {
 	if err != nil {
 		t.Fatalf("AssignCase(run-backed) error = %v", err)
 	}
+	itemBackedCase, err := caseService.CreateCase(ctx, casesvc.CreateInput{
+		TenantID:         "tenant-dataset-admin-smoke",
+		Title:            "Dataset admin item follow-up",
+		SourceEvalCaseID: reportItem.BadCases[0].EvalCaseID,
+	})
+	if err != nil {
+		t.Fatalf("CreateCase(item-backed) error = %v", err)
+	}
+	itemBackedCase, err = caseService.AssignCase(ctx, itemBackedCase, "dataset-item-operator")
+	if err != nil {
+		t.Fatalf("AssignCase(item-backed) error = %v", err)
+	}
 
 	server := httptest.NewServer(NewHandlerWithDependencies(Dependencies{
 		Cases:        caseService,
@@ -794,6 +807,10 @@ const tenantID = process.argv[3];
 const datasetID = process.argv[4];
 const runID = process.argv[5];
 const reportID = process.argv[6];
+const olderDatasetID = process.argv[7];
+const olderEvalCaseID = process.argv[8];
+const linkedEvalCaseID = process.argv[9];
+const linkedEvalCaseCaseID = process.argv[10];
 
 (async () => {
   const browser = await chromium.launch({ headless: true });
@@ -842,6 +859,13 @@ const reportID = process.argv[6];
   if (!runBackedCaseHref) throw new Error("run-backed case handoff missing from dataset detail");
   const recentRunBackedCaseHref = await page.getAttribute('a[href*="/admin/cases?"][href*="case_id=' + encodeURIComponent("` + runBackedCase.ID + `") + '"]', "href");
   if (!recentRunBackedCaseHref) throw new Error("recent activity run-backed case handoff missing from dataset detail");
+  const linkedDatasetItemAction = page.locator('[data-dataset-item-primary-action="' + linkedEvalCaseID + '"]').first();
+  const linkedDatasetItemText = ((await linkedDatasetItemAction.textContent()) || "").trim();
+  if (linkedDatasetItemText !== "Open existing case") throw new Error("dataset item primary action did not reuse existing case: " + linkedDatasetItemText);
+  const linkedDatasetItemMode = await linkedDatasetItemAction.getAttribute("data-action-mode");
+  if (linkedDatasetItemMode !== "open-existing") throw new Error("dataset item primary action mode missing reuse state: " + linkedDatasetItemMode);
+  const linkedDatasetItemHref = await linkedDatasetItemAction.getAttribute("href");
+  if (!linkedDatasetItemHref || !linkedDatasetItemHref.includes("case_id=" + encodeURIComponent(linkedEvalCaseCaseID))) throw new Error("dataset item primary action missing canonical case handoff");
   await page.click("#needsFollowUpQuickView");
   await page.waitForFunction(() => document.querySelector("#visibleCount")?.textContent?.trim() === "1");
   const currentURL = new URL(page.url());
@@ -850,6 +874,18 @@ const reportID = process.argv[6];
   if (filterValue !== "true") throw new Error("needs_follow_up filter control not synced");
   const selectedRow = await page.getAttribute('[data-dataset-row="' + datasetID + '"]', "aria-current");
   if (selectedRow !== "true") throw new Error("selected dataset row did not stay synced");
+  await page.click('[data-dataset-row="' + olderDatasetID + '"] [data-dataset-id="' + olderDatasetID + '"]');
+  await page.waitForFunction((targetID) => {
+    const detail = document.querySelector("#datasetDetail");
+    return !!detail && detail.textContent && detail.textContent.includes(targetID);
+  }, olderDatasetID);
+  const createDatasetItemAction = page.locator('[data-dataset-item-primary-action="' + olderEvalCaseID + '"]').first();
+  const createDatasetItemText = ((await createDatasetItemAction.textContent()) || "").trim();
+  if (createDatasetItemText !== "Create case from item") throw new Error("draft dataset item primary action did not expose create flow: " + createDatasetItemText);
+  const createDatasetItemMode = await createDatasetItemAction.getAttribute("data-action-mode");
+  if (createDatasetItemMode !== "create") throw new Error("draft dataset item primary action mode missing create state: " + createDatasetItemMode);
+  const createDatasetItemTag = await createDatasetItemAction.evaluate((element) => element.tagName.toLowerCase());
+  if (createDatasetItemTag !== "button") throw new Error("draft dataset item primary action should render as create button");
   await browser.close();
 })().catch((error) => {
   console.error(error && error.stack ? error.stack : String(error));
@@ -860,7 +896,7 @@ const reportID = process.argv[6];
 		t.Fatalf("WriteFile(scriptPath) error = %v", err)
 	}
 
-	cmd := exec.Command("node", scriptPath, server.URL, "tenant-dataset-admin-smoke", reportItem.DatasetID, reportItem.RunID, reportID)
+	cmd := exec.Command("node", scriptPath, server.URL, "tenant-dataset-admin-smoke", reportItem.DatasetID, reportItem.RunID, reportID, olderDataset.ID, olderEvalCase.ID, reportItem.BadCases[0].EvalCaseID, itemBackedCase.ID)
 	cmd.Env = append(os.Environ(), "NODE_PATH="+nodePathRoot)
 	output, err := cmd.CombinedOutput()
 	if err != nil {
@@ -1206,6 +1242,19 @@ const uncoveredRunID = process.argv[10];
   if (!openResultActionHref || !openResultActionHref.includes("case_id=" + encodeURIComponent(openCaseID))) {
     throw new Error("open result primary action missing canonical case handoff");
   }
+  const openResultLinkedAction = page.locator('#runDetail [data-run-result-linked-action]').first();
+  const openResultLinkedActionText = ((await openResultLinkedAction.textContent()) || "").trim();
+  if (openResultLinkedActionText !== "Open latest linked case") {
+    throw new Error("open result linked action did not render canonical latest-case handoff: " + openResultLinkedActionText);
+  }
+  const openResultLinkedActionMode = await openResultLinkedAction.getAttribute("data-action-mode");
+  if (openResultLinkedActionMode !== "open_existing_case") {
+    throw new Error("open result linked action mode missing existing-case reuse: " + openResultLinkedActionMode);
+  }
+  const openResultLinkedActionHref = await openResultLinkedAction.getAttribute("href");
+  if (!openResultLinkedActionHref || !openResultLinkedActionHref.includes("case_id=" + encodeURIComponent(openCaseID))) {
+    throw new Error("open result linked action missing canonical latest-case handoff");
+  }
 
   await page.click('[data-run-row="' + uncoveredRunID + '"] [data-run-id="' + uncoveredRunID + '"]');
   await page.waitForFunction((runID) => {
@@ -1223,6 +1272,9 @@ const uncoveredRunID = process.argv[10];
   }
   if ((await uncoveredResultAction.evaluate((element) => element.tagName.toLowerCase())) !== "button") {
     throw new Error("uncovered result primary action should render as create button");
+  }
+  if (await page.locator('#runDetail [data-run-result-linked-action]').count()) {
+    throw new Error("uncovered result should not render linked-case reuse action");
   }
 
   await browser.close();
