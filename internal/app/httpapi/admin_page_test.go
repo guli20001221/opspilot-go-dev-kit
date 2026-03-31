@@ -981,6 +981,9 @@ func TestAdminEvalRunsPageRendersHTML(t *testing.T) {
 	if !strings.Contains(body, "Open latest linked case") {
 		t.Fatal("latest linked case handoff missing from eval runs page HTML")
 	}
+	if !strings.Contains(body, "Open linked run queue") {
+		t.Fatal("run-level linked queue handoff missing from eval runs page HTML")
+	}
 	if !strings.Contains(body, "Open linked case queue") {
 		t.Fatal("linked case queue handoff missing from eval runs page HTML")
 	}
@@ -1216,6 +1219,19 @@ const uncoveredRunID = process.argv[10];
   })));
   if (detailLinks.some((entry) => entry.text === "Open latest run case" && entry.href.includes("case_id=" + encodeURIComponent(closedCaseID)))) {
     throw new Error("closed latest run case handoff should be suppressed in detail");
+  }
+  const closedRunLinkedQueue = await page.locator('#runDetail [data-run-linked-case-action="' + closedRunID + '"]').first();
+  const closedRunLinkedQueueText = ((await closedRunLinkedQueue.textContent()) || "").trim();
+  if (closedRunLinkedQueueText !== "Open linked run queue") {
+    throw new Error("closed run-level linked-case action did not switch to canonical queue handoff: " + closedRunLinkedQueueText);
+  }
+  const closedRunLinkedQueueMode = await closedRunLinkedQueue.getAttribute("data-action-mode");
+  if (closedRunLinkedQueueMode !== "open_existing_queue") {
+    throw new Error("closed run-level linked-case action mode missing queue state: " + closedRunLinkedQueueMode);
+  }
+  const closedRunLinkedQueueHref = await closedRunLinkedQueue.getAttribute("href");
+  if (!closedRunLinkedQueueHref || !closedRunLinkedQueueHref.includes("source_eval_run_id=" + encodeURIComponent(closedRunID))) {
+    throw new Error("closed run-level linked-case queue handoff missing canonical run queue target");
   }
   if (!detailLinks.some((entry) => entry.text === "Open linked case queue" && entry.href.includes("source_eval_case_id="))) {
     throw new Error("closed linked-case queue handoff missing from detail");
@@ -2003,14 +2019,16 @@ async function assertCasePayload(page, apiBaseURL, caseID, tenantID, expectedRep
   if (!primaryCaseTargetHref || !primaryCaseTargetHref.includes("case_id=" + encodeURIComponent(openFollowUp.ID))) {
     throw new Error("primary report case action target missing reused case handoff");
   }
-  const existingBadCaseActionHref = await page.locator("#reportDetail .bad-case-item a").evaluateAll((elements) => {
-    const match = elements.find((element) => element.textContent && element.textContent.includes("Open existing bad-case case"));
-    return match ? match.getAttribute("href") : "";
-  });
-  if (!existingBadCaseActionHref || !existingBadCaseActionHref.includes("case_id=" + encodeURIComponent(openBadCaseFollowUp.ID))) {
-    throw new Error("existing bad-case reuse handoff missing from detail pane");
+  const existingBadCaseAction = page.locator('[data-bad-case-primary-action="' + badCaseEvalCaseID + '"]').first();
+  const existingBadCaseActionText = ((await existingBadCaseAction.textContent()) || "").trim();
+  if (existingBadCaseActionText !== "Open existing bad-case case") {
+    throw new Error("bad-case primary action did not render canonical reuse label: " + existingBadCaseActionText);
   }
-  const existingBadCasePrimaryActionHref = await page.locator("#reportDetail .bad-case-item .detail-actions a").evaluate((element) => element.getAttribute("href"));
+  const existingBadCaseActionMode = await existingBadCaseAction.getAttribute("data-action-mode");
+  if (existingBadCaseActionMode !== "open-existing-case") {
+    throw new Error("bad-case primary action mode missing existing-case reuse: " + existingBadCaseActionMode);
+  }
+  const existingBadCasePrimaryActionHref = await existingBadCaseAction.getAttribute("href");
   if (!existingBadCasePrimaryActionHref || !existingBadCasePrimaryActionHref.includes("case_id=" + encodeURIComponent(openBadCaseFollowUp.ID))) {
     throw new Error("bad-case primary action did not use canonical existing-case handoff");
   }

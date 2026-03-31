@@ -1183,11 +1183,14 @@ func TestGetEvalRunEndpointSuppressesDirectLinkedCaseActionForClosedLatestCase(t
 	if got.LinkedCaseSummary.LatestCaseStatus != casesvc.StatusClosed {
 		t.Fatalf("LinkedCaseSummary.LatestCaseStatus = %q, want %q", got.LinkedCaseSummary.LatestCaseStatus, casesvc.StatusClosed)
 	}
-	if got.PreferredLinkedCaseAction.Mode != "none" {
-		t.Fatalf("PreferredLinkedCaseAction.Mode = %q, want %q", got.PreferredLinkedCaseAction.Mode, "none")
+	if got.PreferredLinkedCaseAction.Mode != "open_existing_queue" {
+		t.Fatalf("PreferredLinkedCaseAction.Mode = %q, want %q", got.PreferredLinkedCaseAction.Mode, "open_existing_queue")
 	}
 	if got.PreferredLinkedCaseAction.CaseID != "" {
-		t.Fatalf("PreferredLinkedCaseAction.CaseID = %q, want empty", got.PreferredLinkedCaseAction.CaseID)
+		t.Fatalf("PreferredLinkedCaseAction.CaseID = %q, want empty because queue actions should key off run_id", got.PreferredLinkedCaseAction.CaseID)
+	}
+	if got.PreferredLinkedCaseAction.RunID != run.ID {
+		t.Fatalf("PreferredLinkedCaseAction.RunID = %q, want %q", got.PreferredLinkedCaseAction.RunID, run.ID)
 	}
 	if got.Items[0].PreferredLinkedCaseAction.Mode != "open_existing_queue" {
 		t.Fatalf("Items[0].PreferredLinkedCaseAction.Mode = %q, want %q", got.Items[0].PreferredLinkedCaseAction.Mode, "open_existing_queue")

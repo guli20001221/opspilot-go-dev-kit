@@ -114,6 +114,7 @@ type evalRunReportSummary struct {
 type evalRunLinkedCaseActionResponse struct {
 	Mode   string `json:"mode"`
 	CaseID string `json:"case_id,omitempty"`
+	RunID  string `json:"run_id,omitempty"`
 }
 
 func (a *appHandler) handleEvalRuns(w http.ResponseWriter, r *http.Request) {
@@ -306,7 +307,7 @@ func newEvalRunResponse(item evalsvc.EvalRun, events []evalsvc.EvalRunEvent, ite
 		NeedsFollowUp:                itemWithoutOpenFollowUpCount > 0,
 		LinkedCaseSummary:            linkedCaseSummary,
 		PreferredPrimaryAction:       newEvalRunListPrimaryActionResponse(item.ID, linkedCaseSummary, reportSummary),
-		PreferredLinkedCaseAction:    newEvalRunLinkedCaseActionResponse(linkedCaseSummary),
+		PreferredLinkedCaseAction:    newEvalRunLinkedCaseActionResponse(item.ID, linkedCaseSummary),
 		ReportID:                     reportSummary.ReportID,
 		ReportStatus:                 reportSummary.ReportStatus,
 		Status:                       item.Status,
@@ -391,7 +392,7 @@ func newEvalRunListPrimaryActionResponse(runID string, linkedCaseSummary evalRep
 		Mode:  "none",
 		RunID: runID,
 	}
-	linkedAction := newEvalRunLinkedCaseActionResponse(linkedCaseSummary)
+	linkedAction := newEvalRunLinkedCaseActionResponse(runID, linkedCaseSummary)
 	if linkedAction.Mode == "open_existing_case" && linkedAction.CaseID != "" {
 		action.Mode = "open_existing_case"
 		action.CaseID = linkedAction.CaseID
@@ -421,14 +422,20 @@ func newEvalRunPrimaryActionResponse(evalCaseID string, summary casesvc.EvalCase
 	return newEvalCaseFollowUpActionResponseFromSummary(evalCaseID, summary.OpenFollowUpCaseCount, summary.LatestFollowUpCaseID)
 }
 
-func newEvalRunLinkedCaseActionResponse(linkedCaseSummary evalReportLinkedCaseSummaryResponse) evalRunLinkedCaseActionResponse {
-	if linkedCaseSummary.LatestCaseID == "" || linkedCaseSummary.LatestCaseStatus != casesvc.StatusOpen {
-		return evalRunLinkedCaseActionResponse{Mode: "none"}
+func newEvalRunLinkedCaseActionResponse(runID string, linkedCaseSummary evalReportLinkedCaseSummaryResponse) evalRunLinkedCaseActionResponse {
+	if linkedCaseSummary.LatestCaseID != "" && linkedCaseSummary.LatestCaseStatus == casesvc.StatusOpen {
+		return evalRunLinkedCaseActionResponse{
+			Mode:   "open_existing_case",
+			CaseID: linkedCaseSummary.LatestCaseID,
+		}
 	}
-	return evalRunLinkedCaseActionResponse{
-		Mode:   "open_existing_case",
-		CaseID: linkedCaseSummary.LatestCaseID,
+	if runID != "" && linkedCaseSummary.TotalCaseCount > 0 {
+		return evalRunLinkedCaseActionResponse{
+			Mode:  "open_existing_queue",
+			RunID: runID,
+		}
 	}
+	return evalRunLinkedCaseActionResponse{Mode: "none"}
 }
 
 func evalCaseLinkedCaseSummary(summary casesvc.EvalCaseFollowUpSummary) evalReportLinkedCaseSummaryResponse {

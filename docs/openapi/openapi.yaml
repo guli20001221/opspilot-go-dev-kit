@@ -2587,6 +2587,8 @@ components:
           type: string
         case_id:
           type: string
+        run_id:
+          type: string
     TraceDrilldownTemporal:
       type: object
       required:
@@ -3655,7 +3657,10 @@ components:
           enum:
             - none
             - open_existing_case
+            - open_existing_queue
         case_id:
+          type: string
+        run_id:
           type: string
     EvalRunListPrimaryAction:
       type: object
