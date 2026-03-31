@@ -461,6 +461,12 @@ func TestListEvalDatasetsEndpointIncludesLatestRunSummary(t *testing.T) {
 	if got.PreferredFollowUpAction.ReportID != reportID {
 		t.Fatalf("PreferredFollowUpAction.ReportID = %q, want %q", got.PreferredFollowUpAction.ReportID, reportID)
 	}
+	if got.PreferredPrimaryAction.Mode != "open_existing_case" {
+		t.Fatalf("PreferredPrimaryAction.Mode = %q, want %q", got.PreferredPrimaryAction.Mode, "open_existing_case")
+	}
+	if got.PreferredPrimaryAction.CaseID != followUpCase.ID {
+		t.Fatalf("PreferredPrimaryAction.CaseID = %q, want %q", got.PreferredPrimaryAction.CaseID, followUpCase.ID)
+	}
 	if got.OpenFollowUpCaseCount != 1 {
 		t.Fatalf("OpenFollowUpCaseCount = %d, want 1", got.OpenFollowUpCaseCount)
 	}

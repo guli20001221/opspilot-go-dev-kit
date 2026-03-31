@@ -147,6 +147,7 @@ The current chat stream implementation is a Milestone 1 skeleton:
 - use `GET /api/v1/eval-datasets?tenant_id=<tenant>` when you need the lightweight dataset lane without pulling full membership payloads into the list response
 - the same canonical dataset list now also carries `latest_run_id`, `latest_report_id`, `unresolved_follow_up_count`, and `needs_follow_up`, so dataset-level regression pressure is visible without first opening `/api/v1/eval-runs`
 - that same dataset list/detail contract now also carries `preferred_follow_up_action`, so operator UI can jump straight into the right unresolved queue for the latest regression context
+- that same canonical `GET /api/v1/eval-datasets` list now also carries `preferred_primary_action`, so `/admin/eval-datasets` rows can drive the main operator handoff from one backend-owned case-versus-queue-versus-report-versus-run decision without opening detail first
 - the same canonical dataset list/detail contracts now also expose dataset-wide follow-up case summary plus a typed dataset queue action, so `/admin/eval-datasets` can jump into `/admin/cases?source_eval_dataset_id=...` and inspect one baseline-wide follow-up queue across all linked eval reports
 - that same `GET /api/v1/eval-datasets` list now also carries `dataset_follow_up_case_summary`, so `/admin/eval-datasets` rows can show dataset-wide total/open/closed follow-up pressure before detail is opened
 - those same `/admin/eval-datasets` rows now also hand off through the canonical dataset queue action, so row-level case navigation stays dataset-scoped instead of falling back to latest-report queue heuristics
@@ -231,6 +232,7 @@ The current chat stream implementation is a Milestone 1 skeleton:
 - inspect `items[].linked_case_summary` and `items[].preferred_linked_case_action` on `GET /api/v1/eval-datasets/{dataset_id}` or use `Open linked case` from the `Dataset items` panel when you need member-level eval-case follow-up without reconstructing queue routing in the browser
 - use `items[].preferred_follow_up_action` or `Create case from item` on `/admin/eval-datasets` when one dataset member needs new follow-up work and no open eval-case-backed case already exists
 - use `items[].preferred_primary_action` or the main item-level button on `/admin/eval-datasets` when you want the canonical member-level handoff to prefer reusing an open linked case or queue before it falls back to creating new follow-up work
+- use the first button on each `/admin/eval-datasets` row or `preferred_primary_action` on `GET /api/v1/eval-datasets` when you want the canonical row-level handoff to prefer existing dataset/run-backed case reuse before it falls back to unresolved queue, report, or run drill-down
 - open `http://localhost:18080/admin/eval-runs` when you want the first eval-run operator page, including run detail plus dataset and eval handoff links
 - set `OPSPILOT_EVAL_RUN_FAIL_ALL=true` on the worker when you want every claimed eval run to fail for local recovery and operator-surface testing
 - use `Retry run` on `/admin/eval-runs` when you want to re-queue the selected failed run back into the worker lane from the same detail panel

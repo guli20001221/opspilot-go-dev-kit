@@ -3217,6 +3217,7 @@ components:
           - unresolved_follow_up_count
           - needs_follow_up
           - preferred_follow_up_action
+          - preferred_primary_action
           - open_follow_up_case_count
           - linked_case_summary
           - run_backed_case_summary
@@ -3269,16 +3270,18 @@ components:
             description: Whether the latest durable eval run for this dataset still has at least one unresolved failed item.
           preferred_follow_up_action:
             $ref: '#/components/schemas/EvalDatasetFollowUpAction'
+          preferred_primary_action:
+            $ref: '#/components/schemas/EvalDatasetPrimaryAction'
           open_follow_up_case_count:
             type: integer
             minimum: 0
             description: Open follow-up cases already linked to the latest durable eval report for this dataset.
           linked_case_summary:
             $ref: '#/components/schemas/EvalReportLinkedCaseSummary'
-        run_backed_case_summary:
-          $ref: '#/components/schemas/EvalReportLinkedCaseSummary'
-        preferred_run_backed_case_action:
-          $ref: '#/components/schemas/EvalDatasetCaseQueueAction'
+          run_backed_case_summary:
+            $ref: '#/components/schemas/EvalReportLinkedCaseSummary'
+          preferred_run_backed_case_action:
+            $ref: '#/components/schemas/EvalDatasetCaseQueueAction'
           preferred_case_queue_action:
             $ref: '#/components/schemas/EvalDatasetCaseQueueAction'
           dataset_follow_up_case_summary:
@@ -3291,6 +3294,27 @@ components:
             $ref: '#/components/schemas/EvalDatasetCaseQueueAction'
           preferred_case_handoff_action:
             $ref: '#/components/schemas/EvalDatasetCaseQueueAction'
+    EvalDatasetPrimaryAction:
+      type: object
+      required:
+        - mode
+      properties:
+        mode:
+          type: string
+          enum:
+            - none
+            - open_existing_case
+            - open_existing_queue
+            - open_latest_report_queue
+            - open_latest_run_queue
+            - open_report
+            - open_run
+        case_id:
+          type: string
+        run_id:
+          type: string
+        report_id:
+          type: string
     ListEvalCasesResponse:
       type: object
       required:

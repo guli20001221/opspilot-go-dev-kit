@@ -249,6 +249,41 @@
       return "";
     }
 
+    function datasetPrimaryActionHref(item) {
+      const action = item && item.preferred_primary_action;
+      if (!action || action.mode === "none") return "";
+      if (action.mode === "open_existing_case" && action.case_id) {
+        return `/admin/cases?tenant_id=${encodeURIComponent(item.tenant_id)}&case_id=${encodeURIComponent(action.case_id)}`;
+      }
+      if (action.mode === "open_existing_queue") {
+        return datasetCaseQueueHref(item);
+      }
+      if (action.mode === "open_latest_report_queue" && action.report_id) {
+        return `/admin/eval-reports?tenant_id=${encodeURIComponent(item.tenant_id)}&report_id=${encodeURIComponent(action.report_id)}&selected_report_id=${encodeURIComponent(action.report_id)}&bad_case_needs_follow_up=true`;
+      }
+      if (action.mode === "open_latest_run_queue" && action.run_id) {
+        return `/admin/eval-runs?tenant_id=${encodeURIComponent(item.tenant_id)}&dataset_id=${encodeURIComponent(item.dataset_id)}&run_id=${encodeURIComponent(action.run_id)}&needs_follow_up=true`;
+      }
+      if (action.mode === "open_report" && action.report_id) {
+        return `/admin/eval-reports?tenant_id=${encodeURIComponent(item.tenant_id)}&report_id=${encodeURIComponent(action.report_id)}&selected_report_id=${encodeURIComponent(action.report_id)}`;
+      }
+      if (action.mode === "open_run" && action.run_id) {
+        return `/admin/eval-runs?tenant_id=${encodeURIComponent(item.tenant_id)}&dataset_id=${encodeURIComponent(item.dataset_id)}&run_id=${encodeURIComponent(action.run_id)}`;
+      }
+      return "";
+    }
+
+    function datasetPrimaryActionLabel(item) {
+      const action = item && item.preferred_primary_action;
+      if (!action || action.mode === "none") return "";
+      if (action.mode === "open_existing_case") return "Open latest dataset case";
+      if (action.mode === "open_existing_queue") return datasetCaseQueueLabel(item) || "Open dataset case queue";
+      if (action.mode === "open_latest_report_queue" || action.mode === "open_latest_run_queue") return "Open preferred queue";
+      if (action.mode === "open_report") return "Open latest report";
+      if (action.mode === "open_run") return "Open latest run";
+      return "";
+    }
+
     function datasetScopedCaseQueueHref(item) {
       const datasetAction = item && item.preferred_dataset_case_queue_action;
       if (datasetAction && datasetAction.mode === "open_existing_queue" && datasetAction.source_eval_dataset_id) {
@@ -537,6 +572,7 @@
               ${item.linked_case_summary?.latest_case_id ? `<div><small>${escapeHTML(`Latest dataset case: ${item.linked_case_summary.latest_case_id} (${item.linked_case_summary.latest_case_status || "unknown"}${item.linked_case_summary.latest_assigned_to ? `, assigned to ${item.linked_case_summary.latest_assigned_to}` : ""})`)}</small></div>` : ""}
               ${item.run_backed_case_summary?.latest_case_id ? `<div><small>${escapeHTML(`Latest run-backed case: ${item.run_backed_case_summary.latest_case_id} (${item.run_backed_case_summary.latest_case_status || "unknown"}${item.run_backed_case_summary.latest_assigned_to ? `, assigned to ${item.run_backed_case_summary.latest_assigned_to}` : ""})`)}</small></div>` : ""}
                 <div style="display:flex; flex-wrap:wrap; gap:8px; margin-top:8px;">
+                  ${datasetPrimaryActionHref(item) ? `<a class="button-link" href="${datasetPrimaryActionHref(item)}">${datasetPrimaryActionLabel(item)}</a>` : ""}
                   ${datasetPreferredQueueHref(item) ? `<a class="button-link" href="${datasetPreferredQueueHref(item)}">${datasetPreferredQueueLabel(item)}</a>` : ""}
                   ${datasetScopedCaseQueueHref(item) ? `<a class="button-link ghost" href="${datasetScopedCaseQueueHref(item)}">${datasetScopedCaseQueueLabel(item)}</a>` : ""}
                   ${datasetRunBackedCaseHref(item) ? `<a class="button-link ghost" href="${datasetRunBackedCaseHref(item)}">${datasetRunBackedCaseLabel(item)}</a>` : ""}

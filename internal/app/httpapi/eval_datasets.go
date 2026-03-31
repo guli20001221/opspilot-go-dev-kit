@@ -95,6 +95,7 @@ type evalDatasetSummaryResponse struct {
 	UnresolvedFollowUpCount         int                                    `json:"unresolved_follow_up_count"`
 	NeedsFollowUp                   bool                                   `json:"needs_follow_up"`
 	PreferredFollowUpAction         evalDatasetFollowUpActionResponse      `json:"preferred_follow_up_action"`
+	PreferredPrimaryAction          evalDatasetPrimaryActionResponse       `json:"preferred_primary_action"`
 	OpenFollowUpCaseCount           int                                    `json:"open_follow_up_case_count"`
 	LinkedCaseSummary               evalDatasetLinkedCaseSummaryResponse   `json:"linked_case_summary"`
 	RunBackedCaseSummary            evalDatasetLinkedCaseSummaryResponse   `json:"run_backed_case_summary"`
@@ -104,6 +105,13 @@ type evalDatasetSummaryResponse struct {
 	DatasetOpenFollowUpCaseCount    int                                    `json:"dataset_open_follow_up_case_count"`
 	PreferredDatasetCaseQueueAction evalDatasetCaseQueueActionResponse     `json:"preferred_dataset_case_queue_action"`
 	PreferredCaseHandoffAction      evalDatasetCaseQueueActionResponse     `json:"preferred_case_handoff_action"`
+}
+
+type evalDatasetPrimaryActionResponse struct {
+	Mode     string `json:"mode"`
+	CaseID   string `json:"case_id,omitempty"`
+	RunID    string `json:"run_id,omitempty"`
+	ReportID string `json:"report_id,omitempty"`
 }
 
 type evalDatasetFollowUpActionResponse struct {
@@ -534,6 +542,7 @@ func newEvalDatasetSummaryResponse(item evalsvc.EvalDatasetSummary, latestRun ev
 		UnresolvedFollowUpCount:         latestRun.UnresolvedFollowUpCount,
 		NeedsFollowUp:                   latestRun.NeedsFollowUp,
 		PreferredFollowUpAction:         newEvalDatasetFollowUpActionResponse(item.ID, latestRun),
+		PreferredPrimaryAction:          newEvalDatasetPrimaryActionResponse(item.ID, latestRun),
 		OpenFollowUpCaseCount:           latestRun.OpenFollowUpCaseCount,
 		LinkedCaseSummary:               linkedCaseSummary,
 		RunBackedCaseSummary:            runBackedCaseSummary,
@@ -544,6 +553,44 @@ func newEvalDatasetSummaryResponse(item evalsvc.EvalDatasetSummary, latestRun ev
 		PreferredDatasetCaseQueueAction: newEvalDatasetDatasetCaseQueueActionResponse(item.ID, latestRun),
 		PreferredCaseHandoffAction:      newEvalDatasetPreferredCaseHandoffActionResponse(item.ID, latestRun),
 	}
+}
+
+func newEvalDatasetPrimaryActionResponse(datasetID string, latestRun evalDatasetLatestRunSummary) evalDatasetPrimaryActionResponse {
+	action := evalDatasetPrimaryActionResponse{
+		Mode:  "none",
+		RunID: latestRun.LatestRunID,
+	}
+	caseAction := newEvalDatasetPreferredCaseHandoffActionResponse(datasetID, latestRun)
+	if caseAction.Mode == "open_existing_case" && caseAction.CaseID != "" {
+		action.Mode = "open_existing_case"
+		action.CaseID = caseAction.CaseID
+		return action
+	}
+	if caseAction.Mode == "open_existing_queue" {
+		action.Mode = "open_existing_queue"
+		return action
+	}
+
+	followUpAction := newEvalDatasetFollowUpActionResponse(datasetID, latestRun)
+	switch followUpAction.Mode {
+	case "open_latest_report_queue":
+		action.Mode = "open_latest_report_queue"
+		action.ReportID = followUpAction.ReportID
+		return action
+	case "open_latest_run_queue":
+		action.Mode = "open_latest_run_queue"
+		return action
+	}
+	if latestRun.LatestReportID != "" {
+		action.Mode = "open_report"
+		action.ReportID = latestRun.LatestReportID
+		return action
+	}
+	if latestRun.LatestRunID != "" {
+		action.Mode = "open_run"
+		return action
+	}
+	return action
 }
 
 func newEvalDatasetFollowUpActionResponse(datasetID string, latestRun evalDatasetLatestRunSummary) evalDatasetFollowUpActionResponse {
