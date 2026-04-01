@@ -1367,6 +1367,28 @@ const uncoveredRunID = process.argv[10];
   if (reportRowMode !== "open_report") {
     throw new Error("report-backed row primary action mode missing report handoff: " + reportRowMode);
   }
+  await page.click('[data-run-row="' + reportRunID + '"] [data-run-id="' + reportRunID + '"]');
+  await page.waitForFunction((runID) => {
+    const detail = document.querySelector("#runDetail");
+    return !!detail && detail.textContent && detail.textContent.includes(runID);
+  }, reportRunID);
+  const detailReportHref = await page.getAttribute("#openEvalReportLink", "href");
+  if (!detailReportHref || !detailReportHref.includes("/admin/eval-reports?") || !detailReportHref.includes("report_id=" + encodeURIComponent(reportID))) {
+    throw new Error("report-backed detail handoff did not expose canonical eval report lane target");
+  }
+  const detailReportMode = await page.getAttribute("#openEvalReportLink", "data-action-mode");
+  if (detailReportMode !== "open_report") {
+    throw new Error("report-backed detail handoff mode missing open_report state: " + detailReportMode);
+  }
+  const detailReportAPIHref = await page.getAttribute("#openEvalReportAPILink", "href");
+  if (!detailReportAPIHref || !detailReportAPIHref.includes("/api/v1/eval-reports/" + encodeURIComponent(reportID))) {
+    throw new Error("report-backed detail api handoff drifted");
+  }
+  await page.click('[data-run-row="' + closedRunID + '"] [data-run-id="' + closedRunID + '"]');
+  await page.waitForFunction((runID) => {
+    const detail = document.querySelector("#runDetail");
+    return !!detail && detail.textContent && detail.textContent.includes(runID);
+  }, closedRunID);
 
   const uncoveredRowHref = await page.getAttribute('[data-run-row-primary-action="' + uncoveredRunID + '"]', "href");
   if (!uncoveredRowHref || !uncoveredRowHref.includes("/admin/eval-runs?") || !uncoveredRowHref.includes("run_id=" + encodeURIComponent(uncoveredRunID))) {
