@@ -1855,9 +1855,6 @@ func TestAdminEvalReportComparePageRendersHTML(t *testing.T) {
 	if !strings.Contains(body, "Open left trace detail") {
 		t.Fatal("left trace-detail handoff missing from compare HTML")
 	}
-	if !strings.Contains(body, "Open left trace detail") {
-		t.Fatal("left trace-detail handoff missing from compare HTML")
-	}
 	if !strings.Contains(body, "Open left latest case") {
 		t.Fatal("left latest-case handoff missing from compare HTML")
 	}
@@ -1890,9 +1887,6 @@ func TestAdminEvalReportComparePageRendersHTML(t *testing.T) {
 	}
 	if !strings.Contains(body, "Open right eval run lane") {
 		t.Fatal("right eval run lane handoff missing from compare HTML")
-	}
-	if !strings.Contains(body, "Open right trace detail") {
-		t.Fatal("right trace-detail handoff missing from compare HTML")
 	}
 	if !strings.Contains(body, "Open right trace detail") {
 		t.Fatal("right trace-detail handoff missing from compare HTML")
