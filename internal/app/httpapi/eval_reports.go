@@ -162,6 +162,7 @@ type evalReportComparisonItemResponse struct {
 	PreferredDatasetLaneAction      evalDatasetLaneActionResponse           `json:"preferred_dataset_lane_action"`
 	PreferredEvalLaneAction         evalLaneActionResponse                  `json:"preferred_eval_lane_action"`
 	PreferredRunLaneAction          evalRunLaneActionResponse               `json:"preferred_run_lane_action"`
+	PreferredTraceDetailAction      traceDetailActionResponse               `json:"preferred_trace_detail_action"`
 	PreferredVersionDetailAction    versionDetailActionResponse             `json:"preferred_version_detail_action"`
 	PreferredPrimaryAction          evalReportPrimaryActionResponse         `json:"preferred_primary_action"`
 	CompareFollowUpCaseCount        int                                     `json:"compare_follow_up_case_count"`
@@ -203,6 +204,11 @@ type evalRunLaneActionResponse struct {
 type versionDetailActionResponse struct {
 	Mode      string `json:"mode"`
 	VersionID string `json:"version_id,omitempty"`
+}
+
+type traceDetailActionResponse struct {
+	Mode     string `json:"mode"`
+	ReportID string `json:"report_id,omitempty"`
 }
 
 type evalReportComparisonResponse struct {
@@ -892,6 +898,7 @@ func newEvalReportComparisonItemResponse(item evalsvc.EvalReport, followUpSummar
 		PreferredDatasetLaneAction:      newEvalDatasetLaneActionResponse(item.DatasetID),
 		PreferredEvalLaneAction:         newEvalLaneActionResponse(item.ID),
 		PreferredRunLaneAction:          newEvalRunLaneActionResponse(item.RunID, item.DatasetID),
+		PreferredTraceDetailAction:      newTraceDetailActionResponse(item.ID),
 		PreferredVersionDetailAction:    newVersionDetailActionResponse(firstEvalReportVersionID(item.MetadataJSON)),
 		PreferredPrimaryAction:          newEvalReportComparePrimaryActionResponse(item.ID, linkedCaseSummary, compareFollowUpSummary),
 		CompareFollowUpCaseCount:        compareFollowUpSummary.CompareFollowUpCaseCount,
@@ -941,6 +948,16 @@ func newVersionDetailActionResponse(versionID string) versionDetailActionRespons
 	return versionDetailActionResponse{
 		Mode:      "open_version",
 		VersionID: versionID,
+	}
+}
+
+func newTraceDetailActionResponse(reportID string) traceDetailActionResponse {
+	if reportID == "" {
+		return traceDetailActionResponse{Mode: "none"}
+	}
+	return traceDetailActionResponse{
+		Mode:     "open_trace",
+		ReportID: reportID,
 	}
 }
 

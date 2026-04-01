@@ -1829,6 +1829,9 @@ func TestAdminEvalReportComparePageRendersHTML(t *testing.T) {
 	if !strings.Contains(body, "Open left eval run lane") {
 		t.Fatal("left eval run lane handoff missing from compare HTML")
 	}
+	if !strings.Contains(body, "Open left trace detail") {
+		t.Fatal("left trace-detail handoff missing from compare HTML")
+	}
 	if !strings.Contains(body, "Open left latest case") {
 		t.Fatal("left latest-case handoff missing from compare HTML")
 	}
@@ -1861,6 +1864,9 @@ func TestAdminEvalReportComparePageRendersHTML(t *testing.T) {
 	}
 	if !strings.Contains(body, "Open right eval run lane") {
 		t.Fatal("right eval run lane handoff missing from compare HTML")
+	}
+	if !strings.Contains(body, "Open right trace detail") {
+		t.Fatal("right trace-detail handoff missing from compare HTML")
 	}
 	if !strings.Contains(body, "Open right latest case") {
 		t.Fatal("right latest-case handoff missing from compare HTML")
@@ -2069,6 +2075,14 @@ async function assertCaseSource(page, apiBaseURL, caseID, tenantID, expectedRepo
   if (leftRunLaneMode !== "open_run") {
     throw new Error("left run-lane handoff mode missing canonical run state: " + leftRunLaneMode);
   }
+  const leftTraceHref = await page.getAttribute("#leftTraceLink", "href");
+  if (!leftTraceHref || !leftTraceHref.includes("/admin/trace-detail?") || !leftTraceHref.includes("report_id=" + encodeURIComponent(leftReportID))) {
+    throw new Error("left trace-detail handoff missing canonical trace target");
+  }
+  const leftTraceMode = await page.getAttribute("#leftTraceLink", "data-action-mode");
+  if (leftTraceMode !== "open_trace") {
+    throw new Error("left trace-detail handoff mode missing canonical trace state: " + leftTraceMode);
+  }
   const leftVersionHref = await page.getAttribute("#leftVersionLink", "href");
   if (!leftVersionHref || !leftVersionHref.includes("/admin/version-detail?") || !leftVersionHref.includes("version_id=")) {
     throw new Error("left version-detail handoff missing canonical version target");
@@ -2124,6 +2138,14 @@ async function assertCaseSource(page, apiBaseURL, caseID, tenantID, expectedRepo
   const rightRunLaneMode = await page.getAttribute("#rightRunLaneLink", "data-action-mode");
   if (rightRunLaneMode !== "open_run") {
     throw new Error("right run-lane handoff mode missing canonical run state: " + rightRunLaneMode);
+  }
+  const rightTraceHref = await page.getAttribute("#rightTraceLink", "href");
+  if (!rightTraceHref || !rightTraceHref.includes("/admin/trace-detail?") || !rightTraceHref.includes("report_id=" + encodeURIComponent(rightReportID))) {
+    throw new Error("right trace-detail handoff missing canonical trace target");
+  }
+  const rightTraceMode = await page.getAttribute("#rightTraceLink", "data-action-mode");
+  if (rightTraceMode !== "open_trace") {
+    throw new Error("right trace-detail handoff mode missing canonical trace state: " + rightTraceMode);
   }
   const rightVersionHref = await page.getAttribute("#rightVersionLink", "href");
   if (!rightVersionHref || !rightVersionHref.includes("/admin/version-detail?") || !rightVersionHref.includes("version_id=")) {

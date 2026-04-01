@@ -685,6 +685,10 @@ func TestCompareEvalReportsReturnsTypedSummary(t *testing.T) {
 				RunID     string `json:"run_id"`
 				DatasetID string `json:"dataset_id"`
 			} `json:"preferred_run_lane_action"`
+			PreferredTraceDetailAction struct {
+				Mode     string `json:"mode"`
+				ReportID string `json:"report_id"`
+			} `json:"preferred_trace_detail_action"`
 			PreferredVersionDetailAction struct {
 				Mode      string `json:"mode"`
 				VersionID string `json:"version_id"`
@@ -759,6 +763,10 @@ func TestCompareEvalReportsReturnsTypedSummary(t *testing.T) {
 				RunID     string `json:"run_id"`
 				DatasetID string `json:"dataset_id"`
 			} `json:"preferred_run_lane_action"`
+			PreferredTraceDetailAction struct {
+				Mode     string `json:"mode"`
+				ReportID string `json:"report_id"`
+			} `json:"preferred_trace_detail_action"`
 			PreferredVersionDetailAction struct {
 				Mode      string `json:"mode"`
 				VersionID string `json:"version_id"`
@@ -858,6 +866,9 @@ func TestCompareEvalReportsReturnsTypedSummary(t *testing.T) {
 	if got.Left.PreferredRunLaneAction.Mode != "open_run" || got.Left.PreferredRunLaneAction.RunID != got.Left.RunID || got.Left.PreferredRunLaneAction.DatasetID != got.Left.DatasetID {
 		t.Fatalf("Left.PreferredRunLaneAction = %#v, want open_run/%q/%q", got.Left.PreferredRunLaneAction, got.Left.RunID, got.Left.DatasetID)
 	}
+	if got.Left.PreferredTraceDetailAction.Mode != "open_trace" || got.Left.PreferredTraceDetailAction.ReportID != leftReportID {
+		t.Fatalf("Left.PreferredTraceDetailAction = %#v, want open_trace/%q", got.Left.PreferredTraceDetailAction, leftReportID)
+	}
 	if got.Left.PreferredVersionDetailAction.Mode != "none" || got.Left.PreferredVersionDetailAction.VersionID != "" {
 		t.Fatalf("Left.PreferredVersionDetailAction = %#v, want none/empty for missing version", got.Left.PreferredVersionDetailAction)
 	}
@@ -917,6 +928,9 @@ func TestCompareEvalReportsReturnsTypedSummary(t *testing.T) {
 	}
 	if got.Right.PreferredRunLaneAction.Mode != "open_run" || got.Right.PreferredRunLaneAction.RunID != got.Right.RunID || got.Right.PreferredRunLaneAction.DatasetID != got.Right.DatasetID {
 		t.Fatalf("Right.PreferredRunLaneAction = %#v, want open_run/%q/%q", got.Right.PreferredRunLaneAction, got.Right.RunID, got.Right.DatasetID)
+	}
+	if got.Right.PreferredTraceDetailAction.Mode != "open_trace" || got.Right.PreferredTraceDetailAction.ReportID != rightReportID {
+		t.Fatalf("Right.PreferredTraceDetailAction = %#v, want open_trace/%q", got.Right.PreferredTraceDetailAction, rightReportID)
 	}
 	if got.Right.PreferredVersionDetailAction.Mode != "none" || got.Right.PreferredVersionDetailAction.VersionID != "" {
 		t.Fatalf("Right.PreferredVersionDetailAction = %#v, want none/empty for missing version", got.Right.PreferredVersionDetailAction)
@@ -1053,6 +1067,10 @@ func TestCompareEvalReportsIncludesCompareFollowUpSummary(t *testing.T) {
 				RunID     string `json:"run_id"`
 				DatasetID string `json:"dataset_id"`
 			} `json:"preferred_run_lane_action"`
+			PreferredTraceDetailAction struct {
+				Mode     string `json:"mode"`
+				ReportID string `json:"report_id"`
+			} `json:"preferred_trace_detail_action"`
 			PreferredVersionDetailAction struct {
 				Mode      string `json:"mode"`
 				VersionID string `json:"version_id"`
@@ -1090,6 +1108,10 @@ func TestCompareEvalReportsIncludesCompareFollowUpSummary(t *testing.T) {
 				RunID     string `json:"run_id"`
 				DatasetID string `json:"dataset_id"`
 			} `json:"preferred_run_lane_action"`
+			PreferredTraceDetailAction struct {
+				Mode     string `json:"mode"`
+				ReportID string `json:"report_id"`
+			} `json:"preferred_trace_detail_action"`
 			PreferredVersionDetailAction struct {
 				Mode      string `json:"mode"`
 				VersionID string `json:"version_id"`
@@ -1245,6 +1267,10 @@ func TestCompareEvalReportsLinkedCaseActionPrefersQueueWhenLatestCaseClosed(t *t
 				RunID     string `json:"run_id"`
 				DatasetID string `json:"dataset_id"`
 			} `json:"preferred_run_lane_action"`
+			PreferredTraceDetailAction struct {
+				Mode     string `json:"mode"`
+				ReportID string `json:"report_id"`
+			} `json:"preferred_trace_detail_action"`
 			PreferredVersionDetailAction struct {
 				Mode      string `json:"mode"`
 				VersionID string `json:"version_id"`
@@ -1279,6 +1305,10 @@ func TestCompareEvalReportsLinkedCaseActionPrefersQueueWhenLatestCaseClosed(t *t
 				RunID     string `json:"run_id"`
 				DatasetID string `json:"dataset_id"`
 			} `json:"preferred_run_lane_action"`
+			PreferredTraceDetailAction struct {
+				Mode     string `json:"mode"`
+				ReportID string `json:"report_id"`
+			} `json:"preferred_trace_detail_action"`
 			PreferredVersionDetailAction struct {
 				Mode      string `json:"mode"`
 				VersionID string `json:"version_id"`
@@ -1318,6 +1348,9 @@ func TestCompareEvalReportsLinkedCaseActionPrefersQueueWhenLatestCaseClosed(t *t
 	if got.Left.PreferredRunLaneAction.Mode != "open_run" || got.Left.PreferredRunLaneAction.RunID == "" || got.Left.PreferredRunLaneAction.DatasetID == "" {
 		t.Fatalf("Left.PreferredRunLaneAction = %#v, want open_run/non-empty run+dataset", got.Left.PreferredRunLaneAction)
 	}
+	if got.Left.PreferredTraceDetailAction.Mode != "open_trace" || got.Left.PreferredTraceDetailAction.ReportID != leftReportID {
+		t.Fatalf("Left.PreferredTraceDetailAction = %#v, want open_trace/%q", got.Left.PreferredTraceDetailAction, leftReportID)
+	}
 	if got.Left.VersionID == "" {
 		if got.Left.PreferredVersionDetailAction.Mode != "none" || got.Left.PreferredVersionDetailAction.VersionID != "" {
 			t.Fatalf("Left.PreferredVersionDetailAction = %#v, want none/empty for missing version", got.Left.PreferredVersionDetailAction)
@@ -1351,6 +1384,9 @@ func TestCompareEvalReportsLinkedCaseActionPrefersQueueWhenLatestCaseClosed(t *t
 	}
 	if got.Right.PreferredRunLaneAction.Mode != "open_run" || got.Right.PreferredRunLaneAction.RunID == "" || got.Right.PreferredRunLaneAction.DatasetID == "" {
 		t.Fatalf("Right.PreferredRunLaneAction = %#v, want open_run/non-empty run+dataset", got.Right.PreferredRunLaneAction)
+	}
+	if got.Right.PreferredTraceDetailAction.Mode != "open_trace" || got.Right.PreferredTraceDetailAction.ReportID != rightReportID {
+		t.Fatalf("Right.PreferredTraceDetailAction = %#v, want open_trace/%q", got.Right.PreferredTraceDetailAction, rightReportID)
 	}
 	if got.Right.VersionID == "" {
 		if got.Right.PreferredVersionDetailAction.Mode != "none" || got.Right.PreferredVersionDetailAction.VersionID != "" {

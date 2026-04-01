@@ -70,7 +70,8 @@
                   <a class="button-link ghost" id="leftReportLaneLink" href="#" data-action-mode="open_report">Open left eval report lane</a>
                   <a class="button-link ghost" id="leftReportAPILink" href="#" target="_blank" rel="noreferrer" data-action-mode="open_eval_report_api">Open left eval report API</a>
                   <a class="button-link ghost" id="leftRunLaneLink" href="#" data-action-mode="open_run">Open left eval run lane</a>
-                    <a class="button-link ghost" id="leftVersionLink" href="#" hidden data-action-mode="none">Open left version detail</a>
+                  <a class="button-link ghost" id="leftTraceLink" href="#" data-action-mode="open_trace">Open left trace detail</a>
+                  <a class="button-link ghost" id="leftVersionLink" href="#" hidden data-action-mode="none">Open left version detail</a>
               </div>
             </section>
             <section class="detail-card">
@@ -86,7 +87,8 @@
                   <a class="button-link ghost" id="rightReportLaneLink" href="#" data-action-mode="open_report">Open right eval report lane</a>
                   <a class="button-link ghost" id="rightReportAPILink" href="#" target="_blank" rel="noreferrer" data-action-mode="open_eval_report_api">Open right eval report API</a>
                   <a class="button-link ghost" id="rightRunLaneLink" href="#" data-action-mode="open_run">Open right eval run lane</a>
-                    <a class="button-link ghost" id="rightVersionLink" href="#" hidden data-action-mode="none">Open right version detail</a>
+                  <a class="button-link ghost" id="rightTraceLink" href="#" data-action-mode="open_trace">Open right trace detail</a>
+                  <a class="button-link ghost" id="rightVersionLink" href="#" hidden data-action-mode="none">Open right version detail</a>
               </div>
             </section>
           </div>
@@ -141,6 +143,8 @@
     const rightLinkedCasesLink = document.getElementById("rightLinkedCasesLink");
     const leftRunLaneLink = document.getElementById("leftRunLaneLink");
     const rightRunLaneLink = document.getElementById("rightRunLaneLink");
+    const leftTraceLink = document.getElementById("leftTraceLink");
+    const rightTraceLink = document.getElementById("rightTraceLink");
     const leftVersionLink = document.getElementById("leftVersionLink");
     const rightVersionLink = document.getElementById("rightVersionLink");
     const diffList = document.getElementById("diffList");
@@ -412,6 +416,18 @@
       };
     }
 
+    function preferredTraceDetailAction(item) {
+      const preferred = item && item.preferred_trace_detail_action;
+      if (!preferred || preferred.mode !== "open_trace" || !preferred.report_id) {
+        return { mode: "none", href: "/admin/trace-detail", valid: false };
+      }
+      return {
+        mode: "open_trace",
+        href: `/admin/trace-detail?report_id=${encodeURIComponent(preferred.report_id)}`,
+        valid: true
+      };
+    }
+
     function syncPrimaryActionButtons(disabled, activeSide) {
       const leftAction = sidePrimaryAction("left");
       const rightAction = sidePrimaryAction("right");
@@ -460,6 +476,8 @@
       const rightEvalLaneAction = preferredEvalLaneAction(payload.right, "right");
       const leftRunLaneAction = preferredRunLaneAction(payload.left, "left");
       const rightRunLaneAction = preferredRunLaneAction(payload.right, "right");
+      const leftTraceAction = preferredTraceDetailAction(payload.left);
+      const rightTraceAction = preferredTraceDetailAction(payload.right);
       const leftVersionAction = preferredVersionDetailAction(payload.left, "left");
       const rightVersionAction = preferredVersionDetailAction(payload.right, "right");
       const leftDatasetLaneAction = preferredDatasetLaneAction(payload.left, "left");
@@ -552,6 +570,10 @@
       rightRunLaneLink.href = rightRunLaneAction.valid ? rightRunLaneAction.href : `${runLaneBase}?tenant_id=${encodeURIComponent(payload.right.tenant_id)}&dataset_id=${encodeURIComponent(payload.right.dataset_id)}&run_id=${encodeURIComponent(payload.right.run_id)}`;
       leftRunLaneLink.dataset.actionMode = leftRunLaneAction.mode;
       rightRunLaneLink.dataset.actionMode = rightRunLaneAction.mode;
+      leftTraceLink.href = leftTraceAction.valid ? leftTraceAction.href : "/admin/trace-detail";
+      rightTraceLink.href = rightTraceAction.valid ? rightTraceAction.href : "/admin/trace-detail";
+      leftTraceLink.dataset.actionMode = leftTraceAction.mode;
+      rightTraceLink.dataset.actionMode = rightTraceAction.mode;
 
       if (leftVersionAction.valid) {
         leftVersionLink.hidden = false;

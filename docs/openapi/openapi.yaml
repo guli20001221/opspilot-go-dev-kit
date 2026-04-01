@@ -4215,6 +4215,18 @@ components:
             - open_version
         version_id:
           type: string
+    TraceDetailAction:
+      type: object
+      required:
+        - mode
+      properties:
+        mode:
+          type: string
+          enum:
+            - none
+            - open_trace
+        report_id:
+          type: string
     EvalReportComparison:
       type: object
       required:
@@ -4256,6 +4268,7 @@ components:
         - preferred_dataset_lane_action
         - preferred_eval_lane_action
         - preferred_run_lane_action
+        - preferred_trace_detail_action
         - preferred_version_detail_action
         - preferred_primary_action
         - compare_follow_up_case_count
@@ -4341,6 +4354,8 @@ components:
           $ref: '#/components/schemas/EvalLaneAction'
         preferred_run_lane_action:
           $ref: '#/components/schemas/EvalRunLaneAction'
+        preferred_trace_detail_action:
+          $ref: '#/components/schemas/TraceDetailAction'
         preferred_version_detail_action:
           $ref: '#/components/schemas/VersionDetailAction'
         preferred_primary_action:
