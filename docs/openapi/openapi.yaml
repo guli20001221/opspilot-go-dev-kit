@@ -4199,9 +4199,21 @@ components:
           type: string
           enum:
             - open_run
-        run_id:
+          run_id:
+            type: string
+          dataset_id:
+            type: string
+    VersionDetailAction:
+      type: object
+      required:
+        - mode
+      properties:
+        mode:
           type: string
-        dataset_id:
+          enum:
+            - none
+            - open_version
+        version_id:
           type: string
     EvalReportComparison:
       type: object
@@ -4244,6 +4256,7 @@ components:
         - preferred_dataset_lane_action
         - preferred_eval_lane_action
         - preferred_run_lane_action
+        - preferred_version_detail_action
         - preferred_primary_action
         - compare_follow_up_case_count
         - open_compare_follow_up_case_count
@@ -4328,6 +4341,8 @@ components:
           $ref: '#/components/schemas/EvalLaneAction'
         preferred_run_lane_action:
           $ref: '#/components/schemas/EvalRunLaneAction'
+        preferred_version_detail_action:
+          $ref: '#/components/schemas/VersionDetailAction'
         preferred_primary_action:
           $ref: '#/components/schemas/EvalReportPrimaryAction'
         compare_follow_up_case_count:

@@ -70,7 +70,7 @@
                   <a class="button-link ghost" id="leftReportLaneLink" href="#" data-action-mode="open_report">Open left eval report lane</a>
                   <a class="button-link ghost" id="leftReportAPILink" href="#" target="_blank" rel="noreferrer" data-action-mode="open_eval_report_api">Open left eval report API</a>
                   <a class="button-link ghost" id="leftRunLaneLink" href="#" data-action-mode="open_run">Open left eval run lane</a>
-                  <a class="button-link ghost" id="leftVersionLink" href="#" hidden>Open left version detail</a>
+                    <a class="button-link ghost" id="leftVersionLink" href="#" hidden data-action-mode="none">Open left version detail</a>
               </div>
             </section>
             <section class="detail-card">
@@ -86,7 +86,7 @@
                   <a class="button-link ghost" id="rightReportLaneLink" href="#" data-action-mode="open_report">Open right eval report lane</a>
                   <a class="button-link ghost" id="rightReportAPILink" href="#" target="_blank" rel="noreferrer" data-action-mode="open_eval_report_api">Open right eval report API</a>
                   <a class="button-link ghost" id="rightRunLaneLink" href="#" data-action-mode="open_run">Open right eval run lane</a>
-                  <a class="button-link ghost" id="rightVersionLink" href="#" hidden>Open right version detail</a>
+                    <a class="button-link ghost" id="rightVersionLink" href="#" hidden data-action-mode="none">Open right version detail</a>
               </div>
             </section>
           </div>
@@ -399,6 +399,19 @@
       };
     }
 
+    function preferredVersionDetailAction(item, side) {
+      const preferred = item && item.preferred_version_detail_action;
+      if (!preferred || preferred.mode === "none" || !preferred.version_id) {
+        return { mode: "none", text: `Open ${side} version detail`, href: "", valid: false };
+      }
+      return {
+        mode: "open_version",
+        text: `Open ${side} version detail`,
+        href: `/admin/version-detail?version_id=${encodeURIComponent(preferred.version_id)}`,
+        valid: true
+      };
+    }
+
     function syncPrimaryActionButtons(disabled, activeSide) {
       const leftAction = sidePrimaryAction("left");
       const rightAction = sidePrimaryAction("right");
@@ -447,6 +460,8 @@
       const rightEvalLaneAction = preferredEvalLaneAction(payload.right, "right");
       const leftRunLaneAction = preferredRunLaneAction(payload.left, "left");
       const rightRunLaneAction = preferredRunLaneAction(payload.right, "right");
+      const leftVersionAction = preferredVersionDetailAction(payload.left, "left");
+      const rightVersionAction = preferredVersionDetailAction(payload.right, "right");
       const leftDatasetLaneAction = preferredDatasetLaneAction(payload.left, "left");
       const rightDatasetLaneAction = preferredDatasetLaneAction(payload.right, "right");
       const leftReportLaneAction = preferredReportLaneAction(payload.left, "left");
@@ -538,19 +553,23 @@
       leftRunLaneLink.dataset.actionMode = leftRunLaneAction.mode;
       rightRunLaneLink.dataset.actionMode = rightRunLaneAction.mode;
 
-      if (payload.left.version_id) {
+      if (leftVersionAction.valid) {
         leftVersionLink.hidden = false;
-        leftVersionLink.href = `/admin/version-detail?version_id=${encodeURIComponent(payload.left.version_id)}`;
+        leftVersionLink.href = leftVersionAction.href;
+        leftVersionLink.dataset.actionMode = leftVersionAction.mode;
       } else {
         leftVersionLink.hidden = true;
         leftVersionLink.href = "#";
+        leftVersionLink.dataset.actionMode = leftVersionAction.mode;
       }
-      if (payload.right.version_id) {
+      if (rightVersionAction.valid) {
         rightVersionLink.hidden = false;
-        rightVersionLink.href = `/admin/version-detail?version_id=${encodeURIComponent(payload.right.version_id)}`;
+        rightVersionLink.href = rightVersionAction.href;
+        rightVersionLink.dataset.actionMode = rightVersionAction.mode;
       } else {
         rightVersionLink.hidden = true;
         rightVersionLink.href = "#";
+        rightVersionLink.dataset.actionMode = rightVersionAction.mode;
       }
 
       diffList.innerHTML = [

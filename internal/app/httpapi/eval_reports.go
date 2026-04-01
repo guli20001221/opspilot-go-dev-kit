@@ -162,6 +162,7 @@ type evalReportComparisonItemResponse struct {
 	PreferredDatasetLaneAction      evalDatasetLaneActionResponse           `json:"preferred_dataset_lane_action"`
 	PreferredEvalLaneAction         evalLaneActionResponse                  `json:"preferred_eval_lane_action"`
 	PreferredRunLaneAction          evalRunLaneActionResponse               `json:"preferred_run_lane_action"`
+	PreferredVersionDetailAction    versionDetailActionResponse             `json:"preferred_version_detail_action"`
 	PreferredPrimaryAction          evalReportPrimaryActionResponse         `json:"preferred_primary_action"`
 	CompareFollowUpCaseCount        int                                     `json:"compare_follow_up_case_count"`
 	OpenCompareFollowUpCaseCount    int                                     `json:"open_compare_follow_up_case_count"`
@@ -197,6 +198,11 @@ type evalRunLaneActionResponse struct {
 	Mode      string `json:"mode"`
 	RunID     string `json:"run_id,omitempty"`
 	DatasetID string `json:"dataset_id,omitempty"`
+}
+
+type versionDetailActionResponse struct {
+	Mode      string `json:"mode"`
+	VersionID string `json:"version_id,omitempty"`
 }
 
 type evalReportComparisonResponse struct {
@@ -886,6 +892,7 @@ func newEvalReportComparisonItemResponse(item evalsvc.EvalReport, followUpSummar
 		PreferredDatasetLaneAction:      newEvalDatasetLaneActionResponse(item.DatasetID),
 		PreferredEvalLaneAction:         newEvalLaneActionResponse(item.ID),
 		PreferredRunLaneAction:          newEvalRunLaneActionResponse(item.RunID, item.DatasetID),
+		PreferredVersionDetailAction:    newVersionDetailActionResponse(firstEvalReportVersionID(item.MetadataJSON)),
 		PreferredPrimaryAction:          newEvalReportComparePrimaryActionResponse(item.ID, linkedCaseSummary, compareFollowUpSummary),
 		CompareFollowUpCaseCount:        compareFollowUpSummary.CompareFollowUpCaseCount,
 		OpenCompareFollowUpCaseCount:    compareFollowUpSummary.OpenCompareFollowUpCaseCount,
@@ -924,6 +931,16 @@ func newEvalRunLaneActionResponse(runID, datasetID string) evalRunLaneActionResp
 		Mode:      "open_run",
 		RunID:     runID,
 		DatasetID: datasetID,
+	}
+}
+
+func newVersionDetailActionResponse(versionID string) versionDetailActionResponse {
+	if versionID == "" {
+		return versionDetailActionResponse{Mode: "none"}
+	}
+	return versionDetailActionResponse{
+		Mode:      "open_version",
+		VersionID: versionID,
 	}
 }
 

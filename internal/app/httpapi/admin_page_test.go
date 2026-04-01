@@ -2069,6 +2069,14 @@ async function assertCaseSource(page, apiBaseURL, caseID, tenantID, expectedRepo
   if (leftRunLaneMode !== "open_run") {
     throw new Error("left run-lane handoff mode missing canonical run state: " + leftRunLaneMode);
   }
+  const leftVersionHref = await page.getAttribute("#leftVersionLink", "href");
+  if (!leftVersionHref || !leftVersionHref.includes("/admin/version-detail?") || !leftVersionHref.includes("version_id=")) {
+    throw new Error("left version-detail handoff missing canonical version target");
+  }
+  const leftVersionMode = await page.getAttribute("#leftVersionLink", "data-action-mode");
+  if (leftVersionMode !== "open_version") {
+    throw new Error("left version-detail handoff mode missing canonical version state: " + leftVersionMode);
+  }
   const leftCompareCasesHref = await page.getAttribute("#leftCompareCasesLink", "href");
   if (!leftCompareCasesHref || !leftCompareCasesHref.includes("/admin/cases?") || !leftCompareCasesHref.includes("source_eval_report_id=" + encodeURIComponent(leftReportID)) || !leftCompareCasesHref.includes("compare_origin_only=true") || !leftCompareCasesHref.includes("status=open")) {
     throw new Error("left compare-follow-ups handoff missing canonical compare queue filter");
@@ -2116,6 +2124,14 @@ async function assertCaseSource(page, apiBaseURL, caseID, tenantID, expectedRepo
   const rightRunLaneMode = await page.getAttribute("#rightRunLaneLink", "data-action-mode");
   if (rightRunLaneMode !== "open_run") {
     throw new Error("right run-lane handoff mode missing canonical run state: " + rightRunLaneMode);
+  }
+  const rightVersionHref = await page.getAttribute("#rightVersionLink", "href");
+  if (!rightVersionHref || !rightVersionHref.includes("/admin/version-detail?") || !rightVersionHref.includes("version_id=")) {
+    throw new Error("right version-detail handoff missing canonical version target");
+  }
+  const rightVersionMode = await page.getAttribute("#rightVersionLink", "data-action-mode");
+  if (rightVersionMode !== "open_version") {
+    throw new Error("right version-detail handoff mode missing canonical version state: " + rightVersionMode);
   }
   const rightCompareCasesHref = await page.getAttribute("#rightCompareCasesLink", "href");
   if (!rightCompareCasesHref || !rightCompareCasesHref.includes("/admin/cases?") || !rightCompareCasesHref.includes("source_eval_report_id=" + encodeURIComponent(rightReportID)) || !rightCompareCasesHref.includes("compare_origin_only=true") || !rightCompareCasesHref.includes("status=open")) {
