@@ -3144,14 +3144,22 @@ const evalRunID = process.argv[13];
   if (!evalCaseHref || !evalCaseHref.includes("/api/v1/eval-cases/")) {
     throw new Error("source eval case api handoff missing selected eval case");
   }
-  const evalLaneHref = await page.getAttribute("#openEvalReportsLink", "href");
-  if (!evalLaneHref || !evalLaneHref.includes("report_id=" + encodeURIComponent(reportID))) {
-    throw new Error("eval report lane handoff missing report_id");
-  }
-  const compareHref = await page.getAttribute("#openEvalCompareLink", "href");
-  if (!compareHref || !compareHref.includes("left_report_id=" + encodeURIComponent(reportID)) || !compareHref.includes("right_report_id=" + encodeURIComponent(compareRightReportID))) {
-    throw new Error("compare origin handoff drifted");
-  }
+	const evalLaneHref = await page.getAttribute("#openEvalReportsLink", "href");
+	if (!evalLaneHref || !evalLaneHref.includes("report_id=" + encodeURIComponent(reportID))) {
+		throw new Error("eval report lane handoff missing report_id");
+	}
+	const evalReportAPIMode = await page.getAttribute("#openEvalReportLink", "data-action-mode");
+	if (evalReportAPIMode !== "open_eval_report_api") {
+		throw new Error("source eval report API handoff mode drifted: " + evalReportAPIMode);
+	}
+	const evalReportLaneMode = await page.getAttribute("#openEvalReportsLink", "data-action-mode");
+	if (evalReportLaneMode !== "open_report") {
+		throw new Error("source eval report lane handoff mode drifted: " + evalReportLaneMode);
+	}
+	const compareHref = await page.getAttribute("#openEvalCompareLink", "href");
+	if (!compareHref || !compareHref.includes("left_report_id=" + encodeURIComponent(reportID)) || !compareHref.includes("right_report_id=" + encodeURIComponent(compareRightReportID))) {
+		throw new Error("compare origin handoff drifted");
+	}
   const rowCompareHref = await page.getAttribute('[data-case-compare-link="' + linkedCaseID + '"]', "href");
   if (!rowCompareHref || !rowCompareHref.includes("left_report_id=" + encodeURIComponent(reportID)) || !rowCompareHref.includes("right_report_id=" + encodeURIComponent(compareRightReportID))) {
     throw new Error("row-level compare handoff drifted");
@@ -3232,14 +3240,22 @@ const evalRunID = process.argv[13];
     const node = document.querySelector("#sourceEvalReportSummary");
     return node && node.textContent && node.textContent.includes("Unable to load source eval report metadata");
   });
-  const missingEvalAPIHref = await page.getAttribute("#openEvalReportLink", "href");
-  if (!missingEvalAPIHref || !missingEvalAPIHref.includes("missing-eval-report")) {
-    throw new Error("source eval report API handoff drifted after lookup failure");
-  }
-  const missingEvalLaneHref = await page.getAttribute("#openEvalReportsLink", "href");
-  if (!missingEvalLaneHref || !missingEvalLaneHref.includes("report_id=missing-eval-report")) {
-    throw new Error("source eval report lane handoff drifted after lookup failure");
-  }
+	const missingEvalAPIHref = await page.getAttribute("#openEvalReportLink", "href");
+	if (!missingEvalAPIHref || !missingEvalAPIHref.includes("missing-eval-report")) {
+		throw new Error("source eval report API handoff drifted after lookup failure");
+	}
+	const missingEvalAPIMode = await page.getAttribute("#openEvalReportLink", "data-action-mode");
+	if (missingEvalAPIMode !== "open_eval_report_api") {
+		throw new Error("source eval report API handoff mode drifted after lookup failure: " + missingEvalAPIMode);
+	}
+	const missingEvalLaneHref = await page.getAttribute("#openEvalReportsLink", "href");
+	if (!missingEvalLaneHref || !missingEvalLaneHref.includes("report_id=missing-eval-report")) {
+		throw new Error("source eval report lane handoff drifted after lookup failure");
+	}
+	const missingEvalLaneMode = await page.getAttribute("#openEvalReportsLink", "data-action-mode");
+	if (missingEvalLaneMode !== "open_report") {
+		throw new Error("source eval report lane handoff mode drifted after lookup failure: " + missingEvalLaneMode);
+	}
   const failedURL = new URL(page.url());
   if (failedURL.searchParams.get("case_id") !== missingCaseID) {
     throw new Error("selected case_id drifted after source eval report lookup failure");
