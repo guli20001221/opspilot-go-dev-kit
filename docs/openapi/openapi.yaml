@@ -4016,6 +4016,7 @@ components:
         - open_follow_up_case_count
         - preferred_follow_up_action
         - preferred_follow_up_lane_action
+        - preferred_case_summary_action
         - preferred_primary_action
         - preferred_linked_case_action
         - preferred_provenance_action
@@ -4060,6 +4061,8 @@ components:
         preferred_follow_up_action:
           $ref: '#/components/schemas/EvalCaseFollowUpAction'
         preferred_follow_up_lane_action:
+          $ref: '#/components/schemas/EvalCaseFollowUpAction'
+        preferred_case_summary_action:
           $ref: '#/components/schemas/EvalCaseFollowUpAction'
         preferred_primary_action:
           $ref: '#/components/schemas/EvalCaseFollowUpAction'

@@ -32,6 +32,7 @@ type evalReportBadCaseResponse struct {
 	PreferredFollowUpAction     evalCaseFollowUpActionResponse            `json:"preferred_follow_up_action"`
 	PreferredFollowUpLaneAction evalCaseFollowUpActionResponse            `json:"preferred_follow_up_lane_action"`
 	PreferredPrimaryAction      evalCaseFollowUpActionResponse            `json:"preferred_primary_action"`
+	PreferredCaseSummaryAction  evalCaseFollowUpActionResponse            `json:"preferred_case_summary_action"`
 	PreferredLinkedCaseAction   evalCaseFollowUpActionResponse            `json:"preferred_linked_case_action"`
 	PreferredProvenanceAction   evalReportBadCaseProvenanceActionResponse `json:"preferred_provenance_action"`
 }
@@ -752,6 +753,7 @@ func newEvalReportResponse(item evalsvc.EvalReport, includeHeavy bool, followUpS
 					PreferredFollowUpAction:     newEvalReportBadCaseFollowUpActionResponse(badCase.EvalCaseID, badCaseSummary),
 					PreferredFollowUpLaneAction: newEvalReportBadCaseFollowUpLaneActionResponse(badCase.EvalCaseID, badCaseSummary),
 					PreferredPrimaryAction:      newEvalReportBadCasePrimaryActionResponse(badCase.EvalCaseID, badCaseSummary),
+					PreferredCaseSummaryAction:  newEvalReportBadCaseCaseSummaryActionResponse(badCase.EvalCaseID, badCaseSummary),
 					PreferredLinkedCaseAction:   newEvalReportBadCaseLinkedCaseActionResponse(badCase.EvalCaseID, badCaseSummary),
 					PreferredProvenanceAction:   newEvalReportBadCaseProvenanceActionResponse(badCase),
 				})
@@ -824,6 +826,19 @@ func newEvalReportBadCasePrimaryActionResponse(evalCaseID string, followUpSummar
 
 func newEvalReportBadCaseFollowUpLaneActionResponse(evalCaseID string, followUpSummary casesvc.EvalCaseFollowUpSummary) evalCaseFollowUpActionResponse {
 	return newEvalReportBadCaseFollowUpActionResponse(evalCaseID, followUpSummary)
+}
+
+func newEvalReportBadCaseCaseSummaryActionResponse(evalCaseID string, followUpSummary casesvc.EvalCaseFollowUpSummary) evalCaseFollowUpActionResponse {
+	action := evalCaseFollowUpActionResponse{
+		Mode:             "none",
+		SourceEvalCaseID: evalCaseID,
+	}
+	if followUpSummary.LatestFollowUpCaseID == "" {
+		return action
+	}
+	action.Mode = "open_existing_case"
+	action.CaseID = followUpSummary.LatestFollowUpCaseID
+	return action
 }
 
 func newEvalReportBadCaseLinkedCaseActionResponse(evalCaseID string, followUpSummary casesvc.EvalCaseFollowUpSummary) evalCaseFollowUpActionResponse {
