@@ -1004,7 +1004,7 @@ const linkedEvalCaseCaseID = process.argv[15];
   const linkedDatasetItemText = ((await linkedDatasetItemAction.textContent()) || "").trim();
   if (linkedDatasetItemText !== "Open existing case") throw new Error("dataset item primary action did not reuse existing case: " + linkedDatasetItemText);
   const linkedDatasetItemMode = await linkedDatasetItemAction.getAttribute("data-action-mode");
-  if (linkedDatasetItemMode !== "open-existing") throw new Error("dataset item primary action mode missing reuse state: " + linkedDatasetItemMode);
+  if (linkedDatasetItemMode !== "open_existing_case") throw new Error("dataset item primary action mode missing reuse state: " + linkedDatasetItemMode);
   const linkedDatasetItemHref = await linkedDatasetItemAction.getAttribute("href");
   if (!linkedDatasetItemHref || !linkedDatasetItemHref.includes("case_id=" + encodeURIComponent(linkedEvalCaseCaseID))) throw new Error("dataset item primary action missing canonical case handoff");
   await page.click("#needsFollowUpQuickView");
@@ -1640,6 +1640,9 @@ func TestAdminEvalReportsPageRendersHTML(t *testing.T) {
 	}
 	if !strings.Contains(body, "Open existing bad-case case") {
 		t.Fatal("existing bad-case case reuse action missing from eval reports page HTML")
+	}
+	if !strings.Contains(body, "data-report-primary-action") {
+		t.Fatal("row-level eval report primary action selector missing from eval reports page HTML")
 	}
 	if !strings.Contains(body, "/api/v1/cases") {
 		t.Fatal("case list API path missing from eval reports page HTML")
