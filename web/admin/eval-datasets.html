@@ -776,8 +776,8 @@
                     <a class="button-link ghost" href="${caseEndpointBase}${encodeURIComponent(member.source_case_id)}?tenant_id=${encodeURIComponent(item.tenant_id)}" target="_blank" rel="noreferrer">Case API detail</a>
                     ${member.source_task_id ? `<a class="button-link ghost" href="${taskEndpointBase}${encodeURIComponent(member.source_task_id)}" target="_blank" rel="noreferrer">Task API detail</a>` : ""}
                     ${member.source_report_id ? `<a class="button-link ghost" href="${reportEndpointBase}${encodeURIComponent(member.source_report_id)}" target="_blank" rel="noreferrer">Report API detail</a>` : ""}
-                    ${member.source_case_id ? `<a class="button-link ghost" href="/admin/trace-detail?case_id=${encodeURIComponent(member.source_case_id)}">Trace detail</a>` : ""}
-                    ${member.version_id ? `<a class="button-link ghost" href="/admin/version-detail?version_id=${encodeURIComponent(member.version_id)}">Version detail</a>` : ""}
+                    ${member.source_case_id ? `<a class="button-link ghost" href="/admin/trace-detail?case_id=${encodeURIComponent(member.source_case_id)}" data-dataset-item-trace-action="${escapeHTML(member.eval_case_id)}" data-action-mode="open_trace">Trace detail</a>` : ""}
+                    ${member.version_id ? `<a class="button-link ghost" href="/admin/version-detail?version_id=${encodeURIComponent(member.version_id)}" data-dataset-item-version-action="${escapeHTML(member.eval_case_id)}" data-action-mode="open_version">Version detail</a>` : ""}
                     ${datasetItemLinkedCaseHref(item, member) ? `<a class="button-link ghost" href="${datasetItemLinkedCaseHref(item, member)}">${datasetItemLinkedCaseLabel(member)}</a>` : ""}
                   </div>
                 </li>

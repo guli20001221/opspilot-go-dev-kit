@@ -1073,6 +1073,10 @@ const linkedEvalCaseCaseID = process.argv[15];
   if (!linkedDatasetTraceHref || !linkedDatasetTraceHref.includes("/admin/trace-detail?") || !linkedDatasetTraceHref.includes("case_id=")) throw new Error("dataset item trace handoff missing canonical trace target");
   const linkedDatasetTraceMode = await page.getAttribute('[data-dataset-item-trace-action="' + linkedEvalCaseID + '"]', "data-action-mode");
   if (linkedDatasetTraceMode !== "open_trace") throw new Error("dataset item trace action mode missing canonical trace state: " + linkedDatasetTraceMode);
+  const linkedDatasetVersionHref = await page.getAttribute('[data-dataset-item-version-action="' + linkedEvalCaseID + '"]', "href");
+  if (!linkedDatasetVersionHref || !linkedDatasetVersionHref.includes("/admin/version-detail?") || !linkedDatasetVersionHref.includes("version_id=")) throw new Error("dataset item version handoff missing canonical version target");
+  const linkedDatasetVersionMode = await page.getAttribute('[data-dataset-item-version-action="' + linkedEvalCaseID + '"]', "data-action-mode");
+  if (linkedDatasetVersionMode !== "open_version") throw new Error("dataset item version action mode missing canonical version state: " + linkedDatasetVersionMode);
   await page.click("#needsFollowUpQuickView");
   await page.waitForFunction(() => document.querySelector("#visibleCount")?.textContent?.trim() === "1");
   const currentURL = new URL(page.url());
@@ -2632,6 +2636,14 @@ async function assertCasePayload(page, apiBaseURL, caseID, tenantID, expectedRep
   const detailCompareQueueMode = await page.getAttribute("#openCompareCasesLink", "data-action-mode");
   if (detailCompareQueueMode !== "open_existing_queue") {
     throw new Error("compare-origin queue handoff mode missing from detail pane: " + detailCompareQueueMode);
+  }
+  const detailEvalLaneHref = await page.getAttribute("#openEvalLaneLink", "href");
+  if (!detailEvalLaneHref || !detailEvalLaneHref.includes("/admin/evals?") || !detailEvalLaneHref.includes("report_id=" + encodeURIComponent(reportID))) {
+    throw new Error("eval lane handoff missing backend-owned report target from detail pane");
+  }
+  const detailEvalLaneMode = await page.getAttribute("#openEvalLaneLink", "data-action-mode");
+  if (detailEvalLaneMode !== "open_eval") {
+    throw new Error("eval lane handoff mode missing backend-owned open_eval state: " + detailEvalLaneMode);
   }
   const compareFollowUpSummary = (await page.textContent("#reportDetail")).trim();
   if (!compareFollowUpSummary.includes("Compare-origin follow-up") || !compareFollowUpSummary.includes("1 cases / 1 open")) {
