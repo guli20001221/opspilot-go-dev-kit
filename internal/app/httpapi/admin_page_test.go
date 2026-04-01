@@ -2208,7 +2208,7 @@ async function assertCasePayload(page, apiBaseURL, caseID, tenantID, expectedRep
 	  throw new Error("row-level linked-case action did not render latest-case handoff: " + openLinkedRowActionText);
 	}
 	const openLinkedRowActionMode = await openLinkedRowAction.getAttribute("data-action-mode");
-	if (openLinkedRowActionMode !== "open-existing-case") {
+  if (openLinkedRowActionMode !== "open_existing_case") {
 	  throw new Error("row-level linked-case action mode missing existing-case reuse: " + openLinkedRowActionMode);
 	}
 	const openLinkedRowActionHref = await openLinkedRowAction.getAttribute("href");
@@ -2223,7 +2223,11 @@ async function assertCasePayload(page, apiBaseURL, caseID, tenantID, expectedRep
   if (rowPrimaryActionText !== "Open existing case") {
     throw new Error("row-level primary report action did not render backend-owned reuse label: " + rowPrimaryActionText);
   }
-  const rowPrimaryActionHref = await page.getAttribute("#reportRows tr td:nth-child(7) a", "href");
+  const rowPrimaryActionMode = await page.getAttribute('[data-report-primary-action="' + reportID + '"]', "data-action-mode");
+  if (rowPrimaryActionMode !== "open_existing_case") {
+    throw new Error("row-level primary report action mode missing canonical existing-case state: " + rowPrimaryActionMode);
+  }
+  const rowPrimaryActionHref = await page.getAttribute('[data-report-primary-action="' + reportID + '"]', "href");
   if (!rowPrimaryActionHref || !rowPrimaryActionHref.includes("/admin/cases?") || !rowPrimaryActionHref.includes("case_id=")) {
     throw new Error("row-level primary report action missing canonical case handoff");
   }
@@ -2248,7 +2252,7 @@ async function assertCasePayload(page, apiBaseURL, caseID, tenantID, expectedRep
     throw new Error("primary report case action did not switch to existing case reuse: " + primaryCaseAction);
   }
   const primaryCaseActionMode = await page.getAttribute("#createCaseButton", "data-action");
-  if (primaryCaseActionMode !== "open-existing") {
+  if (primaryCaseActionMode !== "open_existing_case") {
     throw new Error("primary report case action mode missing reuse state: " + primaryCaseActionMode);
   }
   const primaryCaseTargetHref = await page.getAttribute("#createCaseButton", "data-target-href");
@@ -2261,7 +2265,7 @@ async function assertCasePayload(page, apiBaseURL, caseID, tenantID, expectedRep
     throw new Error("bad-case primary action did not render canonical reuse label: " + existingBadCaseActionText);
   }
   const existingBadCaseActionMode = await existingBadCaseAction.getAttribute("data-action-mode");
-  if (existingBadCaseActionMode !== "open-existing-case") {
+  if (existingBadCaseActionMode !== "open_existing_case") {
     throw new Error("bad-case primary action mode missing existing-case reuse: " + existingBadCaseActionMode);
   }
   const existingBadCasePrimaryActionHref = await existingBadCaseAction.getAttribute("href");
@@ -2303,7 +2307,7 @@ async function assertCasePayload(page, apiBaseURL, caseID, tenantID, expectedRep
 	  throw new Error("row-level linked-case action did not render queue handoff: " + queueLinkedRowActionText);
 	}
 	const queueLinkedRowActionMode = await queueLinkedRowAction.getAttribute("data-action-mode");
-	if (queueLinkedRowActionMode !== "open-existing-queue") {
+  if (queueLinkedRowActionMode !== "open_existing_queue") {
 	  throw new Error("row-level linked-case queue mode missing canonical queue state: " + queueLinkedRowActionMode);
 	}
 	const queueLinkedRowActionHref = await queueLinkedRowAction.getAttribute("href");
