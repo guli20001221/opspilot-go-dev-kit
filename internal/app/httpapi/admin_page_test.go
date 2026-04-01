@@ -2333,9 +2333,13 @@ async function assertCasePayload(page, apiBaseURL, caseID, tenantID, expectedRep
 	if (!openLinkedRowActionHref || !openLinkedRowActionHref.includes("case_id=")) {
 	  throw new Error("row-level linked-case action missing canonical latest-case handoff");
 	}
-	const compareQueueHref = await page.getAttribute("#reportRows tr td:nth-child(5) a:nth-of-type(2)", "href");
+	const compareQueueHref = await page.getAttribute('[data-report-compare-queue-action="' + reportID + '"]', "href");
 	if (!compareQueueHref || !compareQueueHref.includes("/admin/cases?") || !compareQueueHref.includes("source_eval_report_id=" + encodeURIComponent(reportID)) || !compareQueueHref.includes("compare_origin_only=true") || !compareQueueHref.includes("status=open")) {
 	  throw new Error("compare queue handoff missing from list row");
+  }
+  const compareQueueMode = await page.getAttribute('[data-report-compare-queue-action="' + reportID + '"]', "data-action-mode");
+  if (compareQueueMode !== "open_existing_queue") {
+    throw new Error("compare queue action mode missing from list row: " + compareQueueMode);
   }
   const rowPrimaryActionText = (await page.textContent("#reportRows tr td:nth-child(7) a")).trim();
   if (rowPrimaryActionText !== "Open existing case") {
@@ -2423,12 +2427,13 @@ async function assertCasePayload(page, apiBaseURL, caseID, tenantID, expectedRep
   if (!unresolvedSummary.includes("1 bad cases uncovered")) {
     throw new Error("unresolved bad-case summary missing from list row: " + unresolvedSummary);
   }
-  const unresolvedLinkHref = await page.locator("#reportRows tr td:nth-child(5) a").evaluateAll((elements) => {
-    const match = elements.find((element) => element.textContent && element.textContent.includes("Open unresolved bad cases"));
-    return match ? match.getAttribute("href") : "";
-  });
+  const unresolvedLinkHref = await page.getAttribute('[data-report-bad-case-queue-action="' + reportNoReuseID + '"]', "href");
   if (!unresolvedLinkHref || !unresolvedLinkHref.includes("/admin/eval-reports?") || !unresolvedLinkHref.includes("bad_case_needs_follow_up=true") || !unresolvedLinkHref.includes("report_id=" + encodeURIComponent(reportNoReuseID)) || !unresolvedLinkHref.includes("selected_report_id=" + encodeURIComponent(reportNoReuseID))) {
     throw new Error("row-level unresolved bad-case handoff missing from eval report row");
+  }
+  const unresolvedLinkMode = await page.getAttribute('[data-report-bad-case-queue-action="' + reportNoReuseID + '"]', "data-action-mode");
+  if (unresolvedLinkMode !== "open_existing_queue") {
+    throw new Error("row-level unresolved bad-case action mode missing queue state: " + unresolvedLinkMode);
   }
   await page.click("#quickViewAllReports");
 	await page.waitForFunction(() => {
