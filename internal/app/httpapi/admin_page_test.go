@@ -2836,9 +2836,13 @@ async function assertCasePayload(page, apiBaseURL, caseID, tenantID, expectedRep
   if (badCaseOpenSourceCaseMode !== "open_source_case") {
     throw new Error("bad-case source-case handoff mode missing canonical open_source_case state: " + badCaseOpenSourceCaseMode);
   }
-  const badCaseSliceHref = await page.locator("text=Open bad-case follow-up slice").first().getAttribute("href");
+  const badCaseSliceHref = await page.locator('[data-bad-case-follow-up-slice-action="' + sourceEvalCaseID + '"]').first().getAttribute("href");
   if (!badCaseSliceHref || !badCaseSliceHref.includes("source_eval_case_id=" + encodeURIComponent(sourceEvalCaseID))) {
     throw new Error("bad-case follow-up slice handoff missing source_eval_case_id");
+  }
+  const badCaseSliceMode = await page.locator('[data-bad-case-follow-up-slice-action="' + sourceEvalCaseID + '"]').first().getAttribute("data-action-mode");
+  if (badCaseSliceMode !== "open_follow_up_slice") {
+    throw new Error("bad-case follow-up slice handoff mode missing canonical open_follow_up_slice state: " + badCaseSliceMode);
   }
   await page.click("#badCaseQuickViewNeedsFollowUp");
   await page.waitForFunction(() => new URL(window.location.href).searchParams.get("detail_bad_case_needs_follow_up") === "true");
