@@ -1865,6 +1865,10 @@ async function assertCaseSource(page, apiBaseURL, caseID, tenantID, expectedRepo
   if (leftPrimaryText !== "Open left compare queue") {
     throw new Error("left primary action should switch to compare queue when open compare follow-up exists");
   }
+  const leftPrimaryMode = await page.getAttribute("#createLeftCaseButton", "data-action-mode");
+  if (leftPrimaryMode !== "open_existing_queue") {
+    throw new Error("left primary action mode missing canonical compare-queue state: " + leftPrimaryMode);
+  }
   const leftPrimaryMode = await page.getAttribute("#createLeftCaseButton", "data-mode");
   if (leftPrimaryMode !== "open_existing_queue") {
     throw new Error("left primary action mode missing canonical compare-queue state: " + leftPrimaryMode);
@@ -1892,6 +1896,10 @@ async function assertCaseSource(page, apiBaseURL, caseID, tenantID, expectedRepo
   const rightPrimaryText = (await page.textContent("#createRightCaseButton")).trim();
   if (rightPrimaryText !== "Open right compare queue") {
     throw new Error("right primary action should switch to compare queue when open compare follow-up exists");
+  }
+  const rightPrimaryMode = await page.getAttribute("#createRightCaseButton", "data-action-mode");
+  if (rightPrimaryMode !== "open_existing_queue") {
+    throw new Error("right primary action mode missing canonical compare-queue state: " + rightPrimaryMode);
   }
   const rightPrimaryMode = await page.getAttribute("#createRightCaseButton", "data-mode");
   if (rightPrimaryMode !== "open_existing_queue") {
@@ -1958,6 +1966,10 @@ async function assertCaseSource(page, apiBaseURL, caseID, tenantID, expectedRepo
   if (createOnlyLeftText !== "Create case from left") {
     throw new Error("left primary action should stay on create when no open compare follow-up exists");
   }
+  const createOnlyLeftMode = await page.getAttribute("#createLeftCaseButton", "data-action-mode");
+  if (createOnlyLeftMode !== "create") {
+    throw new Error("left primary action mode should stay on create when no follow-up exists: " + createOnlyLeftMode);
+  }
   await page.click("#createLeftCaseButton");
   await page.waitForURL(/\/admin\/cases\?/);
   const createdLeftURL = new URL(page.url());
@@ -1972,6 +1984,10 @@ async function assertCaseSource(page, apiBaseURL, caseID, tenantID, expectedRepo
 
   await page.goto(baseURL + "/admin/eval-report-compare?tenant_id=" + encodeURIComponent(createOnlyTenantID) + "&left_report_id=" + encodeURIComponent(createOnlyLeftReportID) + "&right_report_id=" + encodeURIComponent(createOnlyRightReportID));
   await page.waitForSelector("text=Comparison summary");
+  const createOnlyRightMode = await page.getAttribute("#createRightCaseButton", "data-action-mode");
+  if (createOnlyRightMode !== "create") {
+    throw new Error("right primary action mode should stay on create when no follow-up exists: " + createOnlyRightMode);
+  }
   await page.click("#createRightCaseButton");
   await page.waitForURL(/\/admin\/cases\?/);
   const createdRightURL = new URL(page.url());
