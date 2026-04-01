@@ -841,11 +841,12 @@
     copyEvalSummaryButton.addEventListener("click", () => copyEvalSummary());
     copyEvalLinkButton.addEventListener("click", () => copyEvalLink());
     createCaseButton.addEventListener("click", () => {
-      if (createCaseButton.dataset.action === "invalid") {
+      const actionMode = createCaseButton.dataset.actionMode || createCaseButton.dataset.action || "invalid";
+      if (actionMode === "invalid") {
         evalDetailStatusNote.textContent = "This eval case is missing a canonical preferred_follow_up_action.";
         return;
       }
-      if ((createCaseButton.dataset.action === "open_existing_case" || createCaseButton.dataset.action === "open_existing_queue") && createCaseButton.dataset.targetHref) {
+      if ((actionMode === "open_existing_case" || actionMode === "open_existing_queue") && createCaseButton.dataset.targetHref) {
         window.location.assign(createCaseButton.dataset.targetHref);
         return;
       }

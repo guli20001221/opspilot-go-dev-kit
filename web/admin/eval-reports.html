@@ -156,7 +156,7 @@
     copyRawJSONButton.addEventListener("click",()=>copyRawJSON());
     copySummaryButton.addEventListener("click",()=>copySummary());
     copyLinkButton.addEventListener("click",()=>copyLink());
-    createCaseButton.addEventListener("click",()=>{if((createCaseButton.dataset.action==="open_existing_case"||createCaseButton.dataset.action==="open_existing_queue")&&createCaseButton.dataset.targetHref){window.location.assign(createCaseButton.dataset.targetHref);return}createCaseFromReport()});
+    createCaseButton.addEventListener("click",()=>{const actionMode=createCaseButton.dataset.actionMode||createCaseButton.dataset.action||"none";if((actionMode==="open_existing_case"||actionMode==="open_existing_queue")&&createCaseButton.dataset.targetHref){window.location.assign(createCaseButton.dataset.targetHref);return}createCaseFromReport()});
     const initialReportID=populateFiltersFromURL();loadReports(initialReportID);
   </script>
 </body>
