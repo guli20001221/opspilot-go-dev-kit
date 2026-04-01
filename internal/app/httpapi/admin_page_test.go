@@ -1865,6 +1865,10 @@ async function assertCaseSource(page, apiBaseURL, caseID, tenantID, expectedRepo
   if (leftPrimaryText !== "Open left compare queue") {
     throw new Error("left primary action should switch to compare queue when open compare follow-up exists");
   }
+  const leftPrimaryMode = await page.getAttribute("#createLeftCaseButton", "data-mode");
+  if (leftPrimaryMode !== "open_existing_queue") {
+    throw new Error("left primary action mode missing canonical compare-queue state: " + leftPrimaryMode);
+  }
   const leftBadCaseNeedsFollowUpVisible = await page.isVisible("#leftBadCaseNeedsFollowUpLink");
   if (leftBadCaseNeedsFollowUpVisible) {
     throw new Error("left unresolved bad-case handoff should stay hidden when there are no uncovered bad cases");
@@ -1888,6 +1892,10 @@ async function assertCaseSource(page, apiBaseURL, caseID, tenantID, expectedRepo
   const rightPrimaryText = (await page.textContent("#createRightCaseButton")).trim();
   if (rightPrimaryText !== "Open right compare queue") {
     throw new Error("right primary action should switch to compare queue when open compare follow-up exists");
+  }
+  const rightPrimaryMode = await page.getAttribute("#createRightCaseButton", "data-mode");
+  if (rightPrimaryMode !== "open_existing_queue") {
+    throw new Error("right primary action mode missing canonical compare-queue state: " + rightPrimaryMode);
   }
   const rightBadCaseNeedsFollowUpHref = await page.getAttribute("#rightBadCaseNeedsFollowUpLink", "href");
   if (!rightBadCaseNeedsFollowUpHref || !rightBadCaseNeedsFollowUpHref.includes("/admin/eval-reports?") || !rightBadCaseNeedsFollowUpHref.includes("bad_case_needs_follow_up=true") || !rightBadCaseNeedsFollowUpHref.includes("report_id=" + encodeURIComponent(rightReportID)) || !rightBadCaseNeedsFollowUpHref.includes("selected_report_id=" + encodeURIComponent(rightReportID))) {

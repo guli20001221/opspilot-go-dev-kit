@@ -237,7 +237,7 @@
           return { mode: "invalid", text: "Compare queue handoff unavailable", href: "", valid: false };
         }
         return {
-          mode: "open-queue",
+          mode: "open_existing_queue",
           text: `Open ${side} compare queue`,
           href: compareQueueHref({
             tenant_id: item.tenant_id,
@@ -263,7 +263,7 @@
           return { mode: "invalid", text: "Follow-up action unavailable", href: "", valid: false };
         }
         return {
-          mode: "open-case",
+          mode: "open_existing_case",
           text: `Open ${side} existing case`,
           href: `/admin/cases?tenant_id=${encodeURIComponent(item.tenant_id)}&case_id=${encodeURIComponent(preferred.case_id)}`,
           valid: true
@@ -274,7 +274,7 @@
           return { mode: "invalid", text: "Follow-up action unavailable", href: "", valid: false };
         }
         return {
-          mode: "open-queue",
+          mode: "open_existing_queue",
           text: `Open ${side} case queue`,
           href: `/admin/cases?tenant_id=${encodeURIComponent(item.tenant_id)}&source_eval_report_id=${encodeURIComponent(preferred.source_eval_report_id)}&status=open`,
           valid: true
@@ -296,7 +296,7 @@
           return { mode: "invalid", text: "Linked-case handoff unavailable", href: "", valid: false };
         }
         return {
-          mode: "open-case",
+          mode: "open_existing_case",
           text: "Open latest linked case",
           href: `/admin/cases?tenant_id=${encodeURIComponent(item.tenant_id)}&case_id=${encodeURIComponent(preferred.case_id)}`,
           valid: true
@@ -307,7 +307,7 @@
           return { mode: "invalid", text: "Linked-case handoff unavailable", href: "", valid: false };
         }
         return {
-          mode: "open-queue",
+          mode: "open_existing_queue",
           text: "Open linked case queue",
           href: `/admin/cases?tenant_id=${encodeURIComponent(item.tenant_id)}&source_eval_report_id=${encodeURIComponent(preferred.source_eval_report_id)}&status=open`,
           valid: true
@@ -326,7 +326,7 @@
           return { mode: "invalid", text: "Bad-case queue handoff unavailable", href: "", valid: false };
         }
         return {
-          mode: "open-queue",
+          mode: "open_existing_queue",
           text: "Open unresolved bad cases",
           href: `/admin/eval-reports?tenant_id=${encodeURIComponent(item.tenant_id)}&bad_case_needs_follow_up=true&report_id=${encodeURIComponent(preferred.source_eval_report_id)}&selected_report_id=${encodeURIComponent(preferred.source_eval_report_id)}`,
           valid: true
@@ -340,6 +340,8 @@
       const rightAction = sidePrimaryAction("right");
       createLeftCaseButton.dataset.mode = leftAction.mode;
       createRightCaseButton.dataset.mode = rightAction.mode;
+      createLeftCaseButton.dataset.actionMode = leftAction.mode;
+      createRightCaseButton.dataset.actionMode = rightAction.mode;
       createLeftCaseButton.dataset.href = leftAction.href || "";
       createRightCaseButton.dataset.href = rightAction.href || "";
       createLeftCaseButton.disabled = disabled || !leftAction.valid;
@@ -359,7 +361,7 @@
       const rightAction = sidePrimaryAction("right");
       if (!leftAction.valid || !rightAction.valid) {
         compareActionStatus.textContent = "This comparison is missing a canonical preferred_primary_action; fix the backend contract before handoff.";
-      } else if (leftAction.mode === "open-case" || rightAction.mode === "open-case" || leftAction.mode === "open-queue" || rightAction.mode === "open-queue") {
+      } else if (leftAction.mode === "open_existing_case" || rightAction.mode === "open_existing_case" || leftAction.mode === "open_existing_queue" || rightAction.mode === "open_existing_queue") {
         compareActionStatus.textContent = "Reuse linked case history when it already exists; fall back to compare queues or create only when no canonical follow-up is available for that side.";
       } else {
         compareActionStatus.textContent = "Create a durable case when this comparison represents a regression that needs operator follow-up.";
@@ -512,7 +514,7 @@
         compareActionStatus.textContent = "This comparison is missing a canonical preferred_primary_action.";
         return;
       }
-      if ((button.dataset.mode === "open-queue" || button.dataset.mode === "open-case") && button.dataset.href) {
+      if ((button.dataset.mode === "open_existing_queue" || button.dataset.mode === "open_existing_case") && button.dataset.href) {
         window.location.href = button.dataset.href;
         return;
       }
