@@ -1826,6 +1826,9 @@ func TestAdminEvalReportComparePageRendersHTML(t *testing.T) {
 	if !strings.Contains(body, "Open left eval lane") {
 		t.Fatal("left eval lane handoff missing from compare HTML")
 	}
+	if !strings.Contains(body, "Open left eval run lane") {
+		t.Fatal("left eval run lane handoff missing from compare HTML")
+	}
 	if !strings.Contains(body, "Open left latest case") {
 		t.Fatal("left latest-case handoff missing from compare HTML")
 	}
@@ -1855,6 +1858,9 @@ func TestAdminEvalReportComparePageRendersHTML(t *testing.T) {
 	}
 	if !strings.Contains(body, "Open right eval lane") {
 		t.Fatal("right eval lane handoff missing from compare HTML")
+	}
+	if !strings.Contains(body, "Open right eval run lane") {
+		t.Fatal("right eval run lane handoff missing from compare HTML")
 	}
 	if !strings.Contains(body, "Open right latest case") {
 		t.Fatal("right latest-case handoff missing from compare HTML")
@@ -2056,7 +2062,7 @@ async function assertCaseSource(page, apiBaseURL, caseID, tenantID, expectedRepo
     throw new Error("left linked-cases handoff mode missing canonical linked-case state: " + leftLinkedCasesMode);
   }
   const leftRunLaneHref = await page.getAttribute("#leftRunLaneLink", "href");
-  if (!leftRunLaneHref || !leftRunLaneHref.includes("/admin/eval-runs?")) {
+  if (!leftRunLaneHref || !leftRunLaneHref.includes("/admin/eval-runs?") || !leftRunLaneHref.includes("run_id=") || !leftRunLaneHref.includes("dataset_id=")) {
     throw new Error("left run-lane handoff missing canonical run target");
   }
   const leftRunLaneMode = await page.getAttribute("#leftRunLaneLink", "data-action-mode");
@@ -2104,7 +2110,7 @@ async function assertCaseSource(page, apiBaseURL, caseID, tenantID, expectedRepo
     throw new Error("right linked-cases handoff mode missing canonical linked-case state: " + rightLinkedCasesMode);
   }
   const rightRunLaneHref = await page.getAttribute("#rightRunLaneLink", "href");
-  if (!rightRunLaneHref || !rightRunLaneHref.includes("/admin/eval-runs?")) {
+  if (!rightRunLaneHref || !rightRunLaneHref.includes("/admin/eval-runs?") || !rightRunLaneHref.includes("run_id=") || !rightRunLaneHref.includes("dataset_id=")) {
     throw new Error("right run-lane handoff missing canonical run target");
   }
   const rightRunLaneMode = await page.getAttribute("#rightRunLaneLink", "data-action-mode");
