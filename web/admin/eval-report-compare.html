@@ -65,6 +65,7 @@
                   <a class="button-link ghost" id="leftBadCaseNeedsFollowUpLink" href="#" hidden>Open left unresolved bad cases</a>
                   <a class="button-link ghost" id="leftCompareCasesLink" href="#" hidden>Open left compare follow-ups</a>
                   <a class="button-link ghost" id="leftLinkedCasesLink" href="#" data-action-mode="none">Open left linked cases</a>
+                  <a class="button-link ghost" id="leftEvalLaneLink" href="#" data-action-mode="open_eval">Open left eval lane</a>
                   <a class="button-link ghost" id="leftDatasetLaneLink" href="#" data-action-mode="open_dataset">Open left eval dataset lane</a>
                   <a class="button-link ghost" id="leftReportLaneLink" href="#" data-action-mode="open_report">Open left eval report lane</a>
                   <a class="button-link ghost" id="leftReportAPILink" href="#" target="_blank" rel="noreferrer" data-action-mode="open_eval_report_api">Open left eval report API</a>
@@ -80,6 +81,7 @@
                   <a class="button-link ghost" id="rightBadCaseNeedsFollowUpLink" href="#" hidden>Open right unresolved bad cases</a>
                   <a class="button-link ghost" id="rightCompareCasesLink" href="#" hidden>Open right compare follow-ups</a>
                   <a class="button-link ghost" id="rightLinkedCasesLink" href="#" data-action-mode="none">Open right linked cases</a>
+                  <a class="button-link ghost" id="rightEvalLaneLink" href="#" data-action-mode="open_eval">Open right eval lane</a>
                   <a class="button-link ghost" id="rightDatasetLaneLink" href="#" data-action-mode="open_dataset">Open right eval dataset lane</a>
                   <a class="button-link ghost" id="rightReportLaneLink" href="#" data-action-mode="open_report">Open right eval report lane</a>
                   <a class="button-link ghost" id="rightReportAPILink" href="#" target="_blank" rel="noreferrer" data-action-mode="open_eval_report_api">Open right eval report API</a>
@@ -123,6 +125,8 @@
     const rightReportDetail = document.getElementById("rightReportDetail");
     const leftReportAPILink = document.getElementById("leftReportAPILink");
     const rightReportAPILink = document.getElementById("rightReportAPILink");
+    const leftEvalLaneLink = document.getElementById("leftEvalLaneLink");
+    const rightEvalLaneLink = document.getElementById("rightEvalLaneLink");
     const leftDatasetLaneLink = document.getElementById("leftDatasetLaneLink");
     const rightDatasetLaneLink = document.getElementById("rightDatasetLaneLink");
     const leftReportLaneLink = document.getElementById("leftReportLaneLink");
@@ -369,6 +373,19 @@
       };
     }
 
+    function preferredEvalLaneAction(item, side) {
+      const preferred = item && item.preferred_eval_lane_action;
+      if (!preferred || preferred.mode !== "open_eval" || !preferred.source_report_id) {
+        return { mode: "invalid", text: `Open ${side} eval lane`, href: "", valid: false };
+      }
+      return {
+        mode: "open_eval",
+        text: `Open ${side} eval lane`,
+        href: `/admin/evals?tenant_id=${encodeURIComponent(item.tenant_id)}&source_report_id=${encodeURIComponent(preferred.source_report_id)}`,
+        valid: true
+      };
+    }
+
     function syncPrimaryActionButtons(disabled, activeSide) {
       const leftAction = sidePrimaryAction("left");
       const rightAction = sidePrimaryAction("right");
@@ -413,10 +430,16 @@
       leftReportAPILink.dataset.actionMode = "open_eval_report_api";
       rightReportAPILink.href = `${detailEndpointBase}${encodeURIComponent(payload.right.report_id)}?tenant_id=${encodeURIComponent(payload.right.tenant_id)}`;
       rightReportAPILink.dataset.actionMode = "open_eval_report_api";
+      const leftEvalLaneAction = preferredEvalLaneAction(payload.left, "left");
+      const rightEvalLaneAction = preferredEvalLaneAction(payload.right, "right");
       const leftDatasetLaneAction = preferredDatasetLaneAction(payload.left, "left");
       const rightDatasetLaneAction = preferredDatasetLaneAction(payload.right, "right");
       const leftReportLaneAction = preferredReportLaneAction(payload.left, "left");
       const rightReportLaneAction = preferredReportLaneAction(payload.right, "right");
+      leftEvalLaneLink.href = leftEvalLaneAction.valid ? leftEvalLaneAction.href : `/admin/evals?tenant_id=${encodeURIComponent(payload.left.tenant_id)}&source_report_id=${encodeURIComponent(payload.left.report_id)}`;
+      leftEvalLaneLink.dataset.actionMode = leftEvalLaneAction.mode;
+      rightEvalLaneLink.href = rightEvalLaneAction.valid ? rightEvalLaneAction.href : `/admin/evals?tenant_id=${encodeURIComponent(payload.right.tenant_id)}&source_report_id=${encodeURIComponent(payload.right.report_id)}`;
+      rightEvalLaneLink.dataset.actionMode = rightEvalLaneAction.mode;
       leftDatasetLaneLink.href = leftDatasetLaneAction.valid ? leftDatasetLaneAction.href : `/admin/eval-datasets?tenant_id=${encodeURIComponent(payload.left.tenant_id)}&dataset_id=${encodeURIComponent(payload.left.dataset_id)}&selected_dataset_id=${encodeURIComponent(payload.left.dataset_id)}`;
       leftDatasetLaneLink.dataset.actionMode = leftDatasetLaneAction.mode;
       rightDatasetLaneLink.href = rightDatasetLaneAction.valid ? rightDatasetLaneAction.href : `/admin/eval-datasets?tenant_id=${encodeURIComponent(payload.right.tenant_id)}&dataset_id=${encodeURIComponent(payload.right.dataset_id)}&selected_dataset_id=${encodeURIComponent(payload.right.dataset_id)}`;

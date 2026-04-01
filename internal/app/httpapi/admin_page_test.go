@@ -1823,6 +1823,9 @@ func TestAdminEvalReportComparePageRendersHTML(t *testing.T) {
 	if !strings.Contains(body, "Open left eval dataset lane") {
 		t.Fatal("left eval dataset lane handoff missing from compare HTML")
 	}
+	if !strings.Contains(body, "Open left eval lane") {
+		t.Fatal("left eval lane handoff missing from compare HTML")
+	}
 	if !strings.Contains(body, "Open left latest case") {
 		t.Fatal("left latest-case handoff missing from compare HTML")
 	}
@@ -1849,6 +1852,9 @@ func TestAdminEvalReportComparePageRendersHTML(t *testing.T) {
 	}
 	if !strings.Contains(body, "Open right eval dataset lane") {
 		t.Fatal("right eval dataset lane handoff missing from compare HTML")
+	}
+	if !strings.Contains(body, "Open right eval lane") {
+		t.Fatal("right eval lane handoff missing from compare HTML")
 	}
 	if !strings.Contains(body, "Open right latest case") {
 		t.Fatal("right latest-case handoff missing from compare HTML")
@@ -1989,6 +1995,14 @@ async function assertCaseSource(page, apiBaseURL, caseID, tenantID, expectedRepo
   if (leftDatasetLaneMode !== "open_dataset") {
     throw new Error("left dataset lane handoff mode missing canonical open_dataset state: " + leftDatasetLaneMode);
   }
+  const leftEvalLaneHref = await page.getAttribute("#leftEvalLaneLink", "href");
+  if (!leftEvalLaneHref || !leftEvalLaneHref.includes("/admin/evals?") || !leftEvalLaneHref.includes("source_report_id=" + encodeURIComponent(leftReportID))) {
+    throw new Error("left eval lane handoff missing canonical eval lane target");
+  }
+  const leftEvalLaneMode = await page.getAttribute("#leftEvalLaneLink", "data-action-mode");
+  if (leftEvalLaneMode !== "open_eval") {
+    throw new Error("left eval lane handoff mode missing canonical open_eval state: " + leftEvalLaneMode);
+  }
   const rightHref = await page.getAttribute("#rightReportAPILink", "href");
   if (!rightHref || !rightHref.includes(rightReportID)) {
     throw new Error("right report API handoff missing selected report");
@@ -2012,6 +2026,14 @@ async function assertCaseSource(page, apiBaseURL, caseID, tenantID, expectedRepo
   const rightDatasetLaneMode = await page.getAttribute("#rightDatasetLaneLink", "data-action-mode");
   if (rightDatasetLaneMode !== "open_dataset") {
     throw new Error("right dataset lane handoff mode missing canonical open_dataset state: " + rightDatasetLaneMode);
+  }
+  const rightEvalLaneHref = await page.getAttribute("#rightEvalLaneLink", "href");
+  if (!rightEvalLaneHref || !rightEvalLaneHref.includes("/admin/evals?") || !rightEvalLaneHref.includes("source_report_id=" + encodeURIComponent(rightReportID))) {
+    throw new Error("right eval lane handoff missing canonical eval lane target");
+  }
+  const rightEvalLaneMode = await page.getAttribute("#rightEvalLaneLink", "data-action-mode");
+  if (rightEvalLaneMode !== "open_eval") {
+    throw new Error("right eval lane handoff mode missing canonical open_eval state: " + rightEvalLaneMode);
   }
   const leftCaseHref = await page.getAttribute("#leftLatestCaseLink", "href");
   if (!leftCaseHref || !leftCaseHref.includes("case_id=" + encodeURIComponent(leftCaseID))) {

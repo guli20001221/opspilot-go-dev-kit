@@ -676,6 +676,10 @@ func TestCompareEvalReportsReturnsTypedSummary(t *testing.T) {
 				Mode      string `json:"mode"`
 				DatasetID string `json:"dataset_id"`
 			} `json:"preferred_dataset_lane_action"`
+			PreferredEvalLaneAction struct {
+				Mode           string `json:"mode"`
+				SourceReportID string `json:"source_report_id"`
+			} `json:"preferred_eval_lane_action"`
 			PreferredReportLaneAction struct {
 				Mode     string `json:"mode"`
 				ReportID string `json:"report_id"`
@@ -737,6 +741,10 @@ func TestCompareEvalReportsReturnsTypedSummary(t *testing.T) {
 				Mode      string `json:"mode"`
 				DatasetID string `json:"dataset_id"`
 			} `json:"preferred_dataset_lane_action"`
+			PreferredEvalLaneAction struct {
+				Mode           string `json:"mode"`
+				SourceReportID string `json:"source_report_id"`
+			} `json:"preferred_eval_lane_action"`
 			PreferredReportLaneAction struct {
 				Mode     string `json:"mode"`
 				ReportID string `json:"report_id"`
@@ -826,6 +834,9 @@ func TestCompareEvalReportsReturnsTypedSummary(t *testing.T) {
 	if got.Left.PreferredDatasetLaneAction.Mode != "open_dataset" || got.Left.PreferredDatasetLaneAction.DatasetID != got.Left.DatasetID {
 		t.Fatalf("Left.PreferredDatasetLaneAction = %#v, want open_dataset/%q", got.Left.PreferredDatasetLaneAction, got.Left.DatasetID)
 	}
+	if got.Left.PreferredEvalLaneAction.Mode != "open_eval" || got.Left.PreferredEvalLaneAction.SourceReportID != leftReportID {
+		t.Fatalf("Left.PreferredEvalLaneAction = %#v, want open_eval/%q", got.Left.PreferredEvalLaneAction, leftReportID)
+	}
 	if got.Left.PreferredReportLaneAction.Mode != "open_report" {
 		t.Fatalf("Left.PreferredReportLaneAction.Mode = %q, want %q", got.Left.PreferredReportLaneAction.Mode, "open_report")
 	}
@@ -876,6 +887,9 @@ func TestCompareEvalReportsReturnsTypedSummary(t *testing.T) {
 	}
 	if got.Right.PreferredDatasetLaneAction.Mode != "open_dataset" || got.Right.PreferredDatasetLaneAction.DatasetID != got.Right.DatasetID {
 		t.Fatalf("Right.PreferredDatasetLaneAction = %#v, want open_dataset/%q", got.Right.PreferredDatasetLaneAction, got.Right.DatasetID)
+	}
+	if got.Right.PreferredEvalLaneAction.Mode != "open_eval" || got.Right.PreferredEvalLaneAction.SourceReportID != rightReportID {
+		t.Fatalf("Right.PreferredEvalLaneAction = %#v, want open_eval/%q", got.Right.PreferredEvalLaneAction, rightReportID)
 	}
 	if got.Right.PreferredReportLaneAction.Mode != "open_report" {
 		t.Fatalf("Right.PreferredReportLaneAction.Mode = %q, want %q", got.Right.PreferredReportLaneAction.Mode, "open_report")
@@ -999,6 +1013,10 @@ func TestCompareEvalReportsIncludesCompareFollowUpSummary(t *testing.T) {
 				Mode      string `json:"mode"`
 				DatasetID string `json:"dataset_id"`
 			} `json:"preferred_dataset_lane_action"`
+			PreferredEvalLaneAction struct {
+				Mode           string `json:"mode"`
+				SourceReportID string `json:"source_report_id"`
+			} `json:"preferred_eval_lane_action"`
 			PreferredReportLaneAction struct {
 				Mode     string `json:"mode"`
 				ReportID string `json:"report_id"`
@@ -1022,6 +1040,10 @@ func TestCompareEvalReportsIncludesCompareFollowUpSummary(t *testing.T) {
 				Mode      string `json:"mode"`
 				DatasetID string `json:"dataset_id"`
 			} `json:"preferred_dataset_lane_action"`
+			PreferredEvalLaneAction struct {
+				Mode           string `json:"mode"`
+				SourceReportID string `json:"source_report_id"`
+			} `json:"preferred_eval_lane_action"`
 			PreferredReportLaneAction struct {
 				Mode     string `json:"mode"`
 				ReportID string `json:"report_id"`
@@ -1052,6 +1074,9 @@ func TestCompareEvalReportsIncludesCompareFollowUpSummary(t *testing.T) {
 	if got.Left.PreferredDatasetLaneAction.Mode != "open_dataset" {
 		t.Fatalf("Left.PreferredDatasetLaneAction.Mode = %q, want %q", got.Left.PreferredDatasetLaneAction.Mode, "open_dataset")
 	}
+	if got.Left.PreferredEvalLaneAction.Mode != "open_eval" || got.Left.PreferredEvalLaneAction.SourceReportID != leftReportID {
+		t.Fatalf("Left.PreferredEvalLaneAction = %#v, want open_eval/%q", got.Left.PreferredEvalLaneAction, leftReportID)
+	}
 	if got.Left.PreferredReportLaneAction.Mode != "open_report" || got.Left.PreferredReportLaneAction.ReportID != leftReportID {
 		t.Fatalf("Left.PreferredReportLaneAction = %#v, want open_report/%q", got.Left.PreferredReportLaneAction, leftReportID)
 	}
@@ -1075,6 +1100,9 @@ func TestCompareEvalReportsIncludesCompareFollowUpSummary(t *testing.T) {
 	}
 	if got.Right.PreferredDatasetLaneAction.Mode != "open_dataset" {
 		t.Fatalf("Right.PreferredDatasetLaneAction.Mode = %q, want %q", got.Right.PreferredDatasetLaneAction.Mode, "open_dataset")
+	}
+	if got.Right.PreferredEvalLaneAction.Mode != "open_eval" || got.Right.PreferredEvalLaneAction.SourceReportID != rightReportID {
+		t.Fatalf("Right.PreferredEvalLaneAction = %#v, want open_eval/%q", got.Right.PreferredEvalLaneAction, rightReportID)
 	}
 	if got.Right.PreferredReportLaneAction.Mode != "open_report" || got.Right.PreferredReportLaneAction.ReportID != rightReportID {
 		t.Fatalf("Right.PreferredReportLaneAction = %#v, want open_report/%q", got.Right.PreferredReportLaneAction, rightReportID)
@@ -1145,6 +1173,10 @@ func TestCompareEvalReportsLinkedCaseActionPrefersQueueWhenLatestCaseClosed(t *t
 				Mode      string `json:"mode"`
 				DatasetID string `json:"dataset_id"`
 			} `json:"preferred_dataset_lane_action"`
+			PreferredEvalLaneAction struct {
+				Mode           string `json:"mode"`
+				SourceReportID string `json:"source_report_id"`
+			} `json:"preferred_eval_lane_action"`
 			PreferredReportLaneAction struct {
 				Mode     string `json:"mode"`
 				ReportID string `json:"report_id"`
@@ -1165,6 +1197,10 @@ func TestCompareEvalReportsLinkedCaseActionPrefersQueueWhenLatestCaseClosed(t *t
 				Mode      string `json:"mode"`
 				DatasetID string `json:"dataset_id"`
 			} `json:"preferred_dataset_lane_action"`
+			PreferredEvalLaneAction struct {
+				Mode           string `json:"mode"`
+				SourceReportID string `json:"source_report_id"`
+			} `json:"preferred_eval_lane_action"`
 			PreferredReportLaneAction struct {
 				Mode     string `json:"mode"`
 				ReportID string `json:"report_id"`
@@ -1194,6 +1230,9 @@ func TestCompareEvalReportsLinkedCaseActionPrefersQueueWhenLatestCaseClosed(t *t
 	if got.Left.PreferredDatasetLaneAction.Mode != "open_dataset" || got.Left.PreferredDatasetLaneAction.DatasetID == "" {
 		t.Fatalf("Left.PreferredDatasetLaneAction = %#v, want open_dataset/non-empty dataset", got.Left.PreferredDatasetLaneAction)
 	}
+	if got.Left.PreferredEvalLaneAction.Mode != "open_eval" || got.Left.PreferredEvalLaneAction.SourceReportID != leftReportID {
+		t.Fatalf("Left.PreferredEvalLaneAction = %#v, want open_eval/%q", got.Left.PreferredEvalLaneAction, leftReportID)
+	}
 	if got.Left.PreferredReportLaneAction.Mode != "open_report" || got.Left.PreferredReportLaneAction.ReportID != leftReportID {
 		t.Fatalf("Left.PreferredReportLaneAction = %#v, want open_report/%q", got.Left.PreferredReportLaneAction, leftReportID)
 	}
@@ -1214,6 +1253,9 @@ func TestCompareEvalReportsLinkedCaseActionPrefersQueueWhenLatestCaseClosed(t *t
 	}
 	if got.Right.PreferredDatasetLaneAction.Mode != "open_dataset" || got.Right.PreferredDatasetLaneAction.DatasetID == "" {
 		t.Fatalf("Right.PreferredDatasetLaneAction = %#v, want open_dataset/non-empty dataset", got.Right.PreferredDatasetLaneAction)
+	}
+	if got.Right.PreferredEvalLaneAction.Mode != "open_eval" || got.Right.PreferredEvalLaneAction.SourceReportID != rightReportID {
+		t.Fatalf("Right.PreferredEvalLaneAction = %#v, want open_eval/%q", got.Right.PreferredEvalLaneAction, rightReportID)
 	}
 	if got.Right.PreferredReportLaneAction.Mode != "open_report" || got.Right.PreferredReportLaneAction.ReportID != rightReportID {
 		t.Fatalf("Right.PreferredReportLaneAction = %#v, want open_report/%q", got.Right.PreferredReportLaneAction, rightReportID)
