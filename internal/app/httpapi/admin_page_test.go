@@ -1436,6 +1436,19 @@ const uncoveredRunID = process.argv[10];
   if (!closedPrimaryActionHref || !closedPrimaryActionHref.includes("source_eval_case_id=")) {
     throw new Error("closed result primary action missing canonical queue handoff");
   }
+  const closedItemAction = page.locator('#runDetail [data-run-item-primary-action]').first();
+  const closedItemActionText = ((await closedItemAction.textContent()) || "").trim();
+  if (closedItemActionText !== "Open existing queue") {
+    throw new Error("closed run-item primary action did not switch to backend-owned queue reuse: " + closedItemActionText);
+  }
+  const closedItemActionMode = await closedItemAction.getAttribute("data-action-mode");
+  if (closedItemActionMode !== "open_existing_queue") {
+    throw new Error("closed run-item primary action mode missing queue reuse: " + closedItemActionMode);
+  }
+  const closedItemActionHref = await closedItemAction.getAttribute("href");
+  if (!closedItemActionHref || !closedItemActionHref.includes("source_eval_case_id=")) {
+    throw new Error("closed run-item primary action missing canonical queue handoff");
+  }
 
   const detailText = await page.textContent("#runDetail");
   if (!detailText.includes(closedCaseID)) throw new Error("closed linked case summary missing from detail");
@@ -1500,6 +1513,32 @@ const uncoveredRunID = process.argv[10];
   if (!openResultLinkedActionHref || !openResultLinkedActionHref.includes("case_id=" + encodeURIComponent(openCaseID))) {
     throw new Error("open result linked action missing canonical latest-case handoff");
   }
+  const openItemAction = page.locator('#runDetail [data-run-item-primary-action]').first();
+  const openItemActionText = ((await openItemAction.textContent()) || "").trim();
+  if (openItemActionText !== "Open existing case") {
+    throw new Error("open run-item primary action did not switch to backend-owned case reuse: " + openItemActionText);
+  }
+  const openItemActionMode = await openItemAction.getAttribute("data-action-mode");
+  if (openItemActionMode !== "open_existing_case") {
+    throw new Error("open run-item primary action mode missing existing-case reuse: " + openItemActionMode);
+  }
+  const openItemActionHref = await openItemAction.getAttribute("href");
+  if (!openItemActionHref || !openItemActionHref.includes("case_id=" + encodeURIComponent(openCaseID))) {
+    throw new Error("open run-item primary action missing canonical case handoff");
+  }
+  const openItemLinkedAction = page.locator('#runDetail [data-run-item-linked-action]').first();
+  const openItemLinkedActionText = ((await openItemLinkedAction.textContent()) || "").trim();
+  if (openItemLinkedActionText !== "Open latest linked case") {
+    throw new Error("open run-item linked action did not render canonical latest-case handoff: " + openItemLinkedActionText);
+  }
+  const openItemLinkedActionMode = await openItemLinkedAction.getAttribute("data-action-mode");
+  if (openItemLinkedActionMode !== "open_existing_case") {
+    throw new Error("open run-item linked action mode missing existing-case reuse: " + openItemLinkedActionMode);
+  }
+  const openItemLinkedActionHref = await openItemLinkedAction.getAttribute("href");
+  if (!openItemLinkedActionHref || !openItemLinkedActionHref.includes("case_id=" + encodeURIComponent(openCaseID))) {
+    throw new Error("open run-item linked action missing canonical latest-case handoff");
+  }
 
   await page.click('[data-run-row="' + uncoveredRunID + '"] [data-run-id="' + uncoveredRunID + '"]');
   await page.waitForFunction((runID) => {
@@ -1518,8 +1557,23 @@ const uncoveredRunID = process.argv[10];
   if ((await uncoveredResultAction.evaluate((element) => element.tagName.toLowerCase())) !== "button") {
     throw new Error("uncovered result primary action should render as create button");
   }
+  const uncoveredItemAction = page.locator('#runDetail [data-run-item-primary-action]').first();
+  const uncoveredItemActionText = ((await uncoveredItemAction.textContent()) || "").trim();
+  if (uncoveredItemActionText !== "Create case from result") {
+    throw new Error("uncovered run-item primary action did not switch to backend-owned create flow: " + uncoveredItemActionText);
+  }
+  const uncoveredItemActionMode = await uncoveredItemAction.getAttribute("data-action-mode");
+  if (uncoveredItemActionMode !== "create") {
+    throw new Error("uncovered run-item primary action mode missing create state: " + uncoveredItemActionMode);
+  }
+  if ((await uncoveredItemAction.evaluate((element) => element.tagName.toLowerCase())) !== "button") {
+    throw new Error("uncovered run-item primary action should render as create button");
+  }
   if (await page.locator('#runDetail [data-run-result-linked-action]').count()) {
     throw new Error("uncovered result should not render linked-case reuse action");
+  }
+  if (await page.locator('#runDetail [data-run-item-linked-action]').count()) {
+    throw new Error("uncovered run-item should not render linked-case reuse action");
   }
 
   await browser.close();
