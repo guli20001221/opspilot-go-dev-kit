@@ -386,6 +386,19 @@
       };
     }
 
+    function preferredRunLaneAction(item, side) {
+      const preferred = item && item.preferred_run_lane_action;
+      if (!preferred || preferred.mode !== "open_run" || !preferred.run_id || !preferred.dataset_id) {
+        return { mode: "invalid", text: `Open ${side} eval run lane`, href: "", valid: false };
+      }
+      return {
+        mode: "open_run",
+        text: `Open ${side} eval run lane`,
+        href: `${runLaneBase}?tenant_id=${encodeURIComponent(item.tenant_id)}&dataset_id=${encodeURIComponent(preferred.dataset_id)}&run_id=${encodeURIComponent(preferred.run_id)}`,
+        valid: true
+      };
+    }
+
     function syncPrimaryActionButtons(disabled, activeSide) {
       const leftAction = sidePrimaryAction("left");
       const rightAction = sidePrimaryAction("right");
@@ -432,6 +445,8 @@
       rightReportAPILink.dataset.actionMode = "open_eval_report_api";
       const leftEvalLaneAction = preferredEvalLaneAction(payload.left, "left");
       const rightEvalLaneAction = preferredEvalLaneAction(payload.right, "right");
+      const leftRunLaneAction = preferredRunLaneAction(payload.left, "left");
+      const rightRunLaneAction = preferredRunLaneAction(payload.right, "right");
       const leftDatasetLaneAction = preferredDatasetLaneAction(payload.left, "left");
       const rightDatasetLaneAction = preferredDatasetLaneAction(payload.right, "right");
       const leftReportLaneAction = preferredReportLaneAction(payload.left, "left");
@@ -518,10 +533,10 @@
         rightCompareCasesLink.href = "#";
         rightCompareCasesLink.dataset.actionMode = rightCompareQueueAction.mode;
       }
-      leftRunLaneLink.href = `${runLaneBase}?tenant_id=${encodeURIComponent(payload.left.tenant_id)}&dataset_id=${encodeURIComponent(payload.left.dataset_id)}&run_id=${encodeURIComponent(payload.left.run_id)}`;
-      rightRunLaneLink.href = `${runLaneBase}?tenant_id=${encodeURIComponent(payload.right.tenant_id)}&dataset_id=${encodeURIComponent(payload.right.dataset_id)}&run_id=${encodeURIComponent(payload.right.run_id)}`;
-      leftRunLaneLink.dataset.actionMode = "open_run";
-      rightRunLaneLink.dataset.actionMode = "open_run";
+      leftRunLaneLink.href = leftRunLaneAction.valid ? leftRunLaneAction.href : `${runLaneBase}?tenant_id=${encodeURIComponent(payload.left.tenant_id)}&dataset_id=${encodeURIComponent(payload.left.dataset_id)}&run_id=${encodeURIComponent(payload.left.run_id)}`;
+      rightRunLaneLink.href = rightRunLaneAction.valid ? rightRunLaneAction.href : `${runLaneBase}?tenant_id=${encodeURIComponent(payload.right.tenant_id)}&dataset_id=${encodeURIComponent(payload.right.dataset_id)}&run_id=${encodeURIComponent(payload.right.run_id)}`;
+      leftRunLaneLink.dataset.actionMode = leftRunLaneAction.mode;
+      rightRunLaneLink.dataset.actionMode = rightRunLaneAction.mode;
 
       if (payload.left.version_id) {
         leftVersionLink.hidden = false;
