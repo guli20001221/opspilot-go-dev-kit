@@ -383,55 +383,69 @@
       const rightCompareQueueAction = preferredCompareQueueAction(payload.right, "right");
       leftLinkedCasesLink.textContent = leftLinkedAction.valid ? leftLinkedAction.text : "Open left linked cases";
       leftLinkedCasesLink.href = leftLinkedAction.valid ? leftLinkedAction.href : `/admin/cases?tenant_id=${encodeURIComponent(payload.left.tenant_id)}&source_eval_report_id=${encodeURIComponent(payload.left.report_id)}`;
+      leftLinkedCasesLink.dataset.actionMode = leftLinkedAction.mode;
       rightLinkedCasesLink.textContent = rightLinkedAction.valid ? rightLinkedAction.text : "Open right linked cases";
       rightLinkedCasesLink.href = rightLinkedAction.valid ? rightLinkedAction.href : `/admin/cases?tenant_id=${encodeURIComponent(payload.right.tenant_id)}&source_eval_report_id=${encodeURIComponent(payload.right.report_id)}`;
+      rightLinkedCasesLink.dataset.actionMode = rightLinkedAction.mode;
       if (leftCompareQueueAction.valid) {
         leftCompareCasesLink.hidden = false;
         leftCompareCasesLink.href = leftCompareQueueAction.href;
+        leftCompareCasesLink.dataset.actionMode = leftCompareQueueAction.mode;
       } else {
         leftCompareCasesLink.hidden = true;
         leftCompareCasesLink.href = "#";
+        leftCompareCasesLink.dataset.actionMode = leftCompareQueueAction.mode;
       }
       if (leftLinkedAction.valid) {
         leftLatestCaseLink.hidden = false;
         leftLatestCaseLink.textContent = leftLinkedAction.text === "Open linked case queue" ? "Open left linked case queue" : "Open left latest linked case";
         leftLatestCaseLink.href = leftLinkedAction.href;
+        leftLatestCaseLink.dataset.actionMode = leftLinkedAction.mode;
       } else {
         leftLatestCaseLink.hidden = true;
         leftLatestCaseLink.href = "#";
         leftLatestCaseLink.textContent = "Open left latest case";
+        leftLatestCaseLink.dataset.actionMode = leftLinkedAction.mode;
       }
       const leftBadCaseQueueAction = preferredBadCaseQueueAction(payload.left);
       if (leftBadCaseQueueAction.valid) {
         leftBadCaseNeedsFollowUpLink.hidden = false;
         leftBadCaseNeedsFollowUpLink.href = leftBadCaseQueueAction.href;
+        leftBadCaseNeedsFollowUpLink.dataset.actionMode = leftBadCaseQueueAction.mode;
       } else {
         leftBadCaseNeedsFollowUpLink.hidden = true;
         leftBadCaseNeedsFollowUpLink.href = "#";
+        leftBadCaseNeedsFollowUpLink.dataset.actionMode = leftBadCaseQueueAction.mode;
       }
       if (rightLinkedAction.valid) {
         rightLatestCaseLink.hidden = false;
         rightLatestCaseLink.textContent = rightLinkedAction.text === "Open linked case queue" ? "Open right linked case queue" : "Open right latest linked case";
         rightLatestCaseLink.href = rightLinkedAction.href;
+        rightLatestCaseLink.dataset.actionMode = rightLinkedAction.mode;
       } else {
         rightLatestCaseLink.hidden = true;
         rightLatestCaseLink.href = "#";
         rightLatestCaseLink.textContent = "Open right latest case";
+        rightLatestCaseLink.dataset.actionMode = rightLinkedAction.mode;
       }
       const rightBadCaseQueueAction = preferredBadCaseQueueAction(payload.right);
       if (rightBadCaseQueueAction.valid) {
         rightBadCaseNeedsFollowUpLink.hidden = false;
         rightBadCaseNeedsFollowUpLink.href = rightBadCaseQueueAction.href;
+        rightBadCaseNeedsFollowUpLink.dataset.actionMode = rightBadCaseQueueAction.mode;
       } else {
         rightBadCaseNeedsFollowUpLink.hidden = true;
         rightBadCaseNeedsFollowUpLink.href = "#";
+        rightBadCaseNeedsFollowUpLink.dataset.actionMode = rightBadCaseQueueAction.mode;
       }
       if (rightCompareQueueAction.valid) {
         rightCompareCasesLink.hidden = false;
         rightCompareCasesLink.href = rightCompareQueueAction.href;
+        rightCompareCasesLink.dataset.actionMode = rightCompareQueueAction.mode;
       } else {
         rightCompareCasesLink.hidden = true;
         rightCompareCasesLink.href = "#";
+        rightCompareCasesLink.dataset.actionMode = rightCompareQueueAction.mode;
       }
       leftRunLaneLink.href = `${runLaneBase}?tenant_id=${encodeURIComponent(payload.left.tenant_id)}&dataset_id=${encodeURIComponent(payload.left.dataset_id)}&run_id=${encodeURIComponent(payload.left.run_id)}`;
       rightRunLaneLink.href = `${runLaneBase}?tenant_id=${encodeURIComponent(payload.right.tenant_id)}&dataset_id=${encodeURIComponent(payload.right.dataset_id)}&run_id=${encodeURIComponent(payload.right.run_id)}`;

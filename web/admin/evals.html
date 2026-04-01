@@ -499,6 +499,7 @@
       const latestFollowUpCaseLabel = linkedCaseAction.valid ? linkedCaseAction.label : "";
       const followUpSliceURL = buildEvalQueueHref(item, item.eval_case_id);
       createCaseButton.dataset.action = preferredAction.valid ? preferredAction.mode : "invalid";
+      createCaseButton.dataset.actionMode = preferredAction.valid ? preferredAction.mode : "invalid";
       createCaseButton.dataset.targetHref = preferredAction.targetHref || "";
       createCaseButton.textContent = preferredAction.label;
       createCaseButton.disabled = !preferredAction.valid;

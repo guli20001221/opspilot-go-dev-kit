@@ -527,7 +527,7 @@ async function main() {
   if (primaryAction !== "Open existing case") {
     throw new Error("primary eval case action did not switch to existing case reuse: " + primaryAction);
   }
-  const actionMode = await page.getAttribute("#createCaseButton", "data-action");
+  const actionMode = await page.getAttribute("#createCaseButton", "data-action-mode");
   if (actionMode !== "open_existing_case") {
     throw new Error("eval case action mode missing reuse state: " + actionMode);
   }
@@ -559,7 +559,7 @@ async function main() {
   if (queuePrimaryAction !== "Open queue") {
     throw new Error("queue-mode eval case primary action did not switch to canonical queue reuse: " + queuePrimaryAction);
   }
-  const queueActionMode = await page.getAttribute("#createCaseButton", "data-action");
+  const queueActionMode = await page.getAttribute("#createCaseButton", "data-action-mode");
   if (queueActionMode !== "open_existing_queue") {
     throw new Error("queue-mode eval case action mode missing queue reuse: " + queueActionMode);
   }
@@ -1710,6 +1710,9 @@ func TestAdminEvalReportComparePageRendersHTML(t *testing.T) {
 	if !strings.Contains(body, "Open left linked cases") {
 		t.Fatal("left linked-cases handoff missing from compare HTML")
 	}
+	if !strings.Contains(body, "dataset.actionMode") {
+		t.Fatal("compare action-mode wiring missing from compare HTML")
+	}
 	if !strings.Contains(body, "Open left latest linked case") {
 		t.Fatal("left canonical linked-case handoff label missing from compare HTML")
 	}
@@ -1853,6 +1856,10 @@ async function assertCaseSource(page, apiBaseURL, caseID, tenantID, expectedRepo
   if (leftCaseText !== "Open left latest linked case") {
     throw new Error("left latest-case handoff should use canonical linked-case action");
   }
+  const leftCaseMode = await page.getAttribute("#leftLatestCaseLink", "data-action-mode");
+  if (leftCaseMode !== "open_existing_case") {
+    throw new Error("left latest-case handoff mode missing canonical existing-case state: " + leftCaseMode);
+  }
   const leftLinkedCasesHref = await page.getAttribute("#leftLinkedCasesLink", "href");
   if (!leftLinkedCasesHref || !leftLinkedCasesHref.includes("case_id=" + encodeURIComponent(leftCaseID))) {
     throw new Error("left linked-cases handoff should reuse canonical linked-case action");
@@ -1860,6 +1867,10 @@ async function assertCaseSource(page, apiBaseURL, caseID, tenantID, expectedRepo
   const leftCompareCasesHref = await page.getAttribute("#leftCompareCasesLink", "href");
   if (!leftCompareCasesHref || !leftCompareCasesHref.includes("/admin/cases?") || !leftCompareCasesHref.includes("source_eval_report_id=" + encodeURIComponent(leftReportID)) || !leftCompareCasesHref.includes("compare_origin_only=true") || !leftCompareCasesHref.includes("status=open")) {
     throw new Error("left compare-follow-ups handoff missing canonical compare queue filter");
+  }
+  const leftCompareCasesMode = await page.getAttribute("#leftCompareCasesLink", "data-action-mode");
+  if (leftCompareCasesMode !== "open_existing_queue") {
+    throw new Error("left compare-follow-ups mode missing canonical compare queue state: " + leftCompareCasesMode);
   }
   const leftPrimaryText = (await page.textContent("#createLeftCaseButton")).trim();
   if (leftPrimaryText !== "Open left compare queue") {
@@ -1881,6 +1892,10 @@ async function assertCaseSource(page, apiBaseURL, caseID, tenantID, expectedRepo
   if (rightCaseText !== "Open right latest linked case") {
     throw new Error("right latest-case handoff should use canonical linked-case action");
   }
+  const rightCaseMode = await page.getAttribute("#rightLatestCaseLink", "data-action-mode");
+  if (rightCaseMode !== "open_existing_case") {
+    throw new Error("right latest-case handoff mode missing canonical existing-case state: " + rightCaseMode);
+  }
   const rightLinkedCasesHref = await page.getAttribute("#rightLinkedCasesLink", "href");
   if (!rightLinkedCasesHref || !rightLinkedCasesHref.includes("case_id=" + encodeURIComponent(rightCaseID))) {
     throw new Error("right linked-cases handoff should reuse canonical linked-case action");
@@ -1888,6 +1903,10 @@ async function assertCaseSource(page, apiBaseURL, caseID, tenantID, expectedRepo
   const rightCompareCasesHref = await page.getAttribute("#rightCompareCasesLink", "href");
   if (!rightCompareCasesHref || !rightCompareCasesHref.includes("/admin/cases?") || !rightCompareCasesHref.includes("source_eval_report_id=" + encodeURIComponent(rightReportID)) || !rightCompareCasesHref.includes("compare_origin_only=true") || !rightCompareCasesHref.includes("status=open")) {
     throw new Error("right compare-follow-ups handoff missing canonical compare queue filter");
+  }
+  const rightCompareCasesMode = await page.getAttribute("#rightCompareCasesLink", "data-action-mode");
+  if (rightCompareCasesMode !== "open_existing_queue") {
+    throw new Error("right compare-follow-ups mode missing canonical compare queue state: " + rightCompareCasesMode);
   }
   const rightPrimaryText = (await page.textContent("#createRightCaseButton")).trim();
   if (rightPrimaryText !== "Open right compare queue") {
@@ -1900,6 +1919,10 @@ async function assertCaseSource(page, apiBaseURL, caseID, tenantID, expectedRepo
   const rightBadCaseNeedsFollowUpHref = await page.getAttribute("#rightBadCaseNeedsFollowUpLink", "href");
   if (!rightBadCaseNeedsFollowUpHref || !rightBadCaseNeedsFollowUpHref.includes("/admin/eval-reports?") || !rightBadCaseNeedsFollowUpHref.includes("bad_case_needs_follow_up=true") || !rightBadCaseNeedsFollowUpHref.includes("report_id=" + encodeURIComponent(rightReportID)) || !rightBadCaseNeedsFollowUpHref.includes("selected_report_id=" + encodeURIComponent(rightReportID))) {
     throw new Error("right unresolved bad-case handoff missing canonical eval-report filter");
+  }
+  const rightBadCaseNeedsFollowUpMode = await page.getAttribute("#rightBadCaseNeedsFollowUpLink", "data-action-mode");
+  if (rightBadCaseNeedsFollowUpMode !== "open_existing_queue") {
+    throw new Error("right unresolved bad-case mode missing canonical queue state: " + rightBadCaseNeedsFollowUpMode);
   }
   const leftFollowUpText = (await page.textContent("#leftReportDetail")).trim();
   if (!leftFollowUpText.includes("1 cases / 1 open")) {
@@ -2270,7 +2293,7 @@ async function assertCasePayload(page, apiBaseURL, caseID, tenantID, expectedRep
   if (primaryCaseAction !== "Open existing case") {
     throw new Error("primary report case action did not switch to existing case reuse: " + primaryCaseAction);
   }
-  const primaryCaseActionMode = await page.getAttribute("#createCaseButton", "data-action");
+  const primaryCaseActionMode = await page.getAttribute("#createCaseButton", "data-action-mode");
   if (primaryCaseActionMode !== "open_existing_case") {
     throw new Error("primary report case action mode missing reuse state: " + primaryCaseActionMode);
   }
