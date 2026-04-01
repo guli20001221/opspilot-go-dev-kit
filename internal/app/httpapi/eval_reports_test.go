@@ -672,6 +672,10 @@ func TestCompareEvalReportsReturnsTypedSummary(t *testing.T) {
 				CaseID             string `json:"case_id"`
 				SourceEvalReportID string `json:"source_eval_report_id"`
 			} `json:"preferred_linked_case_action"`
+			PreferredReportLaneAction struct {
+				Mode     string `json:"mode"`
+				ReportID string `json:"report_id"`
+			} `json:"preferred_report_lane_action"`
 			PreferredPrimaryAction struct {
 				Mode               string `json:"mode"`
 				CaseID             string `json:"case_id"`
@@ -725,6 +729,10 @@ func TestCompareEvalReportsReturnsTypedSummary(t *testing.T) {
 				CaseID             string `json:"case_id"`
 				SourceEvalReportID string `json:"source_eval_report_id"`
 			} `json:"preferred_linked_case_action"`
+			PreferredReportLaneAction struct {
+				Mode     string `json:"mode"`
+				ReportID string `json:"report_id"`
+			} `json:"preferred_report_lane_action"`
 			PreferredPrimaryAction struct {
 				Mode               string `json:"mode"`
 				CaseID             string `json:"case_id"`
@@ -807,6 +815,12 @@ func TestCompareEvalReportsReturnsTypedSummary(t *testing.T) {
 	if got.Left.PreferredLinkedCaseAction.SourceEvalReportID != leftReportID {
 		t.Fatalf("Left.PreferredLinkedCaseAction.SourceEvalReportID = %q, want %q", got.Left.PreferredLinkedCaseAction.SourceEvalReportID, leftReportID)
 	}
+	if got.Left.PreferredReportLaneAction.Mode != "open_report" {
+		t.Fatalf("Left.PreferredReportLaneAction.Mode = %q, want %q", got.Left.PreferredReportLaneAction.Mode, "open_report")
+	}
+	if got.Left.PreferredReportLaneAction.ReportID != leftReportID {
+		t.Fatalf("Left.PreferredReportLaneAction.ReportID = %q, want %q", got.Left.PreferredReportLaneAction.ReportID, leftReportID)
+	}
 	if got.Left.PreferredPrimaryAction.Mode != "open_existing_case" {
 		t.Fatalf("Left.PreferredPrimaryAction.Mode = %q, want %q", got.Left.PreferredPrimaryAction.Mode, "open_existing_case")
 	}
@@ -848,6 +862,12 @@ func TestCompareEvalReportsReturnsTypedSummary(t *testing.T) {
 	}
 	if got.Right.PreferredLinkedCaseAction.SourceEvalReportID != rightReportID {
 		t.Fatalf("Right.PreferredLinkedCaseAction.SourceEvalReportID = %q, want %q", got.Right.PreferredLinkedCaseAction.SourceEvalReportID, rightReportID)
+	}
+	if got.Right.PreferredReportLaneAction.Mode != "open_report" {
+		t.Fatalf("Right.PreferredReportLaneAction.Mode = %q, want %q", got.Right.PreferredReportLaneAction.Mode, "open_report")
+	}
+	if got.Right.PreferredReportLaneAction.ReportID != rightReportID {
+		t.Fatalf("Right.PreferredReportLaneAction.ReportID = %q, want %q", got.Right.PreferredReportLaneAction.ReportID, rightReportID)
 	}
 	if got.Right.PreferredPrimaryAction.Mode != "open_existing_case" {
 		t.Fatalf("Right.PreferredPrimaryAction.Mode = %q, want %q", got.Right.PreferredPrimaryAction.Mode, "open_existing_case")
@@ -961,7 +981,11 @@ func TestCompareEvalReportsIncludesCompareFollowUpSummary(t *testing.T) {
 			OpenCompareFollowUpCaseCount    int    `json:"open_compare_follow_up_case_count"`
 			LatestCompareFollowUpCaseID     string `json:"latest_compare_follow_up_case_id"`
 			LatestCompareFollowUpCaseStatus string `json:"latest_compare_follow_up_case_status"`
-			PreferredPrimaryAction          struct {
+			PreferredReportLaneAction       struct {
+				Mode     string `json:"mode"`
+				ReportID string `json:"report_id"`
+			} `json:"preferred_report_lane_action"`
+			PreferredPrimaryAction struct {
 				Mode               string `json:"mode"`
 				CaseID             string `json:"case_id"`
 				SourceEvalReportID string `json:"source_eval_report_id"`
@@ -976,7 +1000,11 @@ func TestCompareEvalReportsIncludesCompareFollowUpSummary(t *testing.T) {
 			OpenCompareFollowUpCaseCount    int    `json:"open_compare_follow_up_case_count"`
 			LatestCompareFollowUpCaseID     string `json:"latest_compare_follow_up_case_id"`
 			LatestCompareFollowUpCaseStatus string `json:"latest_compare_follow_up_case_status"`
-			PreferredPrimaryAction          struct {
+			PreferredReportLaneAction       struct {
+				Mode     string `json:"mode"`
+				ReportID string `json:"report_id"`
+			} `json:"preferred_report_lane_action"`
+			PreferredPrimaryAction struct {
 				Mode               string `json:"mode"`
 				CaseID             string `json:"case_id"`
 				SourceEvalReportID string `json:"source_eval_report_id"`
@@ -999,6 +1027,9 @@ func TestCompareEvalReportsIncludesCompareFollowUpSummary(t *testing.T) {
 	if got.Left.PreferredCompareFollowUpAction.SourceEvalReportID != leftReportID {
 		t.Fatalf("Left.PreferredCompareFollowUpAction.SourceEvalReportID = %q, want %q", got.Left.PreferredCompareFollowUpAction.SourceEvalReportID, leftReportID)
 	}
+	if got.Left.PreferredReportLaneAction.Mode != "open_report" || got.Left.PreferredReportLaneAction.ReportID != leftReportID {
+		t.Fatalf("Left.PreferredReportLaneAction = %#v, want open_report/%q", got.Left.PreferredReportLaneAction, leftReportID)
+	}
 	if got.Left.PreferredPrimaryAction.Mode != "open_existing_case" {
 		t.Fatalf("Left.PreferredPrimaryAction.Mode = %q, want %q", got.Left.PreferredPrimaryAction.Mode, "open_existing_case")
 	}
@@ -1016,6 +1047,9 @@ func TestCompareEvalReportsIncludesCompareFollowUpSummary(t *testing.T) {
 	}
 	if got.Right.PreferredCompareFollowUpAction.SourceEvalReportID != rightReportID {
 		t.Fatalf("Right.PreferredCompareFollowUpAction.SourceEvalReportID = %q, want %q", got.Right.PreferredCompareFollowUpAction.SourceEvalReportID, rightReportID)
+	}
+	if got.Right.PreferredReportLaneAction.Mode != "open_report" || got.Right.PreferredReportLaneAction.ReportID != rightReportID {
+		t.Fatalf("Right.PreferredReportLaneAction = %#v, want open_report/%q", got.Right.PreferredReportLaneAction, rightReportID)
 	}
 	if got.Right.PreferredPrimaryAction.Mode != "open_existing_case" {
 		t.Fatalf("Right.PreferredPrimaryAction.Mode = %q, want %q", got.Right.PreferredPrimaryAction.Mode, "open_existing_case")
@@ -1079,6 +1113,10 @@ func TestCompareEvalReportsLinkedCaseActionPrefersQueueWhenLatestCaseClosed(t *t
 				CaseID             string `json:"case_id"`
 				SourceEvalReportID string `json:"source_eval_report_id"`
 			} `json:"preferred_linked_case_action"`
+			PreferredReportLaneAction struct {
+				Mode     string `json:"mode"`
+				ReportID string `json:"report_id"`
+			} `json:"preferred_report_lane_action"`
 			PreferredPrimaryAction struct {
 				Mode               string `json:"mode"`
 				CaseID             string `json:"case_id"`
@@ -1091,6 +1129,10 @@ func TestCompareEvalReportsLinkedCaseActionPrefersQueueWhenLatestCaseClosed(t *t
 				CaseID             string `json:"case_id"`
 				SourceEvalReportID string `json:"source_eval_report_id"`
 			} `json:"preferred_linked_case_action"`
+			PreferredReportLaneAction struct {
+				Mode     string `json:"mode"`
+				ReportID string `json:"report_id"`
+			} `json:"preferred_report_lane_action"`
 			PreferredPrimaryAction struct {
 				Mode               string `json:"mode"`
 				CaseID             string `json:"case_id"`
@@ -1113,6 +1155,9 @@ func TestCompareEvalReportsLinkedCaseActionPrefersQueueWhenLatestCaseClosed(t *t
 	if got.Left.PreferredLinkedCaseAction.SourceEvalReportID != leftReportID {
 		t.Fatalf("Left.PreferredLinkedCaseAction.SourceEvalReportID = %q, want %q", got.Left.PreferredLinkedCaseAction.SourceEvalReportID, leftReportID)
 	}
+	if got.Left.PreferredReportLaneAction.Mode != "open_report" || got.Left.PreferredReportLaneAction.ReportID != leftReportID {
+		t.Fatalf("Left.PreferredReportLaneAction = %#v, want open_report/%q", got.Left.PreferredReportLaneAction, leftReportID)
+	}
 	if got.Left.PreferredPrimaryAction.Mode != "open_existing_queue" {
 		t.Fatalf("Left.PreferredPrimaryAction.Mode = %q, want %q", got.Left.PreferredPrimaryAction.Mode, "open_existing_queue")
 	}
@@ -1127,6 +1172,9 @@ func TestCompareEvalReportsLinkedCaseActionPrefersQueueWhenLatestCaseClosed(t *t
 	}
 	if got.Right.PreferredLinkedCaseAction.SourceEvalReportID != rightReportID {
 		t.Fatalf("Right.PreferredLinkedCaseAction.SourceEvalReportID = %q, want %q", got.Right.PreferredLinkedCaseAction.SourceEvalReportID, rightReportID)
+	}
+	if got.Right.PreferredReportLaneAction.Mode != "open_report" || got.Right.PreferredReportLaneAction.ReportID != rightReportID {
+		t.Fatalf("Right.PreferredReportLaneAction = %#v, want open_report/%q", got.Right.PreferredReportLaneAction, rightReportID)
 	}
 	if got.Right.PreferredPrimaryAction.Mode != "create" {
 		t.Fatalf("Right.PreferredPrimaryAction.Mode = %q, want %q", got.Right.PreferredPrimaryAction.Mode, "create")

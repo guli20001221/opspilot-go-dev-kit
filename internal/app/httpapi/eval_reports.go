@@ -158,6 +158,7 @@ type evalReportComparisonItemResponse struct {
 	PreferredBadCaseQueueAction     evalReportBadCaseQueueActionResponse    `json:"preferred_bad_case_queue_action"`
 	LinkedCaseSummary               *evalReportLinkedCaseSummaryResponse    `json:"linked_case_summary,omitempty"`
 	PreferredLinkedCaseAction       evalReportLinkedCaseActionResponse      `json:"preferred_linked_case_action"`
+	PreferredReportLaneAction       evalReportLaneActionResponse            `json:"preferred_report_lane_action"`
 	PreferredPrimaryAction          evalReportPrimaryActionResponse         `json:"preferred_primary_action"`
 	CompareFollowUpCaseCount        int                                     `json:"compare_follow_up_case_count"`
 	OpenCompareFollowUpCaseCount    int                                     `json:"open_compare_follow_up_case_count"`
@@ -172,6 +173,11 @@ type evalReportComparisonItemResponse struct {
 type evalReportCompareFollowUpActionResponse struct {
 	Mode               string `json:"mode"`
 	SourceEvalReportID string `json:"source_eval_report_id,omitempty"`
+}
+
+type evalReportLaneActionResponse struct {
+	Mode     string `json:"mode"`
+	ReportID string `json:"report_id,omitempty"`
 }
 
 type evalReportComparisonResponse struct {
@@ -857,6 +863,7 @@ func newEvalReportComparisonItemResponse(item evalsvc.EvalReport, followUpSummar
 		PreferredBadCaseQueueAction:     newEvalReportBadCaseQueueActionResponse(item.ID, badCaseWithoutOpenFollowUpCount),
 		LinkedCaseSummary:               linkedCaseSummary,
 		PreferredLinkedCaseAction:       newEvalReportLinkedCaseActionResponse(item.ID, linkedCaseSummary),
+		PreferredReportLaneAction:       newEvalReportLaneActionResponse(item.ID),
 		PreferredPrimaryAction:          newEvalReportComparePrimaryActionResponse(item.ID, linkedCaseSummary, compareFollowUpSummary),
 		CompareFollowUpCaseCount:        compareFollowUpSummary.CompareFollowUpCaseCount,
 		OpenCompareFollowUpCaseCount:    compareFollowUpSummary.OpenCompareFollowUpCaseCount,
@@ -866,6 +873,13 @@ func newEvalReportComparisonItemResponse(item evalsvc.EvalReport, followUpSummar
 		CreatedAt:                       item.CreatedAt.Format(time.RFC3339Nano),
 		UpdatedAt:                       item.UpdatedAt.Format(time.RFC3339Nano),
 		ReadyAt:                         item.ReadyAt.Format(time.RFC3339Nano),
+	}
+}
+
+func newEvalReportLaneActionResponse(reportID string) evalReportLaneActionResponse {
+	return evalReportLaneActionResponse{
+		Mode:     "open_report",
+		ReportID: reportID,
 	}
 }
 

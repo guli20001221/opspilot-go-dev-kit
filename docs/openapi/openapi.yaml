@@ -4152,6 +4152,18 @@ components:
             - open_existing_queue
         source_eval_report_id:
           type: string
+    EvalReportLaneAction:
+      type: object
+      required:
+        - mode
+        - report_id
+      properties:
+        mode:
+          type: string
+          enum:
+            - open_report
+        report_id:
+          type: string
     EvalReportComparison:
       type: object
       required:
@@ -4189,6 +4201,7 @@ components:
         - preferred_bad_case_queue_action
         - linked_case_summary
         - preferred_linked_case_action
+        - preferred_report_lane_action
         - preferred_primary_action
         - compare_follow_up_case_count
         - open_compare_follow_up_case_count
@@ -4265,6 +4278,8 @@ components:
           $ref: '#/components/schemas/EvalReportLinkedCaseSummary'
         preferred_linked_case_action:
           $ref: '#/components/schemas/EvalReportLinkedCaseAction'
+        preferred_report_lane_action:
+          $ref: '#/components/schemas/EvalReportLaneAction'
         preferred_primary_action:
           $ref: '#/components/schemas/EvalReportPrimaryAction'
         compare_follow_up_case_count:
