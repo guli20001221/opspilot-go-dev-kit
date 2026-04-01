@@ -336,6 +336,12 @@ func TestAdminEvalsPageRendersHTML(t *testing.T) {
 	if !strings.Contains(body, "Open queue") {
 		t.Fatal("row-level eval queue handoff missing from eval page HTML")
 	}
+	if !strings.Contains(body, "data-eval-row-primary-action") {
+		t.Fatal("row-level eval primary action selector missing from eval page HTML")
+	}
+	if !strings.Contains(body, "data-eval-row-queue-action") {
+		t.Fatal("row-level eval queue action selector missing from eval page HTML")
+	}
 	if !strings.Contains(body, "Needs follow-up") {
 		t.Fatal("needs follow-up quick view missing from eval page HTML")
 	}
@@ -485,38 +491,44 @@ async function main() {
   if (!followUpSummary.includes("Open existing case") || !followUpSummary.includes("Open queue")) {
     throw new Error("row-level follow-up handoff missing from eval row: " + followUpSummary);
   }
-  const rowLatestCaseHref = await page.getAttribute("#evalRows tr td:nth-child(4) a[href*='case_id=']", "href");
+  const rowLatestCaseHref = await page.getAttribute('[data-eval-row-primary-action="' + evalCaseID + '"]', "href");
   if (!rowLatestCaseHref || !rowLatestCaseHref.includes("case_id=" + encodeURIComponent(latestFollowUpID))) {
     throw new Error("row-level latest follow-up case handoff missing");
   }
-  const rowQueueHref = await page.locator("#evalRows tr td:nth-child(4) a").evaluateAll((elements) => {
-    const match = elements.find((element) => element.textContent && element.textContent.includes("Open queue"));
-    return match ? match.getAttribute("href") : "";
-  });
+  const rowPrimaryMode = await page.getAttribute('[data-eval-row-primary-action="' + evalCaseID + '"]', "data-action-mode");
+  if (rowPrimaryMode !== "open_existing_case") {
+    throw new Error("row-level eval primary action mode missing existing-case reuse: " + rowPrimaryMode);
+  }
+  const rowQueueHref = await page.getAttribute('[data-eval-row-queue-action="' + evalCaseID + '"]', "href");
   if (!rowQueueHref || !rowQueueHref.includes("source_eval_case_id=" + encodeURIComponent(evalCaseID))) {
     throw new Error("row-level eval queue handoff missing");
+  }
+  const rowQueueMode = await page.getAttribute('[data-eval-row-queue-action="' + evalCaseID + '"]', "data-action-mode");
+  if (rowQueueMode !== "open_existing_case") {
+    throw new Error("row-level eval queue action mode should reflect latest-case reuse for open row: " + rowQueueMode);
   }
   const queueRowText = (await page.textContent('[data-eval-row="' + queueEvalCaseID + '"] td:nth-child(4)')).trim();
   if (!queueRowText.includes("1 cases / 0 open") || !queueRowText.includes("Open queue")) {
     throw new Error("queue-mode eval row missing canonical queue handoff: " + queueRowText);
   }
-  const queueRowLatestCaseHref = await page.locator('[data-eval-row="' + queueEvalCaseID + '"] td:nth-child(4) a[href*="case_id="]').count();
+  const queueRowLatestCaseHref = await page.locator('[data-eval-row="' + queueEvalCaseID + '"] [data-eval-row-primary-action]').count();
   if (queueRowLatestCaseHref !== 0) {
     throw new Error("queue-mode eval row should not expose stale latest case handoff");
   }
-  const queueModeHref = await page.locator('[data-eval-row="' + queueEvalCaseID + '"] td:nth-child(4) a').evaluateAll((elements) => {
-    const match = elements.find((element) => element.textContent && element.textContent.includes("Open queue"));
-    return match ? match.getAttribute("href") : "";
-  });
+  const queueModeHref = await page.getAttribute('[data-eval-row-queue-action="' + queueEvalCaseID + '"]', "href");
   if (!queueModeHref || !queueModeHref.includes("source_eval_case_id=" + encodeURIComponent(queueEvalCaseID))) {
     throw new Error("queue-mode eval row missing queue href");
+  }
+  const queueModeAction = await page.getAttribute('[data-eval-row-queue-action="' + queueEvalCaseID + '"]', "data-action-mode");
+  if (queueModeAction !== "open_existing_queue") {
+    throw new Error("queue-mode eval row missing canonical queue mode: " + queueModeAction);
   }
   const primaryAction = (await page.textContent("#createCaseButton")).trim();
   if (primaryAction !== "Open existing case") {
     throw new Error("primary eval case action did not switch to existing case reuse: " + primaryAction);
   }
   const actionMode = await page.getAttribute("#createCaseButton", "data-action");
-  if (actionMode !== "open-existing") {
+  if (actionMode !== "open_existing_case") {
     throw new Error("eval case action mode missing reuse state: " + actionMode);
   }
   const targetHref = await page.getAttribute("#createCaseButton", "data-target-href");
@@ -537,6 +549,27 @@ async function main() {
   const statusText = (await page.textContent("#evalDetailStatusNote")).trim();
   if (!statusText.includes("already has open follow-up work")) {
     throw new Error("eval detail status note did not explain case reuse");
+  }
+  await page.click('[data-eval-row="' + queueEvalCaseID + '"] [data-eval-case-id="' + queueEvalCaseID + '"]');
+  await page.waitForFunction((targetID) => {
+    const detail = document.querySelector("#evalDetail");
+    return !!detail && detail.textContent && detail.textContent.includes(targetID);
+  }, queueEvalCaseID);
+  const queuePrimaryAction = (await page.textContent("#createCaseButton")).trim();
+  if (queuePrimaryAction !== "Open queue") {
+    throw new Error("queue-mode eval case primary action did not switch to canonical queue reuse: " + queuePrimaryAction);
+  }
+  const queueActionMode = await page.getAttribute("#createCaseButton", "data-action");
+  if (queueActionMode !== "open_existing_queue") {
+    throw new Error("queue-mode eval case action mode missing queue reuse: " + queueActionMode);
+  }
+  const queueTargetHref = await page.getAttribute("#createCaseButton", "data-target-href");
+  if (!queueTargetHref || !queueTargetHref.includes("source_eval_case_id=" + encodeURIComponent(queueEvalCaseID))) {
+    throw new Error("queue-mode eval case reuse target missing canonical queue handoff");
+  }
+  const queueStatusText = (await page.textContent("#evalDetailStatusNote")).trim();
+  if (!queueStatusText.includes("closed or already resolved")) {
+    throw new Error("queue-mode eval detail status note did not explain queue reuse");
   }
   await browser.close();
 }

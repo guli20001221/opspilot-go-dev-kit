@@ -425,14 +425,14 @@
       evalRows.innerHTML = currentItems.map((item) => {
         const preferredAction = preferredPrimaryAction(item);
         const linkedCaseAction = preferredLinkedCaseAction(item);
-        const rowPreferredLink = preferredAction.valid && preferredAction.hasReuse ? `<br><a class="button-link ghost" href="${preferredAction.targetHref}">${preferredAction.label}</a>` : "";
+        const rowPreferredLink = preferredAction.valid && preferredAction.hasReuse ? `<br><a class="button-link ghost" href="${preferredAction.targetHref}" data-eval-row-primary-action="${escapeHTML(item.eval_case_id)}" data-action-mode="${escapeHTML(item.preferred_primary_action?.mode || preferredAction.mode || "none")}">${preferredAction.label}</a>` : "";
         const queueHref = linkedCaseAction.valid && linkedCaseAction.mode === "open_existing_queue"
           ? linkedCaseAction.targetHref
           : buildEvalQueueHref(item, item.eval_case_id);
         const queueLabel = linkedCaseAction.valid && linkedCaseAction.mode === "open_existing_queue"
           ? linkedCaseAction.label
           : "Open queue";
-        const queueLink = `<br><a class="button-link ghost" href="${queueHref}">${escapeHTML(queueLabel)}</a>`;
+        const queueLink = `<br><a class="button-link ghost" href="${queueHref}" data-eval-row-queue-action="${escapeHTML(item.eval_case_id)}" data-action-mode="${escapeHTML(item.preferred_linked_case_action?.mode || "none")}">${escapeHTML(queueLabel)}</a>`;
         const actionWarning = preferredAction.valid ? "" : `<br><small>Canonical follow-up action unavailable</small>`;
         return `
         <tr data-eval-row="${escapeHTML(item.eval_case_id)}">
@@ -498,7 +498,7 @@
       const latestFollowUpCaseURL = linkedCaseAction.valid ? linkedCaseAction.targetHref : "";
       const latestFollowUpCaseLabel = linkedCaseAction.valid ? linkedCaseAction.label : "";
       const followUpSliceURL = buildEvalQueueHref(item, item.eval_case_id);
-      createCaseButton.dataset.action = preferredAction.valid ? (preferredAction.mode === "create" ? "create" : "open-existing") : "invalid";
+      createCaseButton.dataset.action = preferredAction.valid ? preferredAction.mode : "invalid";
       createCaseButton.dataset.targetHref = preferredAction.targetHref || "";
       createCaseButton.textContent = preferredAction.label;
       createCaseButton.disabled = !preferredAction.valid;
@@ -844,7 +844,7 @@
         evalDetailStatusNote.textContent = "This eval case is missing a canonical preferred_follow_up_action.";
         return;
       }
-      if (createCaseButton.dataset.action === "open-existing" && createCaseButton.dataset.targetHref) {
+      if ((createCaseButton.dataset.action === "open_existing_case" || createCaseButton.dataset.action === "open_existing_queue") && createCaseButton.dataset.targetHref) {
         window.location.assign(createCaseButton.dataset.targetHref);
         return;
       }
