@@ -1808,6 +1808,9 @@ func TestAdminEvalReportsPageRendersHTML(t *testing.T) {
 	if !strings.Contains(body, "Open bad-case follow-up slice") {
 		t.Fatal("bad-case follow-up slice handoff missing from eval reports page HTML")
 	}
+	if !strings.Contains(body, "data-bad-case-provenance-action") {
+		t.Fatal("bad-case provenance selector missing from eval reports page HTML")
+	}
 	if !strings.Contains(body, "Bad cases needing follow-up") {
 		t.Fatal("bad-case needs-follow-up quick view missing from eval reports page HTML")
 	}
@@ -2843,6 +2846,31 @@ async function assertCasePayload(page, apiBaseURL, caseID, tenantID, expectedRep
   const badCaseOpenSourceCaseMode = await page.locator('[data-bad-case-open-source-case="' + sourceEvalCaseID + '"]').first().getAttribute("data-action-mode");
   if (badCaseOpenSourceCaseMode !== "open_source_case") {
     throw new Error("bad-case source-case handoff mode missing canonical open_source_case state: " + badCaseOpenSourceCaseMode);
+  }
+  const badCaseProvenanceHref = await page.locator('[data-bad-case-provenance-action="' + sourceEvalCaseID + '"]').first().getAttribute("href");
+  if (!badCaseProvenanceHref || !badCaseProvenanceHref.includes("/admin/cases?") || !badCaseProvenanceHref.includes("case_id=" + encodeURIComponent(sourceCaseID))) {
+    throw new Error("bad-case provenance handoff missing canonical source-case target");
+  }
+  const badCaseProvenanceMode = await page.locator('[data-bad-case-provenance-action="' + sourceEvalCaseID + '"]').first().getAttribute("data-action-mode");
+  if (badCaseProvenanceMode !== "open_source_case") {
+    throw new Error("bad-case provenance handoff mode missing canonical open_source_case state: " + badCaseProvenanceMode);
+  }
+  const provenanceMatrix = await page.evaluate(() => {
+    const item = { tenant_id: "tenant-js" };
+    return {
+      trace: preferredBadCaseProvenanceAction(item, { eval_case_id: "eval-trace", trace_id: "trace-1" }),
+      version: preferredBadCaseProvenanceAction(item, { eval_case_id: "eval-version", version_id: "version-1" }),
+      eval: preferredBadCaseProvenanceAction(item, { eval_case_id: "eval-only" }),
+    };
+  });
+  if (provenanceMatrix.trace.mode !== "open_trace" || !provenanceMatrix.trace.targetHref.includes("/admin/trace-detail?") || !provenanceMatrix.trace.targetHref.includes("trace_id=trace-1")) {
+    throw new Error("bad-case provenance trace branch missing canonical trace target");
+  }
+  if (provenanceMatrix.version.mode !== "open_version" || !provenanceMatrix.version.targetHref.includes("/admin/version-detail?") || !provenanceMatrix.version.targetHref.includes("version_id=version-1")) {
+    throw new Error("bad-case provenance version branch missing canonical version target");
+  }
+  if (provenanceMatrix.eval.mode !== "open_eval" || !provenanceMatrix.eval.targetHref.includes("/admin/evals?") || !provenanceMatrix.eval.targetHref.includes("eval_case_id=eval-only")) {
+    throw new Error("bad-case provenance eval branch missing canonical eval target");
   }
   const badCaseSliceHref = await page.locator('[data-bad-case-follow-up-slice-action="' + sourceEvalCaseID + '"]').first().getAttribute("href");
   if (!badCaseSliceHref || !badCaseSliceHref.includes("source_eval_case_id=" + encodeURIComponent(sourceEvalCaseID))) {

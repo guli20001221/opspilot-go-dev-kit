@@ -74,6 +74,15 @@ func TestGetEvalReportReturnsMaterializedDetail(t *testing.T) {
 	if got.BadCases[0].PreferredPrimaryAction.SourceEvalCaseID != got.BadCases[0].EvalCaseID {
 		t.Fatalf("BadCases[0].PreferredPrimaryAction.SourceEvalCaseID = %q, want %q", got.BadCases[0].PreferredPrimaryAction.SourceEvalCaseID, got.BadCases[0].EvalCaseID)
 	}
+	if got.BadCases[0].PreferredProvenanceAction.Mode != "open_source_case" {
+		t.Fatalf("BadCases[0].PreferredProvenanceAction.Mode = %q, want %q", got.BadCases[0].PreferredProvenanceAction.Mode, "open_source_case")
+	}
+	if got.BadCases[0].PreferredProvenanceAction.CaseID != got.BadCases[0].SourceCaseID {
+		t.Fatalf("BadCases[0].PreferredProvenanceAction.CaseID = %q, want %q", got.BadCases[0].PreferredProvenanceAction.CaseID, got.BadCases[0].SourceCaseID)
+	}
+	if got.BadCases[0].PreferredProvenanceAction.EvalCaseID != got.BadCases[0].EvalCaseID {
+		t.Fatalf("BadCases[0].PreferredProvenanceAction.EvalCaseID = %q, want %q", got.BadCases[0].PreferredProvenanceAction.EvalCaseID, got.BadCases[0].EvalCaseID)
+	}
 	if got.PreferredCompareFollowUpAction.Mode != "none" {
 		t.Fatalf("PreferredCompareFollowUpAction.Mode = %q, want %q", got.PreferredCompareFollowUpAction.Mode, "none")
 	}
@@ -106,6 +115,22 @@ func TestGetEvalReportReturnsMaterializedDetail(t *testing.T) {
 	}
 	if _, ok := raw["bad_case_count"]; !ok {
 		t.Fatalf("detail response missing bad_case_count: %#v", raw)
+	}
+}
+
+func TestNewEvalReportBadCaseProvenanceActionResponseFallsBackToTrace(t *testing.T) {
+	action := newEvalReportBadCaseProvenanceActionResponse(evalsvc.EvalReportBadCase{
+		EvalCaseID: "eval-case-trace",
+		TraceID:    "trace-only",
+	})
+	if action.Mode != "open_trace" {
+		t.Fatalf("Mode = %q, want %q", action.Mode, "open_trace")
+	}
+	if action.TraceID != "trace-only" {
+		t.Fatalf("TraceID = %q, want %q", action.TraceID, "trace-only")
+	}
+	if action.EvalCaseID != "eval-case-trace" {
+		t.Fatalf("EvalCaseID = %q, want %q", action.EvalCaseID, "eval-case-trace")
 	}
 }
 

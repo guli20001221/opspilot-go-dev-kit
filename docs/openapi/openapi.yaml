@@ -4017,6 +4017,7 @@ components:
         - preferred_follow_up_action
         - preferred_primary_action
         - preferred_linked_case_action
+        - preferred_provenance_action
       properties:
         eval_case_id:
           type: string
@@ -4061,6 +4062,29 @@ components:
           $ref: '#/components/schemas/EvalCaseFollowUpAction'
         preferred_linked_case_action:
           $ref: '#/components/schemas/EvalCaseFollowUpAction'
+        preferred_provenance_action:
+          $ref: '#/components/schemas/EvalReportBadCaseProvenanceAction'
+    EvalReportBadCaseProvenanceAction:
+      type: object
+      required:
+        - mode
+      properties:
+        mode:
+          type: string
+          enum:
+            - none
+            - open_source_case
+            - open_trace
+            - open_version
+            - open_eval
+        case_id:
+          type: string
+        eval_case_id:
+          type: string
+        trace_id:
+          type: string
+        version_id:
+          type: string
     ListEvalRunsResponse:
       type: object
       required:
