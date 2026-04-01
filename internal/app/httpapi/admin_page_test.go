@@ -2820,6 +2820,14 @@ async function assertCasePayload(page, apiBaseURL, caseID, tenantID, expectedRep
   if (badCaseSourceTaskMode !== "open_task_api") {
     throw new Error("bad-case source-task handoff mode missing canonical task api state: " + badCaseSourceTaskMode);
   }
+  const badCaseOpenEvalHref = await page.locator('[data-bad-case-open-eval="' + sourceEvalCaseID + '"]').first().getAttribute("href");
+  if (!badCaseOpenEvalHref || !badCaseOpenEvalHref.includes("/admin/evals?") || !badCaseOpenEvalHref.includes("eval_case_id=" + encodeURIComponent(sourceEvalCaseID))) {
+    throw new Error("bad-case eval lane handoff missing canonical eval target");
+  }
+  const badCaseOpenEvalMode = await page.locator('[data-bad-case-open-eval="' + sourceEvalCaseID + '"]').first().getAttribute("data-action-mode");
+  if (badCaseOpenEvalMode !== "open_eval") {
+    throw new Error("bad-case eval lane handoff mode missing canonical open_eval state: " + badCaseOpenEvalMode);
+  }
   const badCaseSliceHref = await page.locator("text=Open bad-case follow-up slice").first().getAttribute("href");
   if (!badCaseSliceHref || !badCaseSliceHref.includes("source_eval_case_id=" + encodeURIComponent(sourceEvalCaseID))) {
     throw new Error("bad-case follow-up slice handoff missing source_eval_case_id");
