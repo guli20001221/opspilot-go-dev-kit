@@ -594,9 +594,9 @@
                 <div style="display:flex; flex-wrap:wrap; gap:8px; margin-top:8px;">
                   ${datasetPrimaryActionHref(item) ? `<a class="button-link" data-dataset-primary-action="${escapeHTML(item.dataset_id)}" data-action-mode="${escapeHTML(item.preferred_primary_action?.mode || "none")}" href="${datasetPrimaryActionHref(item)}">${datasetPrimaryActionLabel(item)}</a>` : ""}
                   ${datasetPreferredQueueHref(item) ? `<a class="button-link" href="${datasetPreferredQueueHref(item)}">${datasetPreferredQueueLabel(item)}</a>` : ""}
-                  ${datasetScopedCaseQueueHref(item) ? `<a class="button-link ghost" href="${datasetScopedCaseQueueHref(item)}">${datasetScopedCaseQueueLabel(item)}</a>` : ""}
-                  ${datasetRunBackedCaseHref(item) ? `<a class="button-link ghost" href="${datasetRunBackedCaseHref(item)}">${datasetRunBackedCaseLabel(item)}</a>` : ""}
-                  ${datasetLatestActivityActionHref(item) ? `<a class="button-link ghost" href="${datasetLatestActivityActionHref(item)}">${datasetLatestActivityActionLabel(item)}</a>` : ""}
+                  ${datasetScopedCaseQueueHref(item) ? `<a class="button-link ghost" data-dataset-case-queue-action="${escapeHTML(item.dataset_id)}" data-action-mode="${escapeHTML(item.preferred_case_handoff_action?.mode || "none")}" href="${datasetScopedCaseQueueHref(item)}">${datasetScopedCaseQueueLabel(item)}</a>` : ""}
+                  ${datasetRunBackedCaseHref(item) ? `<a class="button-link ghost" data-dataset-run-backed-case-action="${escapeHTML(item.dataset_id)}" data-action-mode="${escapeHTML(item.preferred_run_backed_case_action?.mode || "none")}" href="${datasetRunBackedCaseHref(item)}">${datasetRunBackedCaseLabel(item)}</a>` : ""}
+                  ${datasetLatestActivityActionHref(item) ? `<a class="button-link ghost" data-dataset-latest-activity-action="${escapeHTML(item.dataset_id)}" data-action-mode="${escapeHTML(item.preferred_latest_activity_action?.mode || "none")}" href="${datasetLatestActivityActionHref(item)}">${datasetLatestActivityActionLabel(item)}</a>` : ""}
                 </div>
             ` : `<small>No eval runs yet</small>`}
           </td>

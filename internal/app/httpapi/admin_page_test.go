@@ -673,6 +673,15 @@ func TestAdminEvalDatasetsPageRendersHTML(t *testing.T) {
 	if !strings.Contains(body, "data-dataset-primary-action") {
 		t.Fatal("dataset row primary action selector missing from eval datasets page HTML")
 	}
+	if !strings.Contains(body, "data-dataset-case-queue-action") {
+		t.Fatal("dataset row case queue selector missing from eval datasets page HTML")
+	}
+	if !strings.Contains(body, "data-dataset-run-backed-case-action") {
+		t.Fatal("dataset row run-backed case selector missing from eval datasets page HTML")
+	}
+	if !strings.Contains(body, "data-dataset-latest-activity-action") {
+		t.Fatal("dataset row latest activity selector missing from eval datasets page HTML")
+	}
 	if !strings.Contains(body, "Open latest report") {
 		t.Fatal("latest report handoff missing from eval datasets page HTML")
 	}
@@ -985,8 +994,18 @@ const linkedEvalCaseCaseID = process.argv[15];
     if (!datasetRowPrimaryHref || !datasetRowPrimaryHref.includes("case_id=" + encodeURIComponent("` + followUpCase.ID + `"))) throw new Error("dataset row primary action missing existing-case handoff");
     const datasetRowPrimaryMode = await page.getAttribute('[data-dataset-primary-action="' + datasetID + '"]', "data-action-mode");
     if (datasetRowPrimaryMode !== "open_existing_case") throw new Error("dataset row primary action mode missing existing-case state: " + datasetRowPrimaryMode);
-    const datasetRowCaseHref = await page.getAttribute('[data-dataset-row="' + datasetID + '"] a[href*="/admin/cases?"][href*="case_id=' + encodeURIComponent("` + followUpCase.ID + `") + '"]', "href");
-    if (!datasetRowCaseHref) throw new Error("latest dataset case handoff missing from dataset row");
+    const datasetRowCaseHref = await page.getAttribute('[data-dataset-case-queue-action="' + datasetID + '"]', "href");
+    if (!datasetRowCaseHref || !datasetRowCaseHref.includes("/admin/cases?") || !datasetRowCaseHref.includes("case_id=" + encodeURIComponent("` + followUpCase.ID + `"))) throw new Error("latest dataset case handoff missing from dataset row");
+    const datasetRowCaseMode = await page.getAttribute('[data-dataset-case-queue-action="' + datasetID + '"]', "data-action-mode");
+    if (datasetRowCaseMode !== "open_existing_case") throw new Error("dataset row case action mode missing existing-case state: " + datasetRowCaseMode);
+    const datasetRowRunBackedCaseHref = await page.getAttribute('[data-dataset-run-backed-case-action="' + datasetID + '"]', "href");
+    if (!datasetRowRunBackedCaseHref || !datasetRowRunBackedCaseHref.includes("/admin/cases?") || !datasetRowRunBackedCaseHref.includes("case_id=" + encodeURIComponent("` + runBackedCase.ID + `"))) throw new Error("run-backed case handoff missing from dataset row");
+    const datasetRowRunBackedCaseMode = await page.getAttribute('[data-dataset-run-backed-case-action="' + datasetID + '"]', "data-action-mode");
+    if (datasetRowRunBackedCaseMode !== "open_existing_case") throw new Error("dataset row run-backed case mode missing existing-case state: " + datasetRowRunBackedCaseMode);
+    const datasetRowLatestActivityHref = await page.getAttribute('[data-dataset-latest-activity-action="' + datasetID + '"]', "href");
+    if (!datasetRowLatestActivityHref || !datasetRowLatestActivityHref.includes("/admin/eval-reports?") || !datasetRowLatestActivityHref.includes("selected_report_id=" + encodeURIComponent(reportID))) throw new Error("backend-owned latest activity handoff missing from dataset row");
+    const datasetRowLatestActivityMode = await page.getAttribute('[data-dataset-latest-activity-action="' + datasetID + '"]', "data-action-mode");
+    if (datasetRowLatestActivityMode !== "open_report") throw new Error("dataset row latest activity mode missing report state: " + datasetRowLatestActivityMode);
   const detailText = await page.textContent("#datasetDetail");
   if (!detailText.includes(runID)) throw new Error("latest run summary missing from dataset detail");
   if (!detailText.includes(reportID)) throw new Error("latest report summary missing from dataset detail");
@@ -1052,13 +1071,17 @@ const linkedEvalCaseCaseID = process.argv[15];
   if (filterValue !== "true") throw new Error("needs_follow_up filter control not synced");
   const selectedRow = await page.getAttribute('[data-dataset-row="' + datasetID + '"]', "aria-current");
   if (selectedRow !== "true") throw new Error("selected dataset row did not stay synced");
-  const queueRowPrimaryHref = await page.getAttribute('[data-dataset-primary-action="' + queueDatasetID + '"]', "href");
-  if (!queueRowPrimaryHref || !queueRowPrimaryHref.includes("/admin/cases?") || !queueRowPrimaryHref.includes("source_eval_report_id=" + encodeURIComponent(queueReportID)) || !queueRowPrimaryHref.includes("status=open")) {
+    const queueRowPrimaryHref = await page.getAttribute('[data-dataset-primary-action="' + queueDatasetID + '"]', "href");
+    if (!queueRowPrimaryHref || !queueRowPrimaryHref.includes("/admin/cases?") || !queueRowPrimaryHref.includes("source_eval_report_id=" + encodeURIComponent(queueReportID)) || !queueRowPrimaryHref.includes("status=open")) {
     throw new Error("queue-mode dataset row primary action missing canonical queue handoff");
-  }
-  const queueRowPrimaryMode = await page.getAttribute('[data-dataset-primary-action="' + queueDatasetID + '"]', "data-action-mode");
+    }
+    const queueRowPrimaryMode = await page.getAttribute('[data-dataset-primary-action="' + queueDatasetID + '"]', "data-action-mode");
   if (queueRowPrimaryMode !== "open_existing_queue") throw new Error("queue-mode dataset row primary action mode missing queue state: " + queueRowPrimaryMode);
-  await page.click('[data-dataset-row="' + queueItemDatasetID + '"] [data-dataset-id="' + queueItemDatasetID + '"]');
+    const queueRowCaseHref = await page.getAttribute('[data-dataset-case-queue-action="' + queueDatasetID + '"]', "href");
+    if (!queueRowCaseHref || !queueRowCaseHref.includes("/admin/cases?") || !queueRowCaseHref.includes("source_eval_dataset_id=" + encodeURIComponent(queueDatasetID)) || !queueRowCaseHref.includes("status=open")) throw new Error("queue-mode dataset row case handoff missing canonical dataset queue");
+    const queueRowCaseMode = await page.getAttribute('[data-dataset-case-queue-action="' + queueDatasetID + '"]', "data-action-mode");
+    if (queueRowCaseMode !== "open_existing_queue") throw new Error("queue-mode dataset row case action mode missing queue state: " + queueRowCaseMode);
+    await page.click('[data-dataset-row="' + queueItemDatasetID + '"] [data-dataset-id="' + queueItemDatasetID + '"]');
   await page.waitForFunction((targetID) => {
     const detail = document.querySelector("#datasetDetail");
     return !!detail && detail.textContent && detail.textContent.includes(targetID);
@@ -1832,6 +1855,9 @@ func TestAdminEvalReportComparePageRendersHTML(t *testing.T) {
 	if !strings.Contains(body, "Open left trace detail") {
 		t.Fatal("left trace-detail handoff missing from compare HTML")
 	}
+	if !strings.Contains(body, "Open left trace detail") {
+		t.Fatal("left trace-detail handoff missing from compare HTML")
+	}
 	if !strings.Contains(body, "Open left latest case") {
 		t.Fatal("left latest-case handoff missing from compare HTML")
 	}
@@ -1864,6 +1890,9 @@ func TestAdminEvalReportComparePageRendersHTML(t *testing.T) {
 	}
 	if !strings.Contains(body, "Open right eval run lane") {
 		t.Fatal("right eval run lane handoff missing from compare HTML")
+	}
+	if !strings.Contains(body, "Open right trace detail") {
+		t.Fatal("right trace-detail handoff missing from compare HTML")
 	}
 	if !strings.Contains(body, "Open right trace detail") {
 		t.Fatal("right trace-detail handoff missing from compare HTML")
@@ -2714,6 +2743,22 @@ async function assertCasePayload(page, apiBaseURL, caseID, tenantID, expectedRep
   const badCaseVersionMode = await page.locator('[data-bad-case-version-action="' + sourceEvalCaseID + '"]').first().getAttribute("data-action-mode");
   if (badCaseVersionMode !== "open_version") {
     throw new Error("bad-case version-detail handoff mode missing canonical version state: " + badCaseVersionMode);
+  }
+  const badCaseSourceReportHref = await page.locator('[data-bad-case-source-report-action="' + sourceEvalCaseID + '"]').first().getAttribute("href");
+  if (!badCaseSourceReportHref || !badCaseSourceReportHref.includes("/api/v1/reports/") || !badCaseSourceReportHref.includes("tenant_id=" + encodeURIComponent(tenantID))) {
+    throw new Error("bad-case source-report handoff missing canonical report api target");
+  }
+  const badCaseSourceReportMode = await page.locator('[data-bad-case-source-report-action="' + sourceEvalCaseID + '"]').first().getAttribute("data-action-mode");
+  if (badCaseSourceReportMode !== "open_report_api") {
+    throw new Error("bad-case source-report handoff mode missing canonical report api state: " + badCaseSourceReportMode);
+  }
+  const badCaseSourceTaskHref = await page.locator('[data-bad-case-source-task-action="' + sourceEvalCaseID + '"]').first().getAttribute("href");
+  if (!badCaseSourceTaskHref || !badCaseSourceTaskHref.includes("/api/v1/tasks/") || !badCaseSourceTaskHref.includes("tenant_id=" + encodeURIComponent(tenantID))) {
+    throw new Error("bad-case source-task handoff missing canonical task api target");
+  }
+  const badCaseSourceTaskMode = await page.locator('[data-bad-case-source-task-action="' + sourceEvalCaseID + '"]').first().getAttribute("data-action-mode");
+  if (badCaseSourceTaskMode !== "open_task_api") {
+    throw new Error("bad-case source-task handoff mode missing canonical task api state: " + badCaseSourceTaskMode);
   }
   const badCaseSliceHref = await page.locator("text=Open bad-case follow-up slice").first().getAttribute("href");
   if (!badCaseSliceHref || !badCaseSliceHref.includes("source_eval_case_id=" + encodeURIComponent(sourceEvalCaseID))) {
