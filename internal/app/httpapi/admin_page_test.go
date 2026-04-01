@@ -3160,10 +3160,18 @@ const evalRunID = process.argv[13];
 	if (!compareHref || !compareHref.includes("left_report_id=" + encodeURIComponent(reportID)) || !compareHref.includes("right_report_id=" + encodeURIComponent(compareRightReportID))) {
 		throw new Error("compare origin handoff drifted");
 	}
-  const rowCompareHref = await page.getAttribute('[data-case-compare-link="' + linkedCaseID + '"]', "href");
-  if (!rowCompareHref || !rowCompareHref.includes("left_report_id=" + encodeURIComponent(reportID)) || !rowCompareHref.includes("right_report_id=" + encodeURIComponent(compareRightReportID))) {
-    throw new Error("row-level compare handoff drifted");
-  }
+	const compareMode = await page.getAttribute("#openEvalCompareLink", "data-action-mode");
+	if (compareMode !== "open_compare_origin") {
+		throw new Error("compare origin detail handoff mode drifted: " + compareMode);
+	}
+	const rowCompareHref = await page.getAttribute('[data-case-compare-link="' + linkedCaseID + '"]', "href");
+	if (!rowCompareHref || !rowCompareHref.includes("left_report_id=" + encodeURIComponent(reportID)) || !rowCompareHref.includes("right_report_id=" + encodeURIComponent(compareRightReportID))) {
+		throw new Error("row-level compare handoff drifted");
+	}
+	const rowCompareMode = await page.getAttribute('[data-case-compare-link="' + linkedCaseID + '"]', "data-action-mode");
+	if (rowCompareMode !== "open_compare_origin") {
+		throw new Error("row-level compare handoff mode drifted: " + rowCompareMode);
+	}
   await page.fill("#caseActor", "queue-owner");
   await page.click('[data-case-assign-id="' + linkedCaseID + '"]');
   await page.waitForFunction(
