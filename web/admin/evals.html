@@ -495,8 +495,8 @@
       const preferredAction = preferredPrimaryAction(item);
       const linkedCaseAction = preferredLinkedCaseAction(item);
       const caseURL = `${caseEndpointBase}${encodeURIComponent(item.source_case_id)}?tenant_id=${encodeURIComponent(item.tenant_id)}`;
-      const latestFollowUpCaseURL = linkedCaseAction.valid ? linkedCaseAction.targetHref : "";
-      const latestFollowUpCaseLabel = linkedCaseAction.valid ? linkedCaseAction.label : "";
+      const latestFollowUpCaseURL = linkedCaseAction.valid && linkedCaseAction.mode === "open_existing_case" ? linkedCaseAction.targetHref : "";
+      const latestFollowUpCaseLabel = linkedCaseAction.valid && linkedCaseAction.mode === "open_existing_case" ? linkedCaseAction.label : "";
       const followUpSliceURL = buildEvalQueueHref(item, item.eval_case_id);
       createCaseButton.dataset.action = preferredAction.valid ? preferredAction.mode : "invalid";
       createCaseButton.dataset.actionMode = preferredAction.valid ? preferredAction.mode : "invalid";
@@ -541,8 +541,8 @@
               ${currentDatasetDetail ? `<a class="button-link ghost" href="${datasetEndpoint}/${encodeURIComponent(currentDatasetDetail.dataset_id)}?tenant_id=${encodeURIComponent(item.tenant_id)}" target="_blank" rel="noreferrer">Open dataset API detail</a>` : ""}
               ${currentDatasetDetail ? `<a class="button-link ghost" href="/admin/eval-datasets?tenant_id=${encodeURIComponent(item.tenant_id)}&dataset_id=${encodeURIComponent(currentDatasetDetail.dataset_id)}">Open dataset lane</a>` : ""}
               <a class="button-link ghost" href="${caseURL}" target="_blank" rel="noreferrer">Open case API detail</a>
-              ${latestFollowUpCaseURL ? `<a class="button-link ghost" href="${latestFollowUpCaseURL}">${escapeHTML(latestFollowUpCaseLabel)}</a>` : ""}
-              <a class="button-link ghost" href="${followUpSliceURL}">Open follow-up slice</a>
+              ${latestFollowUpCaseURL ? `<a class="button-link ghost" id="openLatestFollowUpLink" href="${latestFollowUpCaseURL}" data-action-mode="${escapeHTML(linkedCaseAction.mode || "none")}">${escapeHTML(latestFollowUpCaseLabel)}</a>` : ""}
+              <a class="button-link ghost" id="openFollowUpSliceLink" href="${followUpSliceURL}" data-action-mode="open_follow_up_slice">Open follow-up slice</a>
               ${reportURL ? `<a class="button-link ghost" href="${reportURL}" target="_blank" rel="noreferrer">Open report API detail</a>` : ""}
               ${taskURL ? `<a class="button-link ghost" href="${taskURL}" target="_blank" rel="noreferrer">Open task API detail</a>` : ""}
               <a class="button-link ghost" href="${traceURL}">Open Trace Detail</a>

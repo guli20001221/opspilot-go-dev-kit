@@ -539,6 +539,18 @@ async function main() {
   if (!latestFollowUpHref || !latestFollowUpHref.includes("/admin/cases?")) {
     throw new Error("latest follow-up handoff missing from eval detail");
   }
+  const latestFollowUpMode = await page.getAttribute("#openLatestFollowUpLink", "data-action-mode");
+  if (latestFollowUpMode !== "open_existing_case") {
+    throw new Error("latest follow-up detail handoff mode missing existing-case reuse: " + latestFollowUpMode);
+  }
+  const followUpSliceHref = await page.getAttribute("#openFollowUpSliceLink", "href");
+  if (!followUpSliceHref || !followUpSliceHref.includes("source_eval_case_id=" + encodeURIComponent(evalCaseID))) {
+    throw new Error("follow-up slice handoff missing canonical eval-case queue target");
+  }
+  const followUpSliceMode = await page.getAttribute("#openFollowUpSliceLink", "data-action-mode");
+  if (followUpSliceMode !== "open_follow_up_slice") {
+    throw new Error("follow-up slice handoff mode drifted: " + followUpSliceMode);
+  }
   const detailText = (await page.textContent("#evalDetail")).trim();
   if (!detailText.includes(evalCaseID) || !detailText.includes("Follow-up cases")) {
     throw new Error("eval detail did not materialize expected content");
@@ -570,6 +582,18 @@ async function main() {
   const queueStatusText = (await page.textContent("#evalDetailStatusNote")).trim();
   if (!queueStatusText.includes("closed or already resolved")) {
     throw new Error("queue-mode eval detail status note did not explain queue reuse");
+  }
+  const queueLatestFollowUpLinkCount = await page.locator("#openLatestFollowUpLink").count();
+  if (queueLatestFollowUpLinkCount !== 0) {
+    throw new Error("queue-mode eval detail should not expose stale latest-case handoff");
+  }
+  const queueFollowUpSliceHref = await page.getAttribute("#openFollowUpSliceLink", "href");
+  if (!queueFollowUpSliceHref || !queueFollowUpSliceHref.includes("source_eval_case_id=" + encodeURIComponent(queueEvalCaseID))) {
+    throw new Error("queue-mode eval detail follow-up slice drifted from canonical eval-case queue");
+  }
+  const queueFollowUpSliceMode = await page.getAttribute("#openFollowUpSliceLink", "data-action-mode");
+  if (queueFollowUpSliceMode !== "open_follow_up_slice") {
+    throw new Error("queue-mode eval detail follow-up slice mode drifted: " + queueFollowUpSliceMode);
   }
   await browser.close();
 }
