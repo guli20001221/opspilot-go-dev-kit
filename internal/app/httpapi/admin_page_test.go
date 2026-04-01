@@ -1977,6 +1977,18 @@ async function assertCaseSource(page, apiBaseURL, caseID, tenantID, expectedRepo
   if (!leftLinkedCasesHref || !leftLinkedCasesHref.includes("case_id=" + encodeURIComponent(leftCaseID))) {
     throw new Error("left linked-cases handoff should reuse canonical linked-case action");
   }
+  const leftLinkedCasesMode = await page.getAttribute("#leftLinkedCasesLink", "data-action-mode");
+  if (leftLinkedCasesMode !== "open_existing_case") {
+    throw new Error("left linked-cases handoff mode missing canonical linked-case state: " + leftLinkedCasesMode);
+  }
+  const leftRunLaneHref = await page.getAttribute("#leftRunLaneLink", "href");
+  if (!leftRunLaneHref || !leftRunLaneHref.includes("/admin/eval-runs?")) {
+    throw new Error("left run-lane handoff missing canonical run target");
+  }
+  const leftRunLaneMode = await page.getAttribute("#leftRunLaneLink", "data-action-mode");
+  if (leftRunLaneMode !== "open_run") {
+    throw new Error("left run-lane handoff mode missing canonical run state: " + leftRunLaneMode);
+  }
   const leftCompareCasesHref = await page.getAttribute("#leftCompareCasesLink", "href");
   if (!leftCompareCasesHref || !leftCompareCasesHref.includes("/admin/cases?") || !leftCompareCasesHref.includes("source_eval_report_id=" + encodeURIComponent(leftReportID)) || !leftCompareCasesHref.includes("compare_origin_only=true") || !leftCompareCasesHref.includes("status=open")) {
     throw new Error("left compare-follow-ups handoff missing canonical compare queue filter");
@@ -2012,6 +2024,18 @@ async function assertCaseSource(page, apiBaseURL, caseID, tenantID, expectedRepo
   const rightLinkedCasesHref = await page.getAttribute("#rightLinkedCasesLink", "href");
   if (!rightLinkedCasesHref || !rightLinkedCasesHref.includes("case_id=" + encodeURIComponent(rightCaseID))) {
     throw new Error("right linked-cases handoff should reuse canonical linked-case action");
+  }
+  const rightLinkedCasesMode = await page.getAttribute("#rightLinkedCasesLink", "data-action-mode");
+  if (rightLinkedCasesMode !== "open_existing_case") {
+    throw new Error("right linked-cases handoff mode missing canonical linked-case state: " + rightLinkedCasesMode);
+  }
+  const rightRunLaneHref = await page.getAttribute("#rightRunLaneLink", "href");
+  if (!rightRunLaneHref || !rightRunLaneHref.includes("/admin/eval-runs?")) {
+    throw new Error("right run-lane handoff missing canonical run target");
+  }
+  const rightRunLaneMode = await page.getAttribute("#rightRunLaneLink", "data-action-mode");
+  if (rightRunLaneMode !== "open_run") {
+    throw new Error("right run-lane handoff mode missing canonical run state: " + rightRunLaneMode);
   }
   const rightCompareCasesHref = await page.getAttribute("#rightCompareCasesLink", "href");
   if (!rightCompareCasesHref || !rightCompareCasesHref.includes("/admin/cases?") || !rightCompareCasesHref.includes("source_eval_report_id=" + encodeURIComponent(rightReportID)) || !rightCompareCasesHref.includes("compare_origin_only=true") || !rightCompareCasesHref.includes("status=open")) {

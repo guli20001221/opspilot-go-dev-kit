@@ -64,9 +64,9 @@
                   <a class="button-link ghost" id="leftLatestCaseLink" href="#" hidden>Open left latest case</a>
                   <a class="button-link ghost" id="leftBadCaseNeedsFollowUpLink" href="#" hidden>Open left unresolved bad cases</a>
                   <a class="button-link ghost" id="leftCompareCasesLink" href="#" hidden>Open left compare follow-ups</a>
-                  <a class="button-link ghost" id="leftLinkedCasesLink" href="#">Open left linked cases</a>
+                  <a class="button-link ghost" id="leftLinkedCasesLink" href="#" data-action-mode="none">Open left linked cases</a>
                   <a class="button-link ghost" id="leftReportAPILink" href="#" target="_blank" rel="noreferrer">Open left eval report API</a>
-                  <a class="button-link ghost" id="leftRunLaneLink" href="#">Open left eval run lane</a>
+                  <a class="button-link ghost" id="leftRunLaneLink" href="#" data-action-mode="open_run">Open left eval run lane</a>
                   <a class="button-link ghost" id="leftVersionLink" href="#" hidden>Open left version detail</a>
               </div>
             </section>
@@ -77,9 +77,9 @@
                   <a class="button-link ghost" id="rightLatestCaseLink" href="#" hidden>Open right latest case</a>
                   <a class="button-link ghost" id="rightBadCaseNeedsFollowUpLink" href="#" hidden>Open right unresolved bad cases</a>
                   <a class="button-link ghost" id="rightCompareCasesLink" href="#" hidden>Open right compare follow-ups</a>
-                  <a class="button-link ghost" id="rightLinkedCasesLink" href="#">Open right linked cases</a>
+                  <a class="button-link ghost" id="rightLinkedCasesLink" href="#" data-action-mode="none">Open right linked cases</a>
                   <a class="button-link ghost" id="rightReportAPILink" href="#" target="_blank" rel="noreferrer">Open right eval report API</a>
-                  <a class="button-link ghost" id="rightRunLaneLink" href="#">Open right eval run lane</a>
+                  <a class="button-link ghost" id="rightRunLaneLink" href="#" data-action-mode="open_run">Open right eval run lane</a>
                   <a class="button-link ghost" id="rightVersionLink" href="#" hidden>Open right version detail</a>
               </div>
             </section>
@@ -449,6 +449,8 @@
       }
       leftRunLaneLink.href = `${runLaneBase}?tenant_id=${encodeURIComponent(payload.left.tenant_id)}&dataset_id=${encodeURIComponent(payload.left.dataset_id)}&run_id=${encodeURIComponent(payload.left.run_id)}`;
       rightRunLaneLink.href = `${runLaneBase}?tenant_id=${encodeURIComponent(payload.right.tenant_id)}&dataset_id=${encodeURIComponent(payload.right.dataset_id)}&run_id=${encodeURIComponent(payload.right.run_id)}`;
+      leftRunLaneLink.dataset.actionMode = "open_run";
+      rightRunLaneLink.dataset.actionMode = "open_run";
 
       if (payload.left.version_id) {
         leftVersionLink.hidden = false;
