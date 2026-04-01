@@ -2699,6 +2699,22 @@ async function assertCasePayload(page, apiBaseURL, caseID, tenantID, expectedRep
   if (!latestBadCaseHref || !latestBadCaseHref.includes("case_id=" + encodeURIComponent(latestBadCaseFollowUpID))) {
     throw new Error("bad-case latest case handoff missing canonical case_id");
   }
+  const badCaseTraceHref = await page.locator('[data-bad-case-trace-action="' + sourceEvalCaseID + '"]').first().getAttribute("href");
+  if (!badCaseTraceHref || !badCaseTraceHref.includes("/admin/trace-detail?") || !badCaseTraceHref.includes("trace_id=")) {
+    throw new Error("bad-case trace-detail handoff missing canonical trace target");
+  }
+  const badCaseTraceMode = await page.locator('[data-bad-case-trace-action="' + sourceEvalCaseID + '"]').first().getAttribute("data-action-mode");
+  if (badCaseTraceMode !== "open_trace") {
+    throw new Error("bad-case trace-detail handoff mode missing canonical trace state: " + badCaseTraceMode);
+  }
+  const badCaseVersionHref = await page.locator('[data-bad-case-version-action="' + sourceEvalCaseID + '"]').first().getAttribute("href");
+  if (!badCaseVersionHref || !badCaseVersionHref.includes("/admin/version-detail?") || !badCaseVersionHref.includes("version_id=")) {
+    throw new Error("bad-case version-detail handoff missing canonical version target");
+  }
+  const badCaseVersionMode = await page.locator('[data-bad-case-version-action="' + sourceEvalCaseID + '"]').first().getAttribute("data-action-mode");
+  if (badCaseVersionMode !== "open_version") {
+    throw new Error("bad-case version-detail handoff mode missing canonical version state: " + badCaseVersionMode);
+  }
   const badCaseSliceHref = await page.locator("text=Open bad-case follow-up slice").first().getAttribute("href");
   if (!badCaseSliceHref || !badCaseSliceHref.includes("source_eval_case_id=" + encodeURIComponent(sourceEvalCaseID))) {
     throw new Error("bad-case follow-up slice handoff missing source_eval_case_id");
