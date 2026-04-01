@@ -159,6 +159,7 @@ type evalReportComparisonItemResponse struct {
 	LinkedCaseSummary               *evalReportLinkedCaseSummaryResponse    `json:"linked_case_summary,omitempty"`
 	PreferredLinkedCaseAction       evalReportLinkedCaseActionResponse      `json:"preferred_linked_case_action"`
 	PreferredReportLaneAction       evalReportLaneActionResponse            `json:"preferred_report_lane_action"`
+	PreferredDatasetLaneAction      evalDatasetLaneActionResponse           `json:"preferred_dataset_lane_action"`
 	PreferredPrimaryAction          evalReportPrimaryActionResponse         `json:"preferred_primary_action"`
 	CompareFollowUpCaseCount        int                                     `json:"compare_follow_up_case_count"`
 	OpenCompareFollowUpCaseCount    int                                     `json:"open_compare_follow_up_case_count"`
@@ -178,6 +179,11 @@ type evalReportCompareFollowUpActionResponse struct {
 type evalReportLaneActionResponse struct {
 	Mode     string `json:"mode"`
 	ReportID string `json:"report_id,omitempty"`
+}
+
+type evalDatasetLaneActionResponse struct {
+	Mode      string `json:"mode"`
+	DatasetID string `json:"dataset_id,omitempty"`
 }
 
 type evalReportComparisonResponse struct {
@@ -864,6 +870,7 @@ func newEvalReportComparisonItemResponse(item evalsvc.EvalReport, followUpSummar
 		LinkedCaseSummary:               linkedCaseSummary,
 		PreferredLinkedCaseAction:       newEvalReportLinkedCaseActionResponse(item.ID, linkedCaseSummary),
 		PreferredReportLaneAction:       newEvalReportLaneActionResponse(item.ID),
+		PreferredDatasetLaneAction:      newEvalDatasetLaneActionResponse(item.DatasetID),
 		PreferredPrimaryAction:          newEvalReportComparePrimaryActionResponse(item.ID, linkedCaseSummary, compareFollowUpSummary),
 		CompareFollowUpCaseCount:        compareFollowUpSummary.CompareFollowUpCaseCount,
 		OpenCompareFollowUpCaseCount:    compareFollowUpSummary.OpenCompareFollowUpCaseCount,
@@ -880,6 +887,13 @@ func newEvalReportLaneActionResponse(reportID string) evalReportLaneActionRespon
 	return evalReportLaneActionResponse{
 		Mode:     "open_report",
 		ReportID: reportID,
+	}
+}
+
+func newEvalDatasetLaneActionResponse(datasetID string) evalDatasetLaneActionResponse {
+	return evalDatasetLaneActionResponse{
+		Mode:      "open_dataset",
+		DatasetID: datasetID,
 	}
 }
 
