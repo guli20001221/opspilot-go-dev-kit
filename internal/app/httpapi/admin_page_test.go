@@ -2353,13 +2353,25 @@ async function assertCasePayload(page, apiBaseURL, caseID, tenantID, expectedRep
   if (!detailLatestCaseHref || !detailLatestCaseHref.includes("/admin/cases?") || !detailLatestCaseHref.includes("case_id=")) {
     throw new Error("latest case handoff link missing from detail pane");
   }
+  const detailLatestCaseMode = await page.getAttribute("#openLatestCaseLink", "data-action-mode");
+  if (detailLatestCaseMode !== "open_existing_case") {
+    throw new Error("latest case handoff mode missing from detail pane: " + detailLatestCaseMode);
+  }
   const detailLatestCompareHref = await page.getAttribute("#openLatestCompareCaseLink", "href");
   if (!detailLatestCompareHref || !detailLatestCompareHref.includes("case_id=" + encodeURIComponent(latestCompareFollowUpID))) {
     throw new Error("latest compare-origin case handoff missing from detail pane");
   }
+  const detailLatestCompareMode = await page.getAttribute("#openLatestCompareCaseLink", "data-action-mode");
+  if (detailLatestCompareMode !== "open_existing_case") {
+    throw new Error("latest compare-origin case handoff mode missing from detail pane: " + detailLatestCompareMode);
+  }
   const detailCompareQueueHref = await page.getAttribute("#openCompareCasesLink", "href");
   if (!detailCompareQueueHref || !detailCompareQueueHref.includes("/admin/cases?") || !detailCompareQueueHref.includes("source_eval_report_id=" + encodeURIComponent(reportID)) || !detailCompareQueueHref.includes("compare_origin_only=true") || !detailCompareQueueHref.includes("status=open")) {
     throw new Error("compare-origin queue handoff missing from detail pane");
+  }
+  const detailCompareQueueMode = await page.getAttribute("#openCompareCasesLink", "data-action-mode");
+  if (detailCompareQueueMode !== "open_existing_queue") {
+    throw new Error("compare-origin queue handoff mode missing from detail pane: " + detailCompareQueueMode);
   }
   const compareFollowUpSummary = (await page.textContent("#reportDetail")).trim();
   if (!compareFollowUpSummary.includes("Compare-origin follow-up") || !compareFollowUpSummary.includes("1 cases / 1 open")) {
@@ -2389,6 +2401,11 @@ async function assertCasePayload(page, apiBaseURL, caseID, tenantID, expectedRep
   const existingBadCasePrimaryActionHref = await existingBadCaseAction.getAttribute("href");
   if (!existingBadCasePrimaryActionHref || !existingBadCasePrimaryActionHref.includes("case_id=" + encodeURIComponent(openBadCaseFollowUp.ID))) {
     throw new Error("bad-case primary action did not use canonical existing-case handoff");
+  }
+  const existingBadCaseLinkedAction = page.locator('[data-bad-case-linked-action="' + badCaseEvalCaseID + '"]').first();
+  const existingBadCaseLinkedActionMode = await existingBadCaseLinkedAction.getAttribute("data-action-mode");
+  if (existingBadCaseLinkedActionMode !== "open_existing_case") {
+    throw new Error("bad-case linked action mode missing existing-case reuse: " + existingBadCaseLinkedActionMode);
   }
   await page.click("#quickViewAllReports");
   await page.waitForFunction(() => new URL(window.location.href).searchParams.get("needs_follow_up") === null && new URL(window.location.href).searchParams.get("bad_case_needs_follow_up") === null);
