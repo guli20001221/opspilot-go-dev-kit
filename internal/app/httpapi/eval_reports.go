@@ -15,24 +15,25 @@ import (
 )
 
 type evalReportBadCaseResponse struct {
-	EvalCaseID                string                                    `json:"eval_case_id"`
-	Title                     string                                    `json:"title"`
-	SourceCaseID              string                                    `json:"source_case_id"`
-	SourceTaskID              string                                    `json:"source_task_id,omitempty"`
-	SourceReportID            string                                    `json:"source_report_id,omitempty"`
-	TraceID                   string                                    `json:"trace_id,omitempty"`
-	VersionID                 string                                    `json:"version_id,omitempty"`
-	Verdict                   string                                    `json:"verdict"`
-	Detail                    string                                    `json:"detail,omitempty"`
-	Score                     float64                                   `json:"score"`
-	FollowUpCaseCount         int                                       `json:"follow_up_case_count"`
-	OpenFollowUpCaseCount     int                                       `json:"open_follow_up_case_count"`
-	LatestFollowUpCaseID      string                                    `json:"latest_follow_up_case_id,omitempty"`
-	LatestFollowUpCaseStatus  string                                    `json:"latest_follow_up_case_status,omitempty"`
-	PreferredFollowUpAction   evalCaseFollowUpActionResponse            `json:"preferred_follow_up_action"`
-	PreferredPrimaryAction    evalCaseFollowUpActionResponse            `json:"preferred_primary_action"`
-	PreferredLinkedCaseAction evalCaseFollowUpActionResponse            `json:"preferred_linked_case_action"`
-	PreferredProvenanceAction evalReportBadCaseProvenanceActionResponse `json:"preferred_provenance_action"`
+	EvalCaseID                  string                                    `json:"eval_case_id"`
+	Title                       string                                    `json:"title"`
+	SourceCaseID                string                                    `json:"source_case_id"`
+	SourceTaskID                string                                    `json:"source_task_id,omitempty"`
+	SourceReportID              string                                    `json:"source_report_id,omitempty"`
+	TraceID                     string                                    `json:"trace_id,omitempty"`
+	VersionID                   string                                    `json:"version_id,omitempty"`
+	Verdict                     string                                    `json:"verdict"`
+	Detail                      string                                    `json:"detail,omitempty"`
+	Score                       float64                                   `json:"score"`
+	FollowUpCaseCount           int                                       `json:"follow_up_case_count"`
+	OpenFollowUpCaseCount       int                                       `json:"open_follow_up_case_count"`
+	LatestFollowUpCaseID        string                                    `json:"latest_follow_up_case_id,omitempty"`
+	LatestFollowUpCaseStatus    string                                    `json:"latest_follow_up_case_status,omitempty"`
+	PreferredFollowUpAction     evalCaseFollowUpActionResponse            `json:"preferred_follow_up_action"`
+	PreferredFollowUpLaneAction evalCaseFollowUpActionResponse            `json:"preferred_follow_up_lane_action"`
+	PreferredPrimaryAction      evalCaseFollowUpActionResponse            `json:"preferred_primary_action"`
+	PreferredLinkedCaseAction   evalCaseFollowUpActionResponse            `json:"preferred_linked_case_action"`
+	PreferredProvenanceAction   evalReportBadCaseProvenanceActionResponse `json:"preferred_provenance_action"`
 }
 
 type evalReportResponse struct {
@@ -734,24 +735,25 @@ func newEvalReportResponse(item evalsvc.EvalReport, includeHeavy bool, followUpS
 			for _, badCase := range item.BadCases {
 				badCaseSummary := badCaseSummaries[badCase.EvalCaseID]
 				resp.BadCases = append(resp.BadCases, evalReportBadCaseResponse{
-					EvalCaseID:                badCase.EvalCaseID,
-					Title:                     badCase.Title,
-					SourceCaseID:              badCase.SourceCaseID,
-					SourceTaskID:              badCase.SourceTaskID,
-					SourceReportID:            badCase.SourceReportID,
-					TraceID:                   badCase.TraceID,
-					VersionID:                 badCase.VersionID,
-					Verdict:                   badCase.Verdict,
-					Detail:                    badCase.Detail,
-					Score:                     badCase.Score,
-					FollowUpCaseCount:         badCaseSummary.FollowUpCaseCount,
-					OpenFollowUpCaseCount:     badCaseSummary.OpenFollowUpCaseCount,
-					LatestFollowUpCaseID:      badCaseSummary.LatestFollowUpCaseID,
-					LatestFollowUpCaseStatus:  badCaseSummary.LatestFollowUpCaseStatus,
-					PreferredFollowUpAction:   newEvalReportBadCaseFollowUpActionResponse(badCase.EvalCaseID, badCaseSummary),
-					PreferredPrimaryAction:    newEvalReportBadCasePrimaryActionResponse(badCase.EvalCaseID, badCaseSummary),
-					PreferredLinkedCaseAction: newEvalReportBadCaseLinkedCaseActionResponse(badCase.EvalCaseID, badCaseSummary),
-					PreferredProvenanceAction: newEvalReportBadCaseProvenanceActionResponse(badCase),
+					EvalCaseID:                  badCase.EvalCaseID,
+					Title:                       badCase.Title,
+					SourceCaseID:                badCase.SourceCaseID,
+					SourceTaskID:                badCase.SourceTaskID,
+					SourceReportID:              badCase.SourceReportID,
+					TraceID:                     badCase.TraceID,
+					VersionID:                   badCase.VersionID,
+					Verdict:                     badCase.Verdict,
+					Detail:                      badCase.Detail,
+					Score:                       badCase.Score,
+					FollowUpCaseCount:           badCaseSummary.FollowUpCaseCount,
+					OpenFollowUpCaseCount:       badCaseSummary.OpenFollowUpCaseCount,
+					LatestFollowUpCaseID:        badCaseSummary.LatestFollowUpCaseID,
+					LatestFollowUpCaseStatus:    badCaseSummary.LatestFollowUpCaseStatus,
+					PreferredFollowUpAction:     newEvalReportBadCaseFollowUpActionResponse(badCase.EvalCaseID, badCaseSummary),
+					PreferredFollowUpLaneAction: newEvalReportBadCaseFollowUpLaneActionResponse(badCase.EvalCaseID, badCaseSummary),
+					PreferredPrimaryAction:      newEvalReportBadCasePrimaryActionResponse(badCase.EvalCaseID, badCaseSummary),
+					PreferredLinkedCaseAction:   newEvalReportBadCaseLinkedCaseActionResponse(badCase.EvalCaseID, badCaseSummary),
+					PreferredProvenanceAction:   newEvalReportBadCaseProvenanceActionResponse(badCase),
 				})
 			}
 		}
@@ -817,6 +819,10 @@ func newEvalReportBadCasePrimaryActionResponse(evalCaseID string, followUpSummar
 	if linkedAction.Mode != "none" {
 		return linkedAction
 	}
+	return newEvalReportBadCaseFollowUpActionResponse(evalCaseID, followUpSummary)
+}
+
+func newEvalReportBadCaseFollowUpLaneActionResponse(evalCaseID string, followUpSummary casesvc.EvalCaseFollowUpSummary) evalCaseFollowUpActionResponse {
 	return newEvalReportBadCaseFollowUpActionResponse(evalCaseID, followUpSummary)
 }
 

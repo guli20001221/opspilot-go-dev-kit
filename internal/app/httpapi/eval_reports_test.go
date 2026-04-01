@@ -68,6 +68,12 @@ func TestGetEvalReportReturnsMaterializedDetail(t *testing.T) {
 	if got.BadCases[0].PreferredFollowUpAction.SourceEvalCaseID != got.BadCases[0].EvalCaseID {
 		t.Fatalf("BadCases[0].PreferredFollowUpAction.SourceEvalCaseID = %q, want %q", got.BadCases[0].PreferredFollowUpAction.SourceEvalCaseID, got.BadCases[0].EvalCaseID)
 	}
+	if got.BadCases[0].PreferredFollowUpLaneAction.Mode != "create" {
+		t.Fatalf("BadCases[0].PreferredFollowUpLaneAction.Mode = %q, want %q", got.BadCases[0].PreferredFollowUpLaneAction.Mode, "create")
+	}
+	if got.BadCases[0].PreferredFollowUpLaneAction.SourceEvalCaseID != got.BadCases[0].EvalCaseID {
+		t.Fatalf("BadCases[0].PreferredFollowUpLaneAction.SourceEvalCaseID = %q, want %q", got.BadCases[0].PreferredFollowUpLaneAction.SourceEvalCaseID, got.BadCases[0].EvalCaseID)
+	}
 	if got.BadCases[0].PreferredPrimaryAction.Mode != "create" {
 		t.Fatalf("BadCases[0].PreferredPrimaryAction.Mode = %q, want %q", got.BadCases[0].PreferredPrimaryAction.Mode, "create")
 	}
@@ -360,6 +366,15 @@ func TestGetEvalReportIncludesBadCaseFollowUpCaseSummary(t *testing.T) {
 	if badCase.PreferredFollowUpAction.SourceEvalCaseID != evalCaseID {
 		t.Fatalf("BadCases[0].PreferredFollowUpAction.SourceEvalCaseID = %q, want %q", badCase.PreferredFollowUpAction.SourceEvalCaseID, evalCaseID)
 	}
+	if badCase.PreferredFollowUpLaneAction.Mode != "open_existing_case" {
+		t.Fatalf("BadCases[0].PreferredFollowUpLaneAction.Mode = %q, want %q", badCase.PreferredFollowUpLaneAction.Mode, "open_existing_case")
+	}
+	if badCase.PreferredFollowUpLaneAction.CaseID != openCase.ID {
+		t.Fatalf("BadCases[0].PreferredFollowUpLaneAction.CaseID = %q, want %q", badCase.PreferredFollowUpLaneAction.CaseID, openCase.ID)
+	}
+	if badCase.PreferredFollowUpLaneAction.SourceEvalCaseID != evalCaseID {
+		t.Fatalf("BadCases[0].PreferredFollowUpLaneAction.SourceEvalCaseID = %q, want %q", badCase.PreferredFollowUpLaneAction.SourceEvalCaseID, evalCaseID)
+	}
 	if badCase.PreferredPrimaryAction.Mode != "open_existing_case" {
 		t.Fatalf("BadCases[0].PreferredPrimaryAction.Mode = %q, want %q", badCase.PreferredPrimaryAction.Mode, "open_existing_case")
 	}
@@ -442,6 +457,15 @@ func TestGetEvalReportBadCaseLinkedCaseActionPrefersQueueWhenLatestCaseClosed(t 
 	}
 	if badCase.PreferredLinkedCaseAction.SourceEvalCaseID != evalCaseID {
 		t.Fatalf("BadCases[0].PreferredLinkedCaseAction.SourceEvalCaseID = %q, want %q", badCase.PreferredLinkedCaseAction.SourceEvalCaseID, evalCaseID)
+	}
+	if badCase.PreferredFollowUpLaneAction.Mode != "create" {
+		t.Fatalf("BadCases[0].PreferredFollowUpLaneAction.Mode = %q, want %q", badCase.PreferredFollowUpLaneAction.Mode, "create")
+	}
+	if badCase.PreferredFollowUpLaneAction.CaseID != "" {
+		t.Fatalf("BadCases[0].PreferredFollowUpLaneAction.CaseID = %q, want empty", badCase.PreferredFollowUpLaneAction.CaseID)
+	}
+	if badCase.PreferredFollowUpLaneAction.SourceEvalCaseID != evalCaseID {
+		t.Fatalf("BadCases[0].PreferredFollowUpLaneAction.SourceEvalCaseID = %q, want %q", badCase.PreferredFollowUpLaneAction.SourceEvalCaseID, evalCaseID)
 	}
 	if badCase.PreferredPrimaryAction.Mode != "open_existing_queue" {
 		t.Fatalf("BadCases[0].PreferredPrimaryAction.Mode = %q, want %q", badCase.PreferredPrimaryAction.Mode, "open_existing_queue")

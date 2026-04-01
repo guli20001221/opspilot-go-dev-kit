@@ -1808,6 +1808,9 @@ func TestAdminEvalReportsPageRendersHTML(t *testing.T) {
 	if !strings.Contains(body, "Open bad-case follow-up slice") {
 		t.Fatal("bad-case follow-up slice handoff missing from eval reports page HTML")
 	}
+	if !strings.Contains(body, "data-bad-case-follow-up-lane-action") {
+		t.Fatal("bad-case follow-up lane selector missing from eval reports page HTML")
+	}
 	if !strings.Contains(body, "data-bad-case-provenance-action") {
 		t.Fatal("bad-case provenance selector missing from eval reports page HTML")
 	}
@@ -2500,6 +2503,20 @@ func TestAdminEvalReportsPageRuntimeSmoke(t *testing.T) {
 	}); err != nil {
 		t.Fatalf("CreateCase(noReuseBadCaseFollowUp) error = %v", err)
 	}
+	time.Sleep(2 * time.Millisecond)
+	closedNoReuseBadCaseFollowUp, err := caseService.CreateCase(context.Background(), casesvc.CreateInput{
+		TenantID:         "tenant-eval-admin-smoke",
+		Title:            "Closed bad-case follow-up without report-level case",
+		Summary:          "Closed bad-case follow-up summary without report-level case",
+		SourceEvalCaseID: noReuseBadCaseEvalCaseID,
+		CreatedBy:        "operator-eval",
+	})
+	if err != nil {
+		t.Fatalf("CreateCase(closedNoReuseBadCaseFollowUp) error = %v", err)
+	}
+	if _, err := caseService.CloseCase(context.Background(), closedNoReuseBadCaseFollowUp.ID, "operator-eval"); err != nil {
+		t.Fatalf("CloseCase(closedNoReuseBadCaseFollowUp) error = %v", err)
+	}
 
 	server := httptest.NewServer(NewHandlerWithDependencies(Dependencies{
 		EvalReports: reportService,
@@ -2521,7 +2538,8 @@ const reportID = process.argv[4];
 const badCaseEvalCaseID = process.argv[5];
 const latestBadCaseFollowUpID = process.argv[6];
 const reportNoReuseID = process.argv[7];
-const latestCompareFollowUpID = process.argv[8];
+const noReuseBadCaseEvalCaseID = process.argv[8];
+const latestCompareFollowUpID = process.argv[9];
 
 async function assertCasePayload(page, apiBaseURL, caseID, tenantID, expectedReportID, expectedEvalCaseID) {
   await page.goto(apiBaseURL + "/api/v1/cases/" + encodeURIComponent(caseID) + "?tenant_id=" + encodeURIComponent(tenantID));
@@ -2791,6 +2809,14 @@ async function assertCasePayload(page, apiBaseURL, caseID, tenantID, expectedRep
   if (!latestBadCaseHref || !latestBadCaseHref.includes("case_id=" + encodeURIComponent(latestBadCaseFollowUpID))) {
     throw new Error("bad-case latest case handoff missing canonical case_id");
   }
+  const badCaseFollowUpLaneHref = await page.locator('[data-bad-case-follow-up-lane-action="' + sourceEvalCaseID + '"]').first().getAttribute("href");
+  if (!badCaseFollowUpLaneHref || !badCaseFollowUpLaneHref.includes("/admin/cases?") || !badCaseFollowUpLaneHref.includes("case_id=" + encodeURIComponent(latestBadCaseFollowUpID))) {
+    throw new Error("bad-case follow-up lane handoff missing canonical case target");
+  }
+  const badCaseFollowUpLaneMode = await page.locator('[data-bad-case-follow-up-lane-action="' + sourceEvalCaseID + '"]').first().getAttribute("data-action-mode");
+  if (badCaseFollowUpLaneMode !== "open_existing_case") {
+    throw new Error("bad-case follow-up lane handoff mode missing canonical open_existing_case state: " + badCaseFollowUpLaneMode);
+  }
   const badCaseTraceHref = await page.locator('[data-bad-case-trace-action="' + sourceEvalCaseID + '"]').first().getAttribute("href");
   if (!badCaseTraceHref || !badCaseTraceHref.includes("/admin/trace-detail?") || !badCaseTraceHref.includes("trace_id=")) {
     throw new Error("bad-case trace-detail handoff missing canonical trace target");
@@ -2931,6 +2957,14 @@ async function assertCasePayload(page, apiBaseURL, caseID, tenantID, expectedRep
   await page.waitForFunction(() => new URL(window.location.href).searchParams.get("detail_bad_case_needs_follow_up") === "false");
   await page.goto(baseURL + "/admin/eval-reports?tenant_id=" + encodeURIComponent(tenantID) + "&limit=10&selected_report_id=" + encodeURIComponent(reportNoReuseID));
   await page.waitForSelector("text=Bad cases");
+  const queueFollowUpLaneHref = await page.locator('[data-bad-case-follow-up-lane-action="' + noReuseBadCaseEvalCaseID + '"]').first().getAttribute("href");
+  if (!queueFollowUpLaneHref || !queueFollowUpLaneHref.includes("/admin/cases?") || !queueFollowUpLaneHref.includes("source_eval_case_id=" + encodeURIComponent(noReuseBadCaseEvalCaseID))) {
+    throw new Error("bad-case follow-up lane queue handoff missing canonical source_eval_case_id target");
+  }
+  const queueFollowUpLaneMode = await page.locator('[data-bad-case-follow-up-lane-action="' + noReuseBadCaseEvalCaseID + '"]').first().getAttribute("data-action-mode");
+  if (queueFollowUpLaneMode !== "open_existing_queue") {
+    throw new Error("bad-case follow-up lane queue handoff mode missing canonical open_existing_queue state: " + queueFollowUpLaneMode);
+  }
   await page.click("#badCaseQuickViewNoFollowUp");
   await page.waitForFunction(() => {
     const params = new URL(window.location.href).searchParams;
@@ -2986,7 +3020,7 @@ async function assertCasePayload(page, apiBaseURL, caseID, tenantID, expectedRep
 		t.Fatalf("WriteFile(scriptPath) error = %v", err)
 	}
 
-	cmd := exec.Command("node", scriptPath, server.URL, "tenant-eval-admin-smoke", reportID, badCaseEvalCaseID, openBadCaseFollowUp.ID, reportNoReuseID, openCompareFollowUp.ID)
+	cmd := exec.Command("node", scriptPath, server.URL, "tenant-eval-admin-smoke", reportID, badCaseEvalCaseID, openBadCaseFollowUp.ID, reportNoReuseID, noReuseBadCaseEvalCaseID, openCompareFollowUp.ID)
 	cmd.Env = append(os.Environ(), "NODE_PATH="+nodePathRoot)
 	output, err := cmd.CombinedOutput()
 	if err != nil {
