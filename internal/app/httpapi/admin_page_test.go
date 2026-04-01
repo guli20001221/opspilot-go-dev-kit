@@ -2828,6 +2828,14 @@ async function assertCasePayload(page, apiBaseURL, caseID, tenantID, expectedRep
   if (badCaseOpenEvalMode !== "open_eval") {
     throw new Error("bad-case eval lane handoff mode missing canonical open_eval state: " + badCaseOpenEvalMode);
   }
+  const badCaseOpenSourceCaseHref = await page.locator('[data-bad-case-open-source-case="' + sourceEvalCaseID + '"]').first().getAttribute("href");
+  if (!badCaseOpenSourceCaseHref || !badCaseOpenSourceCaseHref.includes("/admin/cases?") || !badCaseOpenSourceCaseHref.includes("case_id=" + encodeURIComponent(sourceCaseID))) {
+    throw new Error("bad-case source-case handoff missing canonical case target");
+  }
+  const badCaseOpenSourceCaseMode = await page.locator('[data-bad-case-open-source-case="' + sourceEvalCaseID + '"]').first().getAttribute("data-action-mode");
+  if (badCaseOpenSourceCaseMode !== "open_source_case") {
+    throw new Error("bad-case source-case handoff mode missing canonical open_source_case state: " + badCaseOpenSourceCaseMode);
+  }
   const badCaseSliceHref = await page.locator("text=Open bad-case follow-up slice").first().getAttribute("href");
   if (!badCaseSliceHref || !badCaseSliceHref.includes("source_eval_case_id=" + encodeURIComponent(sourceEvalCaseID))) {
     throw new Error("bad-case follow-up slice handoff missing source_eval_case_id");
