@@ -2828,6 +2828,14 @@ async function assertCasePayload(page, apiBaseURL, caseID, tenantID, expectedRep
   if (badCaseOpenEvalMode !== "open_eval") {
     throw new Error("bad-case eval lane handoff mode missing canonical open_eval state: " + badCaseOpenEvalMode);
   }
+  const badCaseEvalAPIHref = await page.locator('[data-bad-case-eval-api-action="' + sourceEvalCaseID + '"]').first().getAttribute("href");
+  if (!badCaseEvalAPIHref || !badCaseEvalAPIHref.includes("/api/v1/eval-cases/") || !badCaseEvalAPIHref.includes(encodeURIComponent(sourceEvalCaseID)) || !badCaseEvalAPIHref.includes("tenant_id=" + encodeURIComponent(tenantID))) {
+    throw new Error("bad-case eval api handoff missing canonical eval-case api target");
+  }
+  const badCaseEvalAPIMode = await page.locator('[data-bad-case-eval-api-action="' + sourceEvalCaseID + '"]').first().getAttribute("data-action-mode");
+  if (badCaseEvalAPIMode !== "open_eval_api") {
+    throw new Error("bad-case eval api handoff mode missing canonical open_eval_api state: " + badCaseEvalAPIMode);
+  }
   const badCaseOpenSourceCaseHref = await page.locator('[data-bad-case-open-source-case="' + sourceEvalCaseID + '"]').first().getAttribute("href");
   if (!badCaseOpenSourceCaseHref || !badCaseOpenSourceCaseHref.includes("/admin/cases?") || !badCaseOpenSourceCaseHref.includes("case_id=" + encodeURIComponent(sourceCaseID))) {
     throw new Error("bad-case source-case handoff missing canonical case target");
