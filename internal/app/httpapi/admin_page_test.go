@@ -760,6 +760,12 @@ func TestAdminEvalDatasetsPageRendersHTML(t *testing.T) {
 	if !strings.Contains(body, "Version detail") {
 		t.Fatal("version detail handoff missing from eval datasets page HTML")
 	}
+	if !strings.Contains(body, "data-dataset-item-trace-action") {
+		t.Fatal("dataset item trace handoff selector missing from eval datasets page HTML")
+	}
+	if !strings.Contains(body, "data-dataset-item-version-action") {
+		t.Fatal("dataset item version handoff selector missing from eval datasets page HTML")
+	}
 	if !strings.Contains(body, "Open linked case") {
 		t.Fatal("linked case handoff missing from eval datasets page HTML")
 	}
@@ -1063,6 +1069,10 @@ const linkedEvalCaseCaseID = process.argv[15];
   if (linkedDatasetItemMode !== "open_existing_case") throw new Error("dataset item primary action mode missing reuse state: " + linkedDatasetItemMode);
   const linkedDatasetItemHref = await linkedDatasetItemAction.getAttribute("href");
   if (!linkedDatasetItemHref || !linkedDatasetItemHref.includes("case_id=" + encodeURIComponent(linkedEvalCaseCaseID))) throw new Error("dataset item primary action missing canonical case handoff");
+  const linkedDatasetTraceHref = await page.getAttribute('[data-dataset-item-trace-action="' + linkedEvalCaseID + '"]', "href");
+  if (!linkedDatasetTraceHref || !linkedDatasetTraceHref.includes("/admin/trace-detail?") || !linkedDatasetTraceHref.includes("case_id=")) throw new Error("dataset item trace handoff missing canonical trace target");
+  const linkedDatasetTraceMode = await page.getAttribute('[data-dataset-item-trace-action="' + linkedEvalCaseID + '"]', "data-action-mode");
+  if (linkedDatasetTraceMode !== "open_trace") throw new Error("dataset item trace action mode missing canonical trace state: " + linkedDatasetTraceMode);
   await page.click("#needsFollowUpQuickView");
   await page.waitForFunction(() => document.querySelector("#visibleCount")?.textContent?.trim() === "1");
   const currentURL = new URL(page.url());
@@ -1232,6 +1242,18 @@ func TestAdminEvalRunsPageRendersHTML(t *testing.T) {
 	}
 	if !strings.Contains(body, "data-run-row-primary-action") {
 		t.Fatal("row-level run primary action selector missing from eval runs page HTML")
+	}
+	if !strings.Contains(body, "data-run-item-task-action") {
+		t.Fatal("run-item task selector missing from eval runs page HTML")
+	}
+	if !strings.Contains(body, "data-run-item-report-action") {
+		t.Fatal("run-item report selector missing from eval runs page HTML")
+	}
+	if !strings.Contains(body, "data-run-item-trace-action") {
+		t.Fatal("run-item trace selector missing from eval runs page HTML")
+	}
+	if !strings.Contains(body, "data-run-item-version-action") {
+		t.Fatal("run-item version selector missing from eval runs page HTML")
 	}
 	if !strings.Contains(body, "Open linked case queue") {
 		t.Fatal("linked case queue handoff missing from eval runs page HTML")
@@ -1443,6 +1465,38 @@ const uncoveredRunID = process.argv[10];
   const detailReportAPIHref = await page.getAttribute("#openEvalReportAPILink", "href");
   if (!detailReportAPIHref || !detailReportAPIHref.includes("/api/v1/eval-reports/" + encodeURIComponent(reportID))) {
     throw new Error("report-backed detail api handoff drifted");
+  }
+  const reportRunItemReportHref = await page.locator('#runDetail [data-run-item-report-action]').first().getAttribute("href");
+  if (!reportRunItemReportHref || !reportRunItemReportHref.includes("/api/v1/reports/") || !reportRunItemReportHref.includes("tenant_id=" + encodeURIComponent(tenantID))) {
+    throw new Error("run-item report api handoff missing canonical report target");
+  }
+  const reportRunItemReportMode = await page.locator('#runDetail [data-run-item-report-action]').first().getAttribute("data-action-mode");
+  if (reportRunItemReportMode !== "open_report_api") {
+    throw new Error("run-item report api handoff mode missing canonical report state: " + reportRunItemReportMode);
+  }
+  const reportRunItemTaskHref = await page.locator('#runDetail [data-run-item-task-action]').first().getAttribute("href");
+  if (!reportRunItemTaskHref || !reportRunItemTaskHref.includes("/api/v1/tasks/") || !reportRunItemTaskHref.includes("tenant_id=" + encodeURIComponent(tenantID))) {
+    throw new Error("run-item task api handoff missing canonical task target");
+  }
+  const reportRunItemTaskMode = await page.locator('#runDetail [data-run-item-task-action]').first().getAttribute("data-action-mode");
+  if (reportRunItemTaskMode !== "open_task_api") {
+    throw new Error("run-item task api handoff mode missing canonical task state: " + reportRunItemTaskMode);
+  }
+  const reportRunItemTraceHref = await page.locator('#runDetail [data-run-item-trace-action]').first().getAttribute("href");
+  if (!reportRunItemTraceHref || !reportRunItemTraceHref.includes("/admin/trace-detail?") || !reportRunItemTraceHref.includes("trace_id=")) {
+    throw new Error("run-item trace handoff missing canonical trace target");
+  }
+  const reportRunItemTraceMode = await page.locator('#runDetail [data-run-item-trace-action]').first().getAttribute("data-action-mode");
+  if (reportRunItemTraceMode !== "open_trace") {
+    throw new Error("run-item trace handoff mode missing canonical trace state: " + reportRunItemTraceMode);
+  }
+  const reportRunItemVersionHref = await page.locator('#runDetail [data-run-item-version-action]').first().getAttribute("href");
+  if (!reportRunItemVersionHref || !reportRunItemVersionHref.includes("/admin/version-detail?") || !reportRunItemVersionHref.includes("version_id=")) {
+    throw new Error("run-item version handoff missing canonical version target");
+  }
+  const reportRunItemVersionMode = await page.locator('#runDetail [data-run-item-version-action]').first().getAttribute("data-action-mode");
+  if (reportRunItemVersionMode !== "open_version") {
+    throw new Error("run-item version handoff mode missing canonical version state: " + reportRunItemVersionMode);
   }
   await page.click('[data-run-row="' + closedRunID + '"] [data-run-id="' + closedRunID + '"]');
   await page.waitForFunction((runID) => {
