@@ -1137,6 +1137,9 @@ func TestAdminEvalRunsPageRendersHTML(t *testing.T) {
 	if !strings.Contains(body, "data-run-row-linked-case-action") {
 		t.Fatal("row-level run linked queue selector missing from eval runs page HTML")
 	}
+	if !strings.Contains(body, "data-run-row-primary-action") {
+		t.Fatal("row-level run primary action selector missing from eval runs page HTML")
+	}
 	if !strings.Contains(body, "Open linked case queue") {
 		t.Fatal("linked case queue handoff missing from eval runs page HTML")
 	}
@@ -1314,28 +1317,40 @@ const uncoveredRunID = process.argv[10];
 
   const openRowHref = await page.getAttribute('[data-run-row="' + openRunID + '"] a[href*="case_id=' + encodeURIComponent(openCaseID) + '"]', "href");
   if (!openRowHref) throw new Error("open latest run case handoff missing from open row");
-  const openPrimaryActionHref = await page.locator('[data-run-row="' + openRunID + '"] td:last-child a, [data-run-row="' + openRunID + '"] td:last-child button').evaluateAll((elements) => {
-    const match = elements.find((element) => (element.textContent || "").includes("Open existing case"));
-    return match ? match.getAttribute("href") || "" : "";
-  });
+  const openPrimaryActionHref = await page.getAttribute('[data-run-row-primary-action="' + openRunID + '"]', "href");
   if (!openPrimaryActionHref || !openPrimaryActionHref.includes("case_id=" + encodeURIComponent(openCaseID))) {
     throw new Error("open row primary action did not honor backend-owned existing-case handoff");
   }
+  const openPrimaryActionMode = await page.getAttribute('[data-run-row-primary-action="' + openRunID + '"]', "data-action-mode");
+  if (openPrimaryActionMode !== "open_existing_case") {
+    throw new Error("open row primary action mode missing existing-case reuse: " + openPrimaryActionMode);
+  }
 
-  const reportRowHref = await page.locator('[data-run-row="' + reportRunID + '"] td:last-child a').evaluateAll((elements) => {
-    const match = elements.find((element) => (element.textContent || "").includes("Open eval report"));
-    return match ? match.getAttribute("href") || "" : "";
-  });
+  const reportRowHref = await page.getAttribute('[data-run-row-primary-action="' + reportRunID + '"]', "href");
   if (!reportRowHref || !reportRowHref.includes("/admin/eval-reports?") || !reportRowHref.includes("report_id=" + encodeURIComponent(reportID))) {
     throw new Error("report-backed row primary action did not honor backend-owned report handoff");
   }
+  const reportRowMode = await page.getAttribute('[data-run-row-primary-action="' + reportRunID + '"]', "data-action-mode");
+  if (reportRowMode !== "open_report") {
+    throw new Error("report-backed row primary action mode missing report handoff: " + reportRowMode);
+  }
 
-  const uncoveredRowHref = await page.locator('[data-run-row="' + uncoveredRunID + '"] td:last-child a').evaluateAll((elements) => {
-    const match = elements.find((element) => (element.textContent || "").includes("Open run detail"));
-    return match ? match.getAttribute("href") || "" : "";
-  });
+  const uncoveredRowHref = await page.getAttribute('[data-run-row-primary-action="' + uncoveredRunID + '"]', "href");
   if (!uncoveredRowHref || !uncoveredRowHref.includes("/admin/eval-runs?") || !uncoveredRowHref.includes("run_id=" + encodeURIComponent(uncoveredRunID))) {
     throw new Error("uncovered row primary action did not honor backend-owned run-detail handoff");
+  }
+  const uncoveredRowMode = await page.getAttribute('[data-run-row-primary-action="' + uncoveredRunID + '"]', "data-action-mode");
+  if (uncoveredRowMode !== "open_run") {
+    throw new Error("uncovered row primary action mode missing run handoff: " + uncoveredRowMode);
+  }
+
+  const closedPrimaryRowHref = await page.getAttribute('[data-run-row-primary-action="' + closedRunID + '"]', "href");
+  if (!closedPrimaryRowHref || !closedPrimaryRowHref.includes("/admin/cases?") || !closedPrimaryRowHref.includes("source_eval_case_id=") || !closedPrimaryRowHref.includes("status=open")) {
+    throw new Error("closed row primary action did not honor backend-owned queue handoff");
+  }
+  const closedPrimaryRowMode = await page.getAttribute('[data-run-row-primary-action="' + closedRunID + '"]', "data-action-mode");
+  if (closedPrimaryRowMode !== "open_existing_queue") {
+    throw new Error("closed row primary action mode missing queue reuse: " + closedPrimaryRowMode);
   }
 
   const closedRowHref = await page.getAttribute('[data-run-row="' + closedRunID + '"] a[href*="case_id=' + encodeURIComponent(closedCaseID) + '"]', "href");
