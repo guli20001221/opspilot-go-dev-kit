@@ -732,10 +732,10 @@
               <a class="button-link ghost" href="${detailEndpointBase}${encodeURIComponent(item.dataset_id)}?tenant_id=${encodeURIComponent(item.tenant_id)}" target="_blank" rel="noreferrer">Open dataset API detail</a>
               <a class="button-link ghost" href="/admin/evals?tenant_id=${encodeURIComponent(item.tenant_id)}">Open Evals</a>
               <a class="button-link ghost" href="/admin/eval-runs?tenant_id=${encodeURIComponent(item.tenant_id)}&dataset_id=${encodeURIComponent(item.dataset_id)}">Open eval runs</a>
-              ${datasetPreferredQueueHref(item) ? `<a class="button-link" href="${datasetPreferredQueueHref(item)}">${datasetPreferredQueueLabel(item)}</a>` : ""}
-              ${datasetCaseQueueHref(item) ? `<a class="button-link ghost" href="${datasetCaseQueueHref(item)}">${datasetCaseQueueLabel(item)}</a>` : ""}
-              ${datasetRunBackedCaseHref(item) ? `<a class="button-link ghost" href="${datasetRunBackedCaseHref(item)}">${datasetRunBackedCaseLabel(item)}</a>` : ""}
-              ${datasetLatestActivityActionHref(item) ? `<a class="button-link ghost" href="${datasetLatestActivityActionHref(item)}">${datasetLatestActivityActionLabel(item)}</a>` : ""}
+              ${datasetPreferredQueueHref(item) ? `<a class="button-link" id="openPreferredQueueLink" data-action-mode="${escapeHTML(item.preferred_follow_up_action?.mode || "none")}" href="${datasetPreferredQueueHref(item)}">${datasetPreferredQueueLabel(item)}</a>` : ""}
+              ${datasetCaseQueueHref(item) ? `<a class="button-link ghost" id="openDatasetCaseQueueLink" data-action-mode="${escapeHTML(item.preferred_case_handoff_action?.mode || "none")}" href="${datasetCaseQueueHref(item)}">${datasetCaseQueueLabel(item)}</a>` : ""}
+              ${datasetRunBackedCaseHref(item) ? `<a class="button-link ghost" id="openRunBackedCaseLink" data-action-mode="${escapeHTML(item.preferred_run_backed_case_action?.mode || "none")}" href="${datasetRunBackedCaseHref(item)}">${datasetRunBackedCaseLabel(item)}</a>` : ""}
+              ${datasetLatestActivityActionHref(item) ? `<a class="button-link ghost" id="openLatestActivityLink" data-action-mode="${escapeHTML(item.preferred_latest_activity_action?.mode || "none")}" href="${datasetLatestActivityActionHref(item)}">${datasetLatestActivityActionLabel(item)}</a>` : ""}
               <a class="button-link ghost" href="/admin/cases?tenant_id=${encodeURIComponent(item.tenant_id)}">Open Cases</a>
               <a class="button-link ghost" href="/admin/reports?tenant_id=${encodeURIComponent(item.tenant_id)}">Open Reports</a>
             </div>
