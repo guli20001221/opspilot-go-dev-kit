@@ -1957,9 +1957,17 @@ async function assertCaseSource(page, apiBaseURL, caseID, tenantID, expectedRepo
   if (!leftHref || !leftHref.includes(leftReportID)) {
     throw new Error("left report API handoff missing selected report");
   }
+  const leftReportAPIMode = await page.getAttribute("#leftReportAPILink", "data-action-mode");
+  if (leftReportAPIMode !== "open_eval_report_api") {
+    throw new Error("left report API handoff mode missing canonical eval-report-api state: " + leftReportAPIMode);
+  }
   const rightHref = await page.getAttribute("#rightReportAPILink", "href");
   if (!rightHref || !rightHref.includes(rightReportID)) {
     throw new Error("right report API handoff missing selected report");
+  }
+  const rightReportAPIMode = await page.getAttribute("#rightReportAPILink", "data-action-mode");
+  if (rightReportAPIMode !== "open_eval_report_api") {
+    throw new Error("right report API handoff mode missing canonical eval-report-api state: " + rightReportAPIMode);
   }
   const leftCaseHref = await page.getAttribute("#leftLatestCaseLink", "href");
   if (!leftCaseHref || !leftCaseHref.includes("case_id=" + encodeURIComponent(leftCaseID))) {

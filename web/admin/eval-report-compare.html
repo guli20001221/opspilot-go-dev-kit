@@ -65,7 +65,7 @@
                   <a class="button-link ghost" id="leftBadCaseNeedsFollowUpLink" href="#" hidden>Open left unresolved bad cases</a>
                   <a class="button-link ghost" id="leftCompareCasesLink" href="#" hidden>Open left compare follow-ups</a>
                   <a class="button-link ghost" id="leftLinkedCasesLink" href="#" data-action-mode="none">Open left linked cases</a>
-                  <a class="button-link ghost" id="leftReportAPILink" href="#" target="_blank" rel="noreferrer">Open left eval report API</a>
+                  <a class="button-link ghost" id="leftReportAPILink" href="#" target="_blank" rel="noreferrer" data-action-mode="open_eval_report_api">Open left eval report API</a>
                   <a class="button-link ghost" id="leftRunLaneLink" href="#" data-action-mode="open_run">Open left eval run lane</a>
                   <a class="button-link ghost" id="leftVersionLink" href="#" hidden>Open left version detail</a>
               </div>
@@ -78,7 +78,7 @@
                   <a class="button-link ghost" id="rightBadCaseNeedsFollowUpLink" href="#" hidden>Open right unresolved bad cases</a>
                   <a class="button-link ghost" id="rightCompareCasesLink" href="#" hidden>Open right compare follow-ups</a>
                   <a class="button-link ghost" id="rightLinkedCasesLink" href="#" data-action-mode="none">Open right linked cases</a>
-                  <a class="button-link ghost" id="rightReportAPILink" href="#" target="_blank" rel="noreferrer">Open right eval report API</a>
+                  <a class="button-link ghost" id="rightReportAPILink" href="#" target="_blank" rel="noreferrer" data-action-mode="open_eval_report_api">Open right eval report API</a>
                   <a class="button-link ghost" id="rightRunLaneLink" href="#" data-action-mode="open_run">Open right eval run lane</a>
                   <a class="button-link ghost" id="rightVersionLink" href="#" hidden>Open right version detail</a>
               </div>
@@ -376,7 +376,9 @@
       renderCompareCard(rightReportDetail, payload.right);
 
       leftReportAPILink.href = `${detailEndpointBase}${encodeURIComponent(payload.left.report_id)}?tenant_id=${encodeURIComponent(payload.left.tenant_id)}`;
+      leftReportAPILink.dataset.actionMode = "open_eval_report_api";
       rightReportAPILink.href = `${detailEndpointBase}${encodeURIComponent(payload.right.report_id)}?tenant_id=${encodeURIComponent(payload.right.tenant_id)}`;
+      rightReportAPILink.dataset.actionMode = "open_eval_report_api";
       const leftLinkedAction = preferredLinkedCaseAction(payload.left);
       const rightLinkedAction = preferredLinkedCaseAction(payload.right);
       const leftCompareQueueAction = preferredCompareQueueAction(payload.left, "left");
