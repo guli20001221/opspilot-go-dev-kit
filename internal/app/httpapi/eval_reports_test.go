@@ -127,6 +127,9 @@ func TestGetEvalReportReturnsMaterializedDetail(t *testing.T) {
 	if got.PreferredTraceDetailAction.Mode != "open_trace" {
 		t.Fatalf("PreferredTraceDetailAction.Mode = %q, want %q", got.PreferredTraceDetailAction.Mode, "open_trace")
 	}
+	if got.PreferredVersionDetailAction.Mode != "none" {
+		t.Fatalf("PreferredVersionDetailAction.Mode = %q, want %q", got.PreferredVersionDetailAction.Mode, "none")
+	}
 	if got.PreferredCompareFollowUpAction.Mode != "none" {
 		t.Fatalf("PreferredCompareFollowUpAction.Mode = %q, want %q", got.PreferredCompareFollowUpAction.Mode, "none")
 	}
