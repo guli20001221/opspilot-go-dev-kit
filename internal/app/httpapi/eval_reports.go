@@ -41,6 +41,7 @@ type evalReportBadCaseResponse struct {
 	PreferredTraceProvenance        evalReportBadCaseTraceProvenanceResponse        `json:"preferred_trace_provenance"`
 	PreferredVersionProvenance      evalReportBadCaseVersionProvenanceResponse      `json:"preferred_version_provenance"`
 	PreferredEvalProvenance         evalReportBadCaseEvalProvenanceResponse         `json:"preferred_eval_provenance"`
+	PreferredFollowUpSliceAction    evalReportBadCaseFollowUpSliceActionResponse    `json:"preferred_follow_up_slice_action"`
 }
 
 type evalReportResponse struct {
@@ -75,6 +76,12 @@ type evalReportResponse struct {
 	PreferredCompareFollowUpAction  evalReportCompareQueueActionResponse `json:"preferred_compare_follow_up_action"`
 	LinkedCaseSummary               *evalReportLinkedCaseSummaryResponse `json:"linked_case_summary,omitempty"`
 	PreferredLinkedCaseAction       evalReportLinkedCaseActionResponse   `json:"preferred_linked_case_action"`
+	PreferredReportLaneAction       evalReportLaneActionResponse         `json:"preferred_report_lane_action"`
+	PreferredDatasetLaneAction      evalDatasetLaneActionResponse        `json:"preferred_dataset_lane_action"`
+	PreferredEvalLaneAction         evalLaneActionResponse               `json:"preferred_eval_lane_action"`
+	PreferredRunLaneAction          evalRunLaneActionResponse            `json:"preferred_run_lane_action"`
+	PreferredTraceDetailAction      traceDetailActionResponse            `json:"preferred_trace_detail_action"`
+	PreferredVersionDetailAction    versionDetailActionResponse          `json:"preferred_version_detail_action"`
 	Metadata                        json.RawMessage                      `json:"metadata,omitempty"`
 	BadCases                        []evalReportBadCaseResponse          `json:"bad_cases,omitempty"`
 	CreatedAt                       string                               `json:"created_at"`
@@ -156,6 +163,11 @@ type evalReportBadCaseVersionProvenanceResponse struct {
 type evalReportBadCaseEvalProvenanceResponse struct {
 	Mode       string `json:"mode"`
 	EvalCaseID string `json:"eval_case_id,omitempty"`
+}
+
+type evalReportBadCaseFollowUpSliceActionResponse struct {
+	Mode             string `json:"mode"`
+	SourceEvalCaseID string `json:"source_eval_case_id,omitempty"`
 }
 
 type listEvalReportsResponse struct {
@@ -763,6 +775,12 @@ func newEvalReportResponse(item evalsvc.EvalReport, includeHeavy bool, followUpS
 		PreferredCompareFollowUpAction:  newEvalReportCompareQueueActionResponse(item.ID, compareFollowUpSummary),
 		LinkedCaseSummary:               linkedCaseSummary,
 		PreferredLinkedCaseAction:       newEvalReportLinkedCaseActionResponse(item.ID, linkedCaseSummary),
+		PreferredReportLaneAction:       newEvalReportLaneActionResponse(item.ID),
+		PreferredDatasetLaneAction:      newEvalDatasetLaneActionResponse(item.DatasetID),
+		PreferredEvalLaneAction:         newEvalLaneActionResponse(item.ID),
+		PreferredRunLaneAction:          newEvalRunLaneActionResponse(item.RunID, item.DatasetID),
+		PreferredTraceDetailAction:      newTraceDetailActionResponse(item.ID),
+		PreferredVersionDetailAction:    newVersionDetailActionResponse(firstEvalReportVersionID(item.MetadataJSON)),
 		CreatedAt:                       item.CreatedAt.Format(time.RFC3339Nano),
 		UpdatedAt:                       item.UpdatedAt.Format(time.RFC3339Nano),
 		ReadyAt:                         item.ReadyAt.Format(time.RFC3339Nano),
@@ -800,6 +818,7 @@ func newEvalReportResponse(item evalsvc.EvalReport, includeHeavy bool, followUpS
 					PreferredTraceProvenance:        newBadCaseTraceProvenance(badCase),
 					PreferredVersionProvenance:      newBadCaseVersionProvenance(badCase),
 					PreferredEvalProvenance:         newBadCaseEvalProvenance(badCase),
+					PreferredFollowUpSliceAction:    newBadCaseFollowUpSliceAction(badCase),
 				})
 			}
 		}
@@ -973,6 +992,13 @@ func newBadCaseEvalProvenance(badCase evalsvc.EvalReportBadCase) evalReportBadCa
 		return evalReportBadCaseEvalProvenanceResponse{Mode: "open", EvalCaseID: badCase.EvalCaseID}
 	}
 	return evalReportBadCaseEvalProvenanceResponse{Mode: "none"}
+}
+
+func newBadCaseFollowUpSliceAction(badCase evalsvc.EvalReportBadCase) evalReportBadCaseFollowUpSliceActionResponse {
+	if badCase.EvalCaseID != "" {
+		return evalReportBadCaseFollowUpSliceActionResponse{Mode: "open", SourceEvalCaseID: badCase.EvalCaseID}
+	}
+	return evalReportBadCaseFollowUpSliceActionResponse{Mode: "none"}
 }
 
 func newEvalReportBadCaseQueueActionResponse(reportID string, badCaseWithoutOpenFollowUpCount int) evalReportBadCaseQueueActionResponse {

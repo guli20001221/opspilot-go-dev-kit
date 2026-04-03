@@ -105,6 +105,28 @@ func TestGetEvalReportReturnsMaterializedDetail(t *testing.T) {
 	if got.BadCases[0].PreferredEvalProvenance.EvalCaseID != got.BadCases[0].EvalCaseID {
 		t.Fatalf("BadCases[0].PreferredEvalProvenance.EvalCaseID = %q, want %q", got.BadCases[0].PreferredEvalProvenance.EvalCaseID, got.BadCases[0].EvalCaseID)
 	}
+	if got.BadCases[0].PreferredFollowUpSliceAction.Mode != "open" {
+		t.Fatalf("BadCases[0].PreferredFollowUpSliceAction.Mode = %q, want %q", got.BadCases[0].PreferredFollowUpSliceAction.Mode, "open")
+	}
+	// Report-level lane actions
+	if got.PreferredReportLaneAction.Mode != "open_report" {
+		t.Fatalf("PreferredReportLaneAction.Mode = %q, want %q", got.PreferredReportLaneAction.Mode, "open_report")
+	}
+	if got.PreferredReportLaneAction.ReportID != reportID {
+		t.Fatalf("PreferredReportLaneAction.ReportID = %q, want %q", got.PreferredReportLaneAction.ReportID, reportID)
+	}
+	if got.PreferredDatasetLaneAction.Mode != "open_dataset" {
+		t.Fatalf("PreferredDatasetLaneAction.Mode = %q, want %q", got.PreferredDatasetLaneAction.Mode, "open_dataset")
+	}
+	if got.PreferredRunLaneAction.Mode != "open_run" {
+		t.Fatalf("PreferredRunLaneAction.Mode = %q, want %q", got.PreferredRunLaneAction.Mode, "open_run")
+	}
+	if got.PreferredEvalLaneAction.Mode != "open_eval" {
+		t.Fatalf("PreferredEvalLaneAction.Mode = %q, want %q", got.PreferredEvalLaneAction.Mode, "open_eval")
+	}
+	if got.PreferredTraceDetailAction.Mode != "open_trace" {
+		t.Fatalf("PreferredTraceDetailAction.Mode = %q, want %q", got.PreferredTraceDetailAction.Mode, "open_trace")
+	}
 	if got.PreferredCompareFollowUpAction.Mode != "none" {
 		t.Fatalf("PreferredCompareFollowUpAction.Mode = %q, want %q", got.PreferredCompareFollowUpAction.Mode, "none")
 	}
@@ -218,6 +240,9 @@ func TestPerDimensionProvenanceBuildersPopulateCorrectly(t *testing.T) {
 	if got := newBadCaseEvalProvenance(badCase); got.Mode != "open" || got.EvalCaseID != "ec-1" {
 		t.Fatalf("EvalProvenance = %+v", got)
 	}
+	if got := newBadCaseFollowUpSliceAction(badCase); got.Mode != "open" || got.SourceEvalCaseID != "ec-1" {
+		t.Fatalf("FollowUpSliceAction = %+v", got)
+	}
 }
 
 func TestPerDimensionProvenanceBuildersReturnNoneWhenEmpty(t *testing.T) {
@@ -239,6 +264,9 @@ func TestPerDimensionProvenanceBuildersReturnNoneWhenEmpty(t *testing.T) {
 	}
 	if got := newBadCaseEvalProvenance(badCase); got.Mode != "none" {
 		t.Fatalf("EvalProvenance.Mode = %q, want none", got.Mode)
+	}
+	if got := newBadCaseFollowUpSliceAction(badCase); got.Mode != "none" {
+		t.Fatalf("FollowUpSliceAction.Mode = %q, want none", got.Mode)
 	}
 }
 
