@@ -30,24 +30,31 @@ type createCaseRequest struct {
 }
 
 type caseResponse struct {
-	CaseID             string                     `json:"case_id"`
-	TenantID           string                     `json:"tenant_id"`
-	Status             string                     `json:"status"`
-	Title              string                     `json:"title"`
-	Summary            string                     `json:"summary"`
-	SourceTaskID       string                     `json:"source_task_id,omitempty"`
-	SourceReportID     string                     `json:"source_report_id,omitempty"`
-	SourceEvalReportID string                     `json:"source_eval_report_id,omitempty"`
-	SourceEvalCaseID   string                     `json:"source_eval_case_id,omitempty"`
-	SourceEvalRunID    string                     `json:"source_eval_run_id,omitempty"`
-	CompareOrigin      *caseCompareOriginResponse `json:"compare_origin,omitempty"`
-	CreatedBy          string                     `json:"created_by"`
-	AssignedTo         string                     `json:"assigned_to,omitempty"`
-	AssignedAt         string                     `json:"assigned_at,omitempty"`
-	ClosedBy           string                     `json:"closed_by,omitempty"`
-	Notes              []caseNoteResponse         `json:"notes,omitempty"`
-	CreatedAt          string                     `json:"created_at"`
-	UpdatedAt          string                     `json:"updated_at"`
+	CaseID                          string                             `json:"case_id"`
+	TenantID                        string                             `json:"tenant_id"`
+	Status                          string                             `json:"status"`
+	Title                           string                             `json:"title"`
+	Summary                         string                             `json:"summary"`
+	SourceTaskID                    string                             `json:"source_task_id,omitempty"`
+	SourceReportID                  string                             `json:"source_report_id,omitempty"`
+	SourceEvalReportID              string                             `json:"source_eval_report_id,omitempty"`
+	SourceEvalCaseID                string                             `json:"source_eval_case_id,omitempty"`
+	SourceEvalRunID                 string                             `json:"source_eval_run_id,omitempty"`
+	CompareOrigin                   *caseCompareOriginResponse         `json:"compare_origin,omitempty"`
+	PreferredSourceTaskProvenance   caseSourceTaskProvenanceResponse   `json:"preferred_source_task_provenance"`
+	PreferredSourceReportProvenance caseSourceReportProvenanceResponse `json:"preferred_source_report_provenance"`
+	PreferredEvalReportProvenance   caseEvalReportProvenanceResponse   `json:"preferred_eval_report_provenance"`
+	PreferredEvalCaseProvenance     caseEvalCaseProvenanceResponse     `json:"preferred_eval_case_provenance"`
+	PreferredEvalRunProvenance      caseEvalRunProvenanceResponse      `json:"preferred_eval_run_provenance"`
+	PreferredTraceDetailAction      caseTraceDetailActionResponse      `json:"preferred_trace_detail_action"`
+	PreferredCompareAction          caseCompareActionResponse          `json:"preferred_compare_action"`
+	CreatedBy                       string                             `json:"created_by"`
+	AssignedTo                      string                             `json:"assigned_to,omitempty"`
+	AssignedAt                      string                             `json:"assigned_at,omitempty"`
+	ClosedBy                        string                             `json:"closed_by,omitempty"`
+	Notes                           []caseNoteResponse                 `json:"notes,omitempty"`
+	CreatedAt                       string                             `json:"created_at"`
+	UpdatedAt                       string                             `json:"updated_at"`
 }
 
 type caseNoteResponse struct {
@@ -96,6 +103,42 @@ type caseCompareOriginResponse struct {
 	LeftEvalReportID  string `json:"left_eval_report_id"`
 	RightEvalReportID string `json:"right_eval_report_id"`
 	SelectedSide      string `json:"selected_side"`
+}
+
+type caseSourceTaskProvenanceResponse struct {
+	Mode   string `json:"mode"`
+	TaskID string `json:"task_id,omitempty"`
+}
+
+type caseSourceReportProvenanceResponse struct {
+	Mode     string `json:"mode"`
+	ReportID string `json:"report_id,omitempty"`
+}
+
+type caseEvalReportProvenanceResponse struct {
+	Mode     string `json:"mode"`
+	ReportID string `json:"report_id,omitempty"`
+}
+
+type caseEvalCaseProvenanceResponse struct {
+	Mode       string `json:"mode"`
+	EvalCaseID string `json:"eval_case_id,omitempty"`
+}
+
+type caseEvalRunProvenanceResponse struct {
+	Mode  string `json:"mode"`
+	RunID string `json:"run_id,omitempty"`
+}
+
+type caseTraceDetailActionResponse struct {
+	Mode   string `json:"mode"`
+	CaseID string `json:"case_id,omitempty"`
+}
+
+type caseCompareActionResponse struct {
+	Mode              string `json:"mode"`
+	LeftEvalReportID  string `json:"left_eval_report_id,omitempty"`
+	RightEvalReportID string `json:"right_eval_report_id,omitempty"`
 }
 
 func (a *appHandler) handleCases(w http.ResponseWriter, r *http.Request) {
@@ -796,23 +839,30 @@ func writeCaseSourceError(w http.ResponseWriter, err error) {
 
 func newCaseResponse(item casesvc.Case, notes ...[]casesvc.Note) caseResponse {
 	resp := caseResponse{
-		CaseID:             item.ID,
-		TenantID:           item.TenantID,
-		Status:             item.Status,
-		Title:              item.Title,
-		Summary:            item.Summary,
-		SourceTaskID:       item.SourceTaskID,
-		SourceReportID:     item.SourceReportID,
-		SourceEvalReportID: item.SourceEvalReportID,
-		SourceEvalCaseID:   item.SourceEvalCaseID,
-		SourceEvalRunID:    item.SourceEvalRunID,
-		CompareOrigin:      newCaseCompareOriginResponse(item.CompareOrigin),
-		CreatedBy:          item.CreatedBy,
-		AssignedTo:         item.AssignedTo,
-		AssignedAt:         formatOptionalTime(item.AssignedAt),
-		ClosedBy:           item.ClosedBy,
-		CreatedAt:          item.CreatedAt.Format(time.RFC3339Nano),
-		UpdatedAt:          item.UpdatedAt.Format(time.RFC3339Nano),
+		CaseID:                          item.ID,
+		TenantID:                        item.TenantID,
+		Status:                          item.Status,
+		Title:                           item.Title,
+		Summary:                         item.Summary,
+		SourceTaskID:                    item.SourceTaskID,
+		SourceReportID:                  item.SourceReportID,
+		SourceEvalReportID:              item.SourceEvalReportID,
+		SourceEvalCaseID:                item.SourceEvalCaseID,
+		SourceEvalRunID:                 item.SourceEvalRunID,
+		CompareOrigin:                   newCaseCompareOriginResponse(item.CompareOrigin),
+		PreferredSourceTaskProvenance:   newCaseSourceTaskProvenance(item.SourceTaskID),
+		PreferredSourceReportProvenance: newCaseSourceReportProvenance(item.SourceReportID),
+		PreferredEvalReportProvenance:   newCaseEvalReportProvenance(item.SourceEvalReportID),
+		PreferredEvalCaseProvenance:     newCaseEvalCaseProvenance(item.SourceEvalCaseID),
+		PreferredEvalRunProvenance:      newCaseEvalRunProvenance(item.SourceEvalRunID),
+		PreferredTraceDetailAction:      newCaseTraceDetailAction(item.ID),
+		PreferredCompareAction:          newCaseCompareAction(item.CompareOrigin),
+		CreatedBy:                       item.CreatedBy,
+		AssignedTo:                      item.AssignedTo,
+		AssignedAt:                      formatOptionalTime(item.AssignedAt),
+		ClosedBy:                        item.ClosedBy,
+		CreatedAt:                       item.CreatedAt.Format(time.RFC3339Nano),
+		UpdatedAt:                       item.UpdatedAt.Format(time.RFC3339Nano),
 	}
 	if len(notes) > 0 && len(notes[0]) > 0 {
 		resp.Notes = make([]caseNoteResponse, 0, len(notes[0]))
@@ -856,6 +906,59 @@ func newCaseCompareOriginResponse(item casesvc.CompareOrigin) *caseCompareOrigin
 		RightEvalReportID: item.RightEvalReportID,
 		SelectedSide:      item.SelectedSide,
 	}
+}
+
+func newCaseSourceTaskProvenance(taskID string) caseSourceTaskProvenanceResponse {
+	if taskID != "" {
+		return caseSourceTaskProvenanceResponse{Mode: "open", TaskID: taskID}
+	}
+	return caseSourceTaskProvenanceResponse{Mode: "none"}
+}
+
+func newCaseSourceReportProvenance(reportID string) caseSourceReportProvenanceResponse {
+	if reportID != "" {
+		return caseSourceReportProvenanceResponse{Mode: "open", ReportID: reportID}
+	}
+	return caseSourceReportProvenanceResponse{Mode: "none"}
+}
+
+func newCaseEvalReportProvenance(reportID string) caseEvalReportProvenanceResponse {
+	if reportID != "" {
+		return caseEvalReportProvenanceResponse{Mode: "open", ReportID: reportID}
+	}
+	return caseEvalReportProvenanceResponse{Mode: "none"}
+}
+
+func newCaseEvalCaseProvenance(evalCaseID string) caseEvalCaseProvenanceResponse {
+	if evalCaseID != "" {
+		return caseEvalCaseProvenanceResponse{Mode: "open", EvalCaseID: evalCaseID}
+	}
+	return caseEvalCaseProvenanceResponse{Mode: "none"}
+}
+
+func newCaseEvalRunProvenance(runID string) caseEvalRunProvenanceResponse {
+	if runID != "" {
+		return caseEvalRunProvenanceResponse{Mode: "open", RunID: runID}
+	}
+	return caseEvalRunProvenanceResponse{Mode: "none"}
+}
+
+func newCaseTraceDetailAction(caseID string) caseTraceDetailActionResponse {
+	if caseID != "" {
+		return caseTraceDetailActionResponse{Mode: "open", CaseID: caseID}
+	}
+	return caseTraceDetailActionResponse{Mode: "none"}
+}
+
+func newCaseCompareAction(origin casesvc.CompareOrigin) caseCompareActionResponse {
+	if origin.LeftEvalReportID != "" && origin.RightEvalReportID != "" {
+		return caseCompareActionResponse{
+			Mode:              "open",
+			LeftEvalReportID:  origin.LeftEvalReportID,
+			RightEvalReportID: origin.RightEvalReportID,
+		}
+	}
+	return caseCompareActionResponse{Mode: "none"}
 }
 
 func newCaseNoteResponse(note casesvc.Note) caseNoteResponse {
