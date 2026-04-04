@@ -15,6 +15,7 @@ import (
 	"opspilot-go/internal/app/logging"
 	casesvc "opspilot-go/internal/case"
 	evalsvc "opspilot-go/internal/eval"
+	"opspilot-go/internal/llm"
 	"opspilot-go/internal/observability/tracedetail"
 	"opspilot-go/internal/report"
 	"opspilot-go/internal/retrieval"
@@ -78,10 +79,21 @@ func main() {
 		TicketAPIBaseURL: cfg.TicketAPIBaseURL,
 		TicketAPIToken:   cfg.TicketAPIToken,
 	})
+	llmProvider, err := llm.NewConfiguredProvider(llm.ProviderOptions{
+		Provider: cfg.LLMProvider,
+		BaseURL:  cfg.LLMBaseURL,
+		APIKey:   cfg.LLMAPIKey,
+		Model:    cfg.LLMModel,
+		Timeout:  cfg.LLMTimeout,
+	})
+	if err != nil {
+		logger.Error("configure llm provider", slog.Any("error", err))
+		os.Exit(1)
+	}
 
 	server := &http.Server{
 		Addr:              cfg.APIListenAddr,
-		Handler:           httpapi.NewHandlerWithDependencies(httpapi.Dependencies{Workflows: workflowService, Reports: reportService, Cases: caseService, EvalCases: evalCaseService, EvalDatasets: evalDatasetService, EvalRuns: evalRunService, EvalReports: evalReportService, Versions: versionService, Sessions: sessionService, Retrieval: retrievalStore, Registry: registry}),
+		Handler:           httpapi.NewHandlerWithDependencies(httpapi.Dependencies{Workflows: workflowService, Reports: reportService, Cases: caseService, EvalCases: evalCaseService, EvalDatasets: evalDatasetService, EvalRuns: evalRunService, EvalReports: evalReportService, Versions: versionService, Sessions: sessionService, Retrieval: retrievalStore, LLM: llmProvider, Registry: registry}),
 		ReadHeaderTimeout: 5 * time.Second,
 	}
 

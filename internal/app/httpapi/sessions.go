@@ -9,6 +9,7 @@ import (
 	appchat "opspilot-go/internal/app/chat"
 	casesvc "opspilot-go/internal/case"
 	evalsvc "opspilot-go/internal/eval"
+	"opspilot-go/internal/llm"
 	"opspilot-go/internal/observability/tracedetail"
 	"opspilot-go/internal/report"
 	"opspilot-go/internal/retrieval"
@@ -68,7 +69,7 @@ type errorResponse struct {
 	Message string `json:"message"`
 }
 
-func newAppHandler(workflowService *workflow.Service, reportService *report.Service, caseService *casesvc.Service, evalCaseService *evalsvc.Service, evalDatasetService *evalsvc.DatasetService, evalRunService *evalsvc.RunService, evalReportService *evalsvc.EvalReportService, versionService *version.Service, sessionService *session.Service, searchService retrieval.Searcher, registry *toolregistry.Registry) *appHandler {
+func newAppHandler(workflowService *workflow.Service, reportService *report.Service, caseService *casesvc.Service, evalCaseService *evalsvc.Service, evalDatasetService *evalsvc.DatasetService, evalRunService *evalsvc.RunService, evalReportService *evalsvc.EvalReportService, versionService *version.Service, sessionService *session.Service, searchService retrieval.Searcher, llmProvider llm.Provider, registry *toolregistry.Registry) *appHandler {
 	if sessionService == nil {
 		sessionService = session.NewService()
 	}
@@ -110,7 +111,7 @@ func newAppHandler(workflowService *workflow.Service, reportService *report.Serv
 		sessions:       sessionService,
 		versions:       versionService,
 		workflows:      workflowService,
-		chat:           appchat.NewServiceWithDependencies(sessionService, workflowService, registry, searchService),
+		chat:           appchat.NewServiceWithLLM(sessionService, workflowService, registry, searchService, llmProvider),
 	}
 }
 

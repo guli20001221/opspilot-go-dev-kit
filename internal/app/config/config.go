@@ -22,6 +22,8 @@ const (
 	defaultEvalJudgeTimeout          = 15 * time.Second
 	defaultWorkerPollInterval        = 1 * time.Second
 	defaultWorkerShutdownTimeout     = 10 * time.Second
+	defaultLLMProvider               = "placeholder"
+	defaultLLMTimeout                = 30 * time.Second
 )
 
 // Config holds the minimum process configuration required by the foundation slice.
@@ -45,6 +47,11 @@ type Config struct {
 	EvalRunFailAll            bool
 	WorkerPollInterval        time.Duration
 	WorkerShutdownTimeout     time.Duration
+	LLMProvider               string
+	LLMBaseURL                string
+	LLMAPIKey                 string
+	LLMModel                  string
+	LLMTimeout                time.Duration
 }
 
 // Load reads process configuration from environment variables and applies safe defaults.
@@ -69,6 +76,11 @@ func Load() (Config, error) {
 		EvalRunFailAll:            defaultEvalRunFailAll,
 		WorkerPollInterval:        defaultWorkerPollInterval,
 		WorkerShutdownTimeout:     defaultWorkerShutdownTimeout,
+		LLMProvider:               getEnv("OPSPILOT_LLM_PROVIDER", defaultLLMProvider),
+		LLMBaseURL:                getEnv("OPSPILOT_LLM_BASE_URL", ""),
+		LLMAPIKey:                 getEnv("OPSPILOT_LLM_API_KEY", ""),
+		LLMModel:                  getEnv("OPSPILOT_LLM_MODEL", ""),
+		LLMTimeout:                defaultLLMTimeout,
 	}
 
 	if raw := os.Getenv("OPSPILOT_TEMPORAL_ENABLED"); raw != "" {
@@ -136,6 +148,13 @@ func Load() (Config, error) {
 	}
 	if cfg.EvalJudgeTimeout <= 0 {
 		return Config{}, fmt.Errorf("OPSPILOT_EVAL_JUDGE_TIMEOUT must be positive")
+	}
+	if raw := os.Getenv("OPSPILOT_LLM_TIMEOUT"); raw != "" {
+		timeout, err := time.ParseDuration(raw)
+		if err != nil {
+			return Config{}, fmt.Errorf("parse OPSPILOT_LLM_TIMEOUT: %w", err)
+		}
+		cfg.LLMTimeout = timeout
 	}
 	if cfg.WorkerPollInterval <= 0 {
 		return Config{}, fmt.Errorf("OPSPILOT_WORKER_POLL_INTERVAL must be positive")
