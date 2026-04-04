@@ -399,7 +399,7 @@ func NewApprovedToolActivities(tools *agenttool.Service) *ApprovedToolActivities
 }
 
 // ExecuteApprovedTool is the placeholder approved-tool activity.
-func (a *ApprovedToolActivities) ExecuteApprovedTool(_ context.Context, input ApprovedToolActivityInput) (ApprovedToolWorkflowResult, error) {
+func (a *ApprovedToolActivities) ExecuteApprovedTool(ctx context.Context, input ApprovedToolActivityInput) (ApprovedToolWorkflowResult, error) {
 	if a.FailOnApprove && input.Signal.Action == "approve" {
 		return ApprovedToolWorkflowResult{}, temporal.NewNonRetryableApplicationError(
 			fmt.Sprintf("fault injection: approved tool failed on %s for %s", input.Signal.Action, input.Workflow.TaskID),
@@ -416,7 +416,7 @@ func (a *ApprovedToolActivities) ExecuteApprovedTool(_ context.Context, input Ap
 		a.tools = agenttool.NewService(toolregistry.NewDefaultRegistry())
 	}
 
-	result, err := a.tools.Execute(context.Background(), agenttool.ToolInvocation{
+	result, err := a.tools.Execute(ctx, agenttool.ToolInvocation{
 		TenantID:         input.Workflow.TenantID,
 		SessionID:        input.Workflow.SessionID,
 		TaskID:           input.Workflow.TaskID,

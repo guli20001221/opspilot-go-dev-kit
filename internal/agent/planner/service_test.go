@@ -606,7 +606,7 @@ func TestValidateLLMPlanRejectsInvalidKind(t *testing.T) {
 		Intent: IntentKnowledgeQA,
 		Steps:  []llmPlanStep{{Kind: "invalid_kind", Name: "test"}},
 	}
-	err := validateLLMPlan(resp)
+	err := validateLLMPlan(resp, nil)
 	if err == nil {
 		t.Fatal("validateLLMPlan() error = nil, want error for invalid kind")
 	}
@@ -617,7 +617,7 @@ func TestValidateLLMPlanRejectsEmptySteps(t *testing.T) {
 		Intent: IntentKnowledgeQA,
 		Steps:  []llmPlanStep{},
 	}
-	err := validateLLMPlan(resp)
+	err := validateLLMPlan(resp, nil)
 	if err == nil {
 		t.Fatal("validateLLMPlan() error = nil, want error for empty steps")
 	}
@@ -628,7 +628,7 @@ func TestValidateLLMPlanRejectsInvalidIntent(t *testing.T) {
 		Intent: "bogus",
 		Steps:  []llmPlanStep{{Kind: StepKindRetrieve, Name: "test"}},
 	}
-	err := validateLLMPlan(resp)
+	err := validateLLMPlan(resp, nil)
 	if err == nil {
 		t.Fatal("validateLLMPlan() error = nil, want error for invalid intent")
 	}
@@ -642,7 +642,7 @@ func TestValidateLLMPlanRejectsDuplicateStepNames(t *testing.T) {
 			{Kind: StepKindSynthesize, Name: "retrieve"}, // duplicate
 		},
 	}
-	err := validateLLMPlan(resp)
+	err := validateLLMPlan(resp, nil)
 	if err == nil {
 		t.Fatal("validateLLMPlan() error = nil, want error for duplicate step names")
 	}
@@ -656,7 +656,7 @@ func TestValidateLLMPlanRejectsDanglingDependsOn(t *testing.T) {
 			{Kind: StepKindSynthesize, Name: "compose", DependsOn: []string{"nonexistent"}},
 		},
 	}
-	err := validateLLMPlan(resp)
+	err := validateLLMPlan(resp, nil)
 	if err == nil {
 		t.Fatal("validateLLMPlan() error = nil, want error for dangling depends_on")
 	}
@@ -669,9 +669,51 @@ func TestValidateLLMPlanRejectsEmptyStepName(t *testing.T) {
 			{Kind: StepKindRetrieve, Name: ""},
 		},
 	}
-	err := validateLLMPlan(resp)
+	err := validateLLMPlan(resp, nil)
 	if err == nil {
 		t.Fatal("validateLLMPlan() error = nil, want error for empty step name")
+	}
+}
+
+func TestValidateLLMPlanRejectsToolStepWithEmptyToolName(t *testing.T) {
+	resp := llmPlanResponse{
+		Intent: IntentKnowledgeQA,
+		Steps: []llmPlanStep{
+			{Kind: StepKindTool, Name: "run tool"},
+		},
+	}
+	err := validateLLMPlan(resp, nil)
+	if err == nil {
+		t.Fatal("validateLLMPlan() error = nil, want error for tool step with empty tool_name")
+	}
+}
+
+func TestValidateLLMPlanRejectsUnknownToolName(t *testing.T) {
+	available := map[string]bool{"ticket_search": true}
+	resp := llmPlanResponse{
+		Intent: IntentIncidentAssist,
+		Steps: []llmPlanStep{
+			{Kind: StepKindTool, Name: "run tool", ToolName: "nonexistent_tool"},
+		},
+	}
+	err := validateLLMPlan(resp, available)
+	if err == nil {
+		t.Fatal("validateLLMPlan() error = nil, want error for unknown tool name")
+	}
+}
+
+func TestValidateLLMPlanAcceptsKnownToolName(t *testing.T) {
+	available := map[string]bool{"ticket_search": true}
+	resp := llmPlanResponse{
+		Intent: IntentIncidentAssist,
+		Steps: []llmPlanStep{
+			{Kind: StepKindTool, Name: "search tickets", ToolName: "ticket_search"},
+			{Kind: StepKindSynthesize, Name: "compose answer"},
+			{Kind: StepKindCritic, Name: "validate"},
+		},
+	}
+	if err := validateLLMPlan(resp, available); err != nil {
+		t.Fatalf("validateLLMPlan() error = %v, want nil for known tool", err)
 	}
 }
 
@@ -684,7 +726,7 @@ func TestValidateLLMPlanAcceptsValidPlan(t *testing.T) {
 			{Kind: StepKindCritic, Name: "critic"},
 		},
 	}
-	if err := validateLLMPlan(resp); err != nil {
+	if err := validateLLMPlan(resp, nil); err != nil {
 		t.Fatalf("validateLLMPlan() error = %v, want nil", err)
 	}
 }
