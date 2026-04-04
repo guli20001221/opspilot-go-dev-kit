@@ -17,6 +17,7 @@ import (
 	evalsvc "opspilot-go/internal/eval"
 	"opspilot-go/internal/observability/tracedetail"
 	"opspilot-go/internal/report"
+	"opspilot-go/internal/retrieval"
 	"opspilot-go/internal/session"
 	storagepostgres "opspilot-go/internal/storage/postgres"
 	toolregistry "opspilot-go/internal/tools/registry"
@@ -63,6 +64,7 @@ func main() {
 	}
 
 	sessionService := session.NewServiceWithStore(storagepostgres.NewSessionStore(pool))
+	retrievalStore := storagepostgres.NewRetrievalChunkStore(pool, &retrieval.PlaceholderEmbedder{})
 	versionService := version.NewServiceWithStore(storagepostgres.NewVersionStore(pool))
 	workflowService := workflow.NewServiceWithDependencies(storagepostgres.NewWorkflowTaskStore(pool), taskStarter, versionService)
 	reportService := report.NewServiceWithDependencies(storagepostgres.NewReportStore(pool), versionService)
@@ -79,7 +81,7 @@ func main() {
 
 	server := &http.Server{
 		Addr:              cfg.APIListenAddr,
-		Handler:           httpapi.NewHandlerWithDependencies(httpapi.Dependencies{Workflows: workflowService, Reports: reportService, Cases: caseService, EvalCases: evalCaseService, EvalDatasets: evalDatasetService, EvalRuns: evalRunService, EvalReports: evalReportService, Versions: versionService, Sessions: sessionService, Registry: registry}),
+		Handler:           httpapi.NewHandlerWithDependencies(httpapi.Dependencies{Workflows: workflowService, Reports: reportService, Cases: caseService, EvalCases: evalCaseService, EvalDatasets: evalDatasetService, EvalRuns: evalRunService, EvalReports: evalReportService, Versions: versionService, Sessions: sessionService, Retrieval: retrievalStore, Registry: registry}),
 		ReadHeaderTimeout: 5 * time.Second,
 	}
 
