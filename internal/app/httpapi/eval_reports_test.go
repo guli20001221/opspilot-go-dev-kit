@@ -92,6 +92,44 @@ func TestGetEvalReportReturnsMaterializedDetail(t *testing.T) {
 	if got.BadCases[0].PreferredProvenanceAction.EvalCaseID != got.BadCases[0].EvalCaseID {
 		t.Fatalf("BadCases[0].PreferredProvenanceAction.EvalCaseID = %q, want %q", got.BadCases[0].PreferredProvenanceAction.EvalCaseID, got.BadCases[0].EvalCaseID)
 	}
+	// Per-dimension provenance actions
+	if got.BadCases[0].PreferredSourceCaseProvenance.Mode != "open" {
+		t.Fatalf("BadCases[0].PreferredSourceCaseProvenance.Mode = %q, want %q", got.BadCases[0].PreferredSourceCaseProvenance.Mode, "open")
+	}
+	if got.BadCases[0].PreferredSourceCaseProvenance.CaseID != got.BadCases[0].SourceCaseID {
+		t.Fatalf("BadCases[0].PreferredSourceCaseProvenance.CaseID = %q, want %q", got.BadCases[0].PreferredSourceCaseProvenance.CaseID, got.BadCases[0].SourceCaseID)
+	}
+	if got.BadCases[0].PreferredEvalProvenance.Mode != "open" {
+		t.Fatalf("BadCases[0].PreferredEvalProvenance.Mode = %q, want %q", got.BadCases[0].PreferredEvalProvenance.Mode, "open")
+	}
+	if got.BadCases[0].PreferredEvalProvenance.EvalCaseID != got.BadCases[0].EvalCaseID {
+		t.Fatalf("BadCases[0].PreferredEvalProvenance.EvalCaseID = %q, want %q", got.BadCases[0].PreferredEvalProvenance.EvalCaseID, got.BadCases[0].EvalCaseID)
+	}
+	if got.BadCases[0].PreferredFollowUpSliceAction.Mode != "open" {
+		t.Fatalf("BadCases[0].PreferredFollowUpSliceAction.Mode = %q, want %q", got.BadCases[0].PreferredFollowUpSliceAction.Mode, "open")
+	}
+	// Report-level lane actions
+	if got.PreferredReportLaneAction.Mode != "open_report" {
+		t.Fatalf("PreferredReportLaneAction.Mode = %q, want %q", got.PreferredReportLaneAction.Mode, "open_report")
+	}
+	if got.PreferredReportLaneAction.ReportID != reportID {
+		t.Fatalf("PreferredReportLaneAction.ReportID = %q, want %q", got.PreferredReportLaneAction.ReportID, reportID)
+	}
+	if got.PreferredDatasetLaneAction.Mode != "open_dataset" {
+		t.Fatalf("PreferredDatasetLaneAction.Mode = %q, want %q", got.PreferredDatasetLaneAction.Mode, "open_dataset")
+	}
+	if got.PreferredRunLaneAction.Mode != "open_run" {
+		t.Fatalf("PreferredRunLaneAction.Mode = %q, want %q", got.PreferredRunLaneAction.Mode, "open_run")
+	}
+	if got.PreferredEvalLaneAction.Mode != "open_eval" {
+		t.Fatalf("PreferredEvalLaneAction.Mode = %q, want %q", got.PreferredEvalLaneAction.Mode, "open_eval")
+	}
+	if got.PreferredTraceDetailAction.Mode != "open_trace" {
+		t.Fatalf("PreferredTraceDetailAction.Mode = %q, want %q", got.PreferredTraceDetailAction.Mode, "open_trace")
+	}
+	if got.PreferredVersionDetailAction.Mode != "none" {
+		t.Fatalf("PreferredVersionDetailAction.Mode = %q, want %q", got.PreferredVersionDetailAction.Mode, "none")
+	}
 	if got.PreferredCompareFollowUpAction.Mode != "none" {
 		t.Fatalf("PreferredCompareFollowUpAction.Mode = %q, want %q", got.PreferredCompareFollowUpAction.Mode, "none")
 	}
@@ -140,6 +178,98 @@ func TestNewEvalReportBadCaseProvenanceActionResponseFallsBackToTrace(t *testing
 	}
 	if action.EvalCaseID != "eval-case-trace" {
 		t.Fatalf("EvalCaseID = %q, want %q", action.EvalCaseID, "eval-case-trace")
+	}
+}
+
+func TestNewEvalReportBadCaseProvenanceActionResponseFallsBackToVersion(t *testing.T) {
+	action := newEvalReportBadCaseProvenanceActionResponse(evalsvc.EvalReportBadCase{
+		EvalCaseID: "eval-case-version",
+		VersionID:  "version-only",
+	})
+	if action.Mode != "open_version" {
+		t.Fatalf("Mode = %q, want %q", action.Mode, "open_version")
+	}
+	if action.VersionID != "version-only" {
+		t.Fatalf("VersionID = %q, want %q", action.VersionID, "version-only")
+	}
+	if action.EvalCaseID != "eval-case-version" {
+		t.Fatalf("EvalCaseID = %q, want %q", action.EvalCaseID, "eval-case-version")
+	}
+}
+
+func TestNewEvalReportBadCaseProvenanceActionResponseFallsBackToEval(t *testing.T) {
+	action := newEvalReportBadCaseProvenanceActionResponse(evalsvc.EvalReportBadCase{
+		EvalCaseID: "eval-case-only",
+	})
+	if action.Mode != "open_eval" {
+		t.Fatalf("Mode = %q, want %q", action.Mode, "open_eval")
+	}
+	if action.EvalCaseID != "eval-case-only" {
+		t.Fatalf("EvalCaseID = %q, want %q", action.EvalCaseID, "eval-case-only")
+	}
+}
+
+func TestNewEvalReportBadCaseProvenanceActionResponseReturnsNoneWhenEmpty(t *testing.T) {
+	action := newEvalReportBadCaseProvenanceActionResponse(evalsvc.EvalReportBadCase{})
+	if action.Mode != "none" {
+		t.Fatalf("Mode = %q, want %q", action.Mode, "none")
+	}
+}
+
+func TestPerDimensionProvenanceBuildersPopulateCorrectly(t *testing.T) {
+	badCase := evalsvc.EvalReportBadCase{
+		EvalCaseID:     "ec-1",
+		SourceCaseID:   "case-1",
+		SourceReportID: "report-1",
+		SourceTaskID:   "task-1",
+		TraceID:        "trace-1",
+		VersionID:      "version-1",
+	}
+	if got := newBadCaseSourceCaseProvenance(badCase); got.Mode != "open" || got.CaseID != "case-1" {
+		t.Fatalf("SourceCaseProvenance = %+v", got)
+	}
+	if got := newBadCaseSourceReportProvenance(badCase); got.Mode != "open_api" || got.ReportID != "report-1" {
+		t.Fatalf("SourceReportProvenance = %+v", got)
+	}
+	if got := newBadCaseSourceTaskProvenance(badCase); got.Mode != "open_api" || got.TaskID != "task-1" {
+		t.Fatalf("SourceTaskProvenance = %+v", got)
+	}
+	if got := newBadCaseTraceProvenance(badCase); got.Mode != "open" || got.TraceID != "trace-1" {
+		t.Fatalf("TraceProvenance = %+v", got)
+	}
+	if got := newBadCaseVersionProvenance(badCase); got.Mode != "open" || got.VersionID != "version-1" {
+		t.Fatalf("VersionProvenance = %+v", got)
+	}
+	if got := newBadCaseEvalProvenance(badCase); got.Mode != "open" || got.EvalCaseID != "ec-1" {
+		t.Fatalf("EvalProvenance = %+v", got)
+	}
+	if got := newBadCaseFollowUpSliceAction(badCase); got.Mode != "open" || got.SourceEvalCaseID != "ec-1" {
+		t.Fatalf("FollowUpSliceAction = %+v", got)
+	}
+}
+
+func TestPerDimensionProvenanceBuildersReturnNoneWhenEmpty(t *testing.T) {
+	badCase := evalsvc.EvalReportBadCase{}
+	if got := newBadCaseSourceCaseProvenance(badCase); got.Mode != "none" {
+		t.Fatalf("SourceCaseProvenance.Mode = %q, want none", got.Mode)
+	}
+	if got := newBadCaseSourceReportProvenance(badCase); got.Mode != "none" {
+		t.Fatalf("SourceReportProvenance.Mode = %q, want none", got.Mode)
+	}
+	if got := newBadCaseSourceTaskProvenance(badCase); got.Mode != "none" {
+		t.Fatalf("SourceTaskProvenance.Mode = %q, want none", got.Mode)
+	}
+	if got := newBadCaseTraceProvenance(badCase); got.Mode != "none" {
+		t.Fatalf("TraceProvenance.Mode = %q, want none", got.Mode)
+	}
+	if got := newBadCaseVersionProvenance(badCase); got.Mode != "none" {
+		t.Fatalf("VersionProvenance.Mode = %q, want none", got.Mode)
+	}
+	if got := newBadCaseEvalProvenance(badCase); got.Mode != "none" {
+		t.Fatalf("EvalProvenance.Mode = %q, want none", got.Mode)
+	}
+	if got := newBadCaseFollowUpSliceAction(badCase); got.Mode != "none" {
+		t.Fatalf("FollowUpSliceAction.Mode = %q, want none", got.Mode)
 	}
 }
 

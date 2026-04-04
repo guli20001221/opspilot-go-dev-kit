@@ -494,10 +494,11 @@
       }
       const preferredAction = preferredPrimaryAction(item);
       const linkedCaseAction = preferredLinkedCaseAction(item);
-      const caseURL = `${caseEndpointBase}${encodeURIComponent(item.source_case_id)}?tenant_id=${encodeURIComponent(item.tenant_id)}`;
+      const scp=item.preferred_source_case_provenance||{};const srp=item.preferred_source_report_provenance||{};const stp=item.preferred_source_task_provenance||{};const trp=item.preferred_trace_provenance||{};const vp=item.preferred_version_provenance||{};const fsa=item.preferred_follow_up_slice_action||{};
+      const caseURL = scp.mode==="open"&&scp.case_id ? `${caseEndpointBase}${encodeURIComponent(scp.case_id)}?tenant_id=${encodeURIComponent(item.tenant_id)}` : "";
       const latestFollowUpCaseURL = linkedCaseAction.valid && linkedCaseAction.mode === "open_existing_case" ? linkedCaseAction.targetHref : "";
       const latestFollowUpCaseLabel = linkedCaseAction.valid && linkedCaseAction.mode === "open_existing_case" ? linkedCaseAction.label : "";
-      const followUpSliceURL = buildEvalQueueHref(item, item.eval_case_id);
+      const followUpSliceURL = fsa.mode==="open"&&fsa.source_eval_case_id ? buildEvalQueueHref(item, fsa.source_eval_case_id) : "";
       createCaseButton.dataset.action = preferredAction.valid ? preferredAction.mode : "invalid";
       createCaseButton.dataset.actionMode = preferredAction.valid ? preferredAction.mode : "invalid";
       createCaseButton.dataset.targetHref = preferredAction.targetHref || "";
@@ -508,10 +509,10 @@
         : preferredAction.hasReuse
           ? "This eval case already has linked case history; reuse the canonical case or queue before creating another."
           : "Current eval case is ready for operator handoff.";
-      const reportURL = item.source_report_id ? `${reportEndpointBase}${encodeURIComponent(item.source_report_id)}` : "";
-      const taskURL = item.source_task_id ? `${taskEndpointBase}${encodeURIComponent(item.source_task_id)}` : "";
-      const traceURL = item.source_case_id ? `/admin/trace-detail?case_id=${encodeURIComponent(item.source_case_id)}` : "/admin/trace-detail";
-      const versionURL = item.version_id ? `/admin/version-detail?version_id=${encodeURIComponent(item.version_id)}` : "/admin/version-detail";
+      const reportURL = srp.mode==="open_api"&&srp.report_id ? `${reportEndpointBase}${encodeURIComponent(srp.report_id)}` : "";
+      const taskURL = stp.mode==="open_api"&&stp.task_id ? `${taskEndpointBase}${encodeURIComponent(stp.task_id)}` : "";
+      const traceURL = trp.mode==="open"&&trp.trace_id ? `/admin/trace-detail?trace_id=${encodeURIComponent(trp.trace_id)}` : "";
+      const versionURL = vp.mode==="open"&&vp.version_id ? `/admin/version-detail?version_id=${encodeURIComponent(vp.version_id)}` : "";
 
       evalDetail.innerHTML = `
         <div class="detail">
@@ -536,17 +537,17 @@
           <div class="detail-card">
             <h3 style="margin-top:0;">Handoff</h3>
             <div class="detail-actions">
-              <a class="button-link ghost" href="/admin/cases?tenant_id=${encodeURIComponent(item.tenant_id)}&case_id=${encodeURIComponent(item.source_case_id)}">Open Cases</a>
+              ${scp.mode==="open"&&scp.case_id?`<a class="button-link ghost" href="/admin/cases?tenant_id=${encodeURIComponent(item.tenant_id)}&case_id=${encodeURIComponent(scp.case_id)}">Open Cases</a>`:""}
               <a class="button-link ghost" href="${detailEndpointBase}${encodeURIComponent(item.eval_case_id)}?tenant_id=${encodeURIComponent(item.tenant_id)}" target="_blank" rel="noreferrer">Open eval API detail</a>
               ${currentDatasetDetail ? `<a class="button-link ghost" href="${datasetEndpoint}/${encodeURIComponent(currentDatasetDetail.dataset_id)}?tenant_id=${encodeURIComponent(item.tenant_id)}" target="_blank" rel="noreferrer">Open dataset API detail</a>` : ""}
               ${currentDatasetDetail ? `<a class="button-link ghost" href="/admin/eval-datasets?tenant_id=${encodeURIComponent(item.tenant_id)}&dataset_id=${encodeURIComponent(currentDatasetDetail.dataset_id)}">Open dataset lane</a>` : ""}
-              <a class="button-link ghost" href="${caseURL}" target="_blank" rel="noreferrer">Open case API detail</a>
+              ${caseURL?`<a class="button-link ghost" href="${caseURL}" target="_blank" rel="noreferrer">Open case API detail</a>`:""}
               ${latestFollowUpCaseURL ? `<a class="button-link ghost" id="openLatestFollowUpLink" href="${latestFollowUpCaseURL}" data-action-mode="${escapeHTML(linkedCaseAction.mode || "none")}">${escapeHTML(latestFollowUpCaseLabel)}</a>` : ""}
-              <a class="button-link ghost" id="openFollowUpSliceLink" href="${followUpSliceURL}" data-action-mode="open_follow_up_slice">Open follow-up slice</a>
+              ${followUpSliceURL?`<a class="button-link ghost" id="openFollowUpSliceLink" href="${followUpSliceURL}" data-action-mode="open_follow_up_slice">Open follow-up slice</a>`:""}
               ${reportURL ? `<a class="button-link ghost" href="${reportURL}" target="_blank" rel="noreferrer">Open report API detail</a>` : ""}
               ${taskURL ? `<a class="button-link ghost" href="${taskURL}" target="_blank" rel="noreferrer">Open task API detail</a>` : ""}
-              <a class="button-link ghost" href="${traceURL}">Open Trace Detail</a>
-              <a class="button-link ghost" href="${versionURL}">Open version detail</a>
+              ${traceURL?`<a class="button-link ghost" href="${traceURL}">Open Trace Detail</a>`:""}
+              ${versionURL?`<a class="button-link ghost" href="${versionURL}">Open version detail</a>`:""}
             </div>
           </div>
         </div>

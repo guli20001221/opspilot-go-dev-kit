@@ -250,6 +250,31 @@ func TestGetEvalDatasetItemPreferredFollowUpActionCreatesWhenLatestCaseClosed(t 
 	if got.Items[0].PreferredPrimaryAction.SourceEvalCaseID != evalCase.ID {
 		t.Fatalf("got.Items[0].PreferredPrimaryAction.SourceEvalCaseID = %q, want %q", got.Items[0].PreferredPrimaryAction.SourceEvalCaseID, evalCase.ID)
 	}
+	// Per-dimension provenance on dataset items
+	if got.Items[0].PreferredSourceCaseProvenance.Mode != "open" {
+		t.Fatalf("got.Items[0].PreferredSourceCaseProvenance.Mode = %q, want %q", got.Items[0].PreferredSourceCaseProvenance.Mode, "open")
+	}
+	if got.Items[0].PreferredSourceCaseProvenance.CaseID != sourceCase.ID {
+		t.Fatalf("got.Items[0].PreferredSourceCaseProvenance.CaseID = %q, want %q", got.Items[0].PreferredSourceCaseProvenance.CaseID, sourceCase.ID)
+	}
+	if got.Items[0].PreferredEvalProvenance.Mode != "open" {
+		t.Fatalf("got.Items[0].PreferredEvalProvenance.Mode = %q, want %q", got.Items[0].PreferredEvalProvenance.Mode, "open")
+	}
+	if got.Items[0].PreferredEvalProvenance.EvalCaseID != evalCase.ID {
+		t.Fatalf("got.Items[0].PreferredEvalProvenance.EvalCaseID = %q, want %q", got.Items[0].PreferredEvalProvenance.EvalCaseID, evalCase.ID)
+	}
+	if got.Items[0].PreferredFollowUpSliceAction.Mode != "open" {
+		t.Fatalf("got.Items[0].PreferredFollowUpSliceAction.Mode = %q, want %q", got.Items[0].PreferredFollowUpSliceAction.Mode, "open")
+	}
+	if got.Items[0].PreferredSourceTaskProvenance.Mode != "none" {
+		t.Fatalf("got.Items[0].PreferredSourceTaskProvenance.Mode = %q, want %q", got.Items[0].PreferredSourceTaskProvenance.Mode, "none")
+	}
+	if got.Items[0].PreferredTraceProvenance.Mode != "none" {
+		t.Fatalf("got.Items[0].PreferredTraceProvenance.Mode = %q, want %q", got.Items[0].PreferredTraceProvenance.Mode, "none")
+	}
+	if got.Items[0].PreferredVersionProvenance.Mode != "none" {
+		t.Fatalf("got.Items[0].PreferredVersionProvenance.Mode = %q, want %q", got.Items[0].PreferredVersionProvenance.Mode, "none")
+	}
 }
 
 func TestListEvalDatasetsEndpointSupportsFiltersAndPagination(t *testing.T) {

@@ -858,6 +858,32 @@ func TestGetEvalRunEndpointReturnsUpdatedStatusFields(t *testing.T) {
 	if got.Items[0].PreferredPrimaryAction.SourceEvalCaseID != evalCase.ID {
 		t.Fatalf("Items[0].PreferredPrimaryAction.SourceEvalCaseID = %q, want %q", got.Items[0].PreferredPrimaryAction.SourceEvalCaseID, evalCase.ID)
 	}
+	// Per-dimension provenance on items
+	if got.Items[0].PreferredSourceCaseProvenance.Mode != "open" {
+		t.Fatalf("Items[0].PreferredSourceCaseProvenance.Mode = %q, want %q", got.Items[0].PreferredSourceCaseProvenance.Mode, "open")
+	}
+	if got.Items[0].PreferredSourceCaseProvenance.CaseID != sourceCase.ID {
+		t.Fatalf("Items[0].PreferredSourceCaseProvenance.CaseID = %q, want %q", got.Items[0].PreferredSourceCaseProvenance.CaseID, sourceCase.ID)
+	}
+	if got.Items[0].PreferredEvalProvenance.Mode != "open" {
+		t.Fatalf("Items[0].PreferredEvalProvenance.Mode = %q, want %q", got.Items[0].PreferredEvalProvenance.Mode, "open")
+	}
+	if got.Items[0].PreferredEvalProvenance.EvalCaseID != evalCase.ID {
+		t.Fatalf("Items[0].PreferredEvalProvenance.EvalCaseID = %q, want %q", got.Items[0].PreferredEvalProvenance.EvalCaseID, evalCase.ID)
+	}
+	if got.Items[0].PreferredFollowUpSliceAction.Mode != "open" {
+		t.Fatalf("Items[0].PreferredFollowUpSliceAction.Mode = %q, want %q", got.Items[0].PreferredFollowUpSliceAction.Mode, "open")
+	}
+	// Optional fields not set on this fixture → "none"
+	if got.Items[0].PreferredSourceTaskProvenance.Mode != "none" {
+		t.Fatalf("Items[0].PreferredSourceTaskProvenance.Mode = %q, want %q", got.Items[0].PreferredSourceTaskProvenance.Mode, "none")
+	}
+	if got.Items[0].PreferredSourceReportProvenance.Mode != "none" {
+		t.Fatalf("Items[0].PreferredSourceReportProvenance.Mode = %q, want %q", got.Items[0].PreferredSourceReportProvenance.Mode, "none")
+	}
+	if got.Items[0].PreferredVersionProvenance.Mode != "none" {
+		t.Fatalf("Items[0].PreferredVersionProvenance.Mode = %q, want %q", got.Items[0].PreferredVersionProvenance.Mode, "none")
+	}
 	if len(got.ItemResults) != 1 {
 		t.Fatalf("len(ItemResults) = %d, want 1 on detail response", len(got.ItemResults))
 	}
@@ -890,6 +916,26 @@ func TestGetEvalRunEndpointReturnsUpdatedStatusFields(t *testing.T) {
 	}
 	if got.ItemResults[0].PreferredPrimaryAction.SourceEvalCaseID != evalCase.ID {
 		t.Fatalf("ItemResults[0].PreferredPrimaryAction.SourceEvalCaseID = %q, want %q", got.ItemResults[0].PreferredPrimaryAction.SourceEvalCaseID, evalCase.ID)
+	}
+	// Results inherit provenance from matched items via itemByEvalCaseID
+	if got.ItemResults[0].PreferredSourceCaseProvenance.Mode != "open" {
+		t.Fatalf("ItemResults[0].PreferredSourceCaseProvenance.Mode = %q, want %q", got.ItemResults[0].PreferredSourceCaseProvenance.Mode, "open")
+	}
+	if got.ItemResults[0].PreferredSourceCaseProvenance.CaseID != sourceCase.ID {
+		t.Fatalf("ItemResults[0].PreferredSourceCaseProvenance.CaseID = %q, want %q", got.ItemResults[0].PreferredSourceCaseProvenance.CaseID, sourceCase.ID)
+	}
+	if got.ItemResults[0].PreferredEvalProvenance.Mode != "open" {
+		t.Fatalf("ItemResults[0].PreferredEvalProvenance.Mode = %q, want %q", got.ItemResults[0].PreferredEvalProvenance.Mode, "open")
+	}
+	if got.ItemResults[0].PreferredFollowUpSliceAction.Mode != "open" {
+		t.Fatalf("ItemResults[0].PreferredFollowUpSliceAction.Mode = %q, want %q", got.ItemResults[0].PreferredFollowUpSliceAction.Mode, "open")
+	}
+	// Report not materialized → lane action is "none"
+	if got.PreferredReportLaneAction.Mode != "none" {
+		t.Fatalf("PreferredReportLaneAction.Mode = %q, want %q", got.PreferredReportLaneAction.Mode, "none")
+	}
+	if got.PreferredDatasetLaneAction.Mode != "open_dataset" {
+		t.Fatalf("PreferredDatasetLaneAction.Mode = %q, want %q", got.PreferredDatasetLaneAction.Mode, "open_dataset")
 	}
 	if got.ItemResults[0].Score != 0 {
 		t.Fatalf("ItemResults[0].Score = %v, want 0", got.ItemResults[0].Score)
@@ -1404,6 +1450,16 @@ func TestEvalRunEndpointsIncludeMaterializedReportLinkage(t *testing.T) {
 	}
 	if detail.PreferredPrimaryAction.ReportID != reportID {
 		t.Fatalf("detail.PreferredPrimaryAction.ReportID = %q, want %q", detail.PreferredPrimaryAction.ReportID, reportID)
+	}
+	// Report lane action populated when report is materialized
+	if detail.PreferredReportLaneAction.Mode != "open_report" {
+		t.Fatalf("detail.PreferredReportLaneAction.Mode = %q, want %q", detail.PreferredReportLaneAction.Mode, "open_report")
+	}
+	if detail.PreferredReportLaneAction.ReportID != reportID {
+		t.Fatalf("detail.PreferredReportLaneAction.ReportID = %q, want %q", detail.PreferredReportLaneAction.ReportID, reportID)
+	}
+	if detail.PreferredDatasetLaneAction.Mode != "open_dataset" {
+		t.Fatalf("detail.PreferredDatasetLaneAction.Mode = %q, want %q", detail.PreferredDatasetLaneAction.Mode, "open_dataset")
 	}
 }
 

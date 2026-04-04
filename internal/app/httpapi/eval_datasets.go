@@ -34,17 +34,24 @@ type publishEvalDatasetRequest struct {
 }
 
 type evalDatasetItemResponse struct {
-	EvalCaseID                string                              `json:"eval_case_id"`
-	Title                     string                              `json:"title"`
-	SourceCaseID              string                              `json:"source_case_id"`
-	SourceTaskID              string                              `json:"source_task_id,omitempty"`
-	SourceReportID            string                              `json:"source_report_id,omitempty"`
-	TraceID                   string                              `json:"trace_id,omitempty"`
-	VersionID                 string                              `json:"version_id,omitempty"`
-	LinkedCaseSummary         evalReportLinkedCaseSummaryResponse `json:"linked_case_summary"`
-	PreferredFollowUpAction   evalCaseFollowUpActionResponse      `json:"preferred_follow_up_action"`
-	PreferredPrimaryAction    evalCaseFollowUpActionResponse      `json:"preferred_primary_action"`
-	PreferredLinkedCaseAction evalCaseFollowUpActionResponse      `json:"preferred_linked_case_action"`
+	EvalCaseID                      string                                          `json:"eval_case_id"`
+	Title                           string                                          `json:"title"`
+	SourceCaseID                    string                                          `json:"source_case_id"`
+	SourceTaskID                    string                                          `json:"source_task_id,omitempty"`
+	SourceReportID                  string                                          `json:"source_report_id,omitempty"`
+	TraceID                         string                                          `json:"trace_id,omitempty"`
+	VersionID                       string                                          `json:"version_id,omitempty"`
+	LinkedCaseSummary               evalReportLinkedCaseSummaryResponse             `json:"linked_case_summary"`
+	PreferredFollowUpAction         evalCaseFollowUpActionResponse                  `json:"preferred_follow_up_action"`
+	PreferredPrimaryAction          evalCaseFollowUpActionResponse                  `json:"preferred_primary_action"`
+	PreferredLinkedCaseAction       evalCaseFollowUpActionResponse                  `json:"preferred_linked_case_action"`
+	PreferredSourceCaseProvenance   evalReportBadCaseSourceCaseProvenanceResponse   `json:"preferred_source_case_provenance"`
+	PreferredSourceReportProvenance evalReportBadCaseSourceReportProvenanceResponse `json:"preferred_source_report_provenance"`
+	PreferredSourceTaskProvenance   evalReportBadCaseSourceTaskProvenanceResponse   `json:"preferred_source_task_provenance"`
+	PreferredTraceProvenance        evalReportBadCaseTraceProvenanceResponse        `json:"preferred_trace_provenance"`
+	PreferredVersionProvenance      evalReportBadCaseVersionProvenanceResponse      `json:"preferred_version_provenance"`
+	PreferredEvalProvenance         evalReportBadCaseEvalProvenanceResponse         `json:"preferred_eval_provenance"`
+	PreferredFollowUpSliceAction    evalReportBadCaseFollowUpSliceActionResponse    `json:"preferred_follow_up_slice_action"`
 }
 
 type evalDatasetResponse struct {
@@ -461,6 +468,13 @@ func newEvalDatasetResponse(item evalsvc.EvalDataset, latestRun evalDatasetLates
 				followUpSummary.LatestFollowUpCaseID,
 				followUpSummary.LatestFollowUpCaseStatus,
 			),
+			PreferredSourceCaseProvenance:   datasetItemSourceCaseProvenance(member.SourceCaseID),
+			PreferredSourceReportProvenance: datasetItemSourceReportProvenance(member.SourceReportID),
+			PreferredSourceTaskProvenance:   datasetItemSourceTaskProvenance(member.SourceTaskID),
+			PreferredTraceProvenance:        datasetItemTraceProvenance(member.TraceID),
+			PreferredVersionProvenance:      datasetItemVersionProvenance(member.VersionID),
+			PreferredEvalProvenance:         datasetItemEvalProvenance(member.EvalCaseID),
+			PreferredFollowUpSliceAction:    datasetItemFollowUpSliceAction(member.EvalCaseID),
 		})
 	}
 
@@ -859,6 +873,55 @@ func newEvalDatasetRecentRunPrimaryActionResponse(runID string, reportID string,
 		return action
 	}
 	return action
+}
+
+func datasetItemSourceCaseProvenance(sourceCaseID string) evalReportBadCaseSourceCaseProvenanceResponse {
+	if sourceCaseID != "" {
+		return evalReportBadCaseSourceCaseProvenanceResponse{Mode: "open", CaseID: sourceCaseID}
+	}
+	return evalReportBadCaseSourceCaseProvenanceResponse{Mode: "none"}
+}
+
+func datasetItemSourceReportProvenance(sourceReportID string) evalReportBadCaseSourceReportProvenanceResponse {
+	if sourceReportID != "" {
+		return evalReportBadCaseSourceReportProvenanceResponse{Mode: "open_api", ReportID: sourceReportID}
+	}
+	return evalReportBadCaseSourceReportProvenanceResponse{Mode: "none"}
+}
+
+func datasetItemSourceTaskProvenance(sourceTaskID string) evalReportBadCaseSourceTaskProvenanceResponse {
+	if sourceTaskID != "" {
+		return evalReportBadCaseSourceTaskProvenanceResponse{Mode: "open_api", TaskID: sourceTaskID}
+	}
+	return evalReportBadCaseSourceTaskProvenanceResponse{Mode: "none"}
+}
+
+func datasetItemTraceProvenance(traceID string) evalReportBadCaseTraceProvenanceResponse {
+	if traceID != "" {
+		return evalReportBadCaseTraceProvenanceResponse{Mode: "open", TraceID: traceID}
+	}
+	return evalReportBadCaseTraceProvenanceResponse{Mode: "none"}
+}
+
+func datasetItemVersionProvenance(versionID string) evalReportBadCaseVersionProvenanceResponse {
+	if versionID != "" {
+		return evalReportBadCaseVersionProvenanceResponse{Mode: "open", VersionID: versionID}
+	}
+	return evalReportBadCaseVersionProvenanceResponse{Mode: "none"}
+}
+
+func datasetItemEvalProvenance(evalCaseID string) evalReportBadCaseEvalProvenanceResponse {
+	if evalCaseID != "" {
+		return evalReportBadCaseEvalProvenanceResponse{Mode: "open", EvalCaseID: evalCaseID}
+	}
+	return evalReportBadCaseEvalProvenanceResponse{Mode: "none"}
+}
+
+func datasetItemFollowUpSliceAction(evalCaseID string) evalReportBadCaseFollowUpSliceActionResponse {
+	if evalCaseID != "" {
+		return evalReportBadCaseFollowUpSliceActionResponse{Mode: "open", SourceEvalCaseID: evalCaseID}
+	}
+	return evalReportBadCaseFollowUpSliceActionResponse{Mode: "none"}
 }
 
 func parseEvalDatasetListFilter(r *http.Request) (evalsvc.DatasetListFilter, *bool, error) {

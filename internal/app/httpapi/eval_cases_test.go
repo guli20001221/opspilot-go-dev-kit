@@ -108,6 +108,28 @@ func TestCreateAndGetEvalCaseEndpoint(t *testing.T) {
 	if created.PreferredLinkedCaseAction.SourceEvalCaseID != created.EvalCaseID {
 		t.Fatalf("PreferredLinkedCaseAction.SourceEvalCaseID = %q, want %q", created.PreferredLinkedCaseAction.SourceEvalCaseID, created.EvalCaseID)
 	}
+	// Per-dimension provenance actions
+	if created.PreferredSourceCaseProvenance.Mode != "open" {
+		t.Fatalf("PreferredSourceCaseProvenance.Mode = %q, want %q", created.PreferredSourceCaseProvenance.Mode, "open")
+	}
+	if created.PreferredSourceCaseProvenance.CaseID != createdCase.ID {
+		t.Fatalf("PreferredSourceCaseProvenance.CaseID = %q, want %q", created.PreferredSourceCaseProvenance.CaseID, createdCase.ID)
+	}
+	if created.PreferredSourceReportProvenance.Mode != "open_api" {
+		t.Fatalf("PreferredSourceReportProvenance.Mode = %q, want %q", created.PreferredSourceReportProvenance.Mode, "open_api")
+	}
+	if created.PreferredSourceTaskProvenance.Mode != "open_api" {
+		t.Fatalf("PreferredSourceTaskProvenance.Mode = %q, want %q", created.PreferredSourceTaskProvenance.Mode, "open_api")
+	}
+	if created.PreferredTraceProvenance.Mode != "none" {
+		t.Fatalf("PreferredTraceProvenance.Mode = %q, want %q", created.PreferredTraceProvenance.Mode, "none")
+	}
+	if created.PreferredVersionProvenance.Mode != "open" {
+		t.Fatalf("PreferredVersionProvenance.Mode = %q, want %q", created.PreferredVersionProvenance.Mode, "open")
+	}
+	if created.PreferredFollowUpSliceAction.Mode != "open" {
+		t.Fatalf("PreferredFollowUpSliceAction.Mode = %q, want %q", created.PreferredFollowUpSliceAction.Mode, "open")
+	}
 	if created.LinkedCaseSummary.TotalCaseCount != 0 {
 		t.Fatalf("LinkedCaseSummary.TotalCaseCount = %d, want 0", created.LinkedCaseSummary.TotalCaseCount)
 	}

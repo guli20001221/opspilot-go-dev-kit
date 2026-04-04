@@ -15,26 +15,33 @@ import (
 )
 
 type evalReportBadCaseResponse struct {
-	EvalCaseID                  string                                    `json:"eval_case_id"`
-	Title                       string                                    `json:"title"`
-	SourceCaseID                string                                    `json:"source_case_id"`
-	SourceTaskID                string                                    `json:"source_task_id,omitempty"`
-	SourceReportID              string                                    `json:"source_report_id,omitempty"`
-	TraceID                     string                                    `json:"trace_id,omitempty"`
-	VersionID                   string                                    `json:"version_id,omitempty"`
-	Verdict                     string                                    `json:"verdict"`
-	Detail                      string                                    `json:"detail,omitempty"`
-	Score                       float64                                   `json:"score"`
-	FollowUpCaseCount           int                                       `json:"follow_up_case_count"`
-	OpenFollowUpCaseCount       int                                       `json:"open_follow_up_case_count"`
-	LatestFollowUpCaseID        string                                    `json:"latest_follow_up_case_id,omitempty"`
-	LatestFollowUpCaseStatus    string                                    `json:"latest_follow_up_case_status,omitempty"`
-	PreferredFollowUpAction     evalCaseFollowUpActionResponse            `json:"preferred_follow_up_action"`
-	PreferredFollowUpLaneAction evalCaseFollowUpActionResponse            `json:"preferred_follow_up_lane_action"`
-	PreferredPrimaryAction      evalCaseFollowUpActionResponse            `json:"preferred_primary_action"`
-	PreferredCaseSummaryAction  evalCaseFollowUpActionResponse            `json:"preferred_case_summary_action"`
-	PreferredLinkedCaseAction   evalCaseFollowUpActionResponse            `json:"preferred_linked_case_action"`
-	PreferredProvenanceAction   evalReportBadCaseProvenanceActionResponse `json:"preferred_provenance_action"`
+	EvalCaseID                      string                                          `json:"eval_case_id"`
+	Title                           string                                          `json:"title"`
+	SourceCaseID                    string                                          `json:"source_case_id"`
+	SourceTaskID                    string                                          `json:"source_task_id,omitempty"`
+	SourceReportID                  string                                          `json:"source_report_id,omitempty"`
+	TraceID                         string                                          `json:"trace_id,omitempty"`
+	VersionID                       string                                          `json:"version_id,omitempty"`
+	Verdict                         string                                          `json:"verdict"`
+	Detail                          string                                          `json:"detail,omitempty"`
+	Score                           float64                                         `json:"score"`
+	FollowUpCaseCount               int                                             `json:"follow_up_case_count"`
+	OpenFollowUpCaseCount           int                                             `json:"open_follow_up_case_count"`
+	LatestFollowUpCaseID            string                                          `json:"latest_follow_up_case_id,omitempty"`
+	LatestFollowUpCaseStatus        string                                          `json:"latest_follow_up_case_status,omitempty"`
+	PreferredFollowUpAction         evalCaseFollowUpActionResponse                  `json:"preferred_follow_up_action"`
+	PreferredFollowUpLaneAction     evalCaseFollowUpActionResponse                  `json:"preferred_follow_up_lane_action"`
+	PreferredPrimaryAction          evalCaseFollowUpActionResponse                  `json:"preferred_primary_action"`
+	PreferredCaseSummaryAction      evalCaseFollowUpActionResponse                  `json:"preferred_case_summary_action"`
+	PreferredLinkedCaseAction       evalCaseFollowUpActionResponse                  `json:"preferred_linked_case_action"`
+	PreferredProvenanceAction       evalReportBadCaseProvenanceActionResponse       `json:"preferred_provenance_action"`
+	PreferredSourceCaseProvenance   evalReportBadCaseSourceCaseProvenanceResponse   `json:"preferred_source_case_provenance"`
+	PreferredSourceReportProvenance evalReportBadCaseSourceReportProvenanceResponse `json:"preferred_source_report_provenance"`
+	PreferredSourceTaskProvenance   evalReportBadCaseSourceTaskProvenanceResponse   `json:"preferred_source_task_provenance"`
+	PreferredTraceProvenance        evalReportBadCaseTraceProvenanceResponse        `json:"preferred_trace_provenance"`
+	PreferredVersionProvenance      evalReportBadCaseVersionProvenanceResponse      `json:"preferred_version_provenance"`
+	PreferredEvalProvenance         evalReportBadCaseEvalProvenanceResponse         `json:"preferred_eval_provenance"`
+	PreferredFollowUpSliceAction    evalReportBadCaseFollowUpSliceActionResponse    `json:"preferred_follow_up_slice_action"`
 }
 
 type evalReportResponse struct {
@@ -69,6 +76,12 @@ type evalReportResponse struct {
 	PreferredCompareFollowUpAction  evalReportCompareQueueActionResponse `json:"preferred_compare_follow_up_action"`
 	LinkedCaseSummary               *evalReportLinkedCaseSummaryResponse `json:"linked_case_summary,omitempty"`
 	PreferredLinkedCaseAction       evalReportLinkedCaseActionResponse   `json:"preferred_linked_case_action"`
+	PreferredReportLaneAction       evalReportLaneActionResponse         `json:"preferred_report_lane_action"`
+	PreferredDatasetLaneAction      evalDatasetLaneActionResponse        `json:"preferred_dataset_lane_action"`
+	PreferredEvalLaneAction         evalLaneActionResponse               `json:"preferred_eval_lane_action"`
+	PreferredRunLaneAction          evalRunLaneActionResponse            `json:"preferred_run_lane_action"`
+	PreferredTraceDetailAction      traceDetailActionResponse            `json:"preferred_trace_detail_action"`
+	PreferredVersionDetailAction    versionDetailActionResponse          `json:"preferred_version_detail_action"`
 	Metadata                        json.RawMessage                      `json:"metadata,omitempty"`
 	BadCases                        []evalReportBadCaseResponse          `json:"bad_cases,omitempty"`
 	CreatedAt                       string                               `json:"created_at"`
@@ -118,6 +131,43 @@ type evalReportBadCaseProvenanceActionResponse struct {
 	EvalCaseID string `json:"eval_case_id,omitempty"`
 	TraceID    string `json:"trace_id,omitempty"`
 	VersionID  string `json:"version_id,omitempty"`
+}
+
+// Per-dimension provenance actions — each resolves a single provenance link
+// so the frontend never needs to infer from raw IDs.
+type evalReportBadCaseSourceCaseProvenanceResponse struct {
+	Mode   string `json:"mode"`
+	CaseID string `json:"case_id,omitempty"`
+}
+
+type evalReportBadCaseSourceReportProvenanceResponse struct {
+	Mode     string `json:"mode"`
+	ReportID string `json:"report_id,omitempty"`
+}
+
+type evalReportBadCaseSourceTaskProvenanceResponse struct {
+	Mode   string `json:"mode"`
+	TaskID string `json:"task_id,omitempty"`
+}
+
+type evalReportBadCaseTraceProvenanceResponse struct {
+	Mode    string `json:"mode"`
+	TraceID string `json:"trace_id,omitempty"`
+}
+
+type evalReportBadCaseVersionProvenanceResponse struct {
+	Mode      string `json:"mode"`
+	VersionID string `json:"version_id,omitempty"`
+}
+
+type evalReportBadCaseEvalProvenanceResponse struct {
+	Mode       string `json:"mode"`
+	EvalCaseID string `json:"eval_case_id,omitempty"`
+}
+
+type evalReportBadCaseFollowUpSliceActionResponse struct {
+	Mode             string `json:"mode"`
+	SourceEvalCaseID string `json:"source_eval_case_id,omitempty"`
 }
 
 type listEvalReportsResponse struct {
@@ -725,6 +775,12 @@ func newEvalReportResponse(item evalsvc.EvalReport, includeHeavy bool, followUpS
 		PreferredCompareFollowUpAction:  newEvalReportCompareQueueActionResponse(item.ID, compareFollowUpSummary),
 		LinkedCaseSummary:               linkedCaseSummary,
 		PreferredLinkedCaseAction:       newEvalReportLinkedCaseActionResponse(item.ID, linkedCaseSummary),
+		PreferredReportLaneAction:       newEvalReportLaneActionResponse(item.ID),
+		PreferredDatasetLaneAction:      newEvalDatasetLaneActionResponse(item.DatasetID),
+		PreferredEvalLaneAction:         newEvalLaneActionResponse(item.ID),
+		PreferredRunLaneAction:          newEvalRunLaneActionResponse(item.RunID, item.DatasetID),
+		PreferredTraceDetailAction:      newTraceDetailActionResponse(item.ID),
+		PreferredVersionDetailAction:    newVersionDetailActionResponse(firstEvalReportVersionID(item.MetadataJSON)),
 		CreatedAt:                       item.CreatedAt.Format(time.RFC3339Nano),
 		UpdatedAt:                       item.UpdatedAt.Format(time.RFC3339Nano),
 		ReadyAt:                         item.ReadyAt.Format(time.RFC3339Nano),
@@ -736,26 +792,33 @@ func newEvalReportResponse(item evalsvc.EvalReport, includeHeavy bool, followUpS
 			for _, badCase := range item.BadCases {
 				badCaseSummary := badCaseSummaries[badCase.EvalCaseID]
 				resp.BadCases = append(resp.BadCases, evalReportBadCaseResponse{
-					EvalCaseID:                  badCase.EvalCaseID,
-					Title:                       badCase.Title,
-					SourceCaseID:                badCase.SourceCaseID,
-					SourceTaskID:                badCase.SourceTaskID,
-					SourceReportID:              badCase.SourceReportID,
-					TraceID:                     badCase.TraceID,
-					VersionID:                   badCase.VersionID,
-					Verdict:                     badCase.Verdict,
-					Detail:                      badCase.Detail,
-					Score:                       badCase.Score,
-					FollowUpCaseCount:           badCaseSummary.FollowUpCaseCount,
-					OpenFollowUpCaseCount:       badCaseSummary.OpenFollowUpCaseCount,
-					LatestFollowUpCaseID:        badCaseSummary.LatestFollowUpCaseID,
-					LatestFollowUpCaseStatus:    badCaseSummary.LatestFollowUpCaseStatus,
-					PreferredFollowUpAction:     newEvalReportBadCaseFollowUpActionResponse(badCase.EvalCaseID, badCaseSummary),
-					PreferredFollowUpLaneAction: newEvalReportBadCaseFollowUpLaneActionResponse(badCase.EvalCaseID, badCaseSummary),
-					PreferredPrimaryAction:      newEvalReportBadCasePrimaryActionResponse(badCase.EvalCaseID, badCaseSummary),
-					PreferredCaseSummaryAction:  newEvalReportBadCaseCaseSummaryActionResponse(badCase.EvalCaseID, badCaseSummary),
-					PreferredLinkedCaseAction:   newEvalReportBadCaseLinkedCaseActionResponse(badCase.EvalCaseID, badCaseSummary),
-					PreferredProvenanceAction:   newEvalReportBadCaseProvenanceActionResponse(badCase),
+					EvalCaseID:                      badCase.EvalCaseID,
+					Title:                           badCase.Title,
+					SourceCaseID:                    badCase.SourceCaseID,
+					SourceTaskID:                    badCase.SourceTaskID,
+					SourceReportID:                  badCase.SourceReportID,
+					TraceID:                         badCase.TraceID,
+					VersionID:                       badCase.VersionID,
+					Verdict:                         badCase.Verdict,
+					Detail:                          badCase.Detail,
+					Score:                           badCase.Score,
+					FollowUpCaseCount:               badCaseSummary.FollowUpCaseCount,
+					OpenFollowUpCaseCount:           badCaseSummary.OpenFollowUpCaseCount,
+					LatestFollowUpCaseID:            badCaseSummary.LatestFollowUpCaseID,
+					LatestFollowUpCaseStatus:        badCaseSummary.LatestFollowUpCaseStatus,
+					PreferredFollowUpAction:         newEvalReportBadCaseFollowUpActionResponse(badCase.EvalCaseID, badCaseSummary),
+					PreferredFollowUpLaneAction:     newEvalReportBadCaseFollowUpLaneActionResponse(badCase.EvalCaseID, badCaseSummary),
+					PreferredPrimaryAction:          newEvalReportBadCasePrimaryActionResponse(badCase.EvalCaseID, badCaseSummary),
+					PreferredCaseSummaryAction:      newEvalReportBadCaseCaseSummaryActionResponse(badCase.EvalCaseID, badCaseSummary),
+					PreferredLinkedCaseAction:       newEvalReportBadCaseLinkedCaseActionResponse(badCase.EvalCaseID, badCaseSummary),
+					PreferredProvenanceAction:       newEvalReportBadCaseProvenanceActionResponse(badCase),
+					PreferredSourceCaseProvenance:   newBadCaseSourceCaseProvenance(badCase),
+					PreferredSourceReportProvenance: newBadCaseSourceReportProvenance(badCase),
+					PreferredSourceTaskProvenance:   newBadCaseSourceTaskProvenance(badCase),
+					PreferredTraceProvenance:        newBadCaseTraceProvenance(badCase),
+					PreferredVersionProvenance:      newBadCaseVersionProvenance(badCase),
+					PreferredEvalProvenance:         newBadCaseEvalProvenance(badCase),
+					PreferredFollowUpSliceAction:    newBadCaseFollowUpSliceAction(badCase),
 				})
 			}
 		}
@@ -887,6 +950,55 @@ func newEvalReportBadCaseProvenanceActionResponse(badCase evalsvc.EvalReportBadC
 		}
 	}
 	return evalReportBadCaseProvenanceActionResponse{Mode: "none"}
+}
+
+func newBadCaseSourceCaseProvenance(badCase evalsvc.EvalReportBadCase) evalReportBadCaseSourceCaseProvenanceResponse {
+	if badCase.SourceCaseID != "" {
+		return evalReportBadCaseSourceCaseProvenanceResponse{Mode: "open", CaseID: badCase.SourceCaseID}
+	}
+	return evalReportBadCaseSourceCaseProvenanceResponse{Mode: "none"}
+}
+
+func newBadCaseSourceReportProvenance(badCase evalsvc.EvalReportBadCase) evalReportBadCaseSourceReportProvenanceResponse {
+	if badCase.SourceReportID != "" {
+		return evalReportBadCaseSourceReportProvenanceResponse{Mode: "open_api", ReportID: badCase.SourceReportID}
+	}
+	return evalReportBadCaseSourceReportProvenanceResponse{Mode: "none"}
+}
+
+func newBadCaseSourceTaskProvenance(badCase evalsvc.EvalReportBadCase) evalReportBadCaseSourceTaskProvenanceResponse {
+	if badCase.SourceTaskID != "" {
+		return evalReportBadCaseSourceTaskProvenanceResponse{Mode: "open_api", TaskID: badCase.SourceTaskID}
+	}
+	return evalReportBadCaseSourceTaskProvenanceResponse{Mode: "none"}
+}
+
+func newBadCaseTraceProvenance(badCase evalsvc.EvalReportBadCase) evalReportBadCaseTraceProvenanceResponse {
+	if badCase.TraceID != "" {
+		return evalReportBadCaseTraceProvenanceResponse{Mode: "open", TraceID: badCase.TraceID}
+	}
+	return evalReportBadCaseTraceProvenanceResponse{Mode: "none"}
+}
+
+func newBadCaseVersionProvenance(badCase evalsvc.EvalReportBadCase) evalReportBadCaseVersionProvenanceResponse {
+	if badCase.VersionID != "" {
+		return evalReportBadCaseVersionProvenanceResponse{Mode: "open", VersionID: badCase.VersionID}
+	}
+	return evalReportBadCaseVersionProvenanceResponse{Mode: "none"}
+}
+
+func newBadCaseEvalProvenance(badCase evalsvc.EvalReportBadCase) evalReportBadCaseEvalProvenanceResponse {
+	if badCase.EvalCaseID != "" {
+		return evalReportBadCaseEvalProvenanceResponse{Mode: "open", EvalCaseID: badCase.EvalCaseID}
+	}
+	return evalReportBadCaseEvalProvenanceResponse{Mode: "none"}
+}
+
+func newBadCaseFollowUpSliceAction(badCase evalsvc.EvalReportBadCase) evalReportBadCaseFollowUpSliceActionResponse {
+	if badCase.EvalCaseID != "" {
+		return evalReportBadCaseFollowUpSliceActionResponse{Mode: "open", SourceEvalCaseID: badCase.EvalCaseID}
+	}
+	return evalReportBadCaseFollowUpSliceActionResponse{Mode: "none"}
 }
 
 func newEvalReportBadCaseQueueActionResponse(reportID string, badCaseWithoutOpenFollowUpCount int) evalReportBadCaseQueueActionResponse {
