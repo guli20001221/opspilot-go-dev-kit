@@ -32,6 +32,13 @@ type CriticInput struct {
 	DraftAnswer string
 }
 
+const (
+	// CriticSourceLLM indicates the verdict was produced by an LLM.
+	CriticSourceLLM = "llm"
+	// CriticSourceRule indicates the verdict was produced by deterministic rules.
+	CriticSourceRule = "rule"
+)
+
 // CriticVerdict is the structured review result.
 type CriticVerdict struct {
 	Verdict          string
@@ -42,4 +49,6 @@ type CriticVerdict struct {
 	MissingItems     []string
 	RevisionHints    []string
 	BlockingReasons  []string
+	Source           string
+	PromptVersion    string
 }
