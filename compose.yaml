@@ -12,7 +12,7 @@ services:
       - "${OPSPILOT_TICKET_API_PORT:-19090}:8090"
 
   postgres:
-    image: postgres:16-alpine
+    image: pgvector/pgvector:pg16
     environment:
       POSTGRES_USER: opspilot
       POSTGRES_PASSWORD: opspilot
