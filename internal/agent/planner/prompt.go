@@ -185,8 +185,11 @@ func validateLLMPlan(resp llmPlanResponse, availableTools map[string]bool) error
 		if !validKinds[step.Kind] {
 			return fmt.Errorf("step %d has invalid kind %q", i, step.Kind)
 		}
-		if step.Kind == StepKindTool && step.ToolName != "" && len(availableTools) > 0 {
-			if !availableTools[step.ToolName] {
+		if step.Kind == StepKindTool {
+			if step.ToolName == "" {
+				return fmt.Errorf("step %d is kind %q but has empty tool_name", i, StepKindTool)
+			}
+			if len(availableTools) > 0 && !availableTools[step.ToolName] {
 				return fmt.Errorf("step %d references unknown tool %q", i, step.ToolName)
 			}
 		}
