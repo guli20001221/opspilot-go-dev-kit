@@ -31,19 +31,19 @@ const hydeSystemPrompt = `You are a knowledge base assistant. Given a user quest
 // Rewrite generates a hypothetical document for the given query.
 // If the provider is nil, a placeholder, or the call fails, the original
 // query is returned unchanged so the retrieval pipeline degrades gracefully.
-func (h *HyDERewriter) Rewrite(ctx context.Context, query string) (string, error) {
+func (h *HyDERewriter) Rewrite(ctx context.Context, query string) string {
 	query = strings.TrimSpace(query)
 	if query == "" {
-		return "", nil
+		return ""
 	}
 
 	if h.provider == nil {
-		return query, nil
+		return query
 	}
 
 	// Placeholder provider: skip the LLM call, return query as-is
 	if _, ok := h.provider.(*llm.PlaceholderProvider); ok {
-		return query, nil
+		return query
 	}
 
 	callCtx, cancel := context.WithTimeout(ctx, hydePerCallTimeout)
@@ -64,12 +64,12 @@ func (h *HyDERewriter) Rewrite(ctx context.Context, query string) (string, error
 		slog.Warn("hyde rewrite failed, using original query",
 			slog.Any("error", err),
 		)
-		return query, nil
+		return query
 	}
 
 	rewritten := strings.TrimSpace(resp.Content)
 	if rewritten == "" {
-		return query, nil
+		return query
 	}
 
 	slog.Debug("hyde rewrite applied",
@@ -77,5 +77,5 @@ func (h *HyDERewriter) Rewrite(ctx context.Context, query string) (string, error
 		slog.Int("hypothetical_len", len(rewritten)),
 	)
 
-	return rewritten, nil
+	return rewritten
 }

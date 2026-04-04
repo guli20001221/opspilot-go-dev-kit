@@ -166,13 +166,7 @@ func (s *Service) Handle(ctx context.Context, req ChatRequestEnvelope) (HandleRe
 		// HyDE: generate a hypothetical document to improve semantic matching
 		hydeQuery := req.UserMessage
 		if s.hyde != nil {
-			rewritten, hydeErr := s.hyde.Rewrite(ctx, req.UserMessage)
-			if hydeErr != nil {
-				slog.Warn("hyde rewrite failed, using original query",
-					slog.String("request_id", req.RequestID),
-					slog.Any("error", hydeErr),
-				)
-			} else if rewritten != "" {
+			if rewritten := s.hyde.Rewrite(ctx, req.UserMessage); rewritten != "" {
 				hydeQuery = rewritten
 			}
 		}
