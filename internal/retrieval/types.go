@@ -26,9 +26,10 @@ type RetrievalRequest struct {
 
 // RetrievalFilters contains optional retrieval filters.
 type RetrievalFilters struct {
-	DocumentTags []string
-	TimeFrom     *time.Time
-	TimeTo       *time.Time
+	DocumentTags     []string
+	PermissionsScope string // when set, restricts results to this scope
+	TimeFrom         *time.Time
+	TimeTo           *time.Time
 }
 
 // RetrievalResult is the typed retrieval output consumed upstream.

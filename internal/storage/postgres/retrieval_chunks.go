@@ -171,14 +171,16 @@ func (s *RetrievalChunkStore) Search(ctx context.Context, req retrieval.Retrieva
 		return retrieval.RetrievalResult{}, fmt.Errorf("embed query text: %w", err)
 	}
 
+	permScope := req.Filters.PermissionsScope
+
 	// Stage 1: Dense vector search (uses HyDE-rewritten query when available)
-	denseBlocks, err := s.denseSearch(ctx, queryVec, req.TenantID, candidateK)
+	denseBlocks, err := s.denseSearch(ctx, queryVec, req.TenantID, permScope, candidateK)
 	if err != nil {
 		return retrieval.RetrievalResult{}, fmt.Errorf("dense search: %w", err)
 	}
 
 	// Stage 2: BM25 full-text search (uses original query for keyword precision)
-	bm25Blocks, err := s.bm25Search(ctx, req.QueryText, req.TenantID, candidateK)
+	bm25Blocks, err := s.bm25Search(ctx, req.QueryText, req.TenantID, permScope, candidateK)
 	if err != nil {
 		return retrieval.RetrievalResult{}, fmt.Errorf("bm25 search: %w", err)
 	}
@@ -215,7 +217,7 @@ func (s *RetrievalChunkStore) Search(ctx context.Context, req retrieval.Retrieva
 	}, nil
 }
 
-func (s *RetrievalChunkStore) denseSearch(ctx context.Context, queryVec []float32, tenantID string, limit int) ([]retrieval.EvidenceBlock, error) {
+func (s *RetrievalChunkStore) denseSearch(ctx context.Context, queryVec []float32, tenantID, permScope string, limit int) ([]retrieval.EvidenceBlock, error) {
 	const query = `
 SELECT id, tenant_id, document_id, document_version, chunk_id,
        source_title, source_uri, snippet, permissions_scope, published_at,
@@ -223,13 +225,14 @@ SELECT id, tenant_id, document_id, document_version, chunk_id,
        1 - (embedding <=> $1::vector) AS score
 FROM retrieval_chunks
 WHERE tenant_id = $2
+  AND ($4 = '' OR permissions_scope = $4)
 ORDER BY embedding <=> $1::vector
 LIMIT $3`
 
-	return s.scanBlocks(ctx, query, formatVector(queryVec), tenantID, limit)
+	return s.scanBlocksWithScope(ctx, query, formatVector(queryVec), tenantID, limit, permScope)
 }
 
-func (s *RetrievalChunkStore) bm25Search(ctx context.Context, queryText, tenantID string, limit int) ([]retrieval.EvidenceBlock, error) {
+func (s *RetrievalChunkStore) bm25Search(ctx context.Context, queryText, tenantID, permScope string, limit int) ([]retrieval.EvidenceBlock, error) {
 	const query = `
 SELECT id, tenant_id, document_id, document_version, chunk_id,
        source_title, source_uri, snippet, permissions_scope, published_at,
@@ -238,10 +241,34 @@ SELECT id, tenant_id, document_id, document_version, chunk_id,
 FROM retrieval_chunks
 WHERE tenant_id = $2
   AND search_tsv @@ plainto_tsquery('english', $1)
+  AND ($4 = '' OR permissions_scope = $4)
 ORDER BY ts_rank_cd(search_tsv, plainto_tsquery('english', $1)) DESC
 LIMIT $3`
 
-	return s.scanBlocks(ctx, query, queryText, tenantID, limit)
+	return s.scanBlocksWithScope(ctx, query, queryText, tenantID, limit, permScope)
+}
+
+func (s *RetrievalChunkStore) scanBlocksWithScope(ctx context.Context, query string, param1 any, tenantID string, limit int, permScope string) ([]retrieval.EvidenceBlock, error) {
+	rows, err := s.pool.Query(ctx, query, param1, tenantID, limit, permScope)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var blocks []retrieval.EvidenceBlock
+	for rows.Next() {
+		var block retrieval.EvidenceBlock
+		var parentChunkID *string
+		if err := rows.Scan(
+			&block.EvidenceID, &block.TenantID, &block.DocumentID, &block.DocumentVersion,
+			&block.ChunkID, &block.SourceTitle, &block.SourceURI, &block.Snippet,
+			&block.PermissionsScope, &block.PublishedAt, &parentChunkID, &block.Score,
+		); err != nil {
+			return nil, err
+		}
+		blocks = append(blocks, block)
+	}
+	return blocks, rows.Err()
 }
 
 func (s *RetrievalChunkStore) scanBlocks(ctx context.Context, query string, param1 any, tenantID string, limit int) ([]retrieval.EvidenceBlock, error) {
