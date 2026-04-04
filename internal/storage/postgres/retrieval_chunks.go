@@ -212,11 +212,6 @@ LIMIT $3`
 	return s.scanBlocks(ctx, query, queryText, tenantID, limit)
 }
 
-type rankedBlock struct {
-	block         retrieval.EvidenceBlock
-	parentChunkID *string
-}
-
 func (s *RetrievalChunkStore) scanBlocks(ctx context.Context, query string, param1 any, tenantID string, limit int) ([]retrieval.EvidenceBlock, error) {
 	rows, err := s.pool.Query(ctx, query, param1, tenantID, limit)
 	if err != nil {
@@ -264,18 +259,28 @@ func reciprocalRankFusion(listA, listB []retrieval.EvidenceBlock, topK int) []re
 	for id, score := range scores {
 		ranked = append(ranked, scored{id, score})
 	}
-	sort.Slice(ranked, func(i, j int) bool {
-		return ranked[i].score > ranked[j].score
+	sort.SliceStable(ranked, func(i, j int) bool {
+		if ranked[i].score != ranked[j].score {
+			return ranked[i].score > ranked[j].score
+		}
+		return ranked[i].id < ranked[j].id // deterministic tiebreaker
 	})
 
 	if len(ranked) > topK {
 		ranked = ranked[:topK]
 	}
 
+	// Normalize RRF scores to [0,1] range. Theoretical max is 2/(rrfK+1) when
+	// a block appears at rank 1 in both lists.
+	maxRRF := 2.0 / float64(rrfK+1)
 	result := make([]retrieval.EvidenceBlock, 0, len(ranked))
 	for _, r := range ranked {
 		block := blockByID[r.id]
-		block.Score = r.score
+		normalized := r.score / maxRRF
+		if normalized > 1.0 {
+			normalized = 1.0
+		}
+		block.Score = normalized
 		block.RerankScore = r.score
 		result = append(result, block)
 	}
@@ -375,6 +380,7 @@ WHERE tenant_id = $1 AND chunk_id = ANY($2)`
 				result = append(result, parent)
 				continue
 			}
+			// Parent not found in DB — fall through and keep the child block
 		}
 		if seen[block.ChunkID] {
 			continue
