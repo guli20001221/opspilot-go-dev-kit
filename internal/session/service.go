@@ -3,80 +3,74 @@ package session
 import (
 	"context"
 	"fmt"
-	"sync"
+	"sync/atomic"
 	"time"
 )
 
-// Service provides in-memory session and message persistence for the M1 skeleton.
-type Service struct {
-	mu       sync.RWMutex
-	sessions map[string]Session
-	messages map[string][]Message
+var (
+	sessionIDSequence atomic.Uint64
+	messageIDSequence atomic.Uint64
+)
+
+// Store persists session and message records.
+type Store interface {
+	CreateSession(ctx context.Context, sess Session) (Session, error)
+	CreateMessage(ctx context.Context, msg Message) (Message, error)
+	ListMessages(ctx context.Context, sessionID string) ([]Message, error)
 }
 
-// NewService creates the minimum session service implementation.
+// Service provides session and message persistence.
+type Service struct {
+	store Store
+}
+
+// NewService creates the session service with a memory-backed default store.
 func NewService() *Service {
-	return &Service{
-		sessions: make(map[string]Session),
-		messages: make(map[string][]Message),
+	return NewServiceWithStore(nil)
+}
+
+// NewServiceWithStore creates the session service with a caller-provided store.
+func NewServiceWithStore(store Store) *Service {
+	if store == nil {
+		store = newMemoryStore()
 	}
+	return &Service{store: store}
 }
 
 // CreateSession creates a new session record.
-func (s *Service) CreateSession(_ context.Context, input CreateSessionInput) (Session, error) {
+func (s *Service) CreateSession(ctx context.Context, input CreateSessionInput) (Session, error) {
 	now := time.Now().UTC()
-	session := Session{
-		ID:        newID(now),
+	sess := Session{
+		ID:        newSessionID(now),
 		TenantID:  input.TenantID,
 		UserID:    input.UserID,
 		CreatedAt: now,
 	}
-
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	s.sessions[session.ID] = session
-
-	return session, nil
+	return s.store.CreateSession(ctx, sess)
 }
 
 // AppendMessage appends a message to an existing session.
-func (s *Service) AppendMessage(_ context.Context, input AppendMessageInput) (Message, error) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-
-	if _, ok := s.sessions[input.SessionID]; !ok {
-		return Message{}, fmt.Errorf("session %q not found", input.SessionID)
-	}
-
+func (s *Service) AppendMessage(ctx context.Context, input AppendMessageInput) (Message, error) {
 	now := time.Now().UTC()
-	message := Message{
-		ID:        newID(now),
+	msg := Message{
+		ID:        newMessageID(now),
 		SessionID: input.SessionID,
 		Role:      input.Role,
 		Content:   input.Content,
 		CreatedAt: now,
 	}
-	s.messages[input.SessionID] = append(s.messages[input.SessionID], message)
-
-	return message, nil
+	return s.store.CreateMessage(ctx, msg)
 }
 
 // ListMessages returns messages in append order for the given session.
-func (s *Service) ListMessages(_ context.Context, sessionID string) ([]Message, error) {
-	s.mu.RLock()
-	defer s.mu.RUnlock()
-
-	if _, ok := s.sessions[sessionID]; !ok {
-		return nil, fmt.Errorf("session %q not found", sessionID)
-	}
-
-	stored := s.messages[sessionID]
-	out := make([]Message, len(stored))
-	copy(out, stored)
-
-	return out, nil
+func (s *Service) ListMessages(ctx context.Context, sessionID string) ([]Message, error) {
+	return s.store.ListMessages(ctx, sessionID)
 }
 
-func newID(now time.Time) string {
-	return now.Format("20060102150405.000000000")
+func newSessionID(now time.Time) string {
+	return fmt.Sprintf("sess-%d-%d", now.UnixNano(), sessionIDSequence.Add(1))
+}
+
+func newMessageID(now time.Time) string {
+	return fmt.Sprintf("msg-%d-%d", now.UnixNano(), messageIDSequence.Add(1))
 }
