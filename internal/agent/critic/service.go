@@ -4,6 +4,7 @@ import (
 	"context"
 	"log/slog"
 	"strings"
+	"time"
 
 	"opspilot-go/internal/llm"
 
@@ -62,8 +63,11 @@ func (s *Service) Review(ctx context.Context, input CriticInput) (CriticVerdict,
 }
 
 func (s *Service) reviewWithLLM(ctx context.Context, input CriticInput) (CriticVerdict, error) {
+	callCtx, cancel := context.WithTimeout(ctx, 15*time.Second)
+	defer cancel()
+
 	temp := llm.TemperaturePtr(0)
-	resp, err := s.llmProvider.Complete(ctx, llm.CompletionRequest{
+	resp, err := s.llmProvider.Complete(callCtx, llm.CompletionRequest{
 		SystemPrompt:   criticSystemPrompt,
 		Messages:       []llm.Message{{Role: "user", Content: buildCriticUserMessage(input)}},
 		MaxTokens:      512,
