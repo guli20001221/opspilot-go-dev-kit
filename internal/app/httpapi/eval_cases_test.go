@@ -121,6 +121,9 @@ func TestCreateAndGetEvalCaseEndpoint(t *testing.T) {
 	if created.PreferredSourceTaskProvenance.Mode != "open_api" {
 		t.Fatalf("PreferredSourceTaskProvenance.Mode = %q, want %q", created.PreferredSourceTaskProvenance.Mode, "open_api")
 	}
+	if created.PreferredTraceProvenance.Mode != "none" {
+		t.Fatalf("PreferredTraceProvenance.Mode = %q, want %q", created.PreferredTraceProvenance.Mode, "none")
+	}
 	if created.PreferredVersionProvenance.Mode != "open" {
 		t.Fatalf("PreferredVersionProvenance.Mode = %q, want %q", created.PreferredVersionProvenance.Mode, "open")
 	}
