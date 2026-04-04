@@ -57,14 +57,15 @@ func (c *SemanticChunker) Chunk(ctx context.Context, sentences []Sentence) ([]Ch
 		}}, nil
 	}
 
-	// Embed all sentences
+	// Embed all sentences and store on Sentence structs
 	embeddings := make([][]float32, len(sentences))
-	for i, s := range sentences {
-		vec, err := c.embedder.Embed(ctx, s.Text)
+	for i := range sentences {
+		vec, err := c.embedder.Embed(ctx, sentences[i].Text)
 		if err != nil {
 			return nil, fmt.Errorf("embed sentence %d: %w", i, err)
 		}
 		embeddings[i] = vec
+		sentences[i].Embedding = vec
 	}
 
 	// Compute consecutive similarities
@@ -85,7 +86,7 @@ func (c *SemanticChunker) Chunk(ctx context.Context, sentences []Sentence) ([]Ch
 	groups := splitAtBoundaries(sentences, boundaries)
 
 	// Enforce min/max constraints
-	groups = c.enforceConstraints(groups, similarities)
+	groups = c.enforceConstraints(groups)
 
 	// Build chunks
 	chunks := make([]Chunk, 0, len(groups))
@@ -105,7 +106,7 @@ func (c *SemanticChunker) Chunk(ctx context.Context, sentences []Sentence) ([]Ch
 	return chunks, nil
 }
 
-func (c *SemanticChunker) enforceConstraints(groups [][]Sentence, similarities []float64) [][]Sentence {
+func (c *SemanticChunker) enforceConstraints(groups [][]Sentence) [][]Sentence {
 	// Merge small groups into neighbors
 	var merged [][]Sentence
 	for _, group := range groups {

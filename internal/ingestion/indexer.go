@@ -27,7 +27,7 @@ func (idx *Indexer) Index(ctx context.Context, doc Document, chunks []Chunk) (pa
 
 		parentChunkID := fmt.Sprintf("doc-%s-p%d", doc.DocumentID, i)
 
-		// Embed and store parent chunk
+		// Embed parent chunk (new composite text, not cached)
 		parentText := chunk.ContextPrefix + "\n\n" + chunk.Text
 		parentEmb, err := idx.embedder.Embed(ctx, parentText)
 		if err != nil {
@@ -53,16 +53,20 @@ func (idx *Indexer) Index(ctx context.Context, doc Document, chunks []Chunk) (pa
 		}
 		parentCount++
 
-		// Embed and store child chunks (one per sentence)
+		// Store child chunks — reuse cached sentence embeddings from chunker
 		for j, sentence := range chunk.Sentences {
 			if ctx.Err() != nil {
 				return parentCount, childCount, ctx.Err()
 			}
 
-			childSnippet := chunk.ContextPrefix + "\n\n" + sentence.Text
-			childEmb, err := idx.embedder.Embed(ctx, childSnippet)
-			if err != nil {
-				return parentCount, childCount, fmt.Errorf("embed child chunk %d-%d: %w", i, j, err)
+			childEmb := sentence.Embedding
+			if len(childEmb) == 0 {
+				// Fallback: embed if not cached (shouldn't happen in normal pipeline flow)
+				var embErr error
+				childEmb, embErr = idx.embedder.Embed(ctx, chunk.ContextPrefix+"\n\n"+sentence.Text)
+				if embErr != nil {
+					return parentCount, childCount, fmt.Errorf("embed child chunk %d-%d: %w", i, j, embErr)
+				}
 			}
 
 			childChunkID := fmt.Sprintf("doc-%s-p%d-c%d", doc.DocumentID, i, j)

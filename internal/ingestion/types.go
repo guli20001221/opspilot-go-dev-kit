@@ -19,14 +19,14 @@ type Document struct {
 
 // Sentence is a single sentence extracted from a document.
 type Sentence struct {
-	Text  string
-	Index int // ordinal position (0-based)
+	Text      string
+	Index     int // ordinal position (0-based)
+	Embedding []float32
 }
 
 // Chunk is a semantically coherent group of sentences.
 type Chunk struct {
 	ChunkID       string
-	ParentChunkID string // empty for parent chunks
 	Sentences     []Sentence
 	Text          string
 	ContextPrefix string

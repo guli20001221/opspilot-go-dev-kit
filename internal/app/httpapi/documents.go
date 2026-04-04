@@ -2,6 +2,7 @@ package httpapi
 
 import (
 	"encoding/json"
+	"log/slog"
 	"net/http"
 	"strings"
 
@@ -37,6 +38,9 @@ func (a *appHandler) handleDocuments(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	const maxBodyBytes = 10 * 1024 * 1024 // 10 MB
+	r.Body = http.MaxBytesReader(w, r.Body, maxBodyBytes)
+
 	var req ingestDocumentRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		writeError(w, http.StatusBadRequest, "invalid_json", "invalid json body")
@@ -57,7 +61,11 @@ func (a *appHandler) handleDocuments(w http.ResponseWriter, r *http.Request) {
 		PermissionsScope: req.PermissionsScope,
 	})
 	if err != nil {
-		writeError(w, http.StatusInternalServerError, "ingestion_failed", err.Error())
+		slog.Error("document ingestion failed",
+			slog.String("document_id", req.DocumentID),
+			slog.Any("error", err),
+		)
+		writeError(w, http.StatusInternalServerError, "ingestion_failed", "document ingestion failed")
 		return
 	}
 
