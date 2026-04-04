@@ -36,6 +36,7 @@ type Service struct {
 	retrieval retrieval.Searcher
 	reranker  retrieval.Reranker
 	crag      *retrieval.CRAGFilter
+	hyde      *retrieval.HyDERewriter
 	tools     *agenttool.Service
 	registry  *toolregistry.Registry
 	workflows *workflow.Service
@@ -93,6 +94,7 @@ func NewServiceWithLLM(sessions SessionService, workflows *workflow.Service, reg
 		retrieval: searcher,
 		reranker:  reranker,
 		crag:      retrieval.NewCRAGFilter(provider),
+		hyde:      retrieval.NewHyDERewriter(provider),
 		tools:     agenttool.NewService(registry),
 		registry:  registry,
 		workflows: workflows,
@@ -161,13 +163,28 @@ func (s *Service) Handle(ctx context.Context, req ChatRequestEnvelope) (HandleRe
 
 	retrievalResult := retrieval.RetrievalResult{}
 	if plan.RequiresRetrieval {
+		// HyDE: generate a hypothetical document to improve semantic matching
+		hydeQuery := req.UserMessage
+		if s.hyde != nil {
+			rewritten, hydeErr := s.hyde.Rewrite(ctx, req.UserMessage)
+			if hydeErr != nil {
+				slog.Warn("hyde rewrite failed, using original query",
+					slog.String("request_id", req.RequestID),
+					slog.Any("error", hydeErr),
+				)
+			} else if rewritten != "" {
+				hydeQuery = rewritten
+			}
+		}
+
 		retrievalResult, err = s.retrieval.Search(ctx, retrieval.RetrievalRequest{
-			RequestID: req.RequestID,
-			TraceID:   req.TraceID,
-			TenantID:  req.TenantID,
-			SessionID: sessionID,
-			PlanID:    plan.PlanID,
-			QueryText: req.UserMessage,
+			RequestID:      req.RequestID,
+			TraceID:        req.TraceID,
+			TenantID:       req.TenantID,
+			SessionID:      sessionID,
+			PlanID:         plan.PlanID,
+			QueryText:      req.UserMessage,
+			RewrittenQuery: hydeQuery,
 		})
 		if err != nil {
 			return HandleResult{}, err
