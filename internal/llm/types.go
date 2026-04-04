@@ -25,11 +25,14 @@ const (
 type CompletionRequest struct {
 	SystemPrompt   string
 	Messages       []Message
-	Model          string  // override; empty = use adapter default
-	MaxTokens      int     // 0 = provider default
-	Temperature    float64 // 0 = provider default
-	ResponseFormat string  // "" = text, "json_object" = JSON mode
+	Model          string   // override; empty = use adapter default
+	MaxTokens      int      // 0 = provider default
+	Temperature    *float64 // nil = provider default; explicit &0 sends temp=0
+	ResponseFormat string   // "" = text, "json_object" = JSON mode
 }
+
+// TemperaturePtr returns a pointer to a float64, for use with CompletionRequest.Temperature.
+func TemperaturePtr(t float64) *float64 { return &t }
 
 // CompletionResponse is the typed output from one LLM completion call.
 type CompletionResponse struct {

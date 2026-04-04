@@ -543,6 +543,38 @@ func TestServicePlanWithLLMApprovalTool(t *testing.T) {
 	assertToolStep(t, got.Steps, "ticket_comment_create", false)
 }
 
+func TestServicePlanWithLLMSendsTemperatureZero(t *testing.T) {
+	planJSON := buildMockPlanJSON(IntentKnowledgeQA, []llmPlanStep{
+		{Kind: StepKindRetrieve, Name: "retrieve"},
+		{Kind: StepKindSynthesize, Name: "compose"},
+		{Kind: StepKindCritic, Name: "validate"},
+	})
+	provider := &mockLLMProvider{
+		response: llm.CompletionResponse{Content: planJSON, Model: "test-model"},
+	}
+	svc := NewServiceWithLLM(provider)
+
+	_, err := svc.Plan(context.Background(), PlanInput{
+		RequestID:   "req-temp",
+		TenantID:    "tenant-1",
+		SessionID:   "session-1",
+		Mode:        "chat",
+		UserMessage: "hello",
+	})
+	if err != nil {
+		t.Fatalf("Plan() error = %v", err)
+	}
+	if provider.captured == nil {
+		t.Fatal("LLM provider was not called")
+	}
+	if provider.captured.Temperature == nil {
+		t.Fatal("Temperature is nil, want explicit zero")
+	}
+	if *provider.captured.Temperature != 0 {
+		t.Fatalf("Temperature = %f, want 0", *provider.captured.Temperature)
+	}
+}
+
 // --- Prompt construction tests ---
 
 func TestBuildPlannerUserMessageContainsAllInputs(t *testing.T) {
@@ -599,6 +631,47 @@ func TestValidateLLMPlanRejectsInvalidIntent(t *testing.T) {
 	err := validateLLMPlan(resp)
 	if err == nil {
 		t.Fatal("validateLLMPlan() error = nil, want error for invalid intent")
+	}
+}
+
+func TestValidateLLMPlanRejectsDuplicateStepNames(t *testing.T) {
+	resp := llmPlanResponse{
+		Intent: IntentKnowledgeQA,
+		Steps: []llmPlanStep{
+			{Kind: StepKindRetrieve, Name: "retrieve"},
+			{Kind: StepKindSynthesize, Name: "retrieve"}, // duplicate
+		},
+	}
+	err := validateLLMPlan(resp)
+	if err == nil {
+		t.Fatal("validateLLMPlan() error = nil, want error for duplicate step names")
+	}
+}
+
+func TestValidateLLMPlanRejectsDanglingDependsOn(t *testing.T) {
+	resp := llmPlanResponse{
+		Intent: IntentKnowledgeQA,
+		Steps: []llmPlanStep{
+			{Kind: StepKindRetrieve, Name: "retrieve"},
+			{Kind: StepKindSynthesize, Name: "compose", DependsOn: []string{"nonexistent"}},
+		},
+	}
+	err := validateLLMPlan(resp)
+	if err == nil {
+		t.Fatal("validateLLMPlan() error = nil, want error for dangling depends_on")
+	}
+}
+
+func TestValidateLLMPlanRejectsEmptyStepName(t *testing.T) {
+	resp := llmPlanResponse{
+		Intent: IntentKnowledgeQA,
+		Steps: []llmPlanStep{
+			{Kind: StepKindRetrieve, Name: ""},
+		},
+	}
+	err := validateLLMPlan(resp)
+	if err == nil {
+		t.Fatal("validateLLMPlan() error = nil, want error for empty step name")
 	}
 }
 

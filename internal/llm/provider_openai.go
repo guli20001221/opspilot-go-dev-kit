@@ -100,8 +100,8 @@ func (p *OpenAIProvider) Complete(ctx context.Context, req CompletionRequest) (C
 	if req.MaxTokens > 0 {
 		body.MaxTokens = req.MaxTokens
 	}
-	if req.Temperature > 0 {
-		body.Temperature = &req.Temperature
+	if req.Temperature != nil {
+		body.Temperature = req.Temperature
 	}
 	if req.ResponseFormat == ResponseFormatJSON {
 		body.ResponseFormat = &openAIResponseFormat{Type: "json_object"}

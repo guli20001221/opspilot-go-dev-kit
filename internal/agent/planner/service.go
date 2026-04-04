@@ -67,7 +67,7 @@ func (s *Service) planWithLLM(ctx context.Context, planID string, input PlanInpu
 		SystemPrompt:   plannerSystemPrompt,
 		Messages:       []llm.Message{{Role: "user", Content: userMsg}},
 		MaxTokens:      1024,
-		Temperature:    0,
+		Temperature:    llm.TemperaturePtr(0),
 		ResponseFormat: llm.ResponseFormatJSON,
 	})
 	if err != nil {

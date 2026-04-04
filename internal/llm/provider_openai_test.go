@@ -67,6 +67,66 @@ func TestOpenAIProviderSuccess(t *testing.T) {
 	}
 }
 
+func TestOpenAIProviderSendsTemperatureZero(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		var req openAIRequest
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			t.Fatalf("decode request: %v", err)
+		}
+		if req.Temperature == nil {
+			t.Fatal("temperature is nil, want explicit zero")
+		}
+		if *req.Temperature != 0 {
+			t.Fatalf("temperature = %f, want 0", *req.Temperature)
+		}
+
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(openAIResponse{
+			Choices: []openAIChoice{{Message: openAIMessage{Role: "assistant", Content: "ok"}}},
+			Model:   "test-model",
+		})
+	}))
+	defer server.Close()
+
+	p := NewOpenAIProvider(OpenAIOptions{BaseURL: server.URL, APIKey: "k", Model: "m"})
+	temp := 0.0
+	_, err := p.Complete(context.Background(), CompletionRequest{
+		Messages:    []Message{{Role: "user", Content: "Hi"}},
+		Temperature: &temp,
+	})
+	if err != nil {
+		t.Fatalf("Complete() error = %v", err)
+	}
+}
+
+func TestOpenAIProviderOmitsTemperatureWhenNil(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		var raw map[string]json.RawMessage
+		if err := json.NewDecoder(r.Body).Decode(&raw); err != nil {
+			t.Fatalf("decode request: %v", err)
+		}
+		if _, ok := raw["temperature"]; ok {
+			t.Fatal("temperature should be omitted when nil, but it was present")
+		}
+
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(openAIResponse{
+			Choices: []openAIChoice{{Message: openAIMessage{Role: "assistant", Content: "ok"}}},
+			Model:   "test-model",
+		})
+	}))
+	defer server.Close()
+
+	p := NewOpenAIProvider(OpenAIOptions{BaseURL: server.URL, APIKey: "k", Model: "m"})
+	_, err := p.Complete(context.Background(), CompletionRequest{
+		Messages: []Message{{Role: "user", Content: "Hi"}},
+		// Temperature not set — should be nil, omitted from JSON
+	})
+	if err != nil {
+		t.Fatalf("Complete() error = %v", err)
+	}
+}
+
 func TestOpenAIProviderNon200(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusTooManyRequests)

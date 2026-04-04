@@ -137,7 +137,7 @@ func (c *CRAGFilter) classifyWithError(ctx context.Context, query, snippet strin
 			},
 		},
 		MaxTokens:   8,
-		Temperature: 0.0,
+		Temperature: llm.TemperaturePtr(0),
 	})
 	if err != nil {
 		slog.Warn("crag classification failed, defaulting to ambiguous",

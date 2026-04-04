@@ -3,6 +3,7 @@ package planner
 import (
 	"encoding/json"
 	"fmt"
+	"log/slog"
 	"strings"
 )
 
@@ -132,6 +133,11 @@ func toLLMPlanResponse(planID string, resp llmPlanResponse) ExecutionPlan {
 
 	maxStepsCount := len(steps)
 	if maxStepsCount > maxSteps {
+		slog.Warn("llm plan exceeds max steps, truncating",
+			slog.String("plan_id", planID),
+			slog.Int("original_steps", maxStepsCount),
+			slog.Int("max_steps", maxSteps),
+		)
 		maxStepsCount = maxSteps
 		steps = steps[:maxSteps]
 	}
@@ -172,9 +178,27 @@ func validateLLMPlan(resp llmPlanResponse) error {
 		StepKindCritic:          true,
 		StepKindPromoteWorkflow: true,
 	}
+
+	nameSet := make(map[string]bool, len(resp.Steps))
 	for i, step := range resp.Steps {
 		if !validKinds[step.Kind] {
 			return fmt.Errorf("step %d has invalid kind %q", i, step.Kind)
+		}
+		if step.Name == "" {
+			return fmt.Errorf("step %d has empty name", i)
+		}
+		if nameSet[step.Name] {
+			return fmt.Errorf("step %d has duplicate name %q", i, step.Name)
+		}
+		nameSet[step.Name] = true
+	}
+
+	// Validate depends_on references point to names that exist earlier in the plan.
+	for i, step := range resp.Steps {
+		for _, dep := range step.DependsOn {
+			if !nameSet[dep] {
+				return fmt.Errorf("step %d (%q) depends on unknown step %q", i, step.Name, dep)
+			}
 		}
 	}
 

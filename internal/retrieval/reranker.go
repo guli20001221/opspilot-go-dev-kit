@@ -94,7 +94,7 @@ func (r *LLMReranker) Rerank(ctx context.Context, query string, blocks []Evidenc
 					},
 				},
 				MaxTokens:   8,
-				Temperature: 0.0,
+				Temperature: llm.TemperaturePtr(0),
 			})
 			if err != nil {
 				slog.Warn("reranker llm call failed, using neutral score",
