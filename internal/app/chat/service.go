@@ -33,6 +33,7 @@ type Service struct {
 	critic    *agentcritic.Service
 	planner   *planner.Service
 	retrieval retrieval.Searcher
+	reranker  retrieval.Reranker
 	tools     *agenttool.Service
 	registry  *toolregistry.Registry
 	workflows *workflow.Service
@@ -72,12 +73,23 @@ func NewServiceWithLLM(sessions SessionService, workflows *workflow.Service, reg
 		searcher = retrieval.NewService(nil)
 	}
 
+	var reranker retrieval.Reranker
+	if provider != nil {
+		if _, isPlaceholder := provider.(*llm.PlaceholderProvider); !isPlaceholder {
+			reranker = retrieval.NewLLMReranker(provider)
+		}
+	}
+	if reranker == nil {
+		reranker = &retrieval.NoopReranker{}
+	}
+
 	return &Service{
 		sessions:  sessions,
 		contexts:  contextengine.NewService(contextengine.Config{}),
 		critic:    agentcritic.NewService(),
 		planner:   planner.NewService(),
 		retrieval: searcher,
+		reranker:  reranker,
 		tools:     agenttool.NewService(registry),
 		registry:  registry,
 		workflows: workflows,
@@ -150,6 +162,18 @@ func (s *Service) Handle(ctx context.Context, req ChatRequestEnvelope) (HandleRe
 		})
 		if err != nil {
 			return HandleResult{}, err
+		}
+		// Re-rank for precision using LLM-based cross-encoder scoring
+		if s.reranker != nil {
+			reranked, rerankErr := s.reranker.Rerank(ctx, req.UserMessage, retrievalResult.EvidenceBlocks)
+			if rerankErr != nil {
+				slog.Warn("reranking failed, using original order",
+					slog.String("request_id", req.RequestID),
+					slog.Any("error", rerankErr),
+				)
+			} else {
+				retrievalResult.EvidenceBlocks = reranked
+			}
 		}
 		// Apply lost-in-the-middle reordering for optimal LLM context placement
 		retrievalResult.EvidenceBlocks = retrieval.ReorderLostInTheMiddle(retrievalResult.EvidenceBlocks)
