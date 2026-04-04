@@ -34,6 +34,7 @@ type Service struct {
 	planner   *planner.Service
 	retrieval retrieval.Searcher
 	reranker  retrieval.Reranker
+	crag      *retrieval.CRAGFilter
 	tools     *agenttool.Service
 	registry  *toolregistry.Registry
 	workflows *workflow.Service
@@ -90,6 +91,7 @@ func NewServiceWithLLM(sessions SessionService, workflows *workflow.Service, reg
 		planner:   planner.NewService(),
 		retrieval: searcher,
 		reranker:  reranker,
+		crag:      retrieval.NewCRAGFilter(provider),
 		tools:     agenttool.NewService(registry),
 		registry:  registry,
 		workflows: workflows,
@@ -174,6 +176,19 @@ func (s *Service) Handle(ctx context.Context, req ChatRequestEnvelope) (HandleRe
 			} else {
 				retrievalResult.EvidenceBlocks = reranked
 			}
+		}
+		// CRAG: validate relevance and discard irrelevant passages
+		if s.crag != nil {
+			filtered, cragStats := s.crag.Filter(ctx, req.UserMessage, retrievalResult.EvidenceBlocks)
+			if cragStats.Total > 0 {
+				slog.Info("crag filter applied",
+					slog.String("request_id", req.RequestID),
+					slog.Int("relevant", cragStats.Relevant),
+					slog.Int("ambiguous", cragStats.Ambiguous),
+					slog.Int("irrelevant", cragStats.Irrelevant),
+				)
+			}
+			retrievalResult.EvidenceBlocks = filtered
 		}
 		// Apply lost-in-the-middle reordering for optimal LLM context placement
 		retrievalResult.EvidenceBlocks = retrieval.ReorderLostInTheMiddle(retrievalResult.EvidenceBlocks)
