@@ -94,7 +94,9 @@ func main() {
 		TicketAPIToken:   cfg.TicketAPIToken,
 	})
 	tools := agenttool.NewService(registry)
-	chatService := appchat.NewServiceWithLLM(sessionService, service, registry, retrievalStore, llmProvider)
+	// Eval chat service uses a separate workflow service (nil) to prevent
+	// eval runs from promoting async tasks as a side effect.
+	evalChatService := appchat.NewServiceWithLLM(sessionService, nil, registry, retrievalStore, llmProvider)
 
 	var temporalWorker temporalworker.Worker
 	if cfg.TemporalEnabled {
@@ -135,7 +137,7 @@ func main() {
 		placeholder.FailAll = true
 		evalRunExecutor = placeholder
 	} else {
-		evalRunExecutor = eval.NewChatRunExecutor(chatService, evalRunService)
+		evalRunExecutor = eval.NewChatRunExecutor(evalChatService, evalRunService)
 	}
 
 	runner := workflow.NewRunnerWithReports(service, executor, reportService)

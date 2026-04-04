@@ -37,6 +37,9 @@ func (e *ChatRunExecutor) ExecuteRun(ctx context.Context, run EvalRun) error {
 	}
 
 	for _, item := range detail.Items {
+		if ctx.Err() != nil {
+			return ctx.Err()
+		}
 		userMessage := item.Title
 		if userMessage == "" {
 			userMessage = "Evaluate case " + item.EvalCaseID

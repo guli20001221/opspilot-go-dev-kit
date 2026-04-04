@@ -2,8 +2,8 @@ package eval
 
 import (
 	"context"
+	"fmt"
 	"testing"
-	"time"
 
 	appchat "opspilot-go/internal/app/chat"
 	casesvc "opspilot-go/internal/case"
@@ -105,5 +105,49 @@ func TestChatRunExecutorCallsChatForEachItem(t *testing.T) {
 	if chat.calls[0].Mode != "eval" {
 		t.Fatalf("calls[0].Mode = %q, want %q", chat.calls[0].Mode, "eval")
 	}
-	_ = time.Now() // suppress unused import
+}
+
+type failingChatService struct {
+	failOn string
+	calls  []appchat.ChatRequestEnvelope
+}
+
+func (m *failingChatService) Handle(_ context.Context, req appchat.ChatRequestEnvelope) (appchat.HandleResult, error) {
+	m.calls = append(m.calls, req)
+	if m.failOn != "" && req.UserMessage == m.failOn {
+		return appchat.HandleResult{}, fmt.Errorf("chat failed for: %s", req.UserMessage)
+	}
+	return appchat.HandleResult{SessionID: "mock-session"}, nil
+}
+
+func TestChatRunExecutorContinuesOnItemFailure(t *testing.T) {
+	ctx := context.Background()
+	caseService := casesvc.NewService()
+	evalCaseService := NewService(caseService, nil)
+	datasetService := NewDatasetService(evalCaseService)
+	runService := NewRunService(datasetService)
+
+	case1, _ := caseService.CreateCase(ctx, casesvc.CreateInput{TenantID: "tenant-fail", Title: "Good case"})
+	case2, _ := caseService.CreateCase(ctx, casesvc.CreateInput{TenantID: "tenant-fail", Title: "Bad case"})
+	eval1, _, _ := evalCaseService.PromoteCase(ctx, CreateInput{TenantID: "tenant-fail", SourceCaseID: case1.ID})
+	eval2, _, _ := evalCaseService.PromoteCase(ctx, CreateInput{TenantID: "tenant-fail", SourceCaseID: case2.ID})
+
+	dataset, _ := datasetService.CreateDataset(ctx, CreateDatasetInput{
+		TenantID: "tenant-fail", Name: "Fail dataset", EvalCaseIDs: []string{eval1.ID, eval2.ID},
+	})
+	datasetService.PublishDataset(ctx, dataset.ID, PublishDatasetInput{TenantID: "tenant-fail"})
+
+	run, _ := runService.CreateRun(ctx, CreateRunInput{TenantID: "tenant-fail", DatasetID: dataset.ID})
+	runService.ClaimQueuedRuns(ctx, 10)
+
+	chat := &failingChatService{failOn: "Bad case"}
+	executor := NewChatRunExecutor(chat, runService)
+
+	err := executor.ExecuteRun(ctx, run)
+	if err != nil {
+		t.Fatalf("ExecuteRun() error = %v, want nil (individual failures logged, not propagated)", err)
+	}
+	if len(chat.calls) != 2 {
+		t.Fatalf("len(chat.calls) = %d, want 2 (both items should be attempted)", len(chat.calls))
+	}
 }
