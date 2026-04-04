@@ -83,7 +83,11 @@ func (s *Service) planWithLLM(ctx context.Context, planID string, input PlanInpu
 		return ExecutionPlan{}, fmt.Errorf("unmarshal plan response: %w (raw: %s)", err, truncate(content, 200))
 	}
 
-	if err := validateLLMPlan(planResp); err != nil {
+	availableTools := make(map[string]bool, len(input.AvailableTools))
+	for _, tool := range input.AvailableTools {
+		availableTools[tool.Name] = true
+	}
+	if err := validateLLMPlan(planResp, availableTools); err != nil {
 		return ExecutionPlan{}, fmt.Errorf("validate plan: %w", err)
 	}
 

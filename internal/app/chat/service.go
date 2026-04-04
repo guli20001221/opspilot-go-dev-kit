@@ -194,37 +194,42 @@ func (s *Service) Handle(ctx context.Context, req ChatRequestEnvelope) (HandleRe
 		retrievalResult.EvidenceBlocks = retrieval.ReorderLostInTheMiddle(retrievalResult.EvidenceBlocks)
 	}
 
+	isEvalMode := req.Mode == "eval"
+
 	toolResults := make([]agenttool.ToolResult, 0, len(plan.Steps))
 	toolInvocations := make([]agenttool.ToolInvocation, 0, len(plan.Steps))
-	for _, step := range plan.Steps {
-		if step.Kind != planner.StepKindTool {
-			continue
-		}
+	if !isEvalMode {
+		// Tool execution is skipped in eval mode to prevent side effects
+		for _, step := range plan.Steps {
+			if step.Kind != planner.StepKindTool {
+				continue
+			}
 
-		args, err := buildToolArguments(step.ToolName, req.UserMessage)
-		if err != nil {
-			return HandleResult{}, err
-		}
+			args, err := buildToolArguments(step.ToolName, req.UserMessage)
+			if err != nil {
+				return HandleResult{}, err
+			}
 
-		invocation := agenttool.ToolInvocation{
-			RequestID:        req.RequestID,
-			TraceID:          req.TraceID,
-			TenantID:         req.TenantID,
-			SessionID:        sessionID,
-			PlanID:           plan.PlanID,
-			StepID:           step.StepID,
-			ToolName:         step.ToolName,
-			ActionClass:      actionClassForStep(step),
-			RequiresApproval: step.NeedsApproval,
-			Arguments:        args,
-		}
-		toolInvocations = append(toolInvocations, invocation)
+			invocation := agenttool.ToolInvocation{
+				RequestID:        req.RequestID,
+				TraceID:          req.TraceID,
+				TenantID:         req.TenantID,
+				SessionID:        sessionID,
+				PlanID:           plan.PlanID,
+				StepID:           step.StepID,
+				ToolName:         step.ToolName,
+				ActionClass:      actionClassForStep(step),
+				RequiresApproval: step.NeedsApproval,
+				Arguments:        args,
+			}
+			toolInvocations = append(toolInvocations, invocation)
 
-		toolResult, err := s.tools.Execute(ctx, invocation)
-		if err != nil {
-			return HandleResult{}, err
+			toolResult, err := s.tools.Execute(ctx, invocation)
+			if err != nil {
+				return HandleResult{}, err
+			}
+			toolResults = append(toolResults, toolResult)
 		}
-		toolResults = append(toolResults, toolResult)
 	}
 
 	// Generate assistant response via LLM (or placeholder fallback)
@@ -253,7 +258,7 @@ func (s *Service) Handle(ctx context.Context, req ChatRequestEnvelope) (HandleRe
 	}
 
 	var promotedTask *workflow.Task
-	if plan.RequiresWorkflow || criticVerdict.Verdict == agentcritic.VerdictPromoteWorkflow {
+	if !isEvalMode && (plan.RequiresWorkflow || criticVerdict.Verdict == agentcritic.VerdictPromoteWorkflow) {
 		taskType := workflow.TaskTypeReportGeneration
 		reason := workflow.PromotionReasonWorkflowRequired
 		requiresApproval := false

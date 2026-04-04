@@ -156,8 +156,9 @@ func toLLMPlanResponse(planID string, resp llmPlanResponse) ExecutionPlan {
 	}
 }
 
-// validateLLMPlan performs structural validation on the parsed LLM plan.
-func validateLLMPlan(resp llmPlanResponse) error {
+// validateLLMPlan performs structural and policy validation on the parsed LLM plan.
+// availableTools is the set of tool names the planner is allowed to reference.
+func validateLLMPlan(resp llmPlanResponse, availableTools map[string]bool) error {
 	validIntents := map[string]bool{
 		IntentKnowledgeQA:    true,
 		IntentIncidentAssist: true,
@@ -183,6 +184,11 @@ func validateLLMPlan(resp llmPlanResponse) error {
 	for i, step := range resp.Steps {
 		if !validKinds[step.Kind] {
 			return fmt.Errorf("step %d has invalid kind %q", i, step.Kind)
+		}
+		if step.Kind == StepKindTool && step.ToolName != "" && len(availableTools) > 0 {
+			if !availableTools[step.ToolName] {
+				return fmt.Errorf("step %d references unknown tool %q", i, step.ToolName)
+			}
 		}
 		if step.Name == "" {
 			return fmt.Errorf("step %d has empty name", i)
