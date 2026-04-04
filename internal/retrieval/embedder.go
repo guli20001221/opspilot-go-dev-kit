@@ -6,8 +6,8 @@ import (
 	"math"
 )
 
-// EmbeddingDimension is the vector dimension used by the retrieval system.
-const EmbeddingDimension = 1536
+// DefaultEmbeddingDimension is the default vector dimension for the placeholder embedder.
+const DefaultEmbeddingDimension = 4096
 
 // Embedder generates vector embeddings from text.
 type Embedder interface {
@@ -16,20 +16,24 @@ type Embedder interface {
 
 // PlaceholderEmbedder produces deterministic hash-based embeddings.
 // Same text always produces the same unit vector.
-type PlaceholderEmbedder struct{}
+type PlaceholderEmbedder struct {
+	Dimension int
+}
 
 // Embed generates a deterministic unit vector from the SHA-256 hash of the input text.
 func (e *PlaceholderEmbedder) Embed(_ context.Context, text string) ([]float32, error) {
+	dim := e.Dimension
+	if dim <= 0 {
+		dim = DefaultEmbeddingDimension
+	}
 	hash := sha256.Sum256([]byte(text))
-	vec := make([]float32, EmbeddingDimension)
+	vec := make([]float32, dim)
 
-	// Cycle hash bytes across the vector dimensions
 	for i := range vec {
 		byteIdx := i % len(hash)
 		vec[i] = float32(hash[byteIdx]) / 255.0
 	}
 
-	// Normalize to unit length
 	var norm float64
 	for _, v := range vec {
 		norm += float64(v) * float64(v)
