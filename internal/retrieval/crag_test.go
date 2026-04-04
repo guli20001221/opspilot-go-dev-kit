@@ -26,9 +26,9 @@ func (m *mockCRAGProvider) Complete(_ context.Context, req llm.CompletionRequest
 func TestCRAGFilterDiscardsIrrelevant(t *testing.T) {
 	provider := &mockCRAGProvider{
 		verdicts: map[string]string{
-			"password":    "relevant",
-			"weather":     "irrelevant",
-			"maybe reset": "ambiguous",
+			"reset guide":     "relevant",
+			"weather forecast": "irrelevant",
+			"maybe reset":     "ambiguous",
 		},
 	}
 
@@ -39,7 +39,7 @@ func TestCRAGFilterDiscardsIrrelevant(t *testing.T) {
 		{EvidenceID: "c", Snippet: "maybe reset your account", Score: 0.6},
 	}
 
-	result, stats := filter.Filter(context.Background(), "how to reset password", blocks)
+	result, stats := filter.Filter(context.Background(), "how do I change my credentials", blocks)
 
 	if stats.Total != 3 {
 		t.Fatalf("stats.Total = %d, want 3", stats.Total)

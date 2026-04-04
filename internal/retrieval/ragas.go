@@ -1,9 +1,8 @@
-// Package retrieval provides RAGAS-style evaluation metrics for RAG quality assessment.
-// Implements faithfulness, answer relevancy, and context precision using LLM-as-judge.
 package retrieval
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log/slog"
 	"strconv"
@@ -49,19 +48,24 @@ func (e *RAGASEvaluator) Evaluate(ctx context.Context, input RAGASInput) (RAGASM
 		return RAGASMetrics{}, fmt.Errorf("ragas evaluator requires an LLM provider")
 	}
 
-	faithfulness, err := e.scoreFaithfulness(ctx, input)
-	if err != nil {
-		slog.Warn("ragas faithfulness failed", slog.Any("error", err))
+	var errs []error
+
+	faithfulness, faithErr := e.scoreFaithfulness(ctx, input)
+	if faithErr != nil {
+		slog.Warn("ragas faithfulness failed", slog.Any("error", faithErr))
+		errs = append(errs, fmt.Errorf("faithfulness: %w", faithErr))
 	}
 
-	relevancy, err := e.scoreAnswerRelevancy(ctx, input)
-	if err != nil {
-		slog.Warn("ragas answer relevancy failed", slog.Any("error", err))
+	relevancy, relErr := e.scoreAnswerRelevancy(ctx, input)
+	if relErr != nil {
+		slog.Warn("ragas answer relevancy failed", slog.Any("error", relErr))
+		errs = append(errs, fmt.Errorf("answer_relevancy: %w", relErr))
 	}
 
-	precision, err := e.scoreContextPrecision(ctx, input)
-	if err != nil {
-		slog.Warn("ragas context precision failed", slog.Any("error", err))
+	precision, precErr := e.scoreContextPrecision(ctx, input)
+	if precErr != nil {
+		slog.Warn("ragas context precision failed", slog.Any("error", precErr))
+		errs = append(errs, fmt.Errorf("context_precision: %w", precErr))
 	}
 
 	overall := harmonicMean(faithfulness, relevancy, precision)
@@ -71,7 +75,7 @@ func (e *RAGASEvaluator) Evaluate(ctx context.Context, input RAGASInput) (RAGASM
 		AnswerRelevancy:  relevancy,
 		ContextPrecision: precision,
 		OverallScore:     overall,
-	}, nil
+	}, errors.Join(errs...)
 }
 
 const faithfulnessPrompt = `You are a faithfulness evaluator. Given a context and an answer, determine what fraction of the claims in the answer are supported by the context.
