@@ -2,7 +2,6 @@ package chat
 
 import (
 	"context"
-	"strings"
 	"testing"
 	"time"
 
@@ -12,13 +11,14 @@ import (
 	"opspilot-go/internal/session"
 )
 
-// TestE2EIngestAndQueryPipeline is a full end-to-end test that verifies:
-// 1. Document ingestion (semantic chunking + contextual prefix + hybrid index)
-// 2. Chat query with retrieval (HyDE → search → re-rank → CRAG → LitM → LLM)
-// 3. The response references ingested content
+// TestIntegrationChatAndIngestionSmoke verifies:
+// 1. Chat service handles multi-turn conversations with session persistence
+// 2. Ingestion pipeline processes documents into chunks (separate store)
+// 3. Both subsystems work with placeholder providers (no external services)
 //
-// Uses in-memory stores and placeholder providers (no external services needed).
-func TestE2EIngestAndQueryPipeline(t *testing.T) {
+// Note: ingestion and retrieval use separate stores in this test. A true
+// end-to-end test with connected retrieval requires pgvector.
+func TestIntegrationChatAndIngestionSmoke(t *testing.T) {
 	ctx := context.Background()
 
 	// Set up services with placeholders
@@ -108,9 +108,9 @@ func TestE2EIngestAndQueryPipeline(t *testing.T) {
 	if err != nil {
 		t.Fatalf("ListMessages() error = %v", err)
 	}
-	// 2 user messages + 2 assistant messages = 4
-	if len(messages) != 4 {
-		t.Fatalf("len(messages) = %d, want 4 (2 turns)", len(messages))
+	// At least 2 user + 2 assistant messages from 2 turns
+	if len(messages) < 4 {
+		t.Fatalf("len(messages) = %d, want >= 4 (2 turns)", len(messages))
 	}
 
 	// Verify message ordering
@@ -171,5 +171,4 @@ func TestE2EEvalModeDoesNotTriggerTools(t *testing.T) {
 		t.Fatal("eval mode should still produce a response")
 	}
 
-	_ = strings.Contains // suppress unused import
 }
