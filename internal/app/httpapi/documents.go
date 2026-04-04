@@ -51,10 +51,15 @@ func (a *appHandler) handleDocuments(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	docVersion := req.DocumentVersion
+	if docVersion < 1 {
+		docVersion = 1
+	}
+
 	result, err := a.ingestion.Ingest(r.Context(), ingestion.Document{
 		DocumentID:       strings.TrimSpace(req.DocumentID),
 		TenantID:         strings.TrimSpace(req.TenantID),
-		DocumentVersion:  req.DocumentVersion,
+		DocumentVersion:  docVersion,
 		SourceTitle:      req.SourceTitle,
 		SourceURI:        req.SourceURI,
 		Content:          req.Content,

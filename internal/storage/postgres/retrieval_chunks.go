@@ -116,6 +116,19 @@ RETURNING id, tenant_id, document_id, document_version, chunk_id,
 	return out, nil
 }
 
+// DeleteStaleChunks removes chunks from older document versions.
+func (s *RetrievalChunkStore) DeleteStaleChunks(ctx context.Context, tenantID, documentID string, currentVersion int) (int, error) {
+	const query = `
+DELETE FROM retrieval_chunks
+WHERE tenant_id = $1 AND document_id = $2 AND document_version < $3`
+
+	tag, err := s.pool.Exec(ctx, query, tenantID, documentID, currentVersion)
+	if err != nil {
+		return 0, fmt.Errorf("delete stale chunks: %w", err)
+	}
+	return int(tag.RowsAffected()), nil
+}
+
 // Verify that RetrievalChunkStore implements ingestion.ChunkStore.
 var _ ingestion.ChunkStore = (*RetrievalChunkStore)(nil)
 
@@ -146,18 +159,25 @@ func (s *RetrievalChunkStore) Search(ctx context.Context, req retrieval.Retrieva
 		candidateK = 20
 	}
 
-	queryVec, err := s.embedder.Embed(ctx, req.QueryText)
+	// Dense search uses RewrittenQuery (HyDE output) when available for
+	// better semantic matching; BM25 uses original QueryText for keyword precision.
+	denseQueryText := req.QueryText
+	if req.RewrittenQuery != "" {
+		denseQueryText = req.RewrittenQuery
+	}
+
+	queryVec, err := s.embedder.Embed(ctx, denseQueryText)
 	if err != nil {
 		return retrieval.RetrievalResult{}, fmt.Errorf("embed query text: %w", err)
 	}
 
-	// Stage 1: Dense vector search
+	// Stage 1: Dense vector search (uses HyDE-rewritten query when available)
 	denseBlocks, err := s.denseSearch(ctx, queryVec, req.TenantID, candidateK)
 	if err != nil {
 		return retrieval.RetrievalResult{}, fmt.Errorf("dense search: %w", err)
 	}
 
-	// Stage 2: BM25 full-text search
+	// Stage 2: BM25 full-text search (uses original query for keyword precision)
 	bm25Blocks, err := s.bm25Search(ctx, req.QueryText, req.TenantID, candidateK)
 	if err != nil {
 		return retrieval.RetrievalResult{}, fmt.Errorf("bm25 search: %w", err)
