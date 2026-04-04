@@ -9,6 +9,8 @@ import (
 	"net/http"
 	"strings"
 	"time"
+
+	"opspilot-go/internal/observability/tracing"
 )
 
 // OpenAIOptions configures the OpenAI-compatible HTTP adapter.
@@ -80,10 +82,16 @@ type openAIUsage struct {
 
 // Complete sends a chat completion request and returns the first choice.
 func (p *OpenAIProvider) Complete(ctx context.Context, req CompletionRequest) (CompletionResponse, error) {
+	ctx, span := tracing.StartSpan(ctx, "llm.complete",
+		tracing.AttrProvider.String("openai"),
+	)
+	defer span.End()
+
 	model := req.Model
 	if model == "" {
 		model = p.model
 	}
+	span.SetAttributes(tracing.AttrModel.String(model))
 
 	messages := make([]openAIMessage, 0, len(req.Messages)+1)
 	if req.SystemPrompt != "" {
@@ -146,6 +154,11 @@ func (p *OpenAIProvider) Complete(ctx context.Context, req CompletionRequest) (C
 	if len(result.Choices) == 0 {
 		return CompletionResponse{}, fmt.Errorf("provider returned empty choices")
 	}
+
+	span.SetAttributes(
+		tracing.AttrTokensIn.Int(result.Usage.PromptTokens),
+		tracing.AttrTokensOut.Int(result.Usage.CompletionTokens),
+	)
 
 	return CompletionResponse{
 		Content:      result.Choices[0].Message.Content,
