@@ -21,6 +21,10 @@ func (s *memoryChunkStore) UpsertWithHybrid(_ context.Context, chunk ChunkRecord
 	return chunk, nil
 }
 
+func (s *memoryChunkStore) DeleteStaleChunks(_ context.Context, _, _ string, _ int) (int, error) {
+	return 0, nil
+}
+
 func TestPipelineEndToEnd(t *testing.T) {
 	store := &memoryChunkStore{}
 	embedder := &retrieval.PlaceholderEmbedder{}

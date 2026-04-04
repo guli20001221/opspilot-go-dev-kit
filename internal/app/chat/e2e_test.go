@@ -134,6 +134,10 @@ func (s *memoryChunkStore) UpsertWithHybrid(_ context.Context, chunk ingestion.C
 	return chunk, nil
 }
 
+func (s *memoryChunkStore) DeleteStaleChunks(_ context.Context, _, _ string, _ int) (int, error) {
+	return 0, nil
+}
+
 // TestE2EEvalModeDoesNotTriggerTools verifies the safety boundary
 // from the user's code review holds in a full pipeline context.
 func TestE2EEvalModeDoesNotTriggerTools(t *testing.T) {

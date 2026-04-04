@@ -92,5 +92,12 @@ func (idx *Indexer) Index(ctx context.Context, doc Document, chunks []Chunk) (pa
 		}
 	}
 
+	// Clean up stale chunks from older document versions
+	if doc.DocumentVersion > 0 {
+		if _, err := idx.store.DeleteStaleChunks(ctx, doc.TenantID, doc.DocumentID, doc.DocumentVersion); err != nil {
+			return parentCount, childCount, fmt.Errorf("delete stale chunks: %w", err)
+		}
+	}
+
 	return parentCount, childCount, nil
 }
