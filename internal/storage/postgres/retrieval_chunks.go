@@ -9,8 +9,7 @@ import (
 
 	"github.com/jackc/pgx/v5/pgxpool"
 
-	"go.opentelemetry.io/otel"
-	otelAttribute "go.opentelemetry.io/otel/attribute"
+	"opspilot-go/internal/observability/tracing"
 
 	"opspilot-go/internal/ingestion"
 	"opspilot-go/internal/retrieval"
@@ -127,12 +126,15 @@ const rrfK = 60
 // fused with Reciprocal Rank Fusion (RRF). Child chunks are expanded to their
 // parent chunks for richer LLM context.
 func (s *RetrievalChunkStore) Search(ctx context.Context, req retrieval.RetrievalRequest) (retrieval.RetrievalResult, error) {
-	ctx, span := otel.Tracer("opspilot-go").Start(ctx, "retrieval.search")
-	defer span.End()
-	span.SetAttributes(
-		otelAttribute.String("retrieval.tenant_id", req.TenantID),
-		otelAttribute.String("retrieval.query", req.QueryText),
+	queryPreview := req.QueryText
+	if len(queryPreview) > 128 {
+		queryPreview = queryPreview[:128]
+	}
+	ctx, span := tracing.StartSpan(ctx, "retrieval.search",
+		tracing.AttrTenantID.String(req.TenantID),
 	)
+	defer span.End()
+	_ = queryPreview
 
 	topK := req.TopK
 	if topK <= 0 {

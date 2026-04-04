@@ -7,6 +7,7 @@ import (
 
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/codes"
 	"go.opentelemetry.io/otel/exporters/stdout/stdouttrace"
 	sdktrace "go.opentelemetry.io/otel/sdk/trace"
 	"go.opentelemetry.io/otel/trace"
@@ -29,8 +30,8 @@ func InitStdout() func(context.Context) error {
 	}
 
 	tp := sdktrace.NewTracerProvider(
-		sdktrace.WithBatcher(exporter),
-		sdktrace.WithSampler(sdktrace.AlwaysSample()),
+		sdktrace.WithSyncer(exporter),                 // Syncer for stdout (immediate output); use WithBatcher for OTLP
+		sdktrace.WithSampler(sdktrace.AlwaysSample()), // TODO: use configurable sampler for production
 	)
 	otel.SetTracerProvider(tp)
 
@@ -57,3 +58,12 @@ var (
 	AttrVerdict   = attribute.Key("opspilot.verdict")
 	AttrSource    = attribute.Key("opspilot.source")
 )
+
+// RecordError marks the span as errored and records the error details.
+func RecordError(span trace.Span, err error) {
+	if err == nil || span == nil {
+		return
+	}
+	span.RecordError(err)
+	span.SetStatus(codes.Error, err.Error())
+}
