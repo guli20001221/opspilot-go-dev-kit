@@ -48,11 +48,19 @@ func NewServiceWithWorkflow(sessions SessionService, workflows *workflow.Service
 // NewServiceWithRegistry constructs a chat service with caller-provided workflow
 // service and tool registry.
 func NewServiceWithRegistry(sessions SessionService, workflows *workflow.Service, registry *toolregistry.Registry) *Service {
+	return NewServiceWithDependencies(sessions, workflows, registry, nil)
+}
+
+// NewServiceWithDependencies constructs a chat service with all optional dependencies.
+func NewServiceWithDependencies(sessions SessionService, workflows *workflow.Service, registry *toolregistry.Registry, searcher retrieval.Searcher) *Service {
 	if workflows == nil {
 		workflows = workflow.NewService()
 	}
 	if registry == nil {
 		registry = toolregistry.NewDefaultRegistry()
+	}
+	if searcher == nil {
+		searcher = retrieval.NewService(nil)
 	}
 
 	return &Service{
@@ -60,7 +68,7 @@ func NewServiceWithRegistry(sessions SessionService, workflows *workflow.Service
 		contexts:  contextengine.NewService(contextengine.Config{}),
 		critic:    agentcritic.NewService(),
 		planner:   planner.NewService(),
-		retrieval: retrieval.NewService(nil),
+		retrieval: searcher,
 		tools:     agenttool.NewService(registry),
 		registry:  registry,
 		workflows: workflows,

@@ -11,6 +11,7 @@ import (
 	evalsvc "opspilot-go/internal/eval"
 	"opspilot-go/internal/observability/tracedetail"
 	"opspilot-go/internal/report"
+	"opspilot-go/internal/retrieval"
 	"opspilot-go/internal/session"
 	toolregistry "opspilot-go/internal/tools/registry"
 	"opspilot-go/internal/version"
@@ -67,7 +68,7 @@ type errorResponse struct {
 	Message string `json:"message"`
 }
 
-func newAppHandler(workflowService *workflow.Service, reportService *report.Service, caseService *casesvc.Service, evalCaseService *evalsvc.Service, evalDatasetService *evalsvc.DatasetService, evalRunService *evalsvc.RunService, evalReportService *evalsvc.EvalReportService, versionService *version.Service, sessionService *session.Service, registry *toolregistry.Registry) *appHandler {
+func newAppHandler(workflowService *workflow.Service, reportService *report.Service, caseService *casesvc.Service, evalCaseService *evalsvc.Service, evalDatasetService *evalsvc.DatasetService, evalRunService *evalsvc.RunService, evalReportService *evalsvc.EvalReportService, versionService *version.Service, sessionService *session.Service, searchService retrieval.Searcher, registry *toolregistry.Registry) *appHandler {
 	if sessionService == nil {
 		sessionService = session.NewService()
 	}
@@ -109,7 +110,7 @@ func newAppHandler(workflowService *workflow.Service, reportService *report.Serv
 		sessions:       sessionService,
 		versions:       versionService,
 		workflows:      workflowService,
-		chat:           appchat.NewServiceWithRegistry(sessionService, workflowService, registry),
+		chat:           appchat.NewServiceWithDependencies(sessionService, workflowService, registry, searchService),
 	}
 }
 
