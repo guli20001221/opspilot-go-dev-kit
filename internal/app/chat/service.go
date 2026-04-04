@@ -87,7 +87,7 @@ func NewServiceWithLLM(sessions SessionService, workflows *workflow.Service, reg
 	return &Service{
 		sessions:  sessions,
 		contexts:  contextengine.NewService(contextengine.Config{}),
-		critic:    agentcritic.NewService(),
+		critic:    agentcritic.NewServiceWithLLM(provider),
 		planner:   planner.NewServiceWithLLM(provider),
 		retrieval: searcher,
 		reranker:  reranker,
