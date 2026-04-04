@@ -3,9 +3,11 @@ package chat
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"testing"
 	"time"
 
+	"opspilot-go/internal/llm"
 	"opspilot-go/internal/session"
 )
 
@@ -205,4 +207,96 @@ func assertEventPayload(t *testing.T, got StreamEvent, wantName string, wantPayl
 			t.Fatalf("event.Data[%q] = %q, want %q", key, got.Data[key], wantValue)
 		}
 	}
+}
+
+// mockProvider implements llm.Provider for testing.
+type mockProvider struct {
+	content string
+	err     error
+}
+
+func (m *mockProvider) Complete(_ context.Context, _ llm.CompletionRequest) (llm.CompletionResponse, error) {
+	if m.err != nil {
+		return llm.CompletionResponse{}, m.err
+	}
+	return llm.CompletionResponse{Content: m.content, Model: "mock"}, nil
+}
+
+func TestServiceHandleWithLLMProviderUsesProviderResponse(t *testing.T) {
+	sessionService := session.NewService()
+	provider := &mockProvider{content: "Hello from the LLM!"}
+	svc := NewServiceWithLLM(sessionService, nil, nil, nil, provider)
+
+	got, err := svc.Handle(context.Background(), ChatRequestEnvelope{
+		RequestID:   "req-llm-1",
+		TraceID:     "trace-llm-1",
+		TenantID:    "tenant-llm",
+		UserID:      "user-llm",
+		Mode:        "chat",
+		UserMessage: "What is OpsPilot?",
+		RequestedAt: time.Unix(1700000000, 0).UTC(),
+	})
+	if err != nil {
+		t.Fatalf("Handle() error = %v", err)
+	}
+
+	// Check done event carries LLM response
+	doneEvent := findEvent(got.Events, "done")
+	if doneEvent == nil {
+		t.Fatal("missing done event")
+	}
+	if doneEvent.Data["content"] != "Hello from the LLM!" {
+		t.Fatalf("done.content = %q, want %q", doneEvent.Data["content"], "Hello from the LLM!")
+	}
+
+	// Check assistant message stored in session
+	messages, err := sessionService.ListMessages(context.Background(), got.SessionID)
+	if err != nil {
+		t.Fatalf("ListMessages() error = %v", err)
+	}
+	var assistantContent string
+	for _, msg := range messages {
+		if msg.Role == session.RoleAssistant {
+			assistantContent = msg.Content
+		}
+	}
+	if assistantContent != "Hello from the LLM!" {
+		t.Fatalf("stored assistant content = %q, want %q", assistantContent, "Hello from the LLM!")
+	}
+}
+
+func TestServiceHandleFallsBackWhenLLMErrors(t *testing.T) {
+	sessionService := session.NewService()
+	provider := &mockProvider{err: fmt.Errorf("provider unavailable")}
+	svc := NewServiceWithLLM(sessionService, nil, nil, nil, provider)
+
+	got, err := svc.Handle(context.Background(), ChatRequestEnvelope{
+		RequestID:   "req-llm-err",
+		TraceID:     "trace-llm-err",
+		TenantID:    "tenant-llm-err",
+		UserID:      "user-llm-err",
+		Mode:        "chat",
+		UserMessage: "Test fallback",
+		RequestedAt: time.Unix(1700000000, 0).UTC(),
+	})
+	if err != nil {
+		t.Fatalf("Handle() error = %v", err)
+	}
+
+	doneEvent := findEvent(got.Events, "done")
+	if doneEvent == nil {
+		t.Fatal("missing done event")
+	}
+	if doneEvent.Data["content"] != PlaceholderAssistantResponse {
+		t.Fatalf("done.content = %q, want placeholder %q", doneEvent.Data["content"], PlaceholderAssistantResponse)
+	}
+}
+
+func findEvent(events []StreamEvent, name string) *StreamEvent {
+	for i := range events {
+		if events[i].Name == name {
+			return &events[i]
+		}
+	}
+	return nil
 }

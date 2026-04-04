@@ -3,8 +3,10 @@ package chat
 import (
 	"context"
 	"encoding/json"
+	"log/slog"
 	"regexp"
 	"strconv"
+	"strings"
 
 	agentcritic "opspilot-go/internal/agent/critic"
 	"opspilot-go/internal/agent/planner"
@@ -189,7 +191,12 @@ func (s *Service) Handle(ctx context.Context, req ChatRequestEnvelope) (HandleRe
 	if s.llm != nil {
 		completionReq := s.buildCompletionRequest(req, recentMessages, retrievalResult, toolResults)
 		resp, llmErr := s.llm.Complete(ctx, completionReq)
-		if llmErr == nil && resp.Content != "" {
+		if llmErr != nil {
+			slog.Warn("llm completion failed, falling back to placeholder",
+				slog.String("request_id", req.RequestID),
+				slog.Any("error", llmErr),
+			)
+		} else if resp.Content != "" {
 			assistantContent = resp.Content
 		}
 	}
@@ -337,14 +344,14 @@ func (s *Service) buildCompletionRequest(
 	if len(retrievalResult.EvidenceBlocks) > 0 {
 		systemParts = append(systemParts, "\n\nRetrieved evidence:")
 		for _, block := range retrievalResult.EvidenceBlocks {
-			systemParts = append(systemParts, block.CitationLabel+" "+block.SourceTitle+": "+block.Snippet)
+			systemParts = append(systemParts, "\n"+block.CitationLabel+" "+block.SourceTitle+": "+block.Snippet)
 		}
 	}
 
 	if len(toolResults) > 0 {
 		systemParts = append(systemParts, "\n\nTool results:")
 		for _, tr := range toolResults {
-			systemParts = append(systemParts, tr.ToolName+": "+tr.OutputSummary)
+			systemParts = append(systemParts, "\n"+tr.ToolName+": "+tr.OutputSummary)
 		}
 	}
 
@@ -354,18 +361,10 @@ func (s *Service) buildCompletionRequest(
 	}
 
 	return llm.CompletionRequest{
-		SystemPrompt: joinStrings(systemParts),
+		SystemPrompt: strings.Join(systemParts, ""),
 		Messages:     messages,
 		MaxTokens:    1024,
 	}
-}
-
-func joinStrings(parts []string) string {
-	result := ""
-	for _, p := range parts {
-		result += p
-	}
-	return result
 }
 
 func buildEvents(

@@ -120,7 +120,8 @@ func (p *OpenAIProvider) Complete(ctx context.Context, req CompletionRequest) (C
 	}
 	defer httpResp.Body.Close()
 
-	respBody, err := io.ReadAll(httpResp.Body)
+	const maxResponseBytes = 10 * 1024 * 1024 // 10 MB
+	respBody, err := io.ReadAll(io.LimitReader(httpResp.Body, maxResponseBytes))
 	if err != nil {
 		return CompletionResponse{}, fmt.Errorf("read response: %w", err)
 	}
