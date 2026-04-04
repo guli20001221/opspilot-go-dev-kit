@@ -13,13 +13,22 @@ type Message struct {
 	Content string
 }
 
+// ResponseFormat constants control the output format requested from the provider.
+const (
+	// ResponseFormatText requests the default free-form text output.
+	ResponseFormatText = ""
+	// ResponseFormatJSON requests a JSON object output (structured output / JSON mode).
+	ResponseFormatJSON = "json_object"
+)
+
 // CompletionRequest is the typed input for a single LLM completion call.
 type CompletionRequest struct {
-	SystemPrompt string
-	Messages     []Message
-	Model        string  // override; empty = use adapter default
-	MaxTokens    int     // 0 = provider default
-	Temperature  float64 // 0 = provider default
+	SystemPrompt   string
+	Messages       []Message
+	Model          string  // override; empty = use adapter default
+	MaxTokens      int     // 0 = provider default
+	Temperature    float64 // 0 = provider default
+	ResponseFormat string  // "" = text, "json_object" = JSON mode
 }
 
 // CompletionResponse is the typed output from one LLM completion call.

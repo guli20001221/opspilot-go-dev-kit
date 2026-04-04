@@ -49,6 +49,12 @@ type TenantPolicy struct {
 	AllowToolUse bool
 }
 
+// PlanSourceKeyword indicates the plan was produced by keyword-based fallback.
+const PlanSourceKeyword = "keyword"
+
+// PlanSourceLLM indicates the plan was produced by LLM structured output.
+const PlanSourceLLM = "llm"
+
 // ExecutionPlan is the structured planner output for the current request.
 type ExecutionPlan struct {
 	PlanID                string
@@ -61,6 +67,8 @@ type ExecutionPlan struct {
 	OutputSchema          string
 	Steps                 []PlanStep
 	PlannerReasoningShort string
+	Source                string // "keyword" or "llm" — indicates how the plan was produced
+	PromptVersion         string // prompt version used for LLM plans (empty for keyword)
 }
 
 // PlanStep is one auditable planner action.

@@ -88,7 +88,7 @@ func NewServiceWithLLM(sessions SessionService, workflows *workflow.Service, reg
 		sessions:  sessions,
 		contexts:  contextengine.NewService(contextengine.Config{}),
 		critic:    agentcritic.NewService(),
-		planner:   planner.NewService(),
+		planner:   planner.NewServiceWithLLM(provider),
 		retrieval: searcher,
 		reranker:  reranker,
 		crag:      retrieval.NewCRAGFilter(provider),
@@ -434,6 +434,8 @@ func buildEvents(
 				"requires_retrieval": strconv.FormatBool(plan.RequiresRetrieval),
 				"requires_tool":      strconv.FormatBool(plan.RequiresTool),
 				"requires_workflow":  strconv.FormatBool(plan.RequiresWorkflow),
+				"source":             plan.Source,
+				"prompt_version":     plan.PromptVersion,
 			},
 		},
 	}

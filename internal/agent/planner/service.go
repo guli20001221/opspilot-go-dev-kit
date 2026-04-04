@@ -2,22 +2,108 @@ package planner
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
+	"log/slog"
 	"strings"
+
+	"opspilot-go/internal/llm"
 )
 
 const maxSteps = 6
 
-// Service builds deterministic execution plans from runtime inputs.
-type Service struct{}
+// Service builds execution plans from runtime inputs.
+// When an LLM provider is configured, it uses structured LLM output for intent
+// classification and step planning. When no provider is available (or the LLM
+// call fails), it falls back to deterministic keyword-based planning.
+type Service struct {
+	llm llm.Provider
+}
 
-// NewService constructs the planner service.
+// NewService constructs the planner service with deterministic keyword-based planning.
 func NewService() *Service {
 	return &Service{}
 }
 
+// NewServiceWithLLM constructs the planner service with an LLM provider for
+// structured plan generation. If provider is nil or a PlaceholderProvider,
+// the service falls back to keyword-based planning.
+func NewServiceWithLLM(provider llm.Provider) *Service {
+	if provider != nil {
+		if _, isPlaceholder := provider.(*llm.PlaceholderProvider); isPlaceholder {
+			provider = nil
+		}
+	}
+	return &Service{llm: provider}
+}
+
 // Plan derives a structured execution plan from the request and context snapshot.
-func (s *Service) Plan(_ context.Context, input PlanInput) (ExecutionPlan, error) {
+// When an LLM provider is available, it sends the request context to the LLM and
+// parses the structured JSON response. On failure, it falls back to the
+// deterministic keyword-based planner.
+func (s *Service) Plan(ctx context.Context, input PlanInput) (ExecutionPlan, error) {
+	planID := derivePlanID(input)
+
+	if s.llm != nil {
+		plan, err := s.planWithLLM(ctx, planID, input)
+		if err != nil {
+			slog.Warn("llm planner failed, falling back to keyword planner",
+				slog.String("plan_id", planID),
+				slog.Any("error", err),
+			)
+		} else {
+			return plan, nil
+		}
+	}
+
+	return s.planWithKeywords(input, planID), nil
+}
+
+// planWithLLM sends the planning request to the LLM and parses the structured response.
+func (s *Service) planWithLLM(ctx context.Context, planID string, input PlanInput) (ExecutionPlan, error) {
+	userMsg := buildPlannerUserMessage(input)
+
+	resp, err := s.llm.Complete(ctx, llm.CompletionRequest{
+		SystemPrompt:   plannerSystemPrompt,
+		Messages:       []llm.Message{{Role: "user", Content: userMsg}},
+		MaxTokens:      1024,
+		Temperature:    0,
+		ResponseFormat: llm.ResponseFormatJSON,
+	})
+	if err != nil {
+		return ExecutionPlan{}, fmt.Errorf("llm complete: %w", err)
+	}
+
+	content := strings.TrimSpace(resp.Content)
+	// Strip markdown code fences if the model wraps its output.
+	content = stripCodeFences(content)
+
+	var planResp llmPlanResponse
+	if err := json.Unmarshal([]byte(content), &planResp); err != nil {
+		return ExecutionPlan{}, fmt.Errorf("unmarshal plan response: %w (raw: %s)", err, truncate(content, 200))
+	}
+
+	if err := validateLLMPlan(planResp); err != nil {
+		return ExecutionPlan{}, fmt.Errorf("validate plan: %w", err)
+	}
+
+	plan := toLLMPlanResponse(planID, planResp)
+	plan.Source = PlanSourceLLM
+	plan.PromptVersion = PromptVersion
+
+	slog.Info("llm planner produced plan",
+		slog.String("plan_id", planID),
+		slog.String("intent", plan.Intent),
+		slog.Int("steps", len(plan.Steps)),
+		slog.String("reasoning", plan.PlannerReasoningShort),
+		slog.String("prompt_version", PromptVersion),
+	)
+
+	return plan, nil
+}
+
+// planWithKeywords is the deterministic fallback planner using keyword matching.
+func (s *Service) planWithKeywords(input PlanInput, planID string) ExecutionPlan {
 	intent := classifyIntent(input)
 	requiresWorkflow := shouldPromoteWorkflow(input, intent)
 	tool := selectTool(input)
@@ -29,7 +115,7 @@ func (s *Service) Plan(_ context.Context, input PlanInput) (ExecutionPlan, error
 	}
 
 	plan := ExecutionPlan{
-		PlanID:                derivePlanID(input),
+		PlanID:                planID,
 		Intent:                intent,
 		RequiresRetrieval:     requiresRetrieval,
 		RequiresTool:          requiresTool,
@@ -37,6 +123,7 @@ func (s *Service) Plan(_ context.Context, input PlanInput) (ExecutionPlan, error
 		RequiresApproval:      requiresApproval,
 		OutputSchema:          selectOutputSchema(intent),
 		PlannerReasoningShort: summarizeReasoning(intent, requiresTool, requiresWorkflow || tool.AsyncOnly),
+		Source:                PlanSourceKeyword,
 	}
 	plan.Steps = buildSteps(plan, tool)
 	plan.MaxSteps = len(plan.Steps)
@@ -45,7 +132,7 @@ func (s *Service) Plan(_ context.Context, input PlanInput) (ExecutionPlan, error
 		plan.Steps = plan.Steps[:maxSteps]
 	}
 
-	return plan, nil
+	return plan
 }
 
 func classifyIntent(input PlanInput) string {
@@ -175,4 +262,26 @@ func derivePlanID(input PlanInput) string {
 	}
 
 	return "plan-generated"
+}
+
+// stripCodeFences removes markdown code fences that some models wrap around JSON.
+func stripCodeFences(s string) string {
+	s = strings.TrimSpace(s)
+	if strings.HasPrefix(s, "```json") {
+		s = strings.TrimPrefix(s, "```json")
+	} else if strings.HasPrefix(s, "```") {
+		s = strings.TrimPrefix(s, "```")
+	}
+	if strings.HasSuffix(s, "```") {
+		s = strings.TrimSuffix(s, "```")
+	}
+	return strings.TrimSpace(s)
+}
+
+// truncate returns the first n bytes of s, appending "..." if truncated.
+func truncate(s string, n int) string {
+	if len(s) <= n {
+		return s
+	}
+	return s[:n] + "..."
 }
