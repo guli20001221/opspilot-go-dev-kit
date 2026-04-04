@@ -298,30 +298,29 @@ func (a *ReportActivities) GenerateReport(ctx context.Context, input ReportWorkf
 
 	// Load session messages
 	var queryText string
+	var sessionMessages []session.Message
 	if a.sessions != nil && input.SessionID != "" {
-		messages, err := a.sessions.ListMessages(ctx, input.SessionID)
+		var err error
+		sessionMessages, err = a.sessions.ListMessages(ctx, input.SessionID)
 		if err != nil {
 			return ReportWorkflowResult{}, fmt.Errorf("load session messages: %w", err)
 		}
-		for i := len(messages) - 1; i >= 0; i-- {
-			if messages[i].Role == session.RoleUser {
-				queryText = messages[i].Content
+		for i := len(sessionMessages) - 1; i >= 0; i-- {
+			if sessionMessages[i].Role == session.RoleUser {
+				queryText = sessionMessages[i].Content
 				break
 			}
 		}
-		sections = append(sections, fmt.Sprintf("Session: %d messages loaded", len(messages)))
+		sections = append(sections, fmt.Sprintf("Session: %d messages loaded", len(sessionMessages)))
 	} else {
 		sections = append(sections, "Session: unavailable")
 	}
 
 	// Assemble context
 	if a.contexts != nil {
-		var turns []contextengine.Turn
-		if a.sessions != nil && input.SessionID != "" {
-			messages, _ := a.sessions.ListMessages(ctx, input.SessionID)
-			for _, msg := range messages {
-				turns = append(turns, contextengine.Turn{Role: msg.Role, Content: msg.Content})
-			}
+		turns := make([]contextengine.Turn, 0, len(sessionMessages))
+		for _, msg := range sessionMessages {
+			turns = append(turns, contextengine.Turn{Role: msg.Role, Content: msg.Content})
 		}
 		assembled, err := a.contexts.Build(ctx, contextengine.BuildInput{
 			RequestID:   input.TaskID,

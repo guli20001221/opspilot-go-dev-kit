@@ -222,7 +222,7 @@ func TestGenerateReportActivityNoQueryText(t *testing.T) {
 		newTestRetrievalService("tenant-noquery"),
 	)
 
-	// Append an assistant message only (no user message → no query text)
+	// Session has no messages → no query text for retrieval
 	result, err := activities.GenerateReport(context.Background(), ReportWorkflowInput{
 		TaskID:    "task-report-noquery",
 		TenantID:  "tenant-noquery",
