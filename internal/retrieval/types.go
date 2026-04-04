@@ -1,6 +1,14 @@
 package retrieval
 
-import "time"
+import (
+	"context"
+	"time"
+)
+
+// Searcher performs structured retrieval searches.
+type Searcher interface {
+	Search(ctx context.Context, req RetrievalRequest) (RetrievalResult, error)
+}
 
 // RetrievalRequest is the structured query object used for retrieval.
 type RetrievalRequest struct {

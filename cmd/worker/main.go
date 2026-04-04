@@ -46,7 +46,7 @@ func main() {
 
 	sessionService := session.NewServiceWithStore(storagepostgres.NewSessionStore(pool))
 	contextEngine := contextengine.NewService(contextengine.Config{})
-	retrievalService := retrieval.NewService(nil)
+	retrievalStore := storagepostgres.NewRetrievalChunkStore(pool, &retrieval.PlaceholderEmbedder{})
 	versionService := version.NewServiceWithStore(storagepostgres.NewVersionStore(pool))
 	service := workflow.NewServiceWithDependencies(storagepostgres.NewWorkflowTaskStore(pool), nil, versionService)
 	reportService := report.NewServiceWithDependencies(storagepostgres.NewReportStore(pool), versionService)
@@ -85,7 +85,7 @@ func main() {
 		}
 		defer temporalClient.Close()
 
-		reportActivities := workflow.NewReportActivities(sessionService, contextEngine, retrievalService)
+		reportActivities := workflow.NewReportActivities(sessionService, contextEngine, retrievalStore)
 		reportRunner := workflow.NewTemporalReportRunnerWithActivities(temporalClient, cfg.TemporalTaskQueue, reportActivities)
 		activities := workflow.NewApprovedToolActivities(tools)
 		activities.FailOnApprove = cfg.ApprovedToolFailOnApprove

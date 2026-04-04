@@ -279,12 +279,12 @@ type ReportSessionReader interface {
 type ReportActivities struct {
 	sessions  ReportSessionReader
 	contexts  *contextengine.Service
-	retrieval *retrieval.Service
+	retrieval retrieval.Searcher
 }
 
 // NewReportActivities constructs report activities with caller-provided dependencies.
 // Nil dependencies produce gracefully degraded reports.
-func NewReportActivities(sessions ReportSessionReader, contexts *contextengine.Service, retrieval *retrieval.Service) *ReportActivities {
+func NewReportActivities(sessions ReportSessionReader, contexts *contextengine.Service, retrieval retrieval.Searcher) *ReportActivities {
 	return &ReportActivities{
 		sessions:  sessions,
 		contexts:  contexts,

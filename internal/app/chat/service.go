@@ -29,7 +29,7 @@ type Service struct {
 	contexts  *contextengine.Service
 	critic    *agentcritic.Service
 	planner   *planner.Service
-	retrieval *retrieval.Service
+	retrieval retrieval.Searcher
 	tools     *agenttool.Service
 	registry  *toolregistry.Registry
 	workflows *workflow.Service
