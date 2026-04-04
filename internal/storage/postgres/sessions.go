@@ -2,9 +2,11 @@ package postgres
 
 import (
 	"context"
+	"errors"
 	"fmt"
 
 	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"opspilot-go/internal/session"
@@ -49,6 +51,10 @@ RETURNING id, session_id, role, content, created_at`
 		msg.ID, msg.SessionID, msg.Role, msg.Content, msg.CreatedAt,
 	).Scan(&out.ID, &out.SessionID, &out.Role, &out.Content, &out.CreatedAt)
 	if err != nil {
+		var pgErr *pgconn.PgError
+		if errors.As(err, &pgErr) && pgErr.Code == "23503" {
+			return session.Message{}, fmt.Errorf("session %q not found", msg.SessionID)
+		}
 		return session.Message{}, fmt.Errorf("insert message for session %q: %w", msg.SessionID, err)
 	}
 	return out, nil
@@ -84,7 +90,7 @@ ORDER BY created_at ASC, id ASC`
 	if len(messages) == 0 {
 		var exists int
 		err := s.pool.QueryRow(ctx, `SELECT 1 FROM sessions WHERE id = $1`, sessionID).Scan(&exists)
-		if err == pgx.ErrNoRows {
+		if errors.Is(err, pgx.ErrNoRows) {
 			return nil, fmt.Errorf("session %q not found", sessionID)
 		}
 		if err != nil {
