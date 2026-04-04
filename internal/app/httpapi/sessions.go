@@ -67,8 +67,10 @@ type errorResponse struct {
 	Message string `json:"message"`
 }
 
-func newAppHandler(workflowService *workflow.Service, reportService *report.Service, caseService *casesvc.Service, evalCaseService *evalsvc.Service, evalDatasetService *evalsvc.DatasetService, evalRunService *evalsvc.RunService, evalReportService *evalsvc.EvalReportService, versionService *version.Service, registry *toolregistry.Registry) *appHandler {
-	sessionService := session.NewService()
+func newAppHandler(workflowService *workflow.Service, reportService *report.Service, caseService *casesvc.Service, evalCaseService *evalsvc.Service, evalDatasetService *evalsvc.DatasetService, evalRunService *evalsvc.RunService, evalReportService *evalsvc.EvalReportService, versionService *version.Service, sessionService *session.Service, registry *toolregistry.Registry) *appHandler {
+	if sessionService == nil {
+		sessionService = session.NewService()
+	}
 	if workflowService == nil {
 		workflowService = workflow.NewService()
 	}
