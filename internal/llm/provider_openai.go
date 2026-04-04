@@ -46,11 +46,16 @@ func NewOpenAIProvider(opts OpenAIOptions) *OpenAIProvider {
 	}
 }
 
+type openAIResponseFormat struct {
+	Type string `json:"type"`
+}
+
 type openAIRequest struct {
-	Model       string          `json:"model"`
-	Messages    []openAIMessage `json:"messages"`
-	MaxTokens   int             `json:"max_tokens,omitempty"`
-	Temperature *float64        `json:"temperature,omitempty"`
+	Model          string                `json:"model"`
+	Messages       []openAIMessage       `json:"messages"`
+	MaxTokens      int                   `json:"max_tokens,omitempty"`
+	Temperature    *float64              `json:"temperature,omitempty"`
+	ResponseFormat *openAIResponseFormat `json:"response_format,omitempty"`
 }
 
 type openAIMessage struct {
@@ -95,8 +100,11 @@ func (p *OpenAIProvider) Complete(ctx context.Context, req CompletionRequest) (C
 	if req.MaxTokens > 0 {
 		body.MaxTokens = req.MaxTokens
 	}
-	if req.Temperature > 0 {
-		body.Temperature = &req.Temperature
+	if req.Temperature != nil {
+		body.Temperature = req.Temperature
+	}
+	if req.ResponseFormat == ResponseFormatJSON {
+		body.ResponseFormat = &openAIResponseFormat{Type: "json_object"}
 	}
 
 	payload, err := json.Marshal(body)
