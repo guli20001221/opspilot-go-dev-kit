@@ -9,10 +9,12 @@ import (
 	"time"
 
 	agenttool "opspilot-go/internal/agent/tool"
+	appchat "opspilot-go/internal/app/chat"
 	"opspilot-go/internal/app/config"
 	"opspilot-go/internal/app/logging"
 	"opspilot-go/internal/contextengine"
 	"opspilot-go/internal/eval"
+	"opspilot-go/internal/llm"
 	"opspilot-go/internal/report"
 	"opspilot-go/internal/retrieval"
 	"opspilot-go/internal/session"
@@ -62,7 +64,17 @@ func main() {
 	service := workflow.NewServiceWithDependencies(storagepostgres.NewWorkflowTaskStore(pool), nil, versionService)
 	reportService := report.NewServiceWithDependencies(storagepostgres.NewReportStore(pool), versionService)
 	executor := workflow.Executor(workflow.NewPlaceholderExecutor())
-	evalRunExecutor := eval.RunExecutor(eval.NewPlaceholderRunExecutor())
+	llmProvider, err := llm.NewConfiguredProvider(llm.ProviderOptions{
+		Provider: cfg.LLMProvider,
+		BaseURL:  cfg.LLMBaseURL,
+		APIKey:   cfg.LLMAPIKey,
+		Model:    cfg.LLMModel,
+		Timeout:  cfg.LLMTimeout,
+	})
+	if err != nil {
+		logger.Error("configure llm provider", slog.Any("error", err))
+		os.Exit(1)
+	}
 	evalJudge, err := eval.NewConfiguredJudge(eval.JudgeOptions{
 		Provider:   cfg.EvalJudgeProvider,
 		BaseURL:    cfg.EvalJudgeBaseURL,
@@ -82,6 +94,9 @@ func main() {
 		TicketAPIToken:   cfg.TicketAPIToken,
 	})
 	tools := agenttool.NewService(registry)
+	// Eval chat service uses a separate workflow service (nil) to prevent
+	// eval runs from promoting async tasks as a side effect.
+	evalChatService := appchat.NewServiceWithLLM(sessionService, nil, registry, retrievalStore, llmProvider)
 
 	var temporalWorker temporalworker.Worker
 	if cfg.TemporalEnabled {
@@ -116,8 +131,13 @@ func main() {
 			slog.Bool("approved_tool_fail_on_approve", cfg.ApprovedToolFailOnApprove),
 		)
 	}
-	if placeholder, ok := evalRunExecutor.(*eval.PlaceholderRunExecutor); ok {
-		placeholder.FailAll = cfg.EvalRunFailAll
+	var evalRunExecutor eval.RunExecutor
+	if cfg.EvalRunFailAll {
+		placeholder := eval.NewPlaceholderRunExecutor()
+		placeholder.FailAll = true
+		evalRunExecutor = placeholder
+	} else {
+		evalRunExecutor = eval.NewChatRunExecutor(evalChatService, evalRunService)
 	}
 
 	runner := workflow.NewRunnerWithReports(service, executor, reportService)
