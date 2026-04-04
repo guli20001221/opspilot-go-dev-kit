@@ -547,27 +547,19 @@
     }
 
     function provenanceLabel(item) {
-      if (item.compare_origin && item.compare_origin.left_eval_report_id && item.compare_origin.right_eval_report_id) {
-        return "Compare-derived";
-      }
-      if (item.source_eval_run_id) {
-        return "Eval run-backed";
-      }
-      if (item.source_eval_case_id) {
-        return "Eval case-backed";
-      }
-      if (item.source_eval_report_id) {
-        return "Eval report-backed";
-      }
-      if (item.source_report_id && item.source_task_id) {
-        return "Task + report";
-      }
-      if (item.source_report_id) {
-        return "Report-backed";
-      }
-      if (item.source_task_id) {
-        return "Task-only";
-      }
+      const cmp=(item.preferred_compare_action||{}).mode;
+      const erup=(item.preferred_eval_run_provenance||{}).mode;
+      const ecp=(item.preferred_eval_case_provenance||{}).mode;
+      const erp=(item.preferred_eval_report_provenance||{}).mode;
+      const srp=(item.preferred_source_report_provenance||{}).mode;
+      const stp=(item.preferred_source_task_provenance||{}).mode;
+      if(cmp==="open") return "Compare-derived";
+      if(erup==="open") return "Eval run-backed";
+      if(ecp==="open") return "Eval case-backed";
+      if(erp==="open") return "Eval report-backed";
+      if(srp==="open"&&stp==="open") return "Task + report";
+      if(srp==="open") return "Report-backed";
+      if(stp==="open") return "Task-only";
       return "Manual";
     }
 
@@ -796,8 +788,8 @@
               ${item.status === "closed" ? `
                 <button class="ghost" type="button" data-case-reopen-id="${escapeHTML(item.case_id)}">Reopen from queue</button>
               ` : ""}
-              ${item.compare_origin && item.compare_origin.left_eval_report_id && item.compare_origin.right_eval_report_id ? `
-                <a class="button-link ghost" data-case-compare-link="${escapeHTML(item.case_id)}" data-action-mode="open_compare_origin" href="/admin/eval-report-compare?tenant_id=${encodeURIComponent(item.tenant_id)}&left_report_id=${encodeURIComponent(item.compare_origin.left_eval_report_id)}&right_report_id=${encodeURIComponent(item.compare_origin.right_eval_report_id)}">Open compare</a>
+              ${(item.preferred_compare_action||{}).mode==="open"&&(item.preferred_compare_action||{}).left_eval_report_id&&(item.preferred_compare_action||{}).right_eval_report_id ? `
+                <a class="button-link ghost" data-case-compare-link="${escapeHTML(item.case_id)}" data-action-mode="open_compare_origin" href="/admin/eval-report-compare?tenant_id=${encodeURIComponent(item.tenant_id)}&left_report_id=${encodeURIComponent(item.preferred_compare_action.left_eval_report_id)}&right_report_id=${encodeURIComponent(item.preferred_compare_action.right_eval_report_id)}">Open compare</a>
               ` : ""}
             </div>
           </td>
@@ -839,43 +831,28 @@
       copyCaseSummaryButton.disabled = false;
       copyCaseLinkButton.disabled = false;
       openCaseAPILink.hidden = false;
-      openEvalCaseAPILink.hidden = !item.source_eval_case_id;
-      openEvalRunLink.hidden = !item.source_eval_run_id;
-      openEvalRunAPILink.hidden = !item.source_eval_run_id;
-      openTraceDetailLink.hidden = false;
       openCaseAPILink.href = `${detailEndpointBase}${encodeURIComponent(item.case_id)}?tenant_id=${encodeURIComponent(item.tenant_id)}`;
-        openTraceDetailLink.href = `/admin/trace-detail?case_id=${encodeURIComponent(item.case_id)}`;
-        openTaskLink.hidden = !item.source_task_id;
-        openTaskBoardLink.hidden = !item.source_task_id;
-        openReportLink.hidden = !item.source_report_id;
-        openReportsLink.hidden = !item.source_report_id || !item.source_task_id;
-        openEvalReportLink.hidden = !item.source_eval_report_id;
-        openEvalReportsLink.hidden = !item.source_eval_report_id;
-        openEvalCompareLink.hidden = !(item.compare_origin && item.compare_origin.left_eval_report_id && item.compare_origin.right_eval_report_id);
-        if (item.source_task_id) {
-          openTaskLink.href = `${taskEndpointBase}${encodeURIComponent(item.source_task_id)}`;
-          openTaskBoardLink.href = `/admin/task-board?tenant_id=${encodeURIComponent(item.tenant_id)}&task_id=${encodeURIComponent(item.source_task_id)}`;
-        }
-        if (item.source_report_id) {
-          openReportLink.href = `${reportEndpointBase}${encodeURIComponent(item.source_report_id)}`;
-        }
-        if (item.source_report_id && item.source_task_id) {
-          openReportsLink.href = `/admin/reports?tenant_id=${encodeURIComponent(item.tenant_id)}&task_id=${encodeURIComponent(item.source_task_id)}`;
-        }
-        if (item.source_eval_report_id) {
-          openEvalReportLink.href = `${evalReportEndpointBase}${encodeURIComponent(item.source_eval_report_id)}?tenant_id=${encodeURIComponent(item.tenant_id)}`;
-          openEvalReportsLink.href = `/admin/eval-reports?tenant_id=${encodeURIComponent(item.tenant_id)}&report_id=${encodeURIComponent(item.source_eval_report_id)}`;
-        }
-        if (item.source_eval_case_id) {
-          openEvalCaseAPILink.href = `${evalCaseEndpoint}/${encodeURIComponent(item.source_eval_case_id)}?tenant_id=${encodeURIComponent(item.tenant_id)}`;
-        }
-        if (item.source_eval_run_id) {
-          openEvalRunLink.href = `/admin/eval-runs?tenant_id=${encodeURIComponent(item.tenant_id)}&run_id=${encodeURIComponent(item.source_eval_run_id)}`;
-          openEvalRunAPILink.href = `/api/v1/eval-runs/${encodeURIComponent(item.source_eval_run_id)}?tenant_id=${encodeURIComponent(item.tenant_id)}`;
-        }
-        if (item.compare_origin && item.compare_origin.left_eval_report_id && item.compare_origin.right_eval_report_id) {
-          openEvalCompareLink.href = `/admin/eval-report-compare?tenant_id=${encodeURIComponent(item.tenant_id)}&left_report_id=${encodeURIComponent(item.compare_origin.left_eval_report_id)}&right_report_id=${encodeURIComponent(item.compare_origin.right_eval_report_id)}`;
-        }
+        const ta=item.preferred_trace_detail_action||{};const stp=item.preferred_source_task_provenance||{};const srp=item.preferred_source_report_provenance||{};const erp=item.preferred_eval_report_provenance||{};const ecp=item.preferred_eval_case_provenance||{};const erup=item.preferred_eval_run_provenance||{};const cmp=item.preferred_compare_action||{};
+        openTraceDetailLink.hidden=ta.mode!=="open";
+        if(ta.mode==="open"&&ta.case_id){openTraceDetailLink.href=`/admin/trace-detail?case_id=${encodeURIComponent(ta.case_id)}`;}
+        openTaskLink.hidden=stp.mode!=="open";
+        openTaskBoardLink.hidden=stp.mode!=="open";
+        if(stp.mode==="open"&&stp.task_id){openTaskLink.href=`${taskEndpointBase}${encodeURIComponent(stp.task_id)}`;openTaskBoardLink.href=`/admin/task-board?tenant_id=${encodeURIComponent(item.tenant_id)}&task_id=${encodeURIComponent(stp.task_id)}`;}
+        openReportLink.hidden=srp.mode!=="open";
+        openReportsLink.hidden=stp.mode!=="open"||srp.mode!=="open";
+        if(srp.mode==="open"&&srp.report_id){openReportLink.href=`${reportEndpointBase}${encodeURIComponent(srp.report_id)}`;}
+        if(srp.mode==="open"&&stp.mode==="open"&&stp.task_id){openReportsLink.href=`/admin/reports?tenant_id=${encodeURIComponent(item.tenant_id)}&task_id=${encodeURIComponent(stp.task_id)}`;}
+        openEvalReportLink.hidden=erp.mode!=="open";
+        openEvalReportsLink.hidden=erp.mode!=="open";
+        if(erp.mode==="open"&&erp.report_id){openEvalReportLink.href=`${evalReportEndpointBase}${encodeURIComponent(erp.report_id)}?tenant_id=${encodeURIComponent(item.tenant_id)}`;openEvalReportsLink.href=`/admin/eval-reports?tenant_id=${encodeURIComponent(item.tenant_id)}&report_id=${encodeURIComponent(erp.report_id)}`;}
+        openEvalCaseAPILink.hidden=ecp.mode!=="open";
+        if(ecp.mode==="open"&&ecp.eval_case_id){openEvalCaseAPILink.href=`${evalCaseEndpoint}/${encodeURIComponent(ecp.eval_case_id)}?tenant_id=${encodeURIComponent(item.tenant_id)}`;}
+        openEvalRunLink.hidden=erup.mode!=="open";
+        openEvalRunAPILink.hidden=erup.mode!=="open";
+        if(erup.mode==="open"&&erup.run_id){openEvalRunLink.href=`/admin/eval-runs?tenant_id=${encodeURIComponent(item.tenant_id)}&run_id=${encodeURIComponent(erup.run_id)}`;openEvalRunAPILink.href=`/api/v1/eval-runs/${encodeURIComponent(erup.run_id)}?tenant_id=${encodeURIComponent(item.tenant_id)}`;}
+        openEvalCompareLink.hidden=cmp.mode!=="open";
+        if(cmp.mode==="open"&&cmp.left_eval_report_id&&cmp.right_eval_report_id){openEvalCompareLink.href=`/admin/eval-report-compare?tenant_id=${encodeURIComponent(item.tenant_id)}&left_report_id=${encodeURIComponent(cmp.left_eval_report_id)}&right_report_id=${encodeURIComponent(cmp.right_eval_report_id)}`;}
+
       if (item.status === "closed") {
         setDetailStatus(`Case already closed${item.closed_by ? ` by ${item.closed_by}` : ""}. Reopen it to return the case to the open queue.`);
       } else {

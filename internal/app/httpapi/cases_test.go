@@ -88,6 +88,34 @@ func TestCreateAndGetCaseEndpoint(t *testing.T) {
 	if got.SourceReportID != reportID {
 		t.Fatalf("SourceReportID = %q, want %q", got.SourceReportID, reportID)
 	}
+	// Per-dimension provenance actions
+	if got.PreferredSourceTaskProvenance.Mode != "open" {
+		t.Fatalf("PreferredSourceTaskProvenance.Mode = %q, want %q", got.PreferredSourceTaskProvenance.Mode, "open")
+	}
+	if got.PreferredSourceTaskProvenance.TaskID != task.ID {
+		t.Fatalf("PreferredSourceTaskProvenance.TaskID = %q, want %q", got.PreferredSourceTaskProvenance.TaskID, task.ID)
+	}
+	if got.PreferredSourceReportProvenance.Mode != "open" {
+		t.Fatalf("PreferredSourceReportProvenance.Mode = %q, want %q", got.PreferredSourceReportProvenance.Mode, "open")
+	}
+	if got.PreferredSourceReportProvenance.ReportID != reportID {
+		t.Fatalf("PreferredSourceReportProvenance.ReportID = %q, want %q", got.PreferredSourceReportProvenance.ReportID, reportID)
+	}
+	if got.PreferredEvalReportProvenance.Mode != "none" {
+		t.Fatalf("PreferredEvalReportProvenance.Mode = %q, want %q", got.PreferredEvalReportProvenance.Mode, "none")
+	}
+	if got.PreferredEvalCaseProvenance.Mode != "none" {
+		t.Fatalf("PreferredEvalCaseProvenance.Mode = %q, want %q", got.PreferredEvalCaseProvenance.Mode, "none")
+	}
+	if got.PreferredEvalRunProvenance.Mode != "none" {
+		t.Fatalf("PreferredEvalRunProvenance.Mode = %q, want %q", got.PreferredEvalRunProvenance.Mode, "none")
+	}
+	if got.PreferredTraceDetailAction.Mode != "open" {
+		t.Fatalf("PreferredTraceDetailAction.Mode = %q, want %q", got.PreferredTraceDetailAction.Mode, "open")
+	}
+	if got.PreferredCompareAction.Mode != "none" {
+		t.Fatalf("PreferredCompareAction.Mode = %q, want %q", got.PreferredCompareAction.Mode, "none")
+	}
 }
 
 func TestCreateAndGetCaseEndpointWithEvalReportSource(t *testing.T) {
@@ -140,6 +168,16 @@ func TestCreateAndGetCaseEndpointWithEvalReportSource(t *testing.T) {
 	}
 	if got.SourceEvalReportID != evalReportID {
 		t.Fatalf("SourceEvalReportID = %q, want %q", got.SourceEvalReportID, evalReportID)
+	}
+	// Eval report provenance should be "open" for eval-report-backed cases
+	if got.PreferredEvalReportProvenance.Mode != "open" {
+		t.Fatalf("PreferredEvalReportProvenance.Mode = %q, want %q", got.PreferredEvalReportProvenance.Mode, "open")
+	}
+	if got.PreferredEvalReportProvenance.ReportID != evalReportID {
+		t.Fatalf("PreferredEvalReportProvenance.ReportID = %q, want %q", got.PreferredEvalReportProvenance.ReportID, evalReportID)
+	}
+	if got.PreferredSourceTaskProvenance.Mode != "none" {
+		t.Fatalf("PreferredSourceTaskProvenance.Mode = %q, want %q", got.PreferredSourceTaskProvenance.Mode, "none")
 	}
 }
 
@@ -1001,6 +1039,12 @@ func TestCreateAndGetCaseEndpointWithCompareOrigin(t *testing.T) {
 	}
 	if got.CompareOrigin.SelectedSide != "right" {
 		t.Fatalf("Get().CompareOrigin.SelectedSide = %q, want %q", got.CompareOrigin.SelectedSide, "right")
+	}
+	if got.PreferredCompareAction.Mode != "open" {
+		t.Fatalf("PreferredCompareAction.Mode = %q, want %q", got.PreferredCompareAction.Mode, "open")
+	}
+	if got.PreferredCompareAction.LeftEvalReportID != leftEvalReportID {
+		t.Fatalf("PreferredCompareAction.LeftEvalReportID = %q, want %q", got.PreferredCompareAction.LeftEvalReportID, leftEvalReportID)
 	}
 }
 
