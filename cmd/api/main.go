@@ -18,6 +18,7 @@ import (
 	"opspilot-go/internal/ingestion"
 	"opspilot-go/internal/llm"
 	"opspilot-go/internal/observability/tracedetail"
+	"opspilot-go/internal/observability/tracing"
 	"opspilot-go/internal/report"
 	"opspilot-go/internal/retrieval"
 	"opspilot-go/internal/session"
@@ -33,6 +34,9 @@ func main() {
 		slog.Error("load config", slog.Any("error", err))
 		os.Exit(1)
 	}
+
+	shutdownTracer := tracing.InitStdout()
+	defer shutdownTracer(context.Background())
 
 	logger := logging.New(cfg.LogLevel)
 	slog.SetDefault(logger)

@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 
+	"opspilot-go/internal/observability/tracing"
 	toolregistry "opspilot-go/internal/tools/registry"
 )
 
@@ -20,6 +21,11 @@ func NewService(registry *toolregistry.Registry) *Service {
 
 // Execute resolves a tool definition and returns a normalized execution result.
 func (s *Service) Execute(ctx context.Context, inv ToolInvocation) (ToolResult, error) {
+	ctx, span := tracing.StartSpan(ctx, "tool.execute",
+		tracing.AttrToolName.String(inv.ToolName),
+		tracing.AttrTenantID.String(inv.TenantID),
+	)
+	defer span.End()
 	def, ok := s.registry.Lookup(inv.ToolName)
 	if !ok {
 		return ToolResult{}, fmt.Errorf("tool %q not found", inv.ToolName)

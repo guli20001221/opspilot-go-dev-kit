@@ -13,6 +13,7 @@ import (
 	agenttool "opspilot-go/internal/agent/tool"
 	"opspilot-go/internal/contextengine"
 	"opspilot-go/internal/llm"
+	"opspilot-go/internal/observability/tracing"
 	"opspilot-go/internal/retrieval"
 	"opspilot-go/internal/session"
 	toolregistry "opspilot-go/internal/tools/registry"
@@ -101,6 +102,12 @@ func NewServiceWithLLM(sessions SessionService, workflows *workflow.Service, reg
 
 // Handle persists the user and assistant turns and returns the ordered SSE events.
 func (s *Service) Handle(ctx context.Context, req ChatRequestEnvelope) (HandleResult, error) {
+	ctx, span := tracing.StartSpan(ctx, "chat.handle",
+		tracing.AttrRequestID.String(req.RequestID),
+		tracing.AttrTenantID.String(req.TenantID),
+	)
+	defer span.End()
+
 	sessionID := req.SessionID
 	if sessionID == "" {
 		created, err := s.sessions.CreateSession(ctx, session.CreateSessionInput{

@@ -9,6 +9,9 @@ import (
 	"net/http"
 	"strings"
 	"time"
+
+	"go.opentelemetry.io/otel"
+	otelAttribute "go.opentelemetry.io/otel/attribute"
 )
 
 // OpenAIOptions configures the OpenAI-compatible HTTP adapter.
@@ -80,10 +83,18 @@ type openAIUsage struct {
 
 // Complete sends a chat completion request and returns the first choice.
 func (p *OpenAIProvider) Complete(ctx context.Context, req CompletionRequest) (CompletionResponse, error) {
+	ctx, span := otel.Tracer("opspilot-go").Start(ctx, "llm.complete")
+	defer span.End()
+
 	model := req.Model
 	if model == "" {
 		model = p.model
 	}
+	span.SetAttributes(
+		otelAttribute.String("llm.model", model),
+		otelAttribute.String("llm.provider", "openai"),
+		otelAttribute.Int("llm.message_count", len(req.Messages)),
+	)
 
 	messages := make([]openAIMessage, 0, len(req.Messages)+1)
 	if req.SystemPrompt != "" {
@@ -146,6 +157,12 @@ func (p *OpenAIProvider) Complete(ctx context.Context, req CompletionRequest) (C
 	if len(result.Choices) == 0 {
 		return CompletionResponse{}, fmt.Errorf("provider returned empty choices")
 	}
+
+	span.SetAttributes(
+		otelAttribute.Int("llm.tokens.prompt", result.Usage.PromptTokens),
+		otelAttribute.Int("llm.tokens.completion", result.Usage.CompletionTokens),
+		otelAttribute.String("llm.response_model", result.Model),
+	)
 
 	return CompletionResponse{
 		Content:      result.Choices[0].Message.Content,
