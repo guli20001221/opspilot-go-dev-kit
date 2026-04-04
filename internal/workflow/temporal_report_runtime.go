@@ -14,6 +14,9 @@ import (
 	temporalworkflow "go.temporal.io/sdk/workflow"
 
 	agenttool "opspilot-go/internal/agent/tool"
+	"opspilot-go/internal/contextengine"
+	"opspilot-go/internal/retrieval"
+	"opspilot-go/internal/session"
 	toolregistry "opspilot-go/internal/tools/registry"
 )
 
@@ -92,8 +95,9 @@ func DialTemporalClient(opts TemporalOptions) (temporalclient.Client, error) {
 
 // TemporalReportRunner executes report-generation tasks through Temporal.
 type TemporalReportRunner struct {
-	client    temporalclient.Client
-	taskQueue string
+	client     temporalclient.Client
+	taskQueue  string
+	activities *ReportActivities
 }
 
 // TemporalApprovedToolRunner manages approval-gated tool workflows in Temporal.
@@ -105,9 +109,19 @@ type TemporalApprovedToolRunner struct {
 
 // NewTemporalReportRunner constructs a Temporal-backed report runner.
 func NewTemporalReportRunner(client temporalclient.Client, taskQueue string) *TemporalReportRunner {
+	return NewTemporalReportRunnerWithActivities(client, taskQueue, nil)
+}
+
+// NewTemporalReportRunnerWithActivities constructs a Temporal-backed report runner
+// with caller-provided activity implementations.
+func NewTemporalReportRunnerWithActivities(client temporalclient.Client, taskQueue string, activities *ReportActivities) *TemporalReportRunner {
+	if activities == nil {
+		activities = NewReportActivities(nil, nil, nil)
+	}
 	return &TemporalReportRunner{
-		client:    client,
-		taskQueue: taskQueue,
+		client:     client,
+		taskQueue:  taskQueue,
+		activities: activities,
 	}
 }
 
@@ -162,7 +176,7 @@ func (r *TemporalReportRunner) RunReportWorkflow(ctx context.Context, task Task)
 // Register registers the report workflow and its activities on a Temporal worker.
 func (r *TemporalReportRunner) Register(w temporalworker.Worker) {
 	w.RegisterWorkflow(ReportGenerationWorkflow)
-	w.RegisterActivity((&ReportActivities{}).GenerateReport)
+	w.RegisterActivity(r.activities.GenerateReport)
 }
 
 // StartTask starts the waiting approval workflow on promote.
@@ -256,13 +270,91 @@ func ReportGenerationWorkflow(ctx temporalworkflow.Context, input ReportWorkflow
 	return result, nil
 }
 
-// ReportActivities contains the activity implementations for report workflows.
-type ReportActivities struct{}
+// ReportSessionReader is the narrow session interface consumed by report activities.
+type ReportSessionReader interface {
+	ListMessages(ctx context.Context, sessionID string) ([]session.Message, error)
+}
 
-// GenerateReport is the placeholder report-generation activity.
-func (a *ReportActivities) GenerateReport(_ context.Context, input ReportWorkflowInput) (ReportWorkflowResult, error) {
+// ReportActivities contains the activity implementations for report workflows.
+type ReportActivities struct {
+	sessions  ReportSessionReader
+	contexts  *contextengine.Service
+	retrieval *retrieval.Service
+}
+
+// NewReportActivities constructs report activities with caller-provided dependencies.
+// Nil dependencies produce gracefully degraded reports.
+func NewReportActivities(sessions ReportSessionReader, contexts *contextengine.Service, retrieval *retrieval.Service) *ReportActivities {
+	return &ReportActivities{
+		sessions:  sessions,
+		contexts:  contexts,
+		retrieval: retrieval,
+	}
+}
+
+// GenerateReport assembles a report from session history and retrieval evidence.
+func (a *ReportActivities) GenerateReport(ctx context.Context, input ReportWorkflowInput) (ReportWorkflowResult, error) {
+	var sections []string
+
+	// Load session messages
+	var queryText string
+	var sessionMessages []session.Message
+	if a.sessions != nil && input.SessionID != "" {
+		var err error
+		sessionMessages, err = a.sessions.ListMessages(ctx, input.SessionID)
+		if err != nil {
+			return ReportWorkflowResult{}, fmt.Errorf("load session messages: %w", err)
+		}
+		for i := len(sessionMessages) - 1; i >= 0; i-- {
+			if sessionMessages[i].Role == session.RoleUser {
+				queryText = sessionMessages[i].Content
+				break
+			}
+		}
+		sections = append(sections, fmt.Sprintf("Session: %d messages loaded", len(sessionMessages)))
+	} else {
+		sections = append(sections, "Session: unavailable")
+	}
+
+	// Assemble context
+	if a.contexts != nil {
+		turns := make([]contextengine.Turn, 0, len(sessionMessages))
+		for _, msg := range sessionMessages {
+			turns = append(turns, contextengine.Turn{Role: msg.Role, Content: msg.Content})
+		}
+		assembled, err := a.contexts.Build(ctx, contextengine.BuildInput{
+			RequestID:   input.TaskID,
+			SessionID:   input.SessionID,
+			TenantID:    input.TenantID,
+			RecentTurns: turns,
+		})
+		if err != nil {
+			return ReportWorkflowResult{}, fmt.Errorf("assemble context: %w", err)
+		}
+		sections = append(sections, fmt.Sprintf("Context: %d blocks assembled", len(assembled.Planner.Blocks)))
+	}
+
+	// Run retrieval
+	if a.retrieval != nil && queryText != "" {
+		result, err := a.retrieval.Search(ctx, retrieval.RetrievalRequest{
+			RequestID: input.TaskID,
+			TenantID:  input.TenantID,
+			SessionID: input.SessionID,
+			QueryText: queryText,
+		})
+		if err != nil {
+			return ReportWorkflowResult{}, fmt.Errorf("retrieval search: %w", err)
+		}
+		sections = append(sections, fmt.Sprintf("Retrieval: %d evidence blocks, coverage %.2f", len(result.EvidenceBlocks), result.CoverageScore))
+		for _, block := range result.EvidenceBlocks {
+			sections = append(sections, fmt.Sprintf("  [%s] %s (score=%.2f)", block.CitationLabel, block.SourceTitle, block.Score))
+		}
+	} else {
+		sections = append(sections, "Retrieval: skipped (no query text)")
+	}
+
 	return ReportWorkflowResult{
-		Generated: fmt.Sprintf("generated:%s", input.TaskID),
+		Generated: strings.Join(sections, "\n"),
 	}, nil
 }
 
