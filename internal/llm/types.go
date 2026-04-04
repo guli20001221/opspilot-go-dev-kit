@@ -7,6 +7,12 @@ type Provider interface {
 	Complete(ctx context.Context, req CompletionRequest) (CompletionResponse, error)
 }
 
+// StreamingProvider generates text completions with token-by-token streaming.
+type StreamingProvider interface {
+	Provider
+	StreamComplete(ctx context.Context, req CompletionRequest, onToken func(token string)) (CompletionResponse, error)
+}
+
 // Message is one conversation turn sent to the LLM provider.
 type Message struct {
 	Role    string // "system", "user", "assistant"

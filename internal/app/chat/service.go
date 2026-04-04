@@ -251,10 +251,20 @@ func (s *Service) Handle(ctx context.Context, req ChatRequestEnvelope) (HandleRe
 	}
 
 	// Generate assistant response via LLM (or placeholder fallback)
+	// Uses streaming when the provider supports it and OnToken callback is set.
 	assistantContent := PlaceholderAssistantResponse
 	if s.llm != nil {
 		completionReq := s.buildCompletionRequest(req, recentMessages, retrievalResult, toolResults)
-		resp, llmErr := s.llm.Complete(ctx, completionReq)
+
+		var resp llm.CompletionResponse
+		var llmErr error
+
+		if streamer, ok := s.llm.(llm.StreamingProvider); ok && req.OnToken != nil {
+			resp, llmErr = streamer.StreamComplete(ctx, completionReq, req.OnToken)
+		} else {
+			resp, llmErr = s.llm.Complete(ctx, completionReq)
+		}
+
 		if llmErr != nil {
 			slog.Warn("llm completion failed, falling back to placeholder",
 				slog.String("request_id", req.RequestID),
