@@ -151,6 +151,8 @@ func (s *Service) Handle(ctx context.Context, req ChatRequestEnvelope) (HandleRe
 		if err != nil {
 			return HandleResult{}, err
 		}
+		// Apply lost-in-the-middle reordering for optimal LLM context placement
+		retrievalResult.EvidenceBlocks = retrieval.ReorderLostInTheMiddle(retrievalResult.EvidenceBlocks)
 	}
 
 	toolResults := make([]agenttool.ToolResult, 0, len(plan.Steps))
