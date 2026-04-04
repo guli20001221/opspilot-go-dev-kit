@@ -8,6 +8,7 @@ import (
 
 	"github.com/jackc/pgx/v5/pgxpool"
 
+	"opspilot-go/internal/ingestion"
 	"opspilot-go/internal/retrieval"
 )
 
@@ -71,6 +72,49 @@ RETURNING id, tenant_id, document_id, document_version, chunk_id,
 	}
 	return out, nil
 }
+
+// UpsertWithHybrid inserts or updates a chunk with parent-child linking and contextual prefix.
+// The search_tsv column is auto-computed by a database trigger.
+func (s *RetrievalChunkStore) UpsertWithHybrid(ctx context.Context, chunk ingestion.ChunkRecord) (ingestion.ChunkRecord, error) {
+	const query = `
+INSERT INTO retrieval_chunks (
+    id, tenant_id, document_id, document_version, chunk_id,
+    parent_chunk_id, source_title, source_uri, snippet, context_prefix,
+    embedding, permissions_scope, published_at
+) VALUES (
+    $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11::vector, $12, $13
+)
+ON CONFLICT (document_id, chunk_id) DO UPDATE SET
+    tenant_id = EXCLUDED.tenant_id,
+    document_version = EXCLUDED.document_version,
+    parent_chunk_id = EXCLUDED.parent_chunk_id,
+    source_title = EXCLUDED.source_title,
+    source_uri = EXCLUDED.source_uri,
+    snippet = EXCLUDED.snippet,
+    context_prefix = EXCLUDED.context_prefix,
+    embedding = EXCLUDED.embedding,
+    permissions_scope = EXCLUDED.permissions_scope,
+    published_at = EXCLUDED.published_at
+RETURNING id, tenant_id, document_id, document_version, chunk_id,
+          parent_chunk_id, source_title, source_uri, snippet, context_prefix,
+          permissions_scope, published_at`
+
+	var out ingestion.ChunkRecord
+	err := s.pool.QueryRow(ctx, query,
+		chunk.ID, chunk.TenantID, chunk.DocumentID, chunk.DocumentVersion, chunk.ChunkID,
+		chunk.ParentChunkID, chunk.SourceTitle, chunk.SourceURI, chunk.Snippet, chunk.ContextPrefix,
+		formatVector(chunk.Embedding), chunk.PermissionsScope, chunk.PublishedAt,
+	).Scan(&out.ID, &out.TenantID, &out.DocumentID, &out.DocumentVersion, &out.ChunkID,
+		&out.ParentChunkID, &out.SourceTitle, &out.SourceURI, &out.Snippet, &out.ContextPrefix,
+		&out.PermissionsScope, &out.PublishedAt)
+	if err != nil {
+		return ingestion.ChunkRecord{}, fmt.Errorf("upsert hybrid chunk: %w", err)
+	}
+	return out, nil
+}
+
+// Verify that RetrievalChunkStore implements ingestion.ChunkStore.
+var _ ingestion.ChunkStore = (*RetrievalChunkStore)(nil)
 
 // Search embeds the query text and returns the top-K most similar chunks for the tenant.
 func (s *RetrievalChunkStore) Search(ctx context.Context, req retrieval.RetrievalRequest) (retrieval.RetrievalResult, error) {

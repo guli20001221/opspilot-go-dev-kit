@@ -15,6 +15,7 @@ import (
 	"opspilot-go/internal/app/logging"
 	casesvc "opspilot-go/internal/case"
 	evalsvc "opspilot-go/internal/eval"
+	"opspilot-go/internal/ingestion"
 	"opspilot-go/internal/llm"
 	"opspilot-go/internal/observability/tracedetail"
 	"opspilot-go/internal/report"
@@ -102,9 +103,11 @@ func main() {
 		os.Exit(1)
 	}
 
+	ingestionPipeline := ingestion.NewPipeline(embedder, llmProvider, retrievalStore, ingestion.PipelineOptions{})
+
 	server := &http.Server{
 		Addr:              cfg.APIListenAddr,
-		Handler:           httpapi.NewHandlerWithDependencies(httpapi.Dependencies{Workflows: workflowService, Reports: reportService, Cases: caseService, EvalCases: evalCaseService, EvalDatasets: evalDatasetService, EvalRuns: evalRunService, EvalReports: evalReportService, Versions: versionService, Sessions: sessionService, Retrieval: retrievalStore, LLM: llmProvider, Registry: registry}),
+		Handler:           httpapi.NewHandlerWithDependencies(httpapi.Dependencies{Workflows: workflowService, Reports: reportService, Cases: caseService, EvalCases: evalCaseService, EvalDatasets: evalDatasetService, EvalRuns: evalRunService, EvalReports: evalReportService, Versions: versionService, Sessions: sessionService, Retrieval: retrievalStore, LLM: llmProvider, Ingestion: ingestionPipeline, Registry: registry}),
 		ReadHeaderTimeout: 5 * time.Second,
 	}
 

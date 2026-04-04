@@ -9,6 +9,7 @@ import (
 	appchat "opspilot-go/internal/app/chat"
 	casesvc "opspilot-go/internal/case"
 	evalsvc "opspilot-go/internal/eval"
+	ingestpkg "opspilot-go/internal/ingestion"
 	"opspilot-go/internal/llm"
 	"opspilot-go/internal/observability/tracedetail"
 	"opspilot-go/internal/report"
@@ -33,6 +34,7 @@ type appHandler struct {
 	versions       *version.Service
 	workflows      *workflow.Service
 	chat           *appchat.Service
+	ingestion      *ingestpkg.Pipeline
 }
 
 type createSessionRequest struct {
@@ -69,7 +71,7 @@ type errorResponse struct {
 	Message string `json:"message"`
 }
 
-func newAppHandler(workflowService *workflow.Service, reportService *report.Service, caseService *casesvc.Service, evalCaseService *evalsvc.Service, evalDatasetService *evalsvc.DatasetService, evalRunService *evalsvc.RunService, evalReportService *evalsvc.EvalReportService, versionService *version.Service, sessionService *session.Service, searchService retrieval.Searcher, llmProvider llm.Provider, registry *toolregistry.Registry) *appHandler {
+func newAppHandler(workflowService *workflow.Service, reportService *report.Service, caseService *casesvc.Service, evalCaseService *evalsvc.Service, evalDatasetService *evalsvc.DatasetService, evalRunService *evalsvc.RunService, evalReportService *evalsvc.EvalReportService, versionService *version.Service, sessionService *session.Service, searchService retrieval.Searcher, llmProvider llm.Provider, ingestionPipeline *ingestpkg.Pipeline, registry *toolregistry.Registry) *appHandler {
 	if sessionService == nil {
 		sessionService = session.NewService()
 	}
@@ -112,6 +114,7 @@ func newAppHandler(workflowService *workflow.Service, reportService *report.Serv
 		versions:       versionService,
 		workflows:      workflowService,
 		chat:           appchat.NewServiceWithLLM(sessionService, workflowService, registry, searchService, llmProvider),
+		ingestion:      ingestionPipeline,
 	}
 }
 
@@ -150,6 +153,7 @@ func (a *appHandler) registerRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("/api/v1/versions", a.handleVersions)
 	mux.HandleFunc("/api/v1/versions/", a.handleVersionByID)
 	mux.HandleFunc("/api/v1/chat/stream", a.handleChatStream)
+	mux.HandleFunc("/api/v1/documents", a.handleDocuments)
 }
 
 func (a *appHandler) handleAdminTaskBoardPage(w http.ResponseWriter, r *http.Request) {
