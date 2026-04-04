@@ -300,3 +300,79 @@ func findEvent(events []StreamEvent, name string) *StreamEvent {
 	}
 	return nil
 }
+
+func TestServiceHandleEvalModeSkipsToolExecutionAndWorkflowPromotion(t *testing.T) {
+	sessionService := session.NewService()
+	// Use default service (with tool registry) — keyword planner will create
+	// tool steps for ticket-related messages
+	svc := NewService(sessionService)
+
+	// "create a ticket" triggers incident_assist intent with tool steps
+	got, err := svc.Handle(context.Background(), ChatRequestEnvelope{
+		RequestID:   "req-eval-safety",
+		TraceID:     "trace-eval-safety",
+		TenantID:    "tenant-eval-safety",
+		UserID:      "user-eval-safety",
+		Mode:        "eval",
+		UserMessage: "create a ticket for the outage",
+		RequestedAt: time.Unix(1700000000, 0).UTC(),
+	})
+	if err != nil {
+		t.Fatalf("Handle() error = %v", err)
+	}
+
+	// Verify no tool events were emitted (tools skipped in eval mode)
+	for _, event := range got.Events {
+		if event.Name == "tool" {
+			t.Fatalf("tool event emitted in eval mode: %v — tools should be skipped", event.Data)
+		}
+	}
+
+	// Verify no task was promoted
+	if got.PromotedTask != nil {
+		t.Fatalf("PromotedTask = %v, want nil in eval mode", got.PromotedTask)
+	}
+
+	// Verify session was still created and assistant message recorded
+	if got.SessionID == "" {
+		t.Fatal("SessionID is empty — session should still be created in eval mode")
+	}
+
+	doneEvent := findEvent(got.Events, "done")
+	if doneEvent == nil {
+		t.Fatal("missing done event")
+	}
+	if doneEvent.Data["content"] == "" {
+		t.Fatal("done event content is empty — LLM response should still be generated")
+	}
+}
+
+func TestServiceHandleNormalModeAllowsToolExecution(t *testing.T) {
+	sessionService := session.NewService()
+	svc := NewService(sessionService)
+
+	got, err := svc.Handle(context.Background(), ChatRequestEnvelope{
+		RequestID:   "req-normal-tools",
+		TraceID:     "trace-normal-tools",
+		TenantID:    "tenant-normal-tools",
+		UserID:      "user-normal-tools",
+		Mode:        "chat",
+		UserMessage: "create a ticket for the outage",
+		RequestedAt: time.Unix(1700000000, 0).UTC(),
+	})
+	if err != nil {
+		t.Fatalf("Handle() error = %v", err)
+	}
+
+	// In normal mode, tool events should be emitted for ticket-related messages
+	hasToolEvent := false
+	for _, event := range got.Events {
+		if event.Name == "tool" {
+			hasToolEvent = true
+			break
+		}
+	}
+	if !hasToolEvent {
+		t.Fatal("no tool event emitted in normal mode — tools should execute")
+	}
+}
