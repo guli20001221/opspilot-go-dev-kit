@@ -547,27 +547,19 @@
     }
 
     function provenanceLabel(item) {
-      if (item.compare_origin && item.compare_origin.left_eval_report_id && item.compare_origin.right_eval_report_id) {
-        return "Compare-derived";
-      }
-      if (item.source_eval_run_id) {
-        return "Eval run-backed";
-      }
-      if (item.source_eval_case_id) {
-        return "Eval case-backed";
-      }
-      if (item.source_eval_report_id) {
-        return "Eval report-backed";
-      }
-      if (item.source_report_id && item.source_task_id) {
-        return "Task + report";
-      }
-      if (item.source_report_id) {
-        return "Report-backed";
-      }
-      if (item.source_task_id) {
-        return "Task-only";
-      }
+      const cmp=(item.preferred_compare_action||{}).mode;
+      const erup=(item.preferred_eval_run_provenance||{}).mode;
+      const ecp=(item.preferred_eval_case_provenance||{}).mode;
+      const erp=(item.preferred_eval_report_provenance||{}).mode;
+      const srp=(item.preferred_source_report_provenance||{}).mode;
+      const stp=(item.preferred_source_task_provenance||{}).mode;
+      if(cmp==="open") return "Compare-derived";
+      if(erup==="open") return "Eval run-backed";
+      if(ecp==="open") return "Eval case-backed";
+      if(erp==="open") return "Eval report-backed";
+      if(srp==="open"&&stp==="open") return "Task + report";
+      if(srp==="open") return "Report-backed";
+      if(stp==="open") return "Task-only";
       return "Manual";
     }
 
@@ -839,10 +831,6 @@
       copyCaseSummaryButton.disabled = false;
       copyCaseLinkButton.disabled = false;
       openCaseAPILink.hidden = false;
-      openEvalCaseAPILink.hidden = !item.source_eval_case_id;
-      openEvalRunLink.hidden = !item.source_eval_run_id;
-      openEvalRunAPILink.hidden = !item.source_eval_run_id;
-      openTraceDetailLink.hidden = false;
       openCaseAPILink.href = `${detailEndpointBase}${encodeURIComponent(item.case_id)}?tenant_id=${encodeURIComponent(item.tenant_id)}`;
         const ta=item.preferred_trace_detail_action||{};const stp=item.preferred_source_task_provenance||{};const srp=item.preferred_source_report_provenance||{};const erp=item.preferred_eval_report_provenance||{};const ecp=item.preferred_eval_case_provenance||{};const erup=item.preferred_eval_run_provenance||{};const cmp=item.preferred_compare_action||{};
         openTraceDetailLink.hidden=ta.mode!=="open";

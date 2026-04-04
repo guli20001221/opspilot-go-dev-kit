@@ -169,6 +169,16 @@ func TestCreateAndGetCaseEndpointWithEvalReportSource(t *testing.T) {
 	if got.SourceEvalReportID != evalReportID {
 		t.Fatalf("SourceEvalReportID = %q, want %q", got.SourceEvalReportID, evalReportID)
 	}
+	// Eval report provenance should be "open" for eval-report-backed cases
+	if got.PreferredEvalReportProvenance.Mode != "open" {
+		t.Fatalf("PreferredEvalReportProvenance.Mode = %q, want %q", got.PreferredEvalReportProvenance.Mode, "open")
+	}
+	if got.PreferredEvalReportProvenance.ReportID != evalReportID {
+		t.Fatalf("PreferredEvalReportProvenance.ReportID = %q, want %q", got.PreferredEvalReportProvenance.ReportID, evalReportID)
+	}
+	if got.PreferredSourceTaskProvenance.Mode != "none" {
+		t.Fatalf("PreferredSourceTaskProvenance.Mode = %q, want %q", got.PreferredSourceTaskProvenance.Mode, "none")
+	}
 }
 
 func TestCreateAndGetCaseEndpointWithEvalCaseSource(t *testing.T) {
