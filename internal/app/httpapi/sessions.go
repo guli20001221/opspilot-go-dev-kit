@@ -399,8 +399,6 @@ func (a *appHandler) handleChatStream(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Connection", "keep-alive")
 	w.WriteHeader(http.StatusOK)
 
-	headersSent := true
-
 	// OnToken callback: flush each LLM token as an SSE "token" event in real-time
 	onToken := func(token string) {
 		writeSSE(w, "token", map[string]string{"content": token})
@@ -420,13 +418,13 @@ func (a *appHandler) handleChatStream(w http.ResponseWriter, r *http.Request) {
 		OnToken:         onToken,
 	})
 	if err != nil {
-		if headersSent {
-			// Headers already sent, emit error as SSE event
-			writeSSE(w, "error", map[string]string{"message": "chat handle failed"})
-			flusher.Flush()
-			return
+		// Headers already sent (SSE mode), emit error as SSE event with code
+		errorCode := "chat_handle_failed"
+		if req.SessionID != "" {
+			errorCode = "session_not_found"
 		}
-		writeError(w, http.StatusInternalServerError, "chat_handle_failed", err.Error())
+		writeSSE(w, "error", map[string]string{"code": errorCode, "message": "chat handle failed"})
+		flusher.Flush()
 		return
 	}
 

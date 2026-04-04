@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"log/slog"
 	"net/http"
 	"strings"
 	"time"
@@ -245,6 +246,7 @@ func (p *OpenAIProvider) StreamComplete(ctx context.Context, req CompletionReque
 
 		var chunk streamChunk
 		if err := json.Unmarshal([]byte(data), &chunk); err != nil {
+			slog.Warn("stream chunk unmarshal failed", slog.Any("error", err))
 			continue
 		}
 		if respModel == "" && chunk.Model != "" {
@@ -258,6 +260,10 @@ func (p *OpenAIProvider) StreamComplete(ctx context.Context, req CompletionReque
 				}
 			}
 		}
+	}
+
+	if err := scanner.Err(); err != nil {
+		return CompletionResponse{}, fmt.Errorf("read stream: %w", err)
 	}
 
 	span.SetAttributes(tracing.AttrModel.String(respModel))
