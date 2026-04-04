@@ -3,13 +3,16 @@ package chat
 import (
 	"context"
 	"encoding/json"
+	"log/slog"
 	"regexp"
 	"strconv"
+	"strings"
 
 	agentcritic "opspilot-go/internal/agent/critic"
 	"opspilot-go/internal/agent/planner"
 	agenttool "opspilot-go/internal/agent/tool"
 	"opspilot-go/internal/contextengine"
+	"opspilot-go/internal/llm"
 	"opspilot-go/internal/retrieval"
 	"opspilot-go/internal/session"
 	toolregistry "opspilot-go/internal/tools/registry"
@@ -33,6 +36,7 @@ type Service struct {
 	tools     *agenttool.Service
 	registry  *toolregistry.Registry
 	workflows *workflow.Service
+	llm       llm.Provider
 }
 
 // NewService constructs a chat service with the required downstream dependencies.
@@ -53,6 +57,11 @@ func NewServiceWithRegistry(sessions SessionService, workflows *workflow.Service
 
 // NewServiceWithDependencies constructs a chat service with all optional dependencies.
 func NewServiceWithDependencies(sessions SessionService, workflows *workflow.Service, registry *toolregistry.Registry, searcher retrieval.Searcher) *Service {
+	return NewServiceWithLLM(sessions, workflows, registry, searcher, nil)
+}
+
+// NewServiceWithLLM constructs a chat service with an LLM provider for response generation.
+func NewServiceWithLLM(sessions SessionService, workflows *workflow.Service, registry *toolregistry.Registry, searcher retrieval.Searcher, provider llm.Provider) *Service {
 	if workflows == nil {
 		workflows = workflow.NewService()
 	}
@@ -72,6 +81,7 @@ func NewServiceWithDependencies(sessions SessionService, workflows *workflow.Ser
 		tools:     agenttool.NewService(registry),
 		registry:  registry,
 		workflows: workflows,
+		llm:       provider,
 	}
 }
 
@@ -176,11 +186,26 @@ func (s *Service) Handle(ctx context.Context, req ChatRequestEnvelope) (HandleRe
 		toolResults = append(toolResults, toolResult)
 	}
 
+	// Generate assistant response via LLM (or placeholder fallback)
+	assistantContent := PlaceholderAssistantResponse
+	if s.llm != nil {
+		completionReq := s.buildCompletionRequest(req, recentMessages, retrievalResult, toolResults)
+		resp, llmErr := s.llm.Complete(ctx, completionReq)
+		if llmErr != nil {
+			slog.Warn("llm completion failed, falling back to placeholder",
+				slog.String("request_id", req.RequestID),
+				slog.Any("error", llmErr),
+			)
+		} else if resp.Content != "" {
+			assistantContent = resp.Content
+		}
+	}
+
 	criticVerdict, err := s.critic.Review(ctx, agentcritic.CriticInput{
 		Plan:        plan,
 		Retrieval:   &retrievalResult,
 		ToolResults: toolResults,
-		DraftAnswer: PlaceholderAssistantResponse,
+		DraftAnswer: assistantContent,
 	})
 	if err != nil {
 		return HandleResult{}, err
@@ -225,7 +250,7 @@ func (s *Service) Handle(ctx context.Context, req ChatRequestEnvelope) (HandleRe
 	if _, err := s.sessions.AppendMessage(ctx, session.AppendMessageInput{
 		SessionID: sessionID,
 		Role:      session.RoleAssistant,
-		Content:   PlaceholderAssistantResponse,
+		Content:   assistantContent,
 	}); err != nil {
 		return HandleResult{}, err
 	}
@@ -238,7 +263,7 @@ func (s *Service) Handle(ctx context.Context, req ChatRequestEnvelope) (HandleRe
 		ToolResults:  toolResults,
 		Critic:       criticVerdict,
 		PromotedTask: promotedTask,
-		Events:       buildEvents(req, sessionID, plan, retrievalResult, toolResults, promotedTask),
+		Events:       buildEvents(req, sessionID, plan, retrievalResult, toolResults, promotedTask, assistantContent),
 	}, nil
 }
 
@@ -305,6 +330,43 @@ func actionClassForStep(step planner.PlanStep) string {
 	return agenttool.ActionClassWrite
 }
 
+const chatSystemPrompt = `You are OpsPilot, an enterprise operations assistant. Answer the user's question based on the provided context. If retrieval evidence is available, cite it. If tool results are available, incorporate them. Be concise and accurate. If you don't have enough information to answer, say so clearly.`
+
+func (s *Service) buildCompletionRequest(
+	req ChatRequestEnvelope,
+	recentMessages []session.Message,
+	retrievalResult retrieval.RetrievalResult,
+	toolResults []agenttool.ToolResult,
+) llm.CompletionRequest {
+	var systemParts []string
+	systemParts = append(systemParts, chatSystemPrompt)
+
+	if len(retrievalResult.EvidenceBlocks) > 0 {
+		systemParts = append(systemParts, "\n\nRetrieved evidence:")
+		for _, block := range retrievalResult.EvidenceBlocks {
+			systemParts = append(systemParts, "\n"+block.CitationLabel+" "+block.SourceTitle+": "+block.Snippet)
+		}
+	}
+
+	if len(toolResults) > 0 {
+		systemParts = append(systemParts, "\n\nTool results:")
+		for _, tr := range toolResults {
+			systemParts = append(systemParts, "\n"+tr.ToolName+": "+tr.OutputSummary)
+		}
+	}
+
+	messages := make([]llm.Message, 0, len(recentMessages))
+	for _, msg := range recentMessages {
+		messages = append(messages, llm.Message{Role: msg.Role, Content: msg.Content})
+	}
+
+	return llm.CompletionRequest{
+		SystemPrompt: strings.Join(systemParts, ""),
+		Messages:     messages,
+		MaxTokens:    1024,
+	}
+}
+
 func buildEvents(
 	req ChatRequestEnvelope,
 	sessionID string,
@@ -312,6 +374,7 @@ func buildEvents(
 	retrievalResult retrieval.RetrievalResult,
 	toolResults []agenttool.ToolResult,
 	promotedTask *workflow.Task,
+	assistantContent string,
 ) []StreamEvent {
 	events := []StreamEvent{
 		{
@@ -376,7 +439,7 @@ func buildEvents(
 			Name: "done",
 			Data: map[string]string{
 				"session_id": sessionID,
-				"content":    PlaceholderAssistantResponse,
+				"content":    assistantContent,
 			},
 		},
 	)

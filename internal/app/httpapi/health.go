@@ -6,6 +6,7 @@ import (
 
 	casesvc "opspilot-go/internal/case"
 	evalsvc "opspilot-go/internal/eval"
+	"opspilot-go/internal/llm"
 	"opspilot-go/internal/report"
 	"opspilot-go/internal/retrieval"
 	"opspilot-go/internal/session"
@@ -30,6 +31,7 @@ type Dependencies struct {
 	Versions     *version.Service
 	Sessions     *session.Service
 	Retrieval    retrieval.Searcher
+	LLM          llm.Provider
 	Registry     *toolregistry.Registry
 }
 
@@ -41,7 +43,7 @@ func NewHandler() http.Handler {
 // NewHandlerWithDependencies constructs the HTTP handler tree with injected services.
 func NewHandlerWithDependencies(deps Dependencies) http.Handler {
 	mux := http.NewServeMux()
-	app := newAppHandler(deps.Workflows, deps.Reports, deps.Cases, deps.EvalCases, deps.EvalDatasets, deps.EvalRuns, deps.EvalReports, deps.Versions, deps.Sessions, deps.Retrieval, deps.Registry)
+	app := newAppHandler(deps.Workflows, deps.Reports, deps.Cases, deps.EvalCases, deps.EvalDatasets, deps.EvalRuns, deps.EvalReports, deps.Versions, deps.Sessions, deps.Retrieval, deps.LLM, deps.Registry)
 	mux.HandleFunc("/healthz", writeStatus("ok"))
 	mux.HandleFunc("/readyz", writeStatus("ready"))
 	app.registerRoutes(mux)
