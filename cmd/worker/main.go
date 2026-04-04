@@ -11,8 +11,11 @@ import (
 	agenttool "opspilot-go/internal/agent/tool"
 	"opspilot-go/internal/app/config"
 	"opspilot-go/internal/app/logging"
+	"opspilot-go/internal/contextengine"
 	"opspilot-go/internal/eval"
 	"opspilot-go/internal/report"
+	"opspilot-go/internal/retrieval"
+	"opspilot-go/internal/session"
 	storagepostgres "opspilot-go/internal/storage/postgres"
 	toolregistry "opspilot-go/internal/tools/registry"
 	"opspilot-go/internal/version"
@@ -41,6 +44,9 @@ func main() {
 	}
 	defer pool.Close()
 
+	sessionService := session.NewServiceWithStore(storagepostgres.NewSessionStore(pool))
+	contextEngine := contextengine.NewService(contextengine.Config{})
+	retrievalService := retrieval.NewService(nil)
 	versionService := version.NewServiceWithStore(storagepostgres.NewVersionStore(pool))
 	service := workflow.NewServiceWithDependencies(storagepostgres.NewWorkflowTaskStore(pool), nil, versionService)
 	reportService := report.NewServiceWithDependencies(storagepostgres.NewReportStore(pool), versionService)
@@ -79,7 +85,8 @@ func main() {
 		}
 		defer temporalClient.Close()
 
-		reportRunner := workflow.NewTemporalReportRunner(temporalClient, cfg.TemporalTaskQueue)
+		reportActivities := workflow.NewReportActivities(sessionService, contextEngine, retrievalService)
+		reportRunner := workflow.NewTemporalReportRunnerWithActivities(temporalClient, cfg.TemporalTaskQueue, reportActivities)
 		activities := workflow.NewApprovedToolActivities(tools)
 		activities.FailOnApprove = cfg.ApprovedToolFailOnApprove
 		approvedToolRunner := workflow.NewTemporalApprovedToolRunnerWithActivities(temporalClient, cfg.TemporalTaskQueue, activities)
