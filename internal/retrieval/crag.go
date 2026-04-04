@@ -63,8 +63,9 @@ func (c *CRAGFilter) Filter(ctx context.Context, query string, blocks []Evidence
 	}
 
 	type evaluated struct {
-		block   EvidenceBlock
-		verdict RelevanceVerdict
+		block    EvidenceBlock
+		verdict  RelevanceVerdict
+		llmError bool
 	}
 
 	results := make([]evaluated, len(blocks))
@@ -90,9 +91,9 @@ func (c *CRAGFilter) Filter(ctx context.Context, query string, blocks []Evidence
 			callCtx, cancel := context.WithTimeout(ctx, cragPerCallTimeout)
 			defer cancel()
 
-			verdict := c.classify(callCtx, query, b.Snippet)
+			verdict, classifyErr := c.classifyWithError(callCtx, query, b.Snippet)
 			mu.Lock()
-			results[idx] = evaluated{block: b, verdict: verdict}
+			results[idx] = evaluated{block: b, verdict: verdict, llmError: classifyErr != nil}
 			mu.Unlock()
 		}(i, block)
 	}
@@ -103,6 +104,9 @@ func (c *CRAGFilter) Filter(ctx context.Context, query string, blocks []Evidence
 
 	var filtered []EvidenceBlock
 	for _, r := range results {
+		if r.llmError {
+			stats.Errors++
+		}
 		switch r.verdict {
 		case VerdictRelevant:
 			stats.Relevant++
@@ -123,7 +127,7 @@ func (c *CRAGFilter) Filter(ctx context.Context, query string, blocks []Evidence
 	return filtered, stats
 }
 
-func (c *CRAGFilter) classify(ctx context.Context, query, snippet string) RelevanceVerdict {
+func (c *CRAGFilter) classifyWithError(ctx context.Context, query, snippet string) (RelevanceVerdict, error) {
 	resp, err := c.provider.Complete(ctx, llm.CompletionRequest{
 		SystemPrompt: cragSystemPrompt,
 		Messages: []llm.Message{
@@ -139,19 +143,29 @@ func (c *CRAGFilter) classify(ctx context.Context, query, snippet string) Releva
 		slog.Warn("crag classification failed, defaulting to ambiguous",
 			slog.Any("error", err),
 		)
-		return VerdictAmbiguous
+		return VerdictAmbiguous, err
 	}
 
-	return parseVerdict(resp.Content)
+	return parseVerdict(resp.Content), nil
 }
 
 func parseVerdict(content string) RelevanceVerdict {
 	lower := strings.ToLower(strings.TrimSpace(content))
-	switch {
-	case strings.Contains(lower, "relevant") && !strings.Contains(lower, "irrelevant"):
+	// Exact match first (most reliable)
+	switch lower {
+	case "relevant":
 		return VerdictRelevant
-	case strings.Contains(lower, "irrelevant"):
+	case "irrelevant":
 		return VerdictIrrelevant
+	case "ambiguous":
+		return VerdictAmbiguous
+	}
+	// Fallback: contains-based matching with negation awareness
+	switch {
+	case strings.Contains(lower, "irrelevant") || strings.Contains(lower, "not relevant"):
+		return VerdictIrrelevant
+	case strings.Contains(lower, "relevant"):
+		return VerdictRelevant
 	case strings.Contains(lower, "ambiguous"):
 		return VerdictAmbiguous
 	default:
@@ -165,4 +179,5 @@ type CRAGStats struct {
 	Relevant   int
 	Ambiguous  int
 	Irrelevant int
+	Errors     int // LLM call failures (counted within Ambiguous)
 }
