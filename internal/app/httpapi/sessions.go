@@ -393,6 +393,20 @@ func (a *appHandler) handleChatStream(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Set SSE headers before calling Handle so streaming tokens can flush immediately
+	w.Header().Set("Content-Type", "text/event-stream")
+	w.Header().Set("Cache-Control", "no-cache")
+	w.Header().Set("Connection", "keep-alive")
+	w.WriteHeader(http.StatusOK)
+
+	headersSent := true
+
+	// OnToken callback: flush each LLM token as an SSE "token" event in real-time
+	onToken := func(token string) {
+		writeSSE(w, "token", map[string]string{"content": token})
+		flusher.Flush()
+	}
+
 	result, err := a.chat.Handle(r.Context(), appchat.ChatRequestEnvelope{
 		RequestID:       requestIDFromRequest(r),
 		TraceID:         traceIDFromRequest(r),
@@ -403,21 +417,18 @@ func (a *appHandler) handleChatStream(w http.ResponseWriter, r *http.Request) {
 		UserMessage:     req.UserMessage,
 		AttachmentRefs:  req.AttachmentRefs,
 		ClientRequestID: req.ClientRequestID,
+		OnToken:         onToken,
 	})
 	if err != nil {
-		if req.SessionID != "" {
-			writeError(w, http.StatusNotFound, "session_not_found", "session not found")
+		if headersSent {
+			// Headers already sent, emit error as SSE event
+			writeSSE(w, "error", map[string]string{"message": "chat handle failed"})
+			flusher.Flush()
 			return
 		}
-
 		writeError(w, http.StatusInternalServerError, "chat_handle_failed", err.Error())
 		return
 	}
-
-	w.Header().Set("Content-Type", "text/event-stream")
-	w.Header().Set("Cache-Control", "no-cache")
-	w.Header().Set("Connection", "keep-alive")
-	w.WriteHeader(http.StatusOK)
 
 	for _, event := range result.Events {
 		writeSSE(w, event.Name, event.Data)

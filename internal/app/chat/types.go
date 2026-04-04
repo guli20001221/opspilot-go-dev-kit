@@ -26,6 +26,7 @@ type ChatRequestEnvelope struct {
 	AttachmentRefs  []string
 	ClientRequestID string
 	RequestedAt     time.Time
+	OnToken         func(token string) // optional: called per-token during streaming LLM generation
 }
 
 // StreamEvent represents one server-sent event payload produced by the chat application service.
