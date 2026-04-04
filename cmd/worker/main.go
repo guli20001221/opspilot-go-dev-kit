@@ -46,7 +46,18 @@ func main() {
 
 	sessionService := session.NewServiceWithStore(storagepostgres.NewSessionStore(pool))
 	contextEngine := contextengine.NewService(contextengine.Config{})
-	retrievalStore := storagepostgres.NewRetrievalChunkStore(pool, &retrieval.PlaceholderEmbedder{})
+	embedder, err := retrieval.NewConfiguredEmbedder(retrieval.EmbedderOptions{
+		Provider: cfg.EmbeddingProvider,
+		BaseURL:  cfg.EmbeddingBaseURL,
+		APIKey:   cfg.EmbeddingAPIKey,
+		Model:    cfg.EmbeddingModel,
+		Timeout:  cfg.EmbeddingTimeout,
+	})
+	if err != nil {
+		logger.Error("configure embedder", slog.Any("error", err))
+		os.Exit(1)
+	}
+	retrievalStore := storagepostgres.NewRetrievalChunkStore(pool, embedder)
 	versionService := version.NewServiceWithStore(storagepostgres.NewVersionStore(pool))
 	service := workflow.NewServiceWithDependencies(storagepostgres.NewWorkflowTaskStore(pool), nil, versionService)
 	reportService := report.NewServiceWithDependencies(storagepostgres.NewReportStore(pool), versionService)

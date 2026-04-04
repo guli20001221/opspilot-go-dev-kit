@@ -16,8 +16,8 @@ func TestPlaceholderEmbedderDeterministic(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Embed() error = %v", err)
 	}
-	if len(v1) != EmbeddingDimension {
-		t.Fatalf("len(v1) = %d, want %d", len(v1), EmbeddingDimension)
+	if len(v1) != DefaultEmbeddingDimension {
+		t.Fatalf("len(v1) = %d, want %d", len(v1), DefaultEmbeddingDimension)
 	}
 	for i := range v1 {
 		if v1[i] != v2[i] {

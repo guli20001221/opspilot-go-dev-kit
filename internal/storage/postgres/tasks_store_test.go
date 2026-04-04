@@ -996,6 +996,7 @@ func applyMigration(t *testing.T, ctx context.Context, pool *pgxpool.Pool) {
 		"000025_case_eval_run_backfill.sql",
 		"000026_sessions.sql",
 		"000027_retrieval_chunks.sql",
+		"000028_retrieval_chunks_dim4096.sql",
 	} {
 		path := filepath.Join("..", "..", "..", "db", "migrations", name)
 		sql, err := os.ReadFile(path)

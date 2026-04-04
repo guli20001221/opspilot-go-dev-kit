@@ -24,6 +24,8 @@ const (
 	defaultWorkerShutdownTimeout     = 10 * time.Second
 	defaultLLMProvider               = "placeholder"
 	defaultLLMTimeout                = 30 * time.Second
+	defaultEmbeddingProvider         = "placeholder"
+	defaultEmbeddingTimeout          = 15 * time.Second
 )
 
 // Config holds the minimum process configuration required by the foundation slice.
@@ -52,6 +54,11 @@ type Config struct {
 	LLMAPIKey                 string
 	LLMModel                  string
 	LLMTimeout                time.Duration
+	EmbeddingProvider         string
+	EmbeddingBaseURL          string
+	EmbeddingAPIKey           string
+	EmbeddingModel            string
+	EmbeddingTimeout          time.Duration
 }
 
 // Load reads process configuration from environment variables and applies safe defaults.
@@ -81,6 +88,11 @@ func Load() (Config, error) {
 		LLMAPIKey:                 getEnv("OPSPILOT_LLM_API_KEY", ""),
 		LLMModel:                  getEnv("OPSPILOT_LLM_MODEL", ""),
 		LLMTimeout:                defaultLLMTimeout,
+		EmbeddingProvider:         getEnv("OPSPILOT_EMBEDDING_PROVIDER", defaultEmbeddingProvider),
+		EmbeddingBaseURL:          getEnv("OPSPILOT_EMBEDDING_BASE_URL", ""),
+		EmbeddingAPIKey:           getEnv("OPSPILOT_EMBEDDING_API_KEY", ""),
+		EmbeddingModel:            getEnv("OPSPILOT_EMBEDDING_MODEL", ""),
+		EmbeddingTimeout:          defaultEmbeddingTimeout,
 	}
 
 	if raw := os.Getenv("OPSPILOT_TEMPORAL_ENABLED"); raw != "" {
@@ -148,6 +160,13 @@ func Load() (Config, error) {
 	}
 	if cfg.EvalJudgeTimeout <= 0 {
 		return Config{}, fmt.Errorf("OPSPILOT_EVAL_JUDGE_TIMEOUT must be positive")
+	}
+	if raw := os.Getenv("OPSPILOT_EMBEDDING_TIMEOUT"); raw != "" {
+		timeout, err := time.ParseDuration(raw)
+		if err != nil {
+			return Config{}, fmt.Errorf("parse OPSPILOT_EMBEDDING_TIMEOUT: %w", err)
+		}
+		cfg.EmbeddingTimeout = timeout
 	}
 	if raw := os.Getenv("OPSPILOT_LLM_TIMEOUT"); raw != "" {
 		timeout, err := time.ParseDuration(raw)
