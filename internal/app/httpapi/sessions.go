@@ -423,7 +423,7 @@ func (a *appHandler) handleChatStream(w http.ResponseWriter, r *http.Request) {
 		UserMessage:     req.UserMessage,
 		AttachmentRefs:  req.AttachmentRefs,
 		ClientRequestID: req.ClientRequestID,
-		TenantPolicy:    a.policyLoader.LoadPolicy(r.Context(), req.TenantID),
+		TenantPolicy:    a.policyLoader.LoadPolicy(r.Context(), planner.PolicyScope{TenantID: req.TenantID, UserID: req.UserID}),
 		OnToken:         onToken,
 	})
 	if err != nil {

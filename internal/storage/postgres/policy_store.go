@@ -29,12 +29,18 @@ func NewPolicyStore(pool *pgxpool.Pool) *PolicyStore {
 	return &PolicyStore{pool: pool}
 }
 
-// LoadScopedPolicies loads all policy rows for a tenant, keyed by scope level.
-func (s *PolicyStore) LoadScopedPolicies(ctx context.Context, tenantID string) (map[string]planner.TenantPolicy, error) {
+// LoadScopedPolicies loads matching policy rows for the given scope, keyed by scope level.
+// Filters by (tenant_id, scope_level, scope_id) to return at most one row per level.
+func (s *PolicyStore) LoadScopedPolicies(ctx context.Context, scope planner.PolicyScope) (map[string]planner.TenantPolicy, error) {
 	const query = `
 SELECT scope_level, policy_json
 FROM tool_policies
 WHERE tenant_id = $1
+  AND (
+    (scope_level = 'org' AND scope_id = $2)
+    OR (scope_level = 'tenant' AND scope_id = $1)
+    OR (scope_level = 'user' AND scope_id = $3)
+  )
 ORDER BY CASE scope_level
     WHEN 'org' THEN 1
     WHEN 'tenant' THEN 2
@@ -42,7 +48,12 @@ ORDER BY CASE scope_level
     ELSE 4
 END`
 
-	rows, err := s.pool.Query(ctx, query, tenantID)
+	orgID := scope.OrgID
+	if orgID == "" {
+		orgID = scope.TenantID // fallback: treat tenant as org when orgID not set
+	}
+
+	rows, err := s.pool.Query(ctx, query, scope.TenantID, orgID, scope.UserID)
 	if err != nil {
 		return nil, fmt.Errorf("query tool_policies: %w", err)
 	}
@@ -58,7 +69,7 @@ END`
 		if err != nil {
 			slog.Warn("skipping malformed policy row",
 				slog.String("scope_level", row.ScopeLevel),
-				slog.String("tenant_id", tenantID),
+				slog.String("tenant_id", scope.TenantID),
 				slog.Any("error", err),
 			)
 			continue
@@ -84,9 +95,10 @@ func parsePolicyJSON(raw json.RawMessage) (planner.TenantPolicy, error) {
 	policy := planner.TenantPolicy{Configured: true}
 	if parsed.AllowToolUse != nil {
 		policy.AllowToolUse = *parsed.AllowToolUse
-	} else {
-		policy.AllowToolUse = true // default: tools allowed unless explicitly disabled
 	}
+	// When allow_tool_use is absent from JSON, AllowToolUse stays false (zero value).
+	// Only explicit "allow_tool_use": true enables tools. This prevents an empty
+	// policy row from accidentally overriding a parent-level tool restriction.
 	policy.AllowedTools = parsed.AllowedTools
 	policy.ForbiddenTools = parsed.ForbiddenTools
 	policy.MaxSteps = parsed.MaxSteps
@@ -123,25 +135,43 @@ func NewHierarchicalPolicyLoader(store *PolicyStore, cacheTTL time.Duration) *Hi
 }
 
 // LoadPolicy implements planner.PolicyLoader with hierarchical merge and caching.
-func (l *HierarchicalPolicyLoader) LoadPolicy(ctx context.Context, tenantID string) planner.TenantPolicy {
+// Cache is keyed by (tenantID:userID) for per-user isolation.
+func (l *HierarchicalPolicyLoader) LoadPolicy(ctx context.Context, scope planner.PolicyScope) planner.TenantPolicy {
+	cacheKey := scope.TenantID + ":" + scope.UserID
+
 	// Check cache first
 	if l.cacheTTL > 0 {
 		l.mu.RLock()
-		if cached, ok := l.cache[tenantID]; ok && time.Now().Before(cached.expiresAt) {
-			l.mu.RUnlock()
+		cached, hasCached := l.cache[cacheKey]
+		l.mu.RUnlock()
+		if hasCached && time.Now().Before(cached.expiresAt) {
 			return cached.policy
 		}
-		l.mu.RUnlock()
+		// Keep stale entry reference for fail-stale fallback below
+		_ = cached
 	}
 
 	// Load from database
-	scoped, err := l.store.LoadScopedPolicies(ctx, tenantID)
+	scoped, err := l.store.LoadScopedPolicies(ctx, scope)
 	if err != nil {
-		slog.Warn("failed to load tenant policies, using permissive defaults",
-			slog.String("tenant_id", tenantID),
+		slog.Warn("failed to load tenant policies",
+			slog.String("tenant_id", scope.TenantID),
+			slog.String("user_id", scope.UserID),
 			slog.Any("error", err),
 		)
-		return planner.TenantPolicy{}
+		// Fail-stale: return expired cached policy rather than permissive defaults.
+		// This prevents a DB outage from silently removing all restrictions.
+		l.mu.RLock()
+		if stale, ok := l.cache[cacheKey]; ok {
+			l.mu.RUnlock()
+			slog.Info("serving stale cached policy due to DB error",
+				slog.String("tenant_id", scope.TenantID),
+			)
+			return stale.policy
+		}
+		l.mu.RUnlock()
+		// No cache entry at all — fail-closed: deny all tools
+		return planner.TenantPolicy{Configured: true, AllowToolUse: false}
 	}
 
 	// Merge: org → tenant → user
@@ -154,7 +184,7 @@ func (l *HierarchicalPolicyLoader) LoadPolicy(ctx context.Context, tenantID stri
 	// Update cache
 	if l.cacheTTL > 0 {
 		l.mu.Lock()
-		l.cache[tenantID] = cachedPolicy{
+		l.cache[cacheKey] = cachedPolicy{
 			policy:    merged,
 			expiresAt: time.Now().Add(l.cacheTTL),
 		}

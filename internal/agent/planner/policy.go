@@ -1,5 +1,7 @@
 package planner
 
+import "sort"
+
 // ScopeLevel identifies the hierarchy level of a tool policy.
 const (
 	ScopeLevelOrg    = "org"
@@ -65,5 +67,6 @@ func unionStrings(a, b []string) []string {
 	for s := range seen {
 		out = append(out, s)
 	}
+	sort.Strings(out)
 	return out
 }
