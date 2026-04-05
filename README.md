@@ -1,276 +1,166 @@
-# OpsPilot-Go AI development kit
+# OpsPilot-Go
 
-This package contains the repository-level AI instructions for building OpsPilot-Go with Codex and Claude Code.
+A production-grade Go multi-agent platform for enterprise knowledge, ticket, and workflow orchestration. Built with cutting-edge RAG techniques, LLM-backed agent planning with dynamic replanning, hierarchical tenant policy governance, and evaluation-driven development.
 
-Included:
-- final `AGENTS.md`
-- `CLAUDE.md` wrapper
-- `docs/document-governance.md` for source-of-truth order and conflict handling
-- 12 Claude-native skills under `.claude/skills/`
-- recommended local `AGENTS.override.md` files for key subsystems
-- support READMEs for agents, hooks, ADRs, and runbooks
-- a complete recommended repository tree
+## Architecture Overview
 
-Use this package as the governance and playbook layer for your main application repository.
+```
+                         ┌─────────────────────────────────────────┐
+                         │              HTTP API (SSE)             │
+                         │   sessions · documents · cases · evals  │
+                         └────────────────┬────────────────────────┘
+                                          │
+                    ┌─────────────────────┼─────────────────────┐
+                    │                     │                     │
+              ┌─────▼─────┐       ┌──────▼──────┐      ┌──────▼──────┐
+              │  Context   │       │   Planner   │      │  PolicyLoader│
+              │  Engine    │       │  (LLM/KW)   │      │ (org→tenant →│
+              │            │       │             │      │    user)    │
+              └─────┬──────┘       └──────┬──────┘      └─────────────┘
+                    │                     │
+         ┌──────────┼──────────┬──────────┼──────────┐
+         │          │          │          │          │
+    ┌────▼───┐ ┌───▼────┐ ┌───▼───┐ ┌───▼────┐ ┌───▼────┐
+    │Retrieval│ │  Tool  │ │Critic │ │Workflow│ │ Replan │
+    │Pipeline │ │ Agent  │ │(LLM)  │ │Promote │ │(LLM)   │
+    └────┬────┘ └───┬────┘ └───────┘ └────────┘ └────────┘
+         │          │
+    ┌────▼──────────▼────┐
+    │   PostgreSQL +     │
+    │   pgvector         │
+    └────────────────────┘
+```
 
-Current foundation slice:
-- `go.mod` with the initial Go module bootstrap
-- `cmd/api` serving `/healthz` and `/readyz`
-- `cmd/worker` process bootstrap and graceful shutdown wiring
-- `cmd/ticketapi` for a dev-only fake ticket API used by the local compose stack
-- shared config and `slog` logging packages under `internal/app`
-- a first SQL migration scaffold under `db/migrations`
-- `compose.yaml` for local PostgreSQL, Redis, Temporal, API, and worker bootstrapping
-- the local compose stack now also includes a fake ticket API so the configurable HTTP ticket adapters can be exercised end-to-end without an external system
-- the local compose stack now builds dedicated runtime images for `api`, `worker`, and `ticket-api`, so container start no longer depends on runtime `go run` downloads
-- API container published on host port `18080` to avoid common local `8080` conflicts
-- `Makefile` targets for `fmt`, `test`, `build`, and `check`
-- `scripts/dev/tasks.ps1` as the verified PowerShell fallback when `make` is unavailable
-- local bootstrap instructions in `docs/runbooks/local-bootstrap.md`
-- static OpenAPI contract under `docs/openapi/openapi.yaml`
+## Key Features
 
-Current Milestone 1 slice:
-- in-memory session and message persistence under `internal/session`
-- typed chat application service under `internal/app/chat`
-- `internal/app/admin/taskboard` as the first admin-facing task board read model, with visible-slice status and reason summaries for future `web/admin` task views
-- `web/admin` now ships the first embedded operator task board page, served by the API at `/admin/task-board`
-- the embedded admin task board page now supports in-page single-task drill-down using the existing `GET /api/v1/tasks/{task_id}` detail contract
-- the same page now exposes `approve` and `retry` controls in the detail panel by reusing the existing task action endpoints instead of adding admin-only mutation APIs
-- the same detail panel now derives a Temporal workflow history deep link from `audit_ref` when the task is running on a Temporal-backed execution path
-- the board now offers an optional 5-second auto-refresh mode so operators can watch task transitions without manually reloading the page
-- `web/admin` now also ships a first embedded report lane at `/admin/reports`, with the list sourced from the canonical durable report contract and task detail reused only for execution provenance
-- `web/admin` now also ships `/admin/version-detail`, backed by the durable runtime version registry so operators can inspect the runtime bundle that produced a task, report, or trace drill-down
-- the board now also offers quick-view presets for common operator slices such as `Needs approval`, `Failed`, and `Running`
-- the same quick-view strip now also supports `Queued`, which reuses the existing `status` filter for pending-work triage
-- the same quick-view strip now also supports `Succeeded`, which reuses the existing `status` filter for terminal success triage
-- the same quick-view strip now also supports `Workflow required` and `Approval required`, both of which reuse the existing `reason` filter for routing-level triage
-- the same quick-view strip now also supports `No approval`, which reuses the existing `requires_approval=false` filter for autonomous-lane triage
-- the same quick-view strip now also supports `Failed approvals`, which reuses the existing `status=failed` and `requires_approval=true` filters for approval-lane failure triage
-- the same quick-view strip now also supports `Succeeded reports`, which reuses the existing `status=succeeded` and `task_type=report_generation` filters for report-output triage
-- the same quick-view strip now also supports `Report tasks` and `Approved tools`, both of which reuse the existing `task_type` filter and URL state
-- the task detail panel now includes a raw JSON view and copy action for direct operator troubleshooting without leaving the page
-- the same task detail panel now supports handoff actions: copy the current task-board URL and open the underlying task API detail in a new tab
-- the same task detail panel now supports `Copy audit summary` for a compact, paste-ready task timeline handoff
-- the same detail panel now supports visible-slice task navigation plus digest cards for execution summary and timeline state, so operators can triage adjacent tasks without bouncing back to the table
-- the same detail panel now supports `Focus same lane`, which reapplies the board filters to the selected task's tenant, task type, reason, and approval lane without adding any new backend contract
-- the same detail panel now also supports `Focus same queue`, which narrows the board to the selected task state plus approval mode using the existing `status` and `requires_approval` filters
-- the same detail panel now also supports `Focus same task type`, which narrows the board to the selected task type using the existing `task_type` filter and URL state
-- the same detail panel now also supports `Focus approval lane`, which narrows the board to approval-gated or non-approval work using the existing `requires_approval` filter and URL state
-- the same detail panel now also supports `Focus same reason`, which narrows the board to the selected task reason using the existing `reason` filter and URL state
-- the board now keeps the selected task row visually highlighted and syncs that highlight as detail navigation moves across the current slice, so operators do not lose table context while drilling down
-- the same detail panel now supports `Focus same status`, which narrows the board to the selected task status using the existing `status` filter and URL state
-- deterministic context assembly under `internal/contextengine`
-- deterministic typed planning under `internal/agent/planner`
-- deterministic typed retrieval under `internal/retrieval`
-- deterministic typed tool execution under `internal/agent/tool`, `internal/tools/registry`, and `internal/tools/http`
-- deterministic typed critic review under `internal/agent/critic`
-- PostgreSQL-backed async promotion records under `internal/workflow` for the API runtime
-- worker-side task progression from `queued` to `running/succeeded/failed`, with `report_generation` bridged through Temporal workflow execution
-- successful `report_generation` tasks now also persist a durable report read model, separate from task status, under `internal/report`
-- `internal/case` now holds the first durable operator case read model, linking follow-up work back to source tasks and reports through stable IDs
-- `GET /api/v1/cases` now exposes the first operator-facing case list with tenant, status, and source-link filters plus offset pagination
-- the same case list now supports `assigned_to` and `unassigned_only` filtering, which powers operator queue views such as `My open cases` and `Unassigned`
-- approval-gated `approved_tool_execution` tasks now start a waiting Temporal workflow at promote time, fail the current Temporal run on execution error, and use retry to start a new failed-only Temporal run for the same task
-- `POST /api/v1/sessions` for session creation
-- `GET /api/v1/sessions/{session_id}/messages` for message listing
-- `POST /api/v1/tasks` for PostgreSQL-backed task creation
-- `GET /api/v1/tasks` for operator-facing task listing with `tenant_id`, `status`, `task_type`, `reason`, `requires_approval`, `created_after`, `created_before`, `updated_after`, `updated_before`, `limit`, and `offset` filters
-- `GET /api/v1/tasks/{task_id}` for persisted task status lookup
-- `POST /api/v1/tasks/{task_id}/approve` and `POST /api/v1/tasks/{task_id}/retry` for minimal task actions
-- `GET /api/v1/admin/task-board` for the first backend task-board read model that returns items, page metadata, and visible-slice summary counts for future `web/admin` task views
-- `GET /admin/task-board` for the first embedded operator page consuming the backend task-board read model
-- the admin page keeps the board summary lightweight while letting operators inspect per-task audit history, navigate adjacent visible tasks, and trigger existing task actions from one detail panel
-- Temporal-backed tasks now expose a direct workflow-history deep link in that same detail panel, so operators can jump from the board into Temporal UI without a second lookup step
-- the same page can now poll the existing board and task-detail endpoints every 5 seconds when the operator enables auto-refresh
-- `GET /admin/reports` for the first report-focused operator page, fixed to the durable `ready + workflow_summary` report lane while still reusing task detail for execution provenance
-- the same reports page now supports visible-slice navigation, so operators can step through neighboring successful reports without returning to the task board
-- the same reports page now also supports optional 5-second auto-refresh against the existing admin read model, so operators can watch new successful reports arrive without manual reload
-- the same reports page now supports `Copy report summary` and `Copy report link`, both derived directly from the existing single-task detail response so report handoff stays contract-first
-- the same reports page now reads durable report metadata from `GET /api/v1/reports/{report_id}` while still using task detail for audit timeline and Temporal provenance
-- the same reports page can now reveal and copy the raw durable report JSON from `GET /api/v1/reports/{report_id}`, so operators can compare the report artifact directly with task provenance
-- the same reports page now degrades gracefully when a legacy successful report task has no durable report row yet, showing task provenance fallback instead of a broken detail pane
-- `GET /api/v1/reports` now exposes the durable report list contract with tenant, status, report-type, source-task, limit, and offset filters
-- `GET /api/v1/reports/{report_id}` now exposes the durable report read model emitted by a successful `report_generation` task
-- `GET /api/v1/versions` and `GET /api/v1/versions/{version_id}` now expose the durable runtime version registry used for reproducibility and runtime drill-down
-- `GET /api/v1/report-compare` now exposes a read-only durable report comparison contract for left/right report IDs
-- `GET /admin/report-compare` now exposes the first report-comparison operator page, reusing durable report IDs instead of diffing artifacts ad hoc in the browser
-- `GET /api/v1/trace-drilldown` now exposes a narrow lineage-and-provenance contract over one durable task, report, or case
-- `GET /admin/trace-detail` now exposes a shared trace drill-down page, and the task/report/case/compare pages now hand off into it instead of each page inventing its own trace view
-- the reports, report-compare, and trace-detail pages now also hand off into `/admin/version-detail`, and task/report/trace contracts now carry `version_id` so reproducibility navigation does not depend on frontend-only inference
-- `POST /api/v1/cases` and `GET /api/v1/cases/{case_id}` now expose a durable operator case contract for task/report follow-up
-- `POST /api/v1/cases/{case_id}/close` now lets operators close a durable case while recording `closed_by`
-- `POST /api/v1/cases/{case_id}/reopen` now returns a closed case back to the open queue and appends a durable operator note for the reopen action
-- `POST /api/v1/cases/{case_id}/assign` now lets operators claim or reassign an open durable case while recording `assigned_to` and `assigned_at`
-- `POST /api/v1/cases/{case_id}/notes` now appends durable operator notes, and `GET /api/v1/cases/{case_id}` returns recent notes for case handoff
-- `POST /api/v1/eval-cases` and `GET /api/v1/eval-cases/{eval_case_id}` now expose durable eval-case promotion from canonical cases, preserving source case/task/report plus trace and version lineage
-- `GET /api/v1/eval-cases` now exposes the first tenant-scoped eval queue contract, so operators can browse promoted regression coverage instead of only jumping from one case at a time
-- the canonical eval-case list/detail contract now also carries follow-up case summary fields plus `latest_follow_up_case_id`, so eval triage can see linked operator work without a second case lookup
-- the same canonical eval-case list/detail contract now also carries typed `preferred_follow_up_action`, so `/admin/evals` can render `Create case`, `Open existing case`, or `Open existing queue` from one backend-owned decision instead of re-deriving that choice in browser code
-- the same canonical eval-case list/detail contract now also carries `linked_case_summary`, so `/admin/evals` can show total/open/latest follow-up pressure from one backend-owned block instead of relying on only `latest_follow_up_case_id`
-- the same canonical eval-case list/detail contract now also carries typed `preferred_primary_action`, so `/admin/evals` can reuse linked-case history before it falls back to a new `Create case` write
-- the same canonical eval-case list/detail contract now also carries `preferred_linked_case_action`, so `/admin/evals` can open the latest linked case or the canonical eval-case queue from one backend-owned decision instead of branching on `latest_follow_up_case_id` in browser code
-- the same canonical eval-case list now also supports `needs_follow_up=true|false`, so `/admin/evals` can pull unresolved-follow-up slices without browser-side case filtering
-- the canonical case contract now also allows `source_eval_case_id` without `source_eval_report_id`, so one eval case can open or reuse precise follow-up work directly from the eval lane
-- `POST /api/v1/eval-datasets`, `GET /api/v1/eval-datasets`, and `GET /api/v1/eval-datasets/{dataset_id}` now expose the first durable dataset-draft contract plus its lightweight tenant-scoped browse surface
-- `POST /api/v1/eval-datasets/{dataset_id}/items` now lets operators append new durable eval cases into an existing draft dataset without rebuilding the dataset from scratch
-- `POST /api/v1/eval-datasets/{dataset_id}/publish` now freezes a draft dataset into an immutable published baseline with `published_by` and `published_at`
-- the canonical `GET /api/v1/eval-datasets` list now also carries the latest eval-run/report linkage plus `unresolved_follow_up_count` and `needs_follow_up`, so dataset-level regression pressure is visible before drilling into runs
-- the canonical `GET /api/v1/eval-datasets/{dataset_id}` detail now mirrors that latest run/report triage summary, so the dataset detail pane does not depend on list-row-only state
-- the same dataset list/detail contracts now also expose a backend-owned `preferred_follow_up_action`, so `/admin/eval-datasets` can hand operators straight into the right unresolved queue without re-deriving run-versus-report logic in browser code
-- the same canonical `GET /api/v1/eval-datasets` list now also carries `preferred_primary_action`, so `/admin/eval-datasets` rows can drive the main operator handoff from one backend-owned case-versus-queue-versus-report-versus-run decision without opening detail first
-- those same canonical eval-dataset list/detail contracts now also expose `preferred_latest_activity_action`, so `/admin/eval-datasets` can open the latest durable run or report from one backend-owned activity handoff instead of hardcoded page routing
-- the canonical `GET /api/v1/eval-datasets/{dataset_id}` detail now also carries `recent_runs[]` with report linkage and unresolved counts, so dataset drill-down can explain recent regression evidence without additional browser-side stitching
-- those same `recent_runs[]` rows now also carry linked run-backed case summary plus a typed `preferred_case_action`, so `/admin/eval-datasets` can hand operators straight into the latest run-backed case or run-backed queue from recent activity without detouring through `/admin/eval-runs`
-- those same `recent_runs[]` rows now also carry a typed `preferred_follow_up_action`, so `/admin/eval-datasets` can open the right unresolved report-or-run queue from recent activity without reconstructing follow-up routing from `report_id` and `needs_follow_up` in browser code
-- those same `recent_runs[]` rows now also carry a typed `preferred_primary_action`, so `/admin/eval-datasets` can drive the main recent-activity handoff from one backend-owned create-versus-queue-versus-report-versus-run decision instead of mixing run/report/case heuristics in page code
-- the same dataset list/detail contracts now also surface latest-report follow-up case pressure plus a backend-owned case-queue handoff, so `/admin/eval-datasets` can jump straight from one baseline into its current open operator work
-- the same canonical dataset detail now also carries `follow_up_case_summary`, so `/admin/eval-datasets` can show total/open/closed follow-up pressure and latest case status for one baseline before the operator pivots into `/admin/cases`
-- `GET /api/v1/cases` now also supports `source_eval_dataset_id`, so one dataset-wide follow-up queue can be opened without stitching report IDs in the browser
-- the same canonical eval-dataset list/detail contracts now also expose dataset-wide follow-up case summary plus a typed `preferred_dataset_case_queue_action`, so `/admin/eval-datasets` can hand operators into one dataset-scoped `/admin/cases` queue across all linked eval reports
-- the canonical `GET /api/v1/eval-datasets` summary rows now also expose `dataset_follow_up_case_summary`, so `/admin/eval-datasets` can show dataset-wide total/open/closed follow-up pressure directly in the visible list before an operator opens detail
-- those same `/admin/eval-datasets` rows now also use the canonical dataset queue action directly for row-level case handoff, instead of falling back to latest-report case queue heuristics in the browser
-- the canonical eval-dataset list/detail contracts now also expose `linked_case_summary`, so `/admin/eval-datasets` can show latest dataset-wide case status and owner before an operator leaves the baseline lane
-- the same canonical eval-dataset list/detail contracts now also expose `preferred_case_handoff_action`, so `/admin/eval-datasets` can take one backend-owned case handoff path instead of composing dataset-wide and latest-report queue priority in browser code
-- the same canonical eval-dataset list/detail contracts now also expose `preferred_run_backed_case_action`, so `/admin/eval-datasets` can hand operators to the latest run-backed case or queue without reconstructing run-case reuse in browser code
-- that same typed dataset queue action now opens the newest dataset-wide follow-up case directly when it is still open, and falls back to the dataset-scoped `/admin/cases` queue only when the latest linked case has already closed
-- the same canonical eval-dataset list/detail contracts now also expose `run_backed_case_summary`, so `/admin/eval-datasets` can show the latest `source_eval_run_id` follow-up owner and status before an operator leaves the baseline lane
-- the same canonical eval-dataset list/detail contracts now also expose `preferred_run_backed_case_action`, so `/admin/eval-datasets` can hand operators into the latest run-backed case or run-backed queue without routing directly from `run_backed_case_summary.latest_case_id`
-- `POST /api/v1/eval-runs`, `GET /api/v1/eval-runs`, and `GET /api/v1/eval-runs/{run_id}` now expose the first durable eval-run kickoff contract, seeded only from published dataset baselines and intentionally stopping at queued run records before execution is wired
-- the worker now also processes queued eval runs through the first execution lifecycle, advancing them from `queued` to `running` to `succeeded` or `failed` with placeholder execution and durable timestamps
-- failed eval runs can now be re-queued through `POST /api/v1/eval-runs/{run_id}/retry`, which clears the prior failure fields on the same durable run record instead of creating a brand-new run
-- `GET /api/v1/eval-runs/{run_id}` now also returns append-only `events`, so retry does not erase prior failure/claim history from operator view
-- that same eval-run detail now also returns durable `items`, snapshotting the published dataset membership onto the run so operators can inspect exactly which eval cases, case lineage, trace IDs, and version IDs were executed
-- that same eval-run detail now also returns durable `item_results`, so placeholder per-item terminal outcomes stay attached to the same canonical run record while create/list/retry responses remain lightweight
-- those same `item_results` now also carry structured placeholder judge fields such as `verdict`, `score`, `judge_version`, and raw `judge_output`, so the later provider-backed judge path can reuse the same durable contract
-- the structured placeholder judge fields are now emitted by an explicit `internal/eval` judge runtime with a stable version ID and prompt artifact path, rather than being assembled ad hoc in the run service
-- the worker can now switch that same eval judge runtime from the built-in placeholder to an env-gated HTTP provider without changing the durable eval-run contract, and falls back to placeholder failure recording if the external judge call errors
-- completed eval runs now also materialize a durable aggregated eval report in `internal/eval`, so pass/fail totals, average score, bad-case lineage, and judge metadata have a canonical backend artifact instead of being recomputed from raw `item_results` every time
-- `GET /api/v1/eval-reports` now exposes the tenant-scoped lightweight browse surface for those durable eval reports
-- `GET /api/v1/eval-reports/{report_id}` now exposes the canonical aggregated eval report detail, including metadata and bad-case lineage
-- terminal eval-run reads now also expose lightweight `result_summary` counts on the canonical run object, so operators can scan pass/fail totals from `/api/v1/eval-runs` and `/admin/eval-runs` without unpacking the full `item_results` array first
-- `GET /admin/cases` now exposes the first case-focused operator page, backed by the durable case contract and existing task/report handoff endpoints
-- that first `/admin/cases` page now supports the minimal close action while still handing operators back into the canonical task/report surfaces instead of inventing case-only detail contracts
-- the same `/admin/cases` page now also supports copyable case summaries, shareable case links, and a direct handoff into the canonical case API detail
-- the same `/admin/cases` page now also supports the minimal ownership action, so an operator can assign an open case before closing or handing it off
-- the same `/admin/cases` page now also exposes append-only case notes so assignment and handoff have durable operator context
-- the same `/admin/cases` page now behaves more like an operator queue by emphasizing `My open cases` / `Unassigned` slices and surfacing task-only versus report-backed provenance directly in the list and detail views
-- the same `/admin/cases` page now also lets operators reopen a closed case and immediately return it to the open queue without inventing a second lifecycle surface
-- the same `/admin/cases` page now also supports `Promote to eval`, which reuses the durable eval-case contract and deep-links into the canonical eval-case API detail
-- `/admin/evals` now exposes the first eval-focused operator page, backed by the durable eval-case list/detail contracts and existing case/task/report/version/trace handoff surfaces
-- the same `/admin/evals` page now also supports `Create dataset draft`, which turns the selected durable eval case into a canonical dataset draft and hands off into both dataset detail and the shared dataset lane
-- the same `/admin/evals` page now also supports `Add to dataset`, so operators can append the selected eval case into an existing draft dataset by stable dataset ID
-- the same `/admin/evals` page now also surfaces eval-case follow-up counts plus `Open latest follow-up case` and `Open follow-up slice`, so regression triage can jump straight into durable operator work
-- the same `/admin/evals` list rows now also expose `Open latest case` and `Open queue`, so operators can jump into existing eval follow-up directly from the visible queue without opening detail first
-- the same `/admin/evals` page now also adds a `Needs follow-up` quick view backed by the canonical `needs_follow_up=true` filter, so follow-up pressure becomes an actual queue instead of a read-only counter
-- the same `/admin/evals` page now also supports `Create case`, reusing `POST /api/v1/cases` with standalone `source_eval_case_id` so operators can open or reuse precise follow-up directly from the canonical eval queue
-- when that eval-case follow-up already has open work, the same `/admin/evals` primary action now renders as `Open existing case` or `Open existing queue`, so reuse is visible before another write is attempted
-- `/admin/eval-datasets` now exposes the first dataset-focused operator page, backed by the canonical eval-dataset list/detail contracts instead of frontend-only saved views
-- the same `/admin/eval-datasets` page now also supports `Publish dataset`, and published datasets render as immutable read-only baselines instead of mutable drafts
-- the same `/admin/eval-datasets` page now also supports `Run dataset`, handing a published baseline straight into the shared `/admin/eval-runs` lane
-- that same `/admin/eval-datasets` lane now also exposes a backend-owned `Needs follow-up` slice plus direct `Open latest run` and `Open latest report` handoff from canonical dataset list rows
-- the same dataset lane now also renders `Open preferred queue` from the canonical dataset follow-up action, preferring unresolved bad-case triage on the latest report when it exists and falling back to the latest run queue otherwise
-- `GET /api/v1/eval-datasets/{dataset_id}` now also carries `linked_case_summary` and `preferred_linked_case_action` on each `items[]` row, so `/admin/eval-datasets` can hand operators from one dataset member straight into its linked case or canonical queue without browser-side routing
-- that same dataset detail now also carries `preferred_follow_up_action` on each `items[]` row, so `/admin/eval-datasets` can render `Create case from item` versus reusing an existing item-level case or queue from one backend-owned decision
-- that same dataset detail now also carries `preferred_primary_action` on each `items[]` row, so `/admin/eval-datasets` can drive the main member-level follow-up button from one backend-owned create-versus-reuse decision instead of mixing linked-case and follow-up heuristics in page code
-- `/admin/eval-runs` now exposes the first eval-run operator page, backed directly by the canonical run list/detail contracts with handoff back to datasets and evals
-- `/admin/eval-reports` now exposes the first eval-report operator page, backed directly by the canonical eval-report list/detail contracts with bad-case and metadata drill-down
-- the same `/admin/eval-reports` list now also surfaces durable follow-up case summary from the canonical eval-report list contract, so operators can see follow-up pressure before drilling into linked cases
-- the same canonical eval-report list now also supports `needs_follow_up=true|false`, and `/admin/eval-reports` uses it for a `Needs follow-up` quick view instead of issuing per-row case queries from the browser
-- that same canonical eval-report list now also carries `latest_follow_up_case_id`, so `/admin/eval-reports` rows can hand off directly into the freshest linked case without loading detail first
-- `/admin/eval-reports` detail now surfaces that same `latest_follow_up_case_id` as a direct handoff action, so operators can jump into the freshest follow-up case from both list and detail
-- `/admin/eval-report-compare` now exposes per-side `preferred_linked_case_action`, so linked-case handoff opens the latest linked case or the canonical linked-case queue from one backend-owned decision instead of branching on `latest_follow_up_case_id` in browser code
-- `/admin/eval-report-compare` now also shows per-side follow-up counts and latest follow-up status, so operators can judge existing triage pressure before opening or creating cases
-- `/admin/eval-report-compare` now also hands each side directly into `/admin/cases?source_eval_report_id=...`, so operators can inspect the full existing follow-up slice before opening another case
-- the same `/admin/eval-reports` page now also shows linked durable follow-up cases for the selected eval report by reusing the canonical case list filter `source_eval_report_id`
-- the same `/admin/eval-reports` page now also supports `Create case`, reusing `POST /api/v1/cases` with `source_eval_report_id` and deep-linking straight into `/admin/cases` for follow-up triage
-- the same canonical eval-report detail now also carries typed `preferred_follow_up_action`, so `/admin/eval-reports` can render `Create case`, `Open existing case`, or `Open existing queue` from one backend-owned decision instead of recomputing that action from follow-up counts in browser code
-- that same eval-report `Create case` handoff now reuses the newest open follow-up case for the same `tenant_id + source_eval_report_id` instead of creating duplicate regression work items
-- when that open eval-report follow-up already exists, the same `/admin/eval-reports` primary action now renders as `Open existing case` or `Open existing queue`, so reuse is visible before another write is attempted
-- the same `/admin/eval-reports` page now also supports `Create case from bad case`, which reuses `POST /api/v1/cases` with `source_eval_report_id + source_eval_case_id` so one bad-case follow-up remains distinct from a report-level follow-up
-- when a bad case already has open follow-up work, that same row-level action now renders as `Open existing bad-case case` or `Open bad-case queue`, so operators reuse the canonical slice before opening another regression case
-- the same canonical `GET /api/v1/eval-reports/{report_id}` detail now also carries per-bad-case follow-up counts plus `latest_follow_up_case_id`, so `/admin/eval-reports` can hand operators from one failing eval case straight into its freshest durable follow-up or the full bad-case case slice
-- that same per-bad-case detail now also carries typed `preferred_follow_up_action`, so `/admin/eval-reports` bad-case rows can render `Create case from bad case`, `Open existing bad-case case`, or `Open bad-case queue` from one backend-owned decision instead of recomputing that choice in browser code
-- that same per-bad-case detail now also carries typed `preferred_linked_case_action`, so `/admin/eval-reports` bad-case linked-case handoff opens the latest linked case or the canonical bad-case queue from one backend-owned decision instead of checking `latest_follow_up_case_id` in browser code
-- that same canonical eval-report detail now also accepts `bad_case_needs_follow_up=true|false`, so `/admin/eval-reports` can isolate only unresolved bad cases or already-cleared bad cases without browser-side filtering
-- that same canonical eval-report detail now also carries `bad_case_count`, so report-level handoff and summaries stay faithful even when the visible `bad_cases` drill-down is filtered
-- the same canonical `GET /api/v1/eval-reports` list now also carries `bad_case_without_open_follow_up_count`, so unresolved bad-case pressure is visible before opening report detail
-- that same eval-report list now also supports `bad_case_needs_follow_up=true|false`, and `/admin/eval-reports` uses it for an `Unresolved bad cases` quick view instead of inferring that queue from already-loaded detail
-- `/admin/eval-reports` list rows now also use the canonical `preferred_follow_up_action` to render a row-level `Create case` or `Open existing case/queue`, so operators can act on durable follow-up directly from the list without opening detail first
-- the same `/admin/eval-reports` list rows now also expose `Open unresolved bad cases`, handing operators straight into the canonical `bad_case_needs_follow_up=true` report view without opening detail first
-- that same canonical eval-report list/detail contract now also carries typed `preferred_bad_case_queue_action`, so unresolved bad-case queue handoff on `/admin/eval-reports` and `/admin/eval-report-compare` is backend-owned instead of being reconstructed from `report_id` in browser code
-- that same canonical eval-report detail now also carries typed `preferred_primary_action` on each `bad_cases[]` row, so `/admin/eval-reports` can drive the main bad-case follow-up button from one backend-owned create-versus-reuse decision instead of mixing follow-up and linked-case heuristics in browser code
-- the same canonical eval-report list/detail contract now also carries typed `preferred_compare_follow_up_action`, so `/admin/eval-reports` opens compare-origin follow-up queues from one backend-owned decision instead of checking compare follow-up counts in browser code
-- the same canonical eval-report detail now also carries `linked_case_summary`, so `/admin/eval-reports` no longer fetches a second case-list request just to render linked-case counts, latest status, and latest assignee
-- the same canonical `GET /api/v1/eval-reports` list now also carries `linked_case_summary`, so `/admin/eval-reports` rows can show latest linked-case owner and linked-open pressure before opening detail
-- the same canonical eval-report list/detail contract now also carries typed `preferred_linked_case_action`, so `/admin/eval-reports` can open the latest linked case or the canonical linked-case queue from one backend-owned handoff decision instead of checking `latest_follow_up_case_id` in browser code
-- the same canonical eval-report list/detail contract now also carries typed `preferred_primary_action`, so `/admin/eval-reports` can reuse linked-case history before falling back to `Create case`, instead of deciding that primary handoff from mixed follow-up and linked-case signals in browser code
-- `GET /api/v1/eval-report-compare` now exposes a narrow read-only compare contract over two durable eval reports, so score deltas, metadata drift, and bad-case overlap stay on the backend instead of turning into browser-only diff logic
-- the same canonical eval-report compare contract now also carries typed `preferred_primary_action` per side, so `/admin/eval-report-compare` can reuse linked-case history before falling back to compare-queue or create actions instead of mixing those signals in page code
-- `/admin/eval-report-compare` now exposes the first eval-report comparison page, handing off into eval runs and version detail from that same canonical compare contract
-- the same `/admin/eval-report-compare` page now also supports `Create case from left` and `Create case from right`, reusing `POST /api/v1/cases` and deep-linking straight into `/admin/cases` for regression follow-up while preserving the selected side as `source_eval_report_id`
-- the same canonical eval-report compare contract now also carries `bad_case_without_open_follow_up_count` per side, so compare can show which report still has uncovered bad cases without opening detail elsewhere
-- `/admin/eval-report-compare` now also hands each side directly into `/admin/eval-reports?bad_case_needs_follow_up=true&report_id=...`, so operators can jump from compare into that side's unresolved bad-case report view
-- that same compare contract now also exposes compare-derived follow-up counts and latest compare-follow-up status per side, so `/admin/eval-report-compare` can hand operators straight into the canonical compare-origin case queue for either report
-- that same canonical eval-report compare contract now also carries typed `preferred_compare_follow_up_action` per side, so `/admin/eval-report-compare` can render `Create case from left/right` versus `Open ... compare queue` from one backend-owned decision instead of recomputing it from compare-follow-up counts in browser code
-- that same canonical eval-report compare contract now also carries per-side `linked_case_summary`, so compare cards can show total/open linked follow-up pressure plus the latest linked case owner without extra case lookups
-- `POST /api/v1/cases` now also deduplicates exact compare-origin follow-up requests, so repeating the same left/right/selected-side handoff reuses the open compare-derived case instead of silently spawning duplicates
-- `/admin/eval-report-compare` now also switches its primary side action from `Create case` to `Open ... compare queue` whenever that side already has open compare-origin follow-up, which reduces accidental duplicate regression cases without adding a second queue contract
-- durable cases now also carry `source_eval_report_id`, so eval-report regressions can survive compare-page handoff as canonical backend lineage instead of living only in summary text
-- durable cases now also carry `source_eval_case_id`, so bad-case-specific eval follow-up can point back to one canonical eval case instead of only to the broader eval report
-- `GET /api/v1/cases` now also supports `source_eval_report_id` and `eval_backed_only`, so operators can pull an eval-regression follow-up slice without parsing case summaries client-side
-- the same `/admin/cases` page now also reads the canonical `GET /api/v1/eval-reports/{report_id}` detail for `source_eval_report_id`, so eval-backed cases show dataset/run/bad-case context without inventing a second case-only report contract
-- compare-created cases now also persist explicit left/right eval-report lineage plus the selected side, so `/admin/cases` can show canonical compare provenance and hand operators back into the exact `/admin/eval-report-compare` slice instead of reconstructing it from summary text
-- `GET /api/v1/cases` now also supports `compare_origin_only=true`, and `/admin/cases` reuses it for a `Compare follow-ups` quick view so compare-derived regression cases can be triaged as one canonical queue
-- the same compare-follow-up queue on `/admin/cases` now also exposes a row-level `Open compare` handoff, so operators can jump straight back into the exact eval-report comparison without opening detail first
-- the same `/admin/cases` compare-follow-up queue now also supports row-level `Assign to me`, reusing the canonical case assign endpoint so an operator can claim a compare-derived regression without opening detail first
-- the same compare-follow-up queue now also supports row-level `Close from queue`, reusing the canonical case close endpoint so resolved regressions drop out of the open compare slice without a detail round trip
-- the same case queue now also supports row-level `Reopen from queue`, reusing the canonical case reopen endpoint so closed follow-up work can return to the open slice without a detail round trip
-- the same `/admin/cases` page now also supports `Return to queue`, backed by canonical `POST /api/v1/cases/{case_id}/unassign`, so claimed work can move back into the shared unassigned lane while recording `unassigned_by` as a durable case note
-- the same `/admin/eval-runs` lane now shows live lifecycle fields such as `started_at`, `finished_at`, and `error_reason`, so operators can watch queued run kickoffs turn into terminal records before judge wiring exists
-- that same `/admin/eval-runs` lane now exposes `Retry run` for failed runs, reusing the canonical retry endpoint instead of inventing an admin-only mutation path
-- that same `/admin/eval-runs` lane now renders a durable run timeline, so operators can still inspect prior `failed` and `retried` history after the top-level fields have been cleared by retry
-- that same `/admin/eval-runs` lane now also renders `Run items`, making the selected run self-contained instead of forcing operators back to the dataset detail to reconstruct membership
-- that same `/admin/eval-runs` lane now also renders `Item results`, so terminal placeholder outcomes for each snapped eval case are visible without opening raw JSON
-- that same `/admin/eval-runs` lane now also surfaces structured placeholder judge fields on each item result, including verdict, score, and judge version
-- that same `/admin/eval-runs` lane now also surfaces compact result-summary counts directly in the list rows and detail pane, while queued/running rows still stay lightweight and omit placeholder totals until terminal results exist
-- the canonical eval-run detail now also carries typed `preferred_follow_up_action` and `latest_follow_up_case_id` on both `items` and `item_results`, so `/admin/eval-runs` can hand failed-item triage directly into create-versus-reuse case actions without pushing operators back through `/admin/evals`
-- those same eval-run `items` and `item_results` now also carry `linked_case_summary`, so `/admin/eval-runs` can show per-result total/open/latest follow-up pressure from backend-owned case lineage instead of rendering only one latest case ID
-- those same eval-run `items` and `item_results` now also carry `preferred_linked_case_action`, so `/admin/eval-runs` can open the latest linked case or the canonical eval-case queue from one backend-owned decision instead of branching on `latest_follow_up_case_id` in browser code
-- those same eval-run `items` and `item_results` now also carry typed `preferred_primary_action`, so `/admin/eval-runs` can reuse linked-case history before falling back to `Create case from result` instead of mixing follow-up and linked-case signals in page code
-- the canonical `GET /api/v1/eval-runs` list now also carries `item_without_open_follow_up_count` and `needs_follow_up`, so `/admin/eval-runs` can expose a backend-owned unresolved follow-up queue instead of inferring missing follow-up pressure in the browser
-- terminal eval-run reads now also surface canonical `report_id` and `report_status` when the durable eval report artifact has been materialized, so `/admin/eval-runs` can hand operators straight into `/admin/eval-reports` and the eval-report API without reconstructing that linkage in the browser
-- the same canonical eval-run list/detail contracts now also expose `linked_case_summary`, so `/admin/eval-runs` can show latest linked case status and owner before operators leave the run lane
-- the same eval-run contracts now also expose a typed `preferred_linked_case_action`, so `/admin/eval-runs` can open the latest run-backed case when it is still open or fall back to the canonical linked run queue when the latest case has already closed, from both list rows and detail
-- the same canonical `GET /api/v1/eval-runs` list/detail contracts now also expose typed `preferred_primary_action`, so `/admin/eval-runs` rows can drive their main operator handoff from one backend-owned open-case-versus-open-report-versus-open-run decision instead of mixing linked-case and report heuristics in page code
-- that same canonical eval-run linked-case summary is now resolved from durable `source_eval_run_id` lineage instead of being inferred from per-item eval-case follow-up, so run-backed operator work stays visible even when no per-item case has been opened yet
-- `000025_case_eval_run_backfill.sql` now backfills legacy eval-run follow-up rows that still carry the older `Follow up eval run <run_id> result for <eval_case_id>` summary pattern, so the canonical run-backed queues remain visible for pre-lineage data too
-- the durable case contract now also carries `source_eval_run_id`, so follow-up created from `/admin/eval-runs` keeps canonical eval-run lineage instead of collapsing back to eval-case-only provenance
-- `GET /api/v1/cases` now also supports `source_eval_run_id` and `run_backed_only`, and `/admin/cases` uses that contract for a `Run-backed cases` queue plus direct handoff back into `/admin/eval-runs`
-- `POST /api/v1/cases` now also reuses the newest open run-backed case for the same `tenant_id + source_eval_run_id`, so repeated eval-run follow-up clicks return operators to the canonical queue item instead of creating duplicates
-- `/admin/task-board` and `/admin/reports` now both expose a `Create case` handoff that reuses `POST /api/v1/cases` and deep-links straight into `/admin/cases`
-- the task-board `Create case` handoff now preserves `source_report_id` for successful `report_generation` tasks when the durable report row exists, but degrades to a task-only case if that durable report lookup is missing or temporarily unavailable; the reports page disables case creation when the row is missing
-- successful report tasks now finalize their `succeeded` task state and durable report row together, so report `ready_at` and `metadata.audit_ref` stay aligned with the final task success event
-- common operator slices can now be applied from quick-view buttons instead of manually composing the same filters each time
-- the detail panel can now reveal the full single-task JSON payload and copy it to the clipboard for debugging and escalation flows
-- the same panel now also supports direct handoff into the canonical task detail URL, either by copying the current board link or opening the underlying API JSON directly
-- operators can also copy a compact audit summary derived from the current detail response and its audit timeline for incident notes or handoff messages
-- operators can also refocus the current board onto the selected task lane directly from the detail panel, so related tasks can be triaged without manually re-entering filters
-- operators can also jump straight into the selected task queue, which is useful for reviewing all matching `status + approval mode` work in the current tenant without re-entering both filters
-- operators can also jump straight into the selected task type slice, which is useful for reviewing all report-generation or approved-tool work in the current tenant without re-entering the task-type filter
-- operators can also jump straight into the selected task's approval lane, which is useful for reviewing all approval-gated or non-approval work in the current tenant without re-entering the approval filter
-- operators can also pivot straight from a selected task into the matching reason slice, which is useful for reviewing all `workflow_required` or `approval_required` work without re-entering the reason filter
-- the board also now keeps the selected row highlighted while the detail panel changes, preserving list context during adjacent-task navigation
-- operators can also jump straight from a selected task into the matching status slice, which is useful for reviewing all waiting, running, or failed work without re-entering the status filter
-- structured `audit_events` on task responses for create, claim, approve, retry, succeed, and fail
-- list-task responses intentionally omit `audit_events` so the operator list view stays lightweight while single-task lookup remains the detailed drill-down surface, and now return `has_more` plus `next_offset` for simple offset pagination
-- workflow task row changes and matching `audit_events` now commit atomically in the PostgreSQL-backed runtime paths
-- successful task audit events now carry an operator-facing execution summary, so approved-tool tasks show what action completed instead of only `succeeded`
-- failed task audit events now carry categorized detail strings such as `validation_error:` or `authorization_error:` while `error_reason` stays as the shorter root-cause summary
-- the local worker uses Temporal for `report_generation` while keeping PostgreSQL task rows as the current operator-facing status surface
-- the local API also uses a Temporal client to initialize waiting approval workflows for `approved_tool_execution`, while worker-side retry uses Temporal failed-only ID reuse for recovery
-- the local worker also supports a dev-only `OPSPILOT_APPROVED_TOOL_FAIL_ON_APPROVE` toggle so the approval failure and retry path can be verified end-to-end without changing public APIs
-- failed task `error_reason` values are now normalized to short operator-facing summaries instead of full wrapped Temporal error strings
-- approval tasks promoted from chat now persist an internal tool payload so the Temporal approved-tool activity can execute a typed registered tool after approval instead of always using a placeholder path
-- the default ticket tools now validate request payloads and return argument-dependent structured results through deterministic typed adapters instead of fixed stub JSON
-- if `OPSPILOT_TICKET_API_BASE_URL` is configured, the API and worker switch the default ticket tools from deterministic local adapters to a real HTTP boundary while preserving the same internal tool contracts
-- `POST /api/v1/chat/stream` with optional SSE `plan`, `retrieval`, `tool`, and `task_promoted` events ahead of `state -> done`
+### Agent Runtime
+- **LLM Planner** with keyword fallback and structured JSON plan output
+- **Dynamic Replanning**: tool failure → LLM replan → re-execute (max 1 replan, 4 completeness paths: tools, critic, retrieval, audit trail)
+- **LLM Critic** with rule-based fallback (groundedness, citation, risk scoring)
+- **MCP Adapter Factory**: dynamic tool discovery from MCP-compliant servers via JSON-RPC 2.0
+- **Write-tool safety boundary**: write tools require structured planner arguments, heuristic fallback restricted to read-only
+- **Prompt versioning** (planner-v2) with eval prompt files
+
+### RAG Pipeline (10 techniques)
+```
+Query → HyDE → Hybrid Search (Dense + BM25 + RRF) → Parent-Child Expansion
+     → LLM Reranking → Contextual Compression → CRAG → Lost-in-the-Middle → LLM
+```
+
+| Technique | Description |
+|-----------|-------------|
+| Semantic Chunking | Embedding cosine similarity for chunk boundaries |
+| Contextual Retrieval | LLM-generated context prefix per chunk (Anthropic 2024) |
+| HyDE | Hypothetical document embedding for better semantic matching |
+| Hybrid Search | Dense vector + BM25 full-text + Reciprocal Rank Fusion |
+| Parent-Child Chunks | Fine-grained child retrieval expanded to parent context |
+| LLM Cross-Encoder Reranking | Bounded concurrency, per-call timeout |
+| Contextual Compression | Extract only query-relevant content from passages (LangChain pattern) |
+| CRAG | Corrective RAG — classify passages as relevant/ambiguous/irrelevant |
+| Lost-in-the-Middle | Place strongest evidence at start/end of context |
+| RAGAS Metrics | Faithfulness, answer relevancy, context precision |
+
+### Context Engine (4 best-practice patterns)
+| Pattern | Reference | Implementation |
+|---------|-----------|----------------|
+| Stage-aware Assembly | Microsoft AutoGen | Planner/Retrieval/Critic get different block subsets with independent budgets |
+| ConversationSummaryBuffer | LangChain | LLM compresses older turns, keeps recent N at full fidelity, rolling re-compression |
+| Per-snippet Eviction | MemGPT | Individual evidence blocks with stable priority-based eviction |
+| Dynamic Importance Scoring | MemGPT | Embedding cosine similarity + keyword overlap scoring adjusts block priority by query relevance |
+
+### Hierarchical Tenant Policy (org → tenant → user)
+- **DB-backed** JSONB policy storage with unique scope index
+- **Merge rules**: AllowToolUse (child wins), ForbiddenTools (additive union), RequireApprovalForWrite (escalation-only)
+- **Cached loader** with TTL, fail-stale on DB error, fail-closed when no cache
+- **AllowToolUseExplicit** flag prevents partial policy rows from accidentally disabling tools
+
+### Eval System (full regression loop)
+```
+Datasets → Runs → Reports → Regression Detection → Auto-Promote → Case Management → Operator Triage
+```
+- Threshold-based regression classification (regression/improvement/stable)
+- Configurable score drop and new-bad-case thresholds
+- Auto-promote new bad cases to case management on regression
+
+### Observability
+- **OTel Tracing**: spans for all critical paths (planner, retrieval, tools, critic, compression)
+- **OTel Metrics**: 12 instruments across 6 subsystems (planner latency/intent, retrieval pipeline, tool execution, LLM tokens, critic verdicts, replan count)
+- Explicit histogram buckets tuned for agent latencies (10ms–10s)
+- Tenant-scoped metrics for multi-tenant observability
+
+## Tech Stack
+
+| Component | Technology |
+|-----------|------------|
+| Language | Go 1.24 |
+| Database | PostgreSQL + pgvector (4096-dim vectors) |
+| Workflow | Temporal (optional, for async tasks) |
+| LLM | OpenAI-compatible API (Doubao/豆包) |
+| Observability | OpenTelemetry (tracing + metrics) |
+| Streaming | SSE (Server-Sent Events) |
+| Tools | MCP JSON-RPC 2.0 + HTTP adapters |
+
+## Quick Start
+
+```bash
+# Prerequisites: Go 1.24+, Docker, Make
+
+# Start local dev stack (Postgres, Redis, Temporal, API, Worker)
+make dev-up
+
+# Run all tests
+make test
+
+# Build all binaries
+make build
+
+# Full check (fmt + test + build)
+make check
+```
+
+### Configuration
+
+All config via `OPSPILOT_*` environment variables. Key vars:
+
+| Variable | Default | Purpose |
+|----------|---------|---------|
+| `OPSPILOT_POSTGRES_DSN` | localhost DSN | Primary database |
+| `OPSPILOT_LLM_PROVIDER` | `placeholder` | `placeholder` or `openai` |
+| `OPSPILOT_LLM_BASE_URL` | — | OpenAI-compatible endpoint |
+| `OPSPILOT_LLM_API_KEY` | — | API key |
+| `OPSPILOT_TOOL_POLICY_ALLOW` | `true` | Global tool-use toggle |
+| `OPSPILOT_TEMPORAL_ENABLED` | `false` | Enable Temporal workflows |
+
+## Project Structure
+
+```
+cmd/
+  api/          HTTP server (REST + SSE)
+  worker/       Background task runner
+  ticketapi/    Dev-only fake ticket system
+internal/
+  agent/
+    planner/    LLM planner + keyword fallback + replanning + policy
+    critic/     LLM critic + rule fallback
+    tool/       Tool execution with approval gates
+  contextengine/  Stage-aware assembly, summarizer, dynamic scoring
+  retrieval/    HyDE, CRAG, reranker, compressor, RAGAS, embedder
+  ingestion/    Semantic chunking, contextual prefixing, indexing
+  eval/         Datasets, runs, reports, regression detection
+  case/         Operator case management
+  workflow/     Temporal workflows, task promotion
+  storage/postgres/  pgx stores, pgvector, policy store
+  tools/
+    registry/   Typed tool registry with ParameterDef
+    mcp/        MCP adapter factory (JSON-RPC 2.0)
+    http/       HTTP tool adapters (tickets)
+  observability/
+    tracing/    OTel tracer + span helpers
+    metrics/    12 agent runtime instruments
+db/migrations/  30 PostgreSQL migrations
+eval/prompts/   Versioned planner/critic prompts
+```
+
+## License
+
+Private repository — not for redistribution.
