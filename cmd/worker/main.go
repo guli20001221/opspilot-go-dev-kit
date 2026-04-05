@@ -12,6 +12,8 @@ import (
 	appchat "opspilot-go/internal/app/chat"
 	"opspilot-go/internal/app/config"
 	"opspilot-go/internal/app/logging"
+	"opspilot-go/internal/observability/metrics"
+	"opspilot-go/internal/observability/tracing"
 	"opspilot-go/internal/contextengine"
 	"opspilot-go/internal/eval"
 	"opspilot-go/internal/llm"
@@ -35,6 +37,11 @@ func main() {
 
 	logger := logging.New(cfg.LogLevel)
 	slog.SetDefault(logger)
+
+	shutdownTracer := tracing.InitStdout()
+	defer shutdownTracer(context.Background())
+	shutdownMetrics := metrics.InitStdout()
+	defer shutdownMetrics(context.Background())
 
 	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer stop()
