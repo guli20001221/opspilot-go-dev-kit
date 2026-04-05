@@ -3,21 +3,33 @@ package contextengine
 import (
 	"context"
 	"fmt"
+	"log/slog"
+	"sort"
 	"strings"
 )
 
 const (
 	defaultMaxBlocks = 8
 	defaultBudget    = 128
+	// summaryRecompressThreshold: when the concatenated session summary exceeds
+	// this token estimate, re-compress it through the summarizer (rolling summary).
+	summaryRecompressThreshold = 200
 )
 
 // Service assembles explicit context blocks from request and session state.
 type Service struct {
-	config Config
+	config     Config
+	summarizer Summarizer
 }
 
 // NewService constructs a context assembly service with deterministic defaults.
 func NewService(config Config) *Service {
+	return NewServiceWithSummarizer(config, nil)
+}
+
+// NewServiceWithSummarizer constructs a context assembly service with an optional
+// conversation summarizer for compressing long turn histories.
+func NewServiceWithSummarizer(config Config, summarizer Summarizer) *Service {
 	if config.MaxBlocks <= 0 {
 		config.MaxBlocks = defaultMaxBlocks
 	}
@@ -25,26 +37,105 @@ func NewService(config Config) *Service {
 		config.Budget = defaultBudget
 	}
 
-	return &Service{config: config}
+	return &Service{config: config, summarizer: summarizer}
 }
 
-// Build assembles planner, retrieval, and critic contexts from the same block set.
-func (s *Service) Build(_ context.Context, input BuildInput) (BuildResult, error) {
-	blocks := s.candidateBlocks(input)
-	blocks, dropped := s.applyLimits(blocks)
+// Build assembles stage-specific context snapshots for planner, retrieval, and critic.
+// Each stage gets a different subset of blocks filtered by relevance and budget.
+// When a Summarizer is configured and recent turns exceed SummaryTurnThreshold,
+// older turns are compressed into a session summary (ConversationSummaryBuffer pattern).
+func (s *Service) Build(ctx context.Context, input BuildInput) (BuildResult, error) {
+	// ConversationSummaryBuffer: compress older turns when threshold is exceeded
+	input = s.maybeSummarize(ctx, input)
+
+	allBlocks := s.candidateBlocks(input)
+
+	// Planner: needs user profile, recent turns, scratchpad (no evidence/tool results)
+	plannerBlocks := filterByKinds(allBlocks,
+		BlockKindUserProfile, BlockKindRecentTurns, BlockKindSessionSummary, BlockKindTaskScratchpad)
+	plannerBlocks, plannerDropped := s.applyBudget(plannerBlocks, s.plannerBudget())
+
+	// Retrieval: needs user profile, recent turns, summary (for query context)
+	retrievalBlocks := filterByKinds(allBlocks,
+		BlockKindUserProfile, BlockKindRecentTurns, BlockKindSessionSummary)
+	retrievalBlocks, retrievalDropped := s.applyBudget(retrievalBlocks, s.retrievalBudget())
+
+	// Critic: needs everything — evidence and tool results for validation
+	criticBlocks, criticDropped := s.applyBudget(allBlocks, s.criticBudget())
 
 	return BuildResult{
-		Planner:   PlannerContext{Blocks: cloneBlocks(blocks)},
-		Retrieval: RetrievalContext{Blocks: cloneBlocks(blocks)},
-		Critic:    CriticContext{Blocks: cloneBlocks(blocks)},
+		Planner:   PlannerContext{Blocks: plannerBlocks},
+		Retrieval: RetrievalContext{Blocks: retrievalBlocks},
+		Critic:    CriticContext{Blocks: criticBlocks},
 		Log: AssemblyLog{
 			RequestID:      input.RequestID,
-			IncludedBlocks: blockKinds(blocks),
-			DroppedBlocks:  blockKinds(dropped),
-			BudgetUsed:     totalEstimatedTokens(blocks),
-			BudgetLimit:    s.config.Budget,
+			IncludedBlocks: blockKinds(plannerBlocks),
+			DroppedBlocks:  append(append(blockKinds(plannerDropped), blockKinds(retrievalDropped)...), blockKinds(criticDropped)...),
+			BudgetUsed:     totalEstimatedTokens(criticBlocks), // report largest stage
+			BudgetLimit:    s.criticBudget(),
 		},
 	}, nil
+}
+
+// maybeSummarize implements the ConversationSummaryBuffer pattern:
+// when recent turns exceed the threshold and a summarizer is available,
+// compress the oldest turns into a session summary while keeping the
+// most recent turns as-is. This prevents token overflow from long conversations
+// while preserving recent conversational context in full fidelity.
+func (s *Service) maybeSummarize(ctx context.Context, input BuildInput) BuildInput {
+	threshold := s.config.SummaryTurnThreshold
+	if threshold <= 0 || s.summarizer == nil || len(input.RecentTurns) <= threshold {
+		return input
+	}
+
+	// Keep the most recent `threshold` turns in full; compress the rest
+	splitAt := len(input.RecentTurns) - threshold
+	olderTurns := input.RecentTurns[:splitAt]
+	recentTurns := input.RecentTurns[splitAt:]
+
+	summary, err := s.summarizer.Summarize(ctx, olderTurns)
+	if err != nil {
+		slog.Warn("conversation summarization failed, using full turns",
+			slog.String("request_id", input.RequestID),
+			slog.Any("error", err),
+		)
+		return input
+	}
+
+	// Merge the new summary with any existing session summary
+	if input.SessionSummary != "" {
+		merged := input.SessionSummary + "\n\n" + summary
+		// Rolling re-compression: if the merged summary is too large,
+		// compress it again to prevent unbounded growth across long conversations.
+		if estimateTokens(merged) > summaryRecompressThreshold {
+			recompressed, recompErr := s.summarizer.Summarize(ctx, []Turn{
+				{Role: "system", Content: merged},
+			})
+			if recompErr == nil && recompressed != "" {
+				input.SessionSummary = recompressed
+				slog.Debug("session summary re-compressed (rolling)",
+					slog.String("request_id", input.RequestID),
+					slog.Int("original_tokens", estimateTokens(merged)),
+					slog.Int("compressed_tokens", estimateTokens(recompressed)),
+				)
+			} else {
+				input.SessionSummary = merged
+			}
+		} else {
+			input.SessionSummary = merged
+		}
+	} else {
+		input.SessionSummary = summary
+	}
+	input.RecentTurns = recentTurns
+
+	slog.Debug("conversation summarized",
+		slog.String("request_id", input.RequestID),
+		slog.Int("compressed_turns", len(olderTurns)),
+		slog.Int("kept_turns", len(recentTurns)),
+	)
+
+	return input
 }
 
 func (s *Service) candidateBlocks(input BuildInput) []Block {
@@ -62,11 +153,58 @@ func (s *Service) candidateBlocks(input BuildInput) []Block {
 	if input.TaskScratchpad != "" {
 		blocks = append(blocks, newBlock(BlockKindTaskScratchpad, input.TaskScratchpad, "active task notes", 40))
 	}
+	// Evidence snippets as individual blocks for fine-grained budget eviction.
+	// Sort by score descending so highest-relevance evidence gets highest priority.
+	sortedEvidence := make([]EvidenceSnippet, len(input.RetrievalResults))
+	copy(sortedEvidence, input.RetrievalResults)
+	sortEvidenceByScoreDesc(sortedEvidence)
+
+	for i, ev := range sortedEvidence {
+		label := ev.CitationLabel
+		if label == "" {
+			label = fmt.Sprintf("[%d]", i+1)
+		}
+		content := fmt.Sprintf("%s %s: %s (score=%.3f)", label, ev.SourceTitle, ev.Snippet, ev.Score)
+		// Priority 80 base, adjusted by position (earlier = higher relevance after reranking)
+		priority := 80 - i
+		if priority < 60 {
+			priority = 60
+		}
+		blocks = append(blocks, newBlock(BlockKindRetrievalEvidence, content,
+			fmt.Sprintf("evidence snippet %s (score=%.3f)", label, ev.Score), priority))
+	}
+	// Tool results as individual blocks for per-tool eviction control
+	for _, tr := range input.ToolResults {
+		content := fmt.Sprintf("[%s] %s: %s", tr.Status, tr.ToolName, tr.OutputSummary)
+		blocks = append(blocks, newBlock(BlockKindToolResult, content,
+			fmt.Sprintf("tool output from %s (%s)", tr.ToolName, tr.Status), 70))
+	}
 
 	return blocks
 }
 
-func (s *Service) applyLimits(blocks []Block) ([]Block, []Block) {
+func (s *Service) plannerBudget() int {
+	if s.config.PlannerBudget > 0 {
+		return s.config.PlannerBudget
+	}
+	return s.config.Budget
+}
+
+func (s *Service) retrievalBudget() int {
+	if s.config.RetrievalBudget > 0 {
+		return s.config.RetrievalBudget
+	}
+	return s.config.Budget
+}
+
+func (s *Service) criticBudget() int {
+	if s.config.CriticBudget > 0 {
+		return s.config.CriticBudget
+	}
+	return s.config.Budget
+}
+
+func (s *Service) applyBudget(blocks []Block, budget int) ([]Block, []Block) {
 	included := cloneBlocks(blocks)
 	var dropped []Block
 
@@ -76,17 +214,33 @@ func (s *Service) applyLimits(blocks []Block) ([]Block, []Block) {
 		included = removeBlock(included, idx)
 	}
 
-	for len(included) > 0 && totalEstimatedTokens(included) > s.config.Budget {
+	for len(included) > 0 && totalEstimatedTokens(included) > budget {
 		idx := lowestPriorityIndex(included)
 		dropped = append(dropped, included[idx])
 		included = removeBlock(included, idx)
 	}
 
+	// Safety net: never return empty context. Keep the highest-priority block
+	// even if it exceeds budget — an over-budget context is better than no context.
 	if len(included) == 0 && len(blocks) > 0 {
 		return []Block{blocks[0]}, dropped
 	}
 
 	return included, dropped
+}
+
+func filterByKinds(blocks []Block, kinds ...string) []Block {
+	kindSet := make(map[string]bool, len(kinds))
+	for _, k := range kinds {
+		kindSet[k] = true
+	}
+	filtered := make([]Block, 0, len(blocks))
+	for _, b := range blocks {
+		if kindSet[b.Kind] {
+			filtered = append(filtered, b)
+		}
+	}
+	return filtered
 }
 
 func newBlock(kind string, content string, reason string, priority int) Block {
@@ -124,6 +278,12 @@ func formatRecentTurns(turns []Turn) string {
 	}
 
 	return strings.Join(lines, "\n")
+}
+
+func sortEvidenceByScoreDesc(evidence []EvidenceSnippet) {
+	sort.SliceStable(evidence, func(i, j int) bool {
+		return evidence[i].Score > evidence[j].Score
+	})
 }
 
 func estimateTokens(content string) int {

@@ -21,7 +21,7 @@ func (s *memoryChunkStore) UpsertWithHybrid(_ context.Context, chunk ChunkRecord
 	return chunk, nil
 }
 
-func (s *memoryChunkStore) DeleteStaleChunks(_ context.Context, _, _ string, _ int) (int, error) {
+func (s *memoryChunkStore) DeleteStaleChunks(_ context.Context, _, _ string, _ int, _ []string) (int, error) {
 	return 0, nil
 }
 

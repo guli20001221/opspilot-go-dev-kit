@@ -9,6 +9,6 @@
 // When no LLM provider is available (or the LLM call fails), the planner
 // falls back to deterministic keyword-based planning for reliability.
 //
-// The planner prompt is versioned as code (eval/prompts/planner-v1.md) and
+// The planner prompt is versioned as code (eval/prompts/planner-v2.md) and
 // the prompt version is recorded with every plan for reproducibility.
 package planner

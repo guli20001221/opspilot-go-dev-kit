@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"log/slog"
 	"net/http"
 	"strconv"
 	"strings"
@@ -1178,4 +1179,147 @@ func firstEvalReportVersionID(raw json.RawMessage) string {
 	}
 	versionID, _ := values[0].(string)
 	return versionID
+}
+
+// --- Regression detection endpoint ---
+
+type evalRegressionCheckResponse struct {
+	BaselineReportID  string                      `json:"baseline_report_id"`
+	CandidateReportID string                      `json:"candidate_report_id"`
+	Verdict           string                      `json:"verdict"`
+	AverageScoreDelta float64                     `json:"average_score_delta"`
+	PassedItemsDelta  int                         `json:"passed_items_delta"`
+	FailedItemsDelta  int                         `json:"failed_items_delta"`
+	NewBadCaseCount   int                         `json:"new_bad_case_count"`
+	ResolvedCaseCount int                         `json:"resolved_case_count"`
+	PromotedCaseCount int                         `json:"promoted_case_count"`
+	NewBadCases       []evalRegressionBadCaseItem `json:"new_bad_cases"`
+	ResolvedBadCases  []evalRegressionBadCaseItem `json:"resolved_bad_cases"`
+	Thresholds        evalRegressionThresholds    `json:"thresholds"`
+}
+
+type evalRegressionBadCaseItem struct {
+	EvalCaseID string  `json:"eval_case_id"`
+	Title      string  `json:"title"`
+	Verdict    string  `json:"verdict"`
+	Score      float64 `json:"score"`
+}
+
+type evalRegressionThresholds struct {
+	ScoreDropThreshold float64 `json:"score_drop_threshold"`
+	NewFailedCasesMax  int     `json:"new_failed_cases_max"`
+}
+
+func (a *appHandler) handleEvalRegressionCheck(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet && r.Method != http.MethodPost {
+		writeError(w, http.StatusMethodNotAllowed, "method_not_allowed", "method not allowed")
+		return
+	}
+
+	tenantID := strings.TrimSpace(r.URL.Query().Get("tenant_id"))
+	if tenantID == "" {
+		writeError(w, http.StatusBadRequest, "invalid_query", "tenant_id is required")
+		return
+	}
+	baselineID := strings.TrimSpace(r.URL.Query().Get("baseline_report_id"))
+	if baselineID == "" {
+		writeError(w, http.StatusBadRequest, "invalid_query", "baseline_report_id is required")
+		return
+	}
+	candidateID := strings.TrimSpace(r.URL.Query().Get("candidate_report_id"))
+	if candidateID == "" {
+		writeError(w, http.StatusBadRequest, "invalid_query", "candidate_report_id is required")
+		return
+	}
+
+	thresholds := evalsvc.DefaultRegressionThresholds()
+	if raw := r.URL.Query().Get("score_threshold"); raw != "" {
+		parsed, err := strconv.ParseFloat(raw, 64)
+		if err != nil || parsed < 0 {
+			writeError(w, http.StatusBadRequest, "invalid_query", "score_threshold must be a non-negative number")
+			return
+		}
+		thresholds.ScoreDropThreshold = parsed
+	}
+	if raw := r.URL.Query().Get("new_failed_max"); raw != "" {
+		parsed, err := strconv.Atoi(raw)
+		if err != nil || parsed < 0 {
+			writeError(w, http.StatusBadRequest, "invalid_query", "new_failed_max must be a non-negative integer")
+			return
+		}
+		thresholds.NewFailedCasesMax = parsed
+	}
+
+	result, err := a.evalReports.DetectRegression(r.Context(), baselineID, candidateID, thresholds)
+	if err != nil {
+		if errors.Is(err, evalsvc.ErrEvalReportNotFound) {
+			writeError(w, http.StatusNotFound, "eval_report_not_found", "eval report not found")
+			return
+		}
+		writeError(w, http.StatusInternalServerError, "regression_check_failed", "regression check failed")
+		return
+	}
+
+	// Verify tenant isolation — both reports must belong to the requested tenant
+	baseline, baselineErr := a.evalReports.GetEvalReport(r.Context(), baselineID)
+	if baselineErr != nil {
+		writeError(w, http.StatusInternalServerError, "regression_check_failed", "regression check failed")
+		return
+	}
+	candidate, candidateErr := a.evalReports.GetEvalReport(r.Context(), candidateID)
+	if candidateErr != nil {
+		writeError(w, http.StatusInternalServerError, "regression_check_failed", "regression check failed")
+		return
+	}
+	if baseline.TenantID != tenantID || candidate.TenantID != tenantID {
+		writeError(w, http.StatusNotFound, "eval_report_not_found", "eval report not found")
+		return
+	}
+
+	// Auto-promote new bad cases to case management when requested (POST only for safety)
+	promotedCount := 0
+	if r.Method == http.MethodPost && r.URL.Query().Get("auto_promote") == "true" && result.Verdict == evalsvc.RegressionVerdictRegression {
+		createdBy := strings.TrimSpace(r.URL.Query().Get("created_by"))
+		if createdBy == "" {
+			createdBy = "regression-auto"
+		}
+		count, promoteErr := a.evalReports.PromoteRegressionCases(r.Context(), result, tenantID, createdBy)
+		if promoteErr != nil {
+			slog.Warn("regression auto-promote partially failed",
+				slog.Any("error", promoteErr),
+				slog.Int("promoted", count),
+			)
+		}
+		promotedCount = count
+	}
+
+	resp := evalRegressionCheckResponse{
+		BaselineReportID:  result.BaselineReportID,
+		CandidateReportID: result.CandidateReportID,
+		Verdict:           result.Verdict,
+		AverageScoreDelta: result.AverageScoreDelta,
+		PassedItemsDelta:  result.PassedItemsDelta,
+		FailedItemsDelta:  result.FailedItemsDelta,
+		NewBadCaseCount:   len(result.NewBadCases),
+		ResolvedCaseCount: len(result.ResolvedBadCases),
+		PromotedCaseCount: promotedCount,
+		Thresholds: evalRegressionThresholds{
+			ScoreDropThreshold: result.Thresholds.ScoreDropThreshold,
+			NewFailedCasesMax:  result.Thresholds.NewFailedCasesMax,
+		},
+	}
+	resp.NewBadCases = make([]evalRegressionBadCaseItem, 0, len(result.NewBadCases))
+	for _, bc := range result.NewBadCases {
+		resp.NewBadCases = append(resp.NewBadCases, evalRegressionBadCaseItem{
+			EvalCaseID: bc.EvalCaseID, Title: bc.Title, Verdict: bc.Verdict, Score: bc.Score,
+		})
+	}
+	resp.ResolvedBadCases = make([]evalRegressionBadCaseItem, 0, len(result.ResolvedBadCases))
+	for _, bc := range result.ResolvedBadCases {
+		resp.ResolvedBadCases = append(resp.ResolvedBadCases, evalRegressionBadCaseItem{
+			EvalCaseID: bc.EvalCaseID, Title: bc.Title, Verdict: bc.Verdict, Score: bc.Score,
+		})
+	}
+
+	writeJSON(w, http.StatusOK, resp)
 }

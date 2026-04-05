@@ -26,6 +26,7 @@ const (
 	defaultLLMTimeout                = 30 * time.Second
 	defaultEmbeddingProvider         = "placeholder"
 	defaultEmbeddingTimeout          = 15 * time.Second
+	defaultToolPolicyAllow           = true
 )
 
 // Config holds the minimum process configuration required by the foundation slice.
@@ -59,6 +60,7 @@ type Config struct {
 	EmbeddingAPIKey           string
 	EmbeddingModel            string
 	EmbeddingTimeout          time.Duration
+	ToolPolicyAllow           bool // OPSPILOT_TOOL_POLICY_ALLOW: global tool-use toggle (default true)
 }
 
 // Load reads process configuration from environment variables and applies safe defaults.
@@ -93,6 +95,7 @@ func Load() (Config, error) {
 		EmbeddingAPIKey:           getEnv("OPSPILOT_EMBEDDING_API_KEY", ""),
 		EmbeddingModel:            getEnv("OPSPILOT_EMBEDDING_MODEL", ""),
 		EmbeddingTimeout:          defaultEmbeddingTimeout,
+		ToolPolicyAllow:           defaultToolPolicyAllow,
 	}
 
 	if raw := os.Getenv("OPSPILOT_TEMPORAL_ENABLED"); raw != "" {
@@ -160,6 +163,13 @@ func Load() (Config, error) {
 	}
 	if cfg.EvalJudgeTimeout <= 0 {
 		return Config{}, fmt.Errorf("OPSPILOT_EVAL_JUDGE_TIMEOUT must be positive")
+	}
+	if raw := os.Getenv("OPSPILOT_TOOL_POLICY_ALLOW"); raw != "" {
+		allow, err := strconv.ParseBool(raw)
+		if err != nil {
+			return Config{}, fmt.Errorf("parse OPSPILOT_TOOL_POLICY_ALLOW: %w", err)
+		}
+		cfg.ToolPolicyAllow = allow
 	}
 	if raw := os.Getenv("OPSPILOT_EMBEDDING_TIMEOUT"); raw != "" {
 		timeout, err := time.ParseDuration(raw)

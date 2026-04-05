@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"log/slog"
 	"reflect"
 	"slices"
 	"time"
@@ -20,10 +21,27 @@ type evalRunDetailReader interface {
 	GetRunDetail(ctx context.Context, runID string) (EvalRunDetail, error)
 }
 
+// CaseCreator is the minimal interface for creating follow-up cases from regression bad cases.
+type CaseCreator interface {
+	CreateCase(ctx context.Context, input CaseCreateInput) error
+}
+
+// CaseCreateInput is the typed input for auto-promoting regression bad cases to case management.
+type CaseCreateInput struct {
+	TenantID           string
+	Title              string
+	Summary            string
+	SourceEvalReportID string
+	SourceEvalCaseID   string
+	SourceEvalRunID    string
+	CreatedBy          string
+}
+
 // EvalReportService materializes completed eval runs into durable aggregated reports.
 type EvalReportService struct {
 	store evalReportStore
 	runs  evalRunDetailReader
+	cases CaseCreator
 }
 
 // NewEvalReportService constructs the eval-report service with memory-backed defaults.
@@ -34,6 +52,12 @@ func NewEvalReportService() *EvalReportService {
 
 // NewEvalReportServiceWithDependencies constructs the eval-report service with caller-provided storage and run reader.
 func NewEvalReportServiceWithDependencies(store evalReportStore, runs evalRunDetailReader) *EvalReportService {
+	return NewEvalReportServiceWithCases(store, runs, nil)
+}
+
+// NewEvalReportServiceWithCases constructs the eval-report service with all optional dependencies
+// including a CaseCreator for auto-promoting regression bad cases.
+func NewEvalReportServiceWithCases(store evalReportStore, runs evalRunDetailReader, cases CaseCreator) *EvalReportService {
 	if store == nil {
 		store = newMemoryStore()
 	}
@@ -44,6 +68,7 @@ func NewEvalReportServiceWithDependencies(store evalReportStore, runs evalRunDet
 	return &EvalReportService{
 		store: store,
 		runs:  runs,
+		cases: cases,
 	}
 }
 
@@ -85,6 +110,124 @@ func (s *EvalReportService) CompareEvalReports(ctx context.Context, leftReportID
 		Right:   right,
 		Summary: buildEvalReportComparisonSummary(left, right),
 	}, nil
+}
+
+// DetectRegression compares a candidate eval report against a baseline and classifies
+// the result as regression, improvement, or stable based on configurable thresholds.
+// New bad cases (in candidate but not baseline) and resolved bad cases are identified.
+func (s *EvalReportService) DetectRegression(ctx context.Context, baselineReportID, candidateReportID string, thresholds RegressionThresholds) (RegressionResult, error) {
+	if baselineReportID == "" {
+		return RegressionResult{}, errors.New("baseline_report_id is required")
+	}
+	if candidateReportID == "" {
+		return RegressionResult{}, errors.New("candidate_report_id is required")
+	}
+
+	baseline, err := s.store.GetEvalReport(ctx, baselineReportID)
+	if err != nil {
+		return RegressionResult{}, fmt.Errorf("load baseline report: %w", err)
+	}
+	candidate, err := s.store.GetEvalReport(ctx, candidateReportID)
+	if err != nil {
+		return RegressionResult{}, fmt.Errorf("load candidate report: %w", err)
+	}
+
+	newBadCases := diffBadCases(baseline.BadCases, candidate.BadCases)
+	resolvedBadCases := diffBadCases(candidate.BadCases, baseline.BadCases)
+
+	scoreDelta := candidate.AverageScore - baseline.AverageScore
+	passedDelta := candidate.PassedItems - baseline.PassedItems
+	failedDelta := candidate.FailedItems - baseline.FailedItems
+
+	verdict := classifyRegression(scoreDelta, len(newBadCases), thresholds)
+
+	return RegressionResult{
+		BaselineReportID:  baselineReportID,
+		CandidateReportID: candidateReportID,
+		Verdict:           verdict,
+		AverageScoreDelta: scoreDelta,
+		PassedItemsDelta:  passedDelta,
+		FailedItemsDelta:  failedDelta,
+		NewBadCases:       newBadCases,
+		ResolvedBadCases:  resolvedBadCases,
+		Thresholds:        thresholds,
+	}, nil
+}
+
+// diffBadCases returns bad cases in `target` that are NOT in `reference` (by EvalCaseID).
+func diffBadCases(reference, target []EvalReportBadCase) []EvalReportBadCase {
+	refIDs := make(map[string]struct{}, len(reference))
+	for _, bc := range reference {
+		refIDs[bc.EvalCaseID] = struct{}{}
+	}
+
+	diff := make([]EvalReportBadCase, 0)
+	for _, bc := range target {
+		if _, ok := refIDs[bc.EvalCaseID]; !ok {
+			diff = append(diff, bc)
+		}
+	}
+	return diff
+}
+
+// classifyRegression determines the verdict based on score delta, new bad case count, and thresholds.
+func classifyRegression(scoreDelta float64, newBadCaseCount int, thresholds RegressionThresholds) string {
+	isRegression := false
+
+	// Score drop check (at or beyond threshold triggers regression)
+	if thresholds.ScoreDropThreshold > 0 && scoreDelta <= -thresholds.ScoreDropThreshold {
+		isRegression = true
+	}
+
+	// New bad case check
+	if newBadCaseCount > thresholds.NewFailedCasesMax {
+		isRegression = true
+	}
+
+	if isRegression {
+		return RegressionVerdictRegression
+	}
+
+	// Improvement: score improved AND no new bad cases
+	if scoreDelta > thresholds.ScoreDropThreshold && newBadCaseCount == 0 {
+		return RegressionVerdictImprovement
+	}
+
+	return RegressionVerdictStable
+}
+
+// PromoteRegressionCases auto-creates follow-up cases for new bad cases from a regression result.
+// Requires a CaseCreator to be configured. Returns the number of cases created.
+// Cases are linked to both the candidate eval report and the specific eval case for provenance.
+func (s *EvalReportService) PromoteRegressionCases(ctx context.Context, result RegressionResult, tenantID, createdBy string) (int, error) {
+	if s.cases == nil {
+		return 0, fmt.Errorf("case creator not configured")
+	}
+	if result.Verdict != RegressionVerdictRegression {
+		return 0, nil
+	}
+
+	promoted := 0
+	for _, bc := range result.NewBadCases {
+		err := s.cases.CreateCase(ctx, CaseCreateInput{
+			TenantID:           tenantID,
+			Title:              fmt.Sprintf("Regression: %s", bc.Title),
+			Summary:            fmt.Sprintf("New bad case detected in regression check (score=%.3f, verdict=%s). Baseline: %s, Candidate: %s", bc.Score, bc.Verdict, result.BaselineReportID, result.CandidateReportID),
+			SourceEvalReportID: result.CandidateReportID,
+			SourceEvalCaseID:   bc.EvalCaseID,
+			CreatedBy:          createdBy,
+		})
+		if err != nil {
+			slog.Warn("failed to auto-promote regression bad case",
+				slog.String("eval_case_id", bc.EvalCaseID),
+				slog.Any("error", err),
+			)
+			continue
+		}
+		promoted++
+	}
+
+	return promoted, nil
 }
 
 // MaterializeRunReport builds and saves the canonical eval report for one completed run.

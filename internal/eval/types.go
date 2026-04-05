@@ -329,6 +329,48 @@ type EvalReportComparison struct {
 	Summary EvalReportComparisonSummary
 }
 
+// RegressionThresholds configures when a comparison is classified as a regression.
+type RegressionThresholds struct {
+	// ScoreDropThreshold is the minimum average-score decrease to trigger regression.
+	// For example, 0.05 means a 5% absolute drop in average score triggers regression.
+	// Zero disables score-based detection.
+	ScoreDropThreshold float64
+	// NewFailedCasesMax is the maximum number of new bad cases (in candidate but not
+	// in baseline) allowed before triggering regression. Zero means any new bad case
+	// triggers regression.
+	NewFailedCasesMax int
+}
+
+// DefaultRegressionThresholds returns conservative defaults suitable for most eval pipelines.
+func DefaultRegressionThresholds() RegressionThresholds {
+	return RegressionThresholds{
+		ScoreDropThreshold: 0.05,
+		NewFailedCasesMax:  0,
+	}
+}
+
+const (
+	// RegressionVerdictRegression indicates the candidate is worse than the baseline.
+	RegressionVerdictRegression = "regression"
+	// RegressionVerdictImprovement indicates the candidate is better than the baseline.
+	RegressionVerdictImprovement = "improvement"
+	// RegressionVerdictStable indicates no significant change.
+	RegressionVerdictStable = "stable"
+)
+
+// RegressionResult is the output of automated regression detection between two eval reports.
+type RegressionResult struct {
+	BaselineReportID  string
+	CandidateReportID string
+	Verdict           string  // regression, improvement, stable
+	AverageScoreDelta float64 // candidate - baseline (negative = worse)
+	PassedItemsDelta  int
+	FailedItemsDelta  int
+	NewBadCases      []EvalReportBadCase // in candidate but not in baseline
+	ResolvedBadCases []EvalReportBadCase // in baseline but not in candidate
+	Thresholds       RegressionThresholds
+}
+
 // RunListFilter constrains eval-run list reads.
 type RunListFilter struct {
 	TenantID  string

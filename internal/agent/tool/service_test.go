@@ -206,6 +206,47 @@ func TestServiceExecuteApprovedToolRejectsInvalidArguments(t *testing.T) {
 	}
 }
 
+func TestServiceExecuteRejectsMalformedJSON(t *testing.T) {
+	svc := NewService(toolregistry.NewDefaultRegistry())
+
+	// Simulates LLM producing invalid JSON in tool_arguments
+	_, err := svc.Execute(context.Background(), ToolInvocation{
+		RequestID:       "req-malformed",
+		TenantID:        "tenant-1",
+		SessionID:       "session-1",
+		PlanID:          "plan-malformed",
+		StepID:          "step-1",
+		ToolName:        "ticket_search",
+		ActionClass:     ActionClassRead,
+		Arguments:       json.RawMessage(`not valid json`),
+	})
+	if err == nil {
+		t.Fatal("Execute() error = nil, want error for malformed JSON arguments")
+	}
+	if !strings.Contains(err.Error(), "ticket_search") {
+		t.Fatalf("error = %v, want message mentioning tool name", err)
+	}
+}
+
+func TestServiceExecuteRejectsWrongFieldNames(t *testing.T) {
+	svc := NewService(toolregistry.NewDefaultRegistry())
+
+	// Simulates LLM hallucinating wrong field names
+	_, err := svc.Execute(context.Background(), ToolInvocation{
+		RequestID:       "req-wrong-fields",
+		TenantID:        "tenant-1",
+		SessionID:       "session-1",
+		PlanID:          "plan-wrong",
+		StepID:          "step-1",
+		ToolName:        "ticket_search",
+		ActionClass:     ActionClassRead,
+		Arguments:       json.RawMessage(`{"wrong_field":"value"}`),
+	})
+	if err == nil {
+		t.Fatal("Execute() error = nil, want error for missing required 'query' field")
+	}
+}
+
 func TestServiceExecuteReadOnlyToolUsesInjectedHTTPRegistry(t *testing.T) {
 	registry := toolregistry.NewDefaultRegistryWithOptions(toolregistry.Options{
 		TicketAPIBaseURL: "http://127.0.0.1:1",

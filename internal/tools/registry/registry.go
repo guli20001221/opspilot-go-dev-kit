@@ -10,13 +10,23 @@ import (
 // Executor executes one registered tool against normalized runtime inputs.
 type Executor func(context.Context, json.RawMessage) (any, error)
 
+// ParameterDef describes one expected input parameter for a tool.
+type ParameterDef struct {
+	Name        string `json:"name"`
+	Type        string `json:"type"` // "string", "number", "boolean"
+	Required    bool   `json:"required"`
+	Description string `json:"description"`
+}
+
 // Definition describes one registered tool and its static policy.
 type Definition struct {
 	Name             string
+	Description      string // human-readable tool description
 	ActionClass      string
 	ReadOnly         bool
 	RequiresApproval bool
 	AsyncOnly        bool
+	Parameters       []ParameterDef
 	StubResponse     map[string]any
 	Executor         Executor
 }

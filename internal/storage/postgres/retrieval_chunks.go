@@ -116,13 +116,16 @@ RETURNING id, tenant_id, document_id, document_version, chunk_id,
 	return out, nil
 }
 
-// DeleteStaleChunks removes chunks from older document versions.
-func (s *RetrievalChunkStore) DeleteStaleChunks(ctx context.Context, tenantID, documentID string, currentVersion int) (int, error) {
+// DeleteStaleChunks removes chunks from older document versions AND same-version
+// orphans whose chunk_id is not in the set of currently upserted chunk IDs.
+func (s *RetrievalChunkStore) DeleteStaleChunks(ctx context.Context, tenantID, documentID string, currentVersion int, currentChunkIDs []string) (int, error) {
 	const query = `
 DELETE FROM retrieval_chunks
-WHERE tenant_id = $1 AND document_id = $2 AND document_version < $3`
+WHERE tenant_id = $1 AND document_id = $2
+  AND (document_version < $3
+       OR (document_version = $3 AND chunk_id != ALL($4::text[])))`
 
-	tag, err := s.pool.Exec(ctx, query, tenantID, documentID, currentVersion)
+	tag, err := s.pool.Exec(ctx, query, tenantID, documentID, currentVersion, currentChunkIDs)
 	if err != nil {
 		return 0, fmt.Errorf("delete stale chunks: %w", err)
 	}
@@ -208,10 +211,15 @@ func (s *RetrievalChunkStore) Search(ctx context.Context, req retrieval.Retrieva
 		coverage = totalScore / float64(len(expanded))
 	}
 
+	queryUsed := req.QueryText
+	if req.RewrittenQuery != "" {
+		queryUsed = req.RewrittenQuery
+	}
+
 	return retrieval.RetrievalResult{
 		RequestID:      req.RequestID,
 		PlanID:         req.PlanID,
-		QueryUsed:      req.QueryText,
+		QueryUsed:      queryUsed,
 		EvidenceBlocks: expanded,
 		CoverageScore:  coverage,
 	}, nil

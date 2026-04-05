@@ -31,17 +31,26 @@ func NewDefaultRegistryWithOptions(opts Options) *Registry {
 
 	registry.Register(Definition{
 		Name:             "ticket_search",
+		Description:      "Search tickets by keyword query",
 		ActionClass:      "read",
 		ReadOnly:         true,
 		RequiresApproval: false,
-		Executor:         searchExecutor,
+		Parameters: []ParameterDef{
+			{Name: "query", Type: "string", Required: true, Description: "search keywords or ticket ID pattern"},
+		},
+		Executor: searchExecutor,
 	})
 	registry.Register(Definition{
 		Name:             "ticket_comment_create",
+		Description:      "Create a comment on an existing ticket",
 		ActionClass:      "write",
 		ReadOnly:         false,
 		RequiresApproval: true,
-		Executor:         commentExecutor,
+		Parameters: []ParameterDef{
+			{Name: "ticket_id", Type: "string", Required: true, Description: "ticket identifier (e.g. INC-100)"},
+			{Name: "comment", Type: "string", Required: true, Description: "comment text to add"},
+		},
+		Executor: commentExecutor,
 	})
 
 	return registry

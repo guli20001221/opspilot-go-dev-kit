@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"net/http"
 
+	"opspilot-go/internal/agent/planner"
 	casesvc "opspilot-go/internal/case"
 	evalsvc "opspilot-go/internal/eval"
 	ingestpkg "opspilot-go/internal/ingestion"
@@ -35,6 +36,7 @@ type Dependencies struct {
 	LLM          llm.Provider
 	Ingestion    *ingestpkg.Pipeline
 	Registry     *toolregistry.Registry
+	PolicyLoader planner.PolicyLoader
 }
 
 // NewHandler constructs the minimum API handler tree for the foundation slice.
@@ -45,7 +47,7 @@ func NewHandler() http.Handler {
 // NewHandlerWithDependencies constructs the HTTP handler tree with injected services.
 func NewHandlerWithDependencies(deps Dependencies) http.Handler {
 	mux := http.NewServeMux()
-	app := newAppHandler(deps.Workflows, deps.Reports, deps.Cases, deps.EvalCases, deps.EvalDatasets, deps.EvalRuns, deps.EvalReports, deps.Versions, deps.Sessions, deps.Retrieval, deps.LLM, deps.Ingestion, deps.Registry)
+	app := newAppHandler(deps.Workflows, deps.Reports, deps.Cases, deps.EvalCases, deps.EvalDatasets, deps.EvalRuns, deps.EvalReports, deps.Versions, deps.Sessions, deps.Retrieval, deps.LLM, deps.Ingestion, deps.Registry, deps.PolicyLoader)
 	mux.HandleFunc("/healthz", writeStatus("ok"))
 	mux.HandleFunc("/readyz", writeStatus("ready"))
 	app.registerRoutes(mux)

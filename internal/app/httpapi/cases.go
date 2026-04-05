@@ -744,7 +744,7 @@ func (a *appHandler) collectEvalReportIDsForDataset(ctx context.Context, tenantI
 }
 
 func (a *appHandler) validateCaseSources(r *http.Request, req createCaseRequest) (report.Report, error) {
-	reportItem := evalsvc.EvalReport{}
+	var evalReportItem evalsvc.EvalReport
 
 	if req.SourceTaskID != "" {
 		task, err := a.workflows.GetTask(r.Context(), req.SourceTaskID)
@@ -775,7 +775,12 @@ func (a *appHandler) validateCaseSources(r *http.Request, req createCaseRequest)
 		if item.TenantID != req.TenantID {
 			return report.Report{}, errInvalidCaseSource
 		}
-		reportItem = item
+		evalReportItem = item
+		// Cross-check: if source_task_id is also provided, verify the eval report's
+		// bad-case lineage is consistent (at least one bad case traces to that task).
+		if req.SourceTaskID != "" && !evalReportContainsTaskID(req.SourceTaskID, evalReportItem) {
+			return report.Report{}, errInvalidEvalReportTaskLineage
+		}
 	}
 	if req.SourceEvalCaseID != "" {
 		item, err := a.evalCases.GetEvalCase(r.Context(), req.SourceEvalCaseID)
@@ -785,17 +790,33 @@ func (a *appHandler) validateCaseSources(r *http.Request, req createCaseRequest)
 		if item.TenantID != req.TenantID {
 			return report.Report{}, errInvalidCaseSource
 		}
-		if req.SourceEvalReportID != "" && !evalReportContainsBadCase(req.SourceEvalCaseID, reportItem) {
+		if req.SourceEvalReportID != "" && !evalReportContainsBadCase(req.SourceEvalCaseID, evalReportItem) {
 			return report.Report{}, errInvalidEvalCaseSource
 		}
 	}
 	if req.SourceEvalRunID != "" {
-		item, err := a.evalRuns.GetRun(r.Context(), req.SourceEvalRunID)
+		runItem, err := a.evalRuns.GetRun(r.Context(), req.SourceEvalRunID)
 		if err != nil {
 			return report.Report{}, err
 		}
-		if item.TenantID != req.TenantID {
+		if runItem.TenantID != req.TenantID {
 			return report.Report{}, errInvalidCaseSource
+		}
+		// Cross-check: if eval report is also provided, verify the run belongs
+		// to the same eval lineage (eval report was generated from this run).
+		if req.SourceEvalReportID != "" && evalReportItem.RunID != runItem.ID {
+			return report.Report{}, errInvalidEvalRunLineage
+		}
+		// Cross-check: if eval case is also provided (without eval report),
+		// verify the eval case belongs to the run's dataset.
+		if req.SourceEvalCaseID != "" && req.SourceEvalReportID == "" {
+			dataset, err := a.evalDatasets.GetDataset(r.Context(), runItem.DatasetID)
+			if err != nil {
+				return report.Report{}, err
+			}
+			if !datasetContainsEvalCase(req.SourceEvalCaseID, dataset) {
+				return report.Report{}, errInvalidEvalCaseRunLineage
+			}
 		}
 	}
 	if req.CompareOrigin != nil {
@@ -815,6 +836,9 @@ func (a *appHandler) validateCaseSources(r *http.Request, req createCaseRequest)
 
 var errInvalidCaseSource = errors.New("case source tenant mismatch")
 var errInvalidEvalCaseSource = errors.New("source eval case does not belong to source eval report")
+var errInvalidEvalRunLineage = errors.New("source eval run does not match source eval report lineage")
+var errInvalidEvalReportTaskLineage = errors.New("source eval report has no bad-case lineage to source task")
+var errInvalidEvalCaseRunLineage = errors.New("source eval case does not belong to source eval run's dataset")
 
 func writeCaseSourceError(w http.ResponseWriter, err error) {
 	switch {
@@ -832,6 +856,12 @@ func writeCaseSourceError(w http.ResponseWriter, err error) {
 		writeError(w, http.StatusConflict, "invalid_case_source", err.Error())
 	case errors.Is(err, errInvalidEvalCaseSource):
 		writeError(w, http.StatusConflict, "invalid_case_source", "source eval case does not belong to source eval report")
+	case errors.Is(err, errInvalidEvalRunLineage):
+		writeError(w, http.StatusConflict, "invalid_case_source", "source eval run does not match source eval report lineage")
+	case errors.Is(err, errInvalidEvalReportTaskLineage):
+		writeError(w, http.StatusConflict, "invalid_case_source", "source eval report has no bad-case lineage to source task")
+	case errors.Is(err, errInvalidEvalCaseRunLineage):
+		writeError(w, http.StatusConflict, "invalid_case_source", "source eval case does not belong to source eval run's dataset")
 	default:
 		writeError(w, http.StatusInternalServerError, "case_source_lookup_failed", err.Error())
 	}
@@ -877,6 +907,25 @@ func newCaseResponse(item casesvc.Case, notes ...[]casesvc.Note) caseResponse {
 func evalReportContainsBadCase(evalCaseID string, item evalsvc.EvalReport) bool {
 	for _, badCase := range item.BadCases {
 		if badCase.EvalCaseID == evalCaseID {
+			return true
+		}
+	}
+
+	return false
+}
+
+func datasetContainsEvalCase(evalCaseID string, dataset evalsvc.EvalDataset) bool {
+	for _, item := range dataset.Items {
+		if item.EvalCaseID == evalCaseID {
+			return true
+		}
+	}
+	return false
+}
+
+func evalReportContainsTaskID(taskID string, item evalsvc.EvalReport) bool {
+	for _, badCase := range item.BadCases {
+		if badCase.SourceTaskID == taskID {
 			return true
 		}
 	}

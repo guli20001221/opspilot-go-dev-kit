@@ -7,8 +7,10 @@ import (
 	"testing"
 	"time"
 
+	agenttool "opspilot-go/internal/agent/tool"
 	"opspilot-go/internal/llm"
 	"opspilot-go/internal/session"
+	toolregistry "opspilot-go/internal/tools/registry"
 )
 
 func TestServiceHandleCreatesSessionAndBuildsStreamEvents(t *testing.T) {
@@ -374,5 +376,186 @@ func TestServiceHandleNormalModeAllowsToolExecution(t *testing.T) {
 	}
 	if !hasToolEvent {
 		t.Fatal("no tool event emitted in normal mode — tools should execute")
+	}
+}
+
+func TestBuildToolArgumentsFallbackForKeywordPlanner(t *testing.T) {
+	// Keyword planner does not produce ToolArguments — verify the fallback
+	// heuristic still works correctly.
+	args, err := buildToolArguments("ticket_search", "search for INC-200")
+	if err != nil {
+		t.Fatalf("buildToolArguments() error = %v", err)
+	}
+	var parsed map[string]string
+	if err := json.Unmarshal(args, &parsed); err != nil {
+		t.Fatalf("Unmarshal() error = %v", err)
+	}
+	if parsed["query"] != "search for INC-200" {
+		t.Fatalf("query = %q, want user message", parsed["query"])
+	}
+}
+
+func TestBuildToolArgumentsFallbackForCommentCreate(t *testing.T) {
+	args, err := buildToolArguments("ticket_comment_create", "comment on ticket INC-300 fix applied")
+	if err != nil {
+		t.Fatalf("buildToolArguments() error = %v", err)
+	}
+	var parsed map[string]string
+	if err := json.Unmarshal(args, &parsed); err != nil {
+		t.Fatalf("Unmarshal() error = %v", err)
+	}
+	if parsed["ticket_id"] != "INC-300" {
+		t.Fatalf("ticket_id = %q, want %q", parsed["ticket_id"], "INC-300")
+	}
+	if parsed["comment"] == "" {
+		t.Fatal("comment is empty")
+	}
+}
+
+// --- Replanning integration tests ---
+
+func TestServiceHandleKeywordPlanDoesNotReplanOnToolError(t *testing.T) {
+	// Keyword planner cannot replan — tool errors propagate directly.
+	sessionService := session.NewService()
+	// Use a registry with a tool that will fail
+	registry := toolregistry.New()
+	registry.Register(toolregistry.Definition{
+		Name:        "ticket_search",
+		ActionClass: "read",
+		ReadOnly:    true,
+		Executor: func(_ context.Context, _ json.RawMessage) (any, error) {
+			return nil, fmt.Errorf("simulated search failure")
+		},
+	})
+	svc := NewServiceWithRegistry(sessionService, nil, registry)
+
+	_, err := svc.Handle(context.Background(), ChatRequestEnvelope{
+		RequestID:   "req-kw-no-replan",
+		TenantID:    "tenant-1",
+		UserID:      "user-1",
+		Mode:        "chat",
+		UserMessage: "search related ticket history",
+	})
+	// Should get the tool error directly since keyword plans can't replan
+	if err == nil {
+		t.Fatal("Handle() error = nil, want tool execution error")
+	}
+}
+
+func TestServiceHandleReplanPreservesFailedToolInResults(t *testing.T) {
+	// Scenario: tool fails → replan succeeds → failed tool attempt must appear
+	// in HandleResult.ToolResults alongside the revised plan's successful results.
+	sessionService := session.NewService()
+
+	callCount := 0
+	registry := toolregistry.New()
+	registry.Register(toolregistry.Definition{
+		Name:        "ticket_search",
+		ActionClass: "read",
+		ReadOnly:    true,
+		Executor: func(_ context.Context, _ json.RawMessage) (any, error) {
+			callCount++
+			if callCount == 1 {
+				return nil, fmt.Errorf("simulated first-call failure")
+			}
+			// Second call (from revised plan) succeeds
+			return map[string]string{"ticket_id": "INC-100", "summary": "found"}, nil
+		},
+	})
+
+	// The mock LLM needs to return:
+	// 1st call: initial plan (tool step that will fail)
+	// 2nd call: replan response (fallback plan with retrieve + synthesize + critic, no tool)
+	// 3rd call: LLM completion for the answer
+	// But the planner uses the LLM, and the chat completion also uses it.
+	// The keyword planner doesn't use LLM, but keyword plans can't replan.
+	// So we need an LLM provider for the planner to produce an LLM-sourced plan.
+
+	planJSON := `{"intent":"incident_assist","reasoning":"search tickets","requires_retrieval":false,"requires_tool":true,"requires_workflow":false,"requires_approval":false,"output_schema":"markdown","steps":[{"kind":"tool","name":"search tickets","depends_on":[],"tool_name":"ticket_search","tool_arguments":{"query":"test"},"read_only":true,"needs_approval":false},{"kind":"synthesize","name":"compose","depends_on":["search tickets"],"tool_name":"","tool_arguments":{},"read_only":false,"needs_approval":false},{"kind":"critic","name":"validate","depends_on":["compose"],"tool_name":"","tool_arguments":{},"read_only":false,"needs_approval":false}]}`
+	replanJSON := `{"intent":"knowledge_qa","reasoning":"fallback after tool failure","requires_retrieval":true,"requires_tool":false,"requires_workflow":false,"requires_approval":false,"output_schema":"markdown","steps":[{"kind":"retrieve","name":"retrieve docs","depends_on":[],"tool_name":"","tool_arguments":{},"read_only":false,"needs_approval":false},{"kind":"synthesize","name":"compose answer","depends_on":["retrieve docs"],"tool_name":"","tool_arguments":{},"read_only":false,"needs_approval":false},{"kind":"critic","name":"validate","depends_on":["compose answer"],"tool_name":"","tool_arguments":{},"read_only":false,"needs_approval":false}]}`
+
+	llmCallIdx := 0
+	provider := &sequenceMockProvider{
+		responses: []llm.CompletionResponse{
+			{Content: planJSON, Model: "mock"},        // initial plan
+			{Content: replanJSON, Model: "mock"},       // replan
+			{Content: "LLM answer after replan", Model: "mock"}, // completion
+			{Content: `{"groundedness":0.8,"citation_coverage":0.7,"tool_consistency":1.0,"risk_level":"low","verdict":"approve","reasoning":"ok"}`, Model: "mock"}, // critic
+		},
+		callIdx: &llmCallIdx,
+	}
+
+	svc := NewServiceWithLLM(sessionService, nil, registry, nil, provider)
+
+	got, err := svc.Handle(context.Background(), ChatRequestEnvelope{
+		RequestID:   "req-replan-audit",
+		TenantID:    "tenant-replan",
+		UserID:      "user-1",
+		Mode:        "chat",
+		UserMessage: "find tickets about outage",
+	})
+	if err != nil {
+		t.Fatalf("Handle() error = %v", err)
+	}
+
+	// Verify replan occurred
+	if got.ReplanCount != 1 {
+		t.Fatalf("ReplanCount = %d, want 1", got.ReplanCount)
+	}
+
+	// Key assertion: the failed tool attempt must be in ToolResults
+	foundFailed := false
+	for _, tr := range got.ToolResults {
+		if tr.Status == "failed" && tr.ToolName == "ticket_search" {
+			foundFailed = true
+			break
+		}
+	}
+	if !foundFailed {
+		t.Fatal("failed tool attempt not found in ToolResults — audit trail is incomplete")
+	}
+
+	// Verify SSE events include a tool event with failed status
+	foundFailedEvent := false
+	for _, evt := range got.Events {
+		if evt.Name == "tool" && evt.Data["status"] == "failed" {
+			foundFailedEvent = true
+			break
+		}
+	}
+	if !foundFailedEvent {
+		t.Fatal("failed tool SSE event not found — operator visibility is incomplete")
+	}
+}
+
+// sequenceMockProvider returns different LLM responses for successive calls.
+type sequenceMockProvider struct {
+	responses []llm.CompletionResponse
+	callIdx   *int
+}
+
+func (m *sequenceMockProvider) Complete(_ context.Context, _ llm.CompletionRequest) (llm.CompletionResponse, error) {
+	idx := *m.callIdx
+	*m.callIdx++
+	if idx < len(m.responses) {
+		return m.responses[idx], nil
+	}
+	return llm.CompletionResponse{Content: "{}", Model: "mock-fallback"}, nil
+}
+
+func TestBuildExecutedSteps(t *testing.T) {
+	results := []agenttool.ToolResult{
+		{ToolCallID: "tc-1", ToolName: "ticket_search", Status: "succeeded", OutputSummary: "found 3 matches"},
+		{ToolCallID: "tc-2", ToolName: "ticket_comment_create", Status: "approval_required", OutputSummary: "needs approval"},
+	}
+	steps := buildExecutedSteps(results)
+	if len(steps) != 2 {
+		t.Fatalf("len(steps) = %d, want 2", len(steps))
+	}
+	if steps[0].ToolName != "ticket_search" || steps[0].Status != "succeeded" {
+		t.Fatalf("step[0] = %+v, want ticket_search/succeeded", steps[0])
+	}
+	if steps[1].ToolName != "ticket_comment_create" || steps[1].Status != "approval_required" {
+		t.Fatalf("step[1] = %+v, want ticket_comment_create/approval_required", steps[1])
 	}
 }

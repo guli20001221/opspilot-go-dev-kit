@@ -50,16 +50,15 @@ func (a *appHandler) handleDocuments(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, "invalid_document", "tenant_id, document_id, and content are required")
 		return
 	}
-
-	docVersion := req.DocumentVersion
-	if docVersion < 1 {
-		docVersion = 1
+	if req.DocumentVersion < 1 {
+		writeError(w, http.StatusBadRequest, "invalid_document", "document_version must be >= 1")
+		return
 	}
 
 	result, err := a.ingestion.Ingest(r.Context(), ingestion.Document{
 		DocumentID:       strings.TrimSpace(req.DocumentID),
 		TenantID:         strings.TrimSpace(req.TenantID),
-		DocumentVersion:  docVersion,
+		DocumentVersion:  req.DocumentVersion,
 		SourceTitle:      req.SourceTitle,
 		SourceURI:        req.SourceURI,
 		Content:          req.Content,
