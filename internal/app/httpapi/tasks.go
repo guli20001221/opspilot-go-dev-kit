@@ -69,10 +69,34 @@ func (a *appHandler) handleTasks(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
+// validTaskTypes is the set of accepted task_type values.
+var validTaskTypes = map[string]bool{
+	workflow.TaskTypeReportGeneration:     true,
+	workflow.TaskTypeApprovedToolExecution: true,
+}
+
+// validPromotionReasons is the set of accepted reason values.
+var validPromotionReasons = map[string]bool{
+	workflow.PromotionReasonWorkflowRequired: true,
+	workflow.PromotionReasonApprovalRequired: true,
+}
+
 func (a *appHandler) handleCreateTask(w http.ResponseWriter, r *http.Request) {
 	var req createTaskRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		writeError(w, http.StatusBadRequest, "invalid_json", "invalid json body")
+		return
+	}
+	if strings.TrimSpace(req.TenantID) == "" {
+		writeError(w, http.StatusBadRequest, "invalid_task", "tenant_id is required")
+		return
+	}
+	if !validTaskTypes[req.TaskType] {
+		writeError(w, http.StatusBadRequest, "invalid_task", "task_type must be one of: report_generation, approved_tool_execution")
+		return
+	}
+	if !validPromotionReasons[req.Reason] {
+		writeError(w, http.StatusBadRequest, "invalid_task", "reason must be one of: workflow_required, approval_required")
 		return
 	}
 
