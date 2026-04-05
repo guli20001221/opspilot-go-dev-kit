@@ -163,4 +163,4 @@ eval/prompts/   Versioned planner/critic prompts
 
 ## License
 
-Private repository — not for redistribution.
+MIT License — see [LICENSE](LICENSE) for details.
