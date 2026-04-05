@@ -234,11 +234,14 @@ func (s *Service) Handle(ctx context.Context, req ChatRequestEnvelope) (HandleRe
 	toolResults := make([]agenttool.ToolResult, 0, len(plan.Steps))
 	toolInvocations := make([]agenttool.ToolInvocation, 0, len(plan.Steps))
 	var replanCount int
+	activePlan := plan // activePlan tracks the current plan (may be revised by replanning)
 	if !isEvalMode {
-		toolResults, toolInvocations, replanCount, err = s.executeToolSteps(ctx, req, sessionID, plan)
+		var activePlanResult planner.ExecutionPlan
+		toolResults, toolInvocations, replanCount, activePlanResult, err = s.executeToolSteps(ctx, req, sessionID, plan)
 		if err != nil {
 			return HandleResult{}, err
 		}
+		activePlan = activePlanResult
 	}
 
 	// Generate assistant response via LLM (or placeholder fallback)
@@ -270,7 +273,7 @@ func (s *Service) Handle(ctx context.Context, req ChatRequestEnvelope) (HandleRe
 
 	criticStart := time.Now()
 	criticVerdict, err := s.critic.Review(ctx, agentcritic.CriticInput{
-		Plan:        plan,
+		Plan:        activePlan,
 		Retrieval:   &retrievalResult,
 		ToolResults: toolResults,
 		DraftAnswer: assistantContent,
@@ -285,7 +288,7 @@ func (s *Service) Handle(ctx context.Context, req ChatRequestEnvelope) (HandleRe
 	}
 
 	var promotedTask *workflow.Task
-	if !isEvalMode && (plan.RequiresWorkflow || criticVerdict.Verdict == agentcritic.VerdictPromoteWorkflow) {
+	if !isEvalMode && (activePlan.RequiresWorkflow || criticVerdict.Verdict == agentcritic.VerdictPromoteWorkflow) {
 		taskType := workflow.TaskTypeReportGeneration
 		reason := workflow.PromotionReasonWorkflowRequired
 		requiresApproval := false
@@ -331,26 +334,27 @@ func (s *Service) Handle(ctx context.Context, req ChatRequestEnvelope) (HandleRe
 	return HandleResult{
 		SessionID:    sessionID,
 		Context:      assembledContext,
-		Plan:         plan,
+		Plan:         activePlan,
 		Retrieval:    retrievalResult,
 		ToolResults:  toolResults,
 		Critic:       criticVerdict,
 		PromotedTask: promotedTask,
 		ReplanCount:  replanCount,
-		Events:       buildEvents(req, sessionID, plan, retrievalResult, toolResults, promotedTask, assistantContent),
+		Events:       buildEvents(req, sessionID, activePlan, retrievalResult, toolResults, promotedTask, assistantContent),
 	}, nil
 }
 
 const maxReplanAttempts = 1
 
 // executeToolSteps runs tool steps from the plan, with dynamic replanning on failure.
-// Returns all tool results, invocations, the replan count, and any error.
+// Returns all tool results, invocations, the replan count, the active plan (revised if
+// replanning occurred, original otherwise), and any error.
 func (s *Service) executeToolSteps(
 	ctx context.Context,
 	req ChatRequestEnvelope,
 	sessionID string,
 	plan planner.ExecutionPlan,
-) ([]agenttool.ToolResult, []agenttool.ToolInvocation, int, error) {
+) ([]agenttool.ToolResult, []agenttool.ToolInvocation, int, planner.ExecutionPlan, error) {
 	var (
 		results     []agenttool.ToolResult
 		invocations []agenttool.ToolInvocation
@@ -374,7 +378,7 @@ func (s *Service) executeToolSteps(
 			)
 			args, err = buildToolArguments(step.ToolName, req.UserMessage)
 			if err != nil {
-				return nil, nil, replanCount, err
+				return nil, nil, replanCount, plan, err
 			}
 		}
 
@@ -434,7 +438,7 @@ func (s *Service) executeToolSteps(
 						slog.String("request_id", req.RequestID),
 						slog.Any("replan_error", replanErr),
 					)
-					return nil, nil, replanCount, execErr
+					return nil, nil, replanCount, plan, execErr
 				}
 
 				replanCount++
@@ -449,7 +453,7 @@ func (s *Service) executeToolSteps(
 					} else {
 						rArgs, err = buildToolArguments(rStep.ToolName, req.UserMessage)
 						if err != nil {
-							return nil, nil, replanCount, err
+							return nil, nil, replanCount, revisedPlan, err
 						}
 					}
 					rInvocation := agenttool.ToolInvocation{
@@ -467,19 +471,19 @@ func (s *Service) executeToolSteps(
 					invocations = append(invocations, rInvocation)
 					rResult, rErr := s.tools.Execute(ctx, rInvocation)
 					if rErr != nil {
-						return nil, nil, replanCount, rErr
+						return nil, nil, replanCount, revisedPlan, rErr
 					}
 					results = append(results, rResult)
 				}
-				return results, invocations, replanCount, nil
+				return results, invocations, replanCount, revisedPlan, nil
 			}
-			return nil, nil, replanCount, execErr
+			return nil, nil, replanCount, plan, execErr
 		}
 		s.metrics.RecordToolExecution(ctx, time.Since(toolStart), step.ToolName, toolResult.Status, req.TenantID)
 		results = append(results, toolResult)
 	}
 
-	return results, invocations, replanCount, nil
+	return results, invocations, replanCount, plan, nil
 }
 
 // buildExecutedSteps converts completed tool results into planner ExecutedStep records.
