@@ -368,6 +368,7 @@ type RegressionResult struct {
 	FailedItemsDelta  int
 	NewBadCases       []EvalReportBadCase // in candidate but not in baseline
 	ResolvedBadCases  []EvalReportBadCase // in baseline but not in candidate
+	PromotedCaseCount int                 // number of cases auto-created from new bad cases
 	Thresholds        RegressionThresholds
 }
 

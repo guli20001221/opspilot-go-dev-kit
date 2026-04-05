@@ -333,6 +333,84 @@ func TestDetectRegressionRejectsEmptyIDs(t *testing.T) {
 	}
 }
 
+func TestPromoteRegressionCasesCreatesFollowUps(t *testing.T) {
+	creator := &mockCaseCreator{}
+	svc := NewEvalReportServiceWithCases(nil, nil, creator)
+	ctx := context.Background()
+
+	baseline := seedEvalReport(t, svc, "baseline-promo", "tenant-promo", 0.85, []EvalReportBadCase{
+		{EvalCaseID: "case-old", Title: "Existing failure"},
+	})
+	candidate := seedEvalReport(t, svc, "candidate-promo", "tenant-promo", 0.70, []EvalReportBadCase{
+		{EvalCaseID: "case-old", Title: "Existing failure"},
+		{EvalCaseID: "case-new-1", Title: "New regression A", Verdict: "fail", Score: 0.1},
+		{EvalCaseID: "case-new-2", Title: "New regression B", Verdict: "fail", Score: 0.2},
+	})
+
+	result, err := svc.DetectRegression(ctx, baseline.ID, candidate.ID, DefaultRegressionThresholds())
+	if err != nil {
+		t.Fatalf("DetectRegression() error = %v", err)
+	}
+	if result.Verdict != RegressionVerdictRegression {
+		t.Fatalf("Verdict = %q, want regression", result.Verdict)
+	}
+
+	promoted, err := svc.PromoteRegressionCases(ctx, result, "tenant-promo", "auto-test")
+	if err != nil {
+		t.Fatalf("PromoteRegressionCases() error = %v", err)
+	}
+	if promoted != 2 {
+		t.Fatalf("promoted = %d, want 2", promoted)
+	}
+	if len(creator.created) != 2 {
+		t.Fatalf("creator.created = %d, want 2", len(creator.created))
+	}
+	for _, c := range creator.created {
+		if c.TenantID != "tenant-promo" {
+			t.Fatalf("created case TenantID = %q, want %q", c.TenantID, "tenant-promo")
+		}
+		if c.SourceEvalReportID != candidate.ID {
+			t.Fatalf("created case SourceEvalReportID = %q, want %q", c.SourceEvalReportID, candidate.ID)
+		}
+	}
+}
+
+func TestPromoteRegressionCasesSkipsNonRegression(t *testing.T) {
+	creator := &mockCaseCreator{}
+	svc := NewEvalReportServiceWithCases(nil, nil, creator)
+
+	result := RegressionResult{Verdict: RegressionVerdictStable}
+	promoted, err := svc.PromoteRegressionCases(context.Background(), result, "t", "op")
+	if err != nil {
+		t.Fatalf("error = %v", err)
+	}
+	if promoted != 0 {
+		t.Fatalf("promoted = %d, want 0 for stable verdict", promoted)
+	}
+	if len(creator.created) != 0 {
+		t.Fatalf("cases created = %d, want 0", len(creator.created))
+	}
+}
+
+func TestPromoteRegressionCasesRequiresCaseCreator(t *testing.T) {
+	svc := NewEvalReportService() // no case creator
+
+	result := RegressionResult{Verdict: RegressionVerdictRegression, NewBadCases: []EvalReportBadCase{{EvalCaseID: "c1"}}}
+	_, err := svc.PromoteRegressionCases(context.Background(), result, "t", "op")
+	if err == nil {
+		t.Fatal("want error when CaseCreator not configured")
+	}
+}
+
+type mockCaseCreator struct {
+	created []CaseCreateInput
+}
+
+func (m *mockCaseCreator) CreateCase(_ context.Context, input CaseCreateInput) error {
+	m.created = append(m.created, input)
+	return nil
+}
+
 // seedEvalReport creates and saves a minimal eval report for regression detection tests.
 func seedEvalReport(t *testing.T, svc *EvalReportService, id, tenantID string, avgScore float64, badCases []EvalReportBadCase) EvalReport {
 	t.Helper()

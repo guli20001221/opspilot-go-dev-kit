@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"log/slog"
 	"net/http"
 	"strconv"
 	"strings"
@@ -1191,6 +1192,7 @@ type evalRegressionCheckResponse struct {
 	FailedItemsDelta  int                         `json:"failed_items_delta"`
 	NewBadCaseCount   int                         `json:"new_bad_case_count"`
 	ResolvedCaseCount int                         `json:"resolved_case_count"`
+	PromotedCaseCount int                         `json:"promoted_case_count"`
 	NewBadCases       []evalRegressionBadCaseItem `json:"new_bad_cases"`
 	ResolvedBadCases  []evalRegressionBadCaseItem `json:"resolved_bad_cases"`
 	Thresholds        evalRegressionThresholds    `json:"thresholds"`
@@ -1266,6 +1268,23 @@ func (a *appHandler) handleEvalRegressionCheck(w http.ResponseWriter, r *http.Re
 		return
 	}
 
+	// Auto-promote new bad cases to case management when requested
+	promotedCount := 0
+	if r.URL.Query().Get("auto_promote") == "true" && result.Verdict == evalsvc.RegressionVerdictRegression {
+		createdBy := strings.TrimSpace(r.URL.Query().Get("created_by"))
+		if createdBy == "" {
+			createdBy = "regression-auto"
+		}
+		count, promoteErr := a.evalReports.PromoteRegressionCases(r.Context(), result, tenantID, createdBy)
+		if promoteErr != nil {
+			slog.Warn("regression auto-promote partially failed",
+				slog.Any("error", promoteErr),
+				slog.Int("promoted", count),
+			)
+		}
+		promotedCount = count
+	}
+
 	resp := evalRegressionCheckResponse{
 		BaselineReportID:  result.BaselineReportID,
 		CandidateReportID: result.CandidateReportID,
@@ -1275,6 +1294,7 @@ func (a *appHandler) handleEvalRegressionCheck(w http.ResponseWriter, r *http.Re
 		FailedItemsDelta:  result.FailedItemsDelta,
 		NewBadCaseCount:   len(result.NewBadCases),
 		ResolvedCaseCount: len(result.ResolvedBadCases),
+		PromotedCaseCount: promotedCount,
 		Thresholds: evalRegressionThresholds{
 			ScoreDropThreshold: result.Thresholds.ScoreDropThreshold,
 			NewFailedCasesMax:  result.Thresholds.NewFailedCasesMax,
