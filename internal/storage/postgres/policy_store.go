@@ -137,9 +137,9 @@ func NewHierarchicalPolicyLoader(store *PolicyStore, cacheTTL time.Duration) *Hi
 }
 
 // LoadPolicy implements planner.PolicyLoader with hierarchical merge and caching.
-// Cache is keyed by (tenantID:userID) for per-user isolation.
+// Cache is keyed by (orgID:tenantID:userID) for full scope isolation.
 func (l *HierarchicalPolicyLoader) LoadPolicy(ctx context.Context, scope planner.PolicyScope) planner.TenantPolicy {
-	cacheKey := scope.TenantID + ":" + scope.UserID
+	cacheKey := scope.OrgID + ":" + scope.TenantID + ":" + scope.UserID
 
 	// Check cache first
 	if l.cacheTTL > 0 {
