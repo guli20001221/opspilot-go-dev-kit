@@ -161,40 +161,23 @@ func TestServiceHandlePromotesTaskModeIntoWorkflowResult(t *testing.T) {
 	}
 }
 
-func TestServiceHandlePromotesApprovedToolTaskWithPayload(t *testing.T) {
+func TestServiceHandleRejectsWriteToolWithoutStructuredArgs(t *testing.T) {
+	// Keyword planner produces a write tool step without ToolArguments.
+	// The safety boundary should reject execution rather than falling back
+	// to heuristic argument construction from raw user text.
 	sessionService := session.NewService()
 	svc := NewService(sessionService)
 
-	got, err := svc.Handle(context.Background(), ChatRequestEnvelope{
-		RequestID:   "req-approved-tool",
-		TraceID:     "trace-approved-tool",
+	_, err := svc.Handle(context.Background(), ChatRequestEnvelope{
+		RequestID:   "req-write-tool-safety",
+		TraceID:     "trace-write-tool-safety",
 		TenantID:    "tenant-1",
 		UserID:      "user-1",
 		Mode:        "chat",
 		UserMessage: "comment on ticket INC-100 with approved note",
 	})
-	if err != nil {
-		t.Fatalf("Handle() error = %v", err)
-	}
-	if got.PromotedTask == nil {
-		t.Fatal("PromotedTask is nil")
-	}
-	if got.PromotedTask.TaskType != "approved_tool_execution" {
-		t.Fatalf("PromotedTask.TaskType = %q, want %q", got.PromotedTask.TaskType, "approved_tool_execution")
-	}
-	if got.PromotedTask.ToolName != "ticket_comment_create" {
-		t.Fatalf("PromotedTask.ToolName = %q, want %q", got.PromotedTask.ToolName, "ticket_comment_create")
-	}
-
-	var args map[string]string
-	if err := json.Unmarshal(got.PromotedTask.ToolArguments, &args); err != nil {
-		t.Fatalf("Unmarshal(ToolArguments) error = %v", err)
-	}
-	if args["ticket_id"] != "INC-100" {
-		t.Fatalf("ToolArguments.ticket_id = %q, want %q", args["ticket_id"], "INC-100")
-	}
-	if args["comment"] != "comment on ticket INC-100 with approved note" {
-		t.Fatalf("ToolArguments.comment = %q, want original user message", args["comment"])
+	if err == nil {
+		t.Fatal("Handle() error = nil, want error for write tool without structured arguments")
 	}
 }
 
@@ -349,7 +332,8 @@ func TestServiceHandleEvalModeSkipsToolExecutionAndWorkflowPromotion(t *testing.
 	}
 }
 
-func TestServiceHandleNormalModeAllowsToolExecution(t *testing.T) {
+func TestServiceHandleNormalModeAllowsReadOnlyToolExecution(t *testing.T) {
+	// Read-only tools (ticket_search) still execute via heuristic fallback.
 	sessionService := session.NewService()
 	svc := NewService(sessionService)
 
@@ -359,14 +343,13 @@ func TestServiceHandleNormalModeAllowsToolExecution(t *testing.T) {
 		TenantID:    "tenant-normal-tools",
 		UserID:      "user-normal-tools",
 		Mode:        "chat",
-		UserMessage: "create a ticket for the outage",
+		UserMessage: "search related ticket history",
 		RequestedAt: time.Unix(1700000000, 0).UTC(),
 	})
 	if err != nil {
 		t.Fatalf("Handle() error = %v", err)
 	}
 
-	// In normal mode, tool events should be emitted for ticket-related messages
 	hasToolEvent := false
 	for _, event := range got.Events {
 		if event.Name == "tool" {
@@ -375,7 +358,7 @@ func TestServiceHandleNormalModeAllowsToolExecution(t *testing.T) {
 		}
 	}
 	if !hasToolEvent {
-		t.Fatal("no tool event emitted in normal mode — tools should execute")
+		t.Fatal("no tool event emitted in normal mode — read-only tools should execute")
 	}
 }
 

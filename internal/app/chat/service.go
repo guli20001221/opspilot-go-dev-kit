@@ -421,8 +421,19 @@ func (s *Service) executeToolSteps(
 		var err error
 		if len(step.ToolArguments) > 0 {
 			args = step.ToolArguments
+		} else if !step.ReadOnly {
+			// Write (side-effecting) tools MUST have structured arguments from
+			// the planner. Heuristic fallback is not safe for write operations
+			// because it dumps raw user text into tool parameters.
+			slog.Warn("write tool has no structured arguments, refusing execution",
+				slog.String("request_id", req.RequestID),
+				slog.String("tool_name", step.ToolName),
+				slog.String("plan_source", plan.Source),
+			)
+			return nil, nil, replanCount, plan, fmt.Errorf("write tool %q requires structured tool_arguments from planner", step.ToolName)
 		} else {
-			slog.Debug("planner did not produce tool arguments, using heuristic fallback",
+			// Read-only tools: heuristic fallback is acceptable
+			slog.Debug("read-only tool using heuristic argument fallback",
 				slog.String("request_id", req.RequestID),
 				slog.String("tool_name", step.ToolName),
 				slog.String("plan_source", plan.Source),

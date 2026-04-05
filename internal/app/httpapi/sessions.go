@@ -49,6 +49,7 @@ type createSessionResponse struct {
 }
 
 type chatStreamRequest struct {
+	OrgID           string   `json:"org_id,omitempty"`
 	TenantID        string   `json:"tenant_id"`
 	UserID          string   `json:"user_id"`
 	SessionID       string   `json:"session_id"`
@@ -423,7 +424,7 @@ func (a *appHandler) handleChatStream(w http.ResponseWriter, r *http.Request) {
 		UserMessage:     req.UserMessage,
 		AttachmentRefs:  req.AttachmentRefs,
 		ClientRequestID: req.ClientRequestID,
-		TenantPolicy:    a.policyLoader.LoadPolicy(r.Context(), planner.PolicyScope{TenantID: req.TenantID, UserID: req.UserID}),
+		TenantPolicy:    a.policyLoader.LoadPolicy(r.Context(), planner.PolicyScope{OrgID: req.OrgID, TenantID: req.TenantID, UserID: req.UserID}),
 		OnToken:         onToken,
 	})
 	if err != nil {
