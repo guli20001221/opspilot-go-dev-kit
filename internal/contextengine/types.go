@@ -1,5 +1,7 @@
 package contextengine
 
+import "context"
+
 const (
 	// BlockKindUserProfile identifies the user and tenant scope block.
 	BlockKindUserProfile = "user_profile"
@@ -15,6 +17,14 @@ const (
 	BlockKindToolResult = "tool_result"
 )
 
+// Summarizer compresses older conversation turns into a concise summary.
+// When the context engine detects that recent turns exceed a threshold,
+// it calls the summarizer to compress the oldest turns into a summary block.
+// This implements the ConversationSummaryBuffer pattern from LangChain.
+type Summarizer interface {
+	Summarize(ctx context.Context, turns []Turn) (string, error)
+}
+
 // Config controls deterministic block assembly limits.
 // Per-stage budgets default to the global Budget when zero.
 type Config struct {
@@ -23,6 +33,9 @@ type Config struct {
 	PlannerBudget   int // 0 = use Budget
 	RetrievalBudget int // 0 = use Budget
 	CriticBudget    int // 0 = use Budget
+	// SummaryTurnThreshold: when recent turns exceed this count, older turns
+	// are compressed into a session summary via the Summarizer. 0 = disabled.
+	SummaryTurnThreshold int
 }
 
 // Turn is the minimal conversation unit used during context assembly.

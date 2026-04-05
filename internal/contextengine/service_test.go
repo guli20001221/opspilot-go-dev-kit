@@ -2,6 +2,8 @@ package contextengine
 
 import (
 	"context"
+	"fmt"
+	"strings"
 	"testing"
 )
 
@@ -79,6 +81,141 @@ func TestServiceBuildDropsLowestPriorityBlocksWhenBudgetExceeded(t *testing.T) {
 	assertMissingBlockKind(t, got.Planner.Blocks, BlockKindTaskScratchpad)
 	if len(got.Log.DroppedBlocks) == 0 {
 		t.Fatal("Log.DroppedBlocks is empty")
+	}
+}
+
+// --- Conversation Summarizer tests ---
+
+type mockSummarizer struct {
+	called    bool
+	turnCount int
+	result    string
+	err       error
+}
+
+func (m *mockSummarizer) Summarize(_ context.Context, turns []Turn) (string, error) {
+	m.called = true
+	m.turnCount = len(turns)
+	if m.err != nil {
+		return "", m.err
+	}
+	return m.result, nil
+}
+
+func TestServiceBuildCompressesOlderTurnsWhenThresholdExceeded(t *testing.T) {
+	summarizer := &mockSummarizer{result: "User asked about passwords and got reset instructions."}
+	svc := NewServiceWithSummarizer(Config{
+		Budget:               4096,
+		SummaryTurnThreshold: 2, // keep last 2 turns, compress the rest
+	}, summarizer)
+
+	got, err := svc.Build(context.Background(), BuildInput{
+		RequestID: "req-summarize",
+		TenantID:  "tenant-1",
+		UserID:    "user-1",
+		Mode:      "chat",
+		RecentTurns: []Turn{
+			{Role: "user", Content: "How do I reset my password?"},
+			{Role: "assistant", Content: "Go to Settings > Security > Reset Password."},
+			{Role: "user", Content: "What about 2FA?"},
+			{Role: "assistant", Content: "Enable in Security settings."},
+			{Role: "user", Content: "Thanks, one more question about account recovery."},
+		},
+	})
+	if err != nil {
+		t.Fatalf("Build() error = %v", err)
+	}
+
+	if !summarizer.called {
+		t.Fatal("Summarizer was not called")
+	}
+	if summarizer.turnCount != 3 {
+		t.Fatalf("Summarizer received %d turns, want 3 (5 total - 2 kept)", summarizer.turnCount)
+	}
+
+	// Session summary block should contain the compressed summary
+	assertHasBlockKind(t, got.Planner.Blocks, BlockKindSessionSummary)
+	for _, block := range got.Planner.Blocks {
+		if block.Kind == BlockKindSessionSummary {
+			if block.Content != "User asked about passwords and got reset instructions." {
+				t.Fatalf("summary content = %q, want compressed summary", block.Content)
+			}
+		}
+		// Recent turns should only have the last 2 turns
+		if block.Kind == BlockKindRecentTurns {
+			if !strings.Contains(block.Content, "account recovery") {
+				t.Fatal("recent turns should contain the last kept turn")
+			}
+			if strings.Contains(block.Content, "How do I reset") {
+				t.Fatal("recent turns should NOT contain the compressed older turn")
+			}
+		}
+	}
+}
+
+func TestServiceBuildSkipsSummarizationWhenBelowThreshold(t *testing.T) {
+	summarizer := &mockSummarizer{result: "should not be called"}
+	svc := NewServiceWithSummarizer(Config{
+		Budget:               4096,
+		SummaryTurnThreshold: 10, // threshold higher than turn count
+	}, summarizer)
+
+	_, err := svc.Build(context.Background(), BuildInput{
+		RequestID:   "req-no-summarize",
+		TenantID:    "tenant-1",
+		UserID:      "user-1",
+		Mode:        "chat",
+		RecentTurns: []Turn{{Role: "user", Content: "hello"}},
+	})
+	if err != nil {
+		t.Fatalf("Build() error = %v", err)
+	}
+
+	if summarizer.called {
+		t.Fatal("Summarizer should not be called when below threshold")
+	}
+}
+
+func TestServiceBuildGracefulOnSummarizerError(t *testing.T) {
+	summarizer := &mockSummarizer{err: fmt.Errorf("LLM unavailable")}
+	svc := NewServiceWithSummarizer(Config{
+		Budget:               4096,
+		SummaryTurnThreshold: 2,
+	}, summarizer)
+
+	got, err := svc.Build(context.Background(), BuildInput{
+		RequestID: "req-summarize-err",
+		TenantID:  "tenant-1",
+		UserID:    "user-1",
+		Mode:      "chat",
+		RecentTurns: []Turn{
+			{Role: "user", Content: "turn 1"},
+			{Role: "assistant", Content: "turn 2"},
+			{Role: "user", Content: "turn 3"},
+		},
+	})
+	if err != nil {
+		t.Fatalf("Build() error = %v, want nil (graceful fallback)", err)
+	}
+
+	// All turns should be preserved as-is since summarization failed
+	for _, block := range got.Planner.Blocks {
+		if block.Kind == BlockKindRecentTurns {
+			if !strings.Contains(block.Content, "turn 1") {
+				t.Fatal("all turns should be preserved when summarizer fails")
+			}
+		}
+	}
+}
+
+func TestServiceBuildEmptyInput(t *testing.T) {
+	svc := NewService(Config{Budget: 4096})
+	got, err := svc.Build(context.Background(), BuildInput{RequestID: "req-empty"})
+	if err != nil {
+		t.Fatalf("Build() error = %v", err)
+	}
+	if len(got.Planner.Blocks) != 0 {
+		t.Fatalf("Planner.Blocks = %d, want 0 for empty input", len(got.Planner.Blocks))
 	}
 }
 

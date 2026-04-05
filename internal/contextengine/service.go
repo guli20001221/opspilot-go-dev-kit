@@ -3,6 +3,7 @@ package contextengine
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"strings"
 )
 
@@ -13,11 +14,18 @@ const (
 
 // Service assembles explicit context blocks from request and session state.
 type Service struct {
-	config Config
+	config     Config
+	summarizer Summarizer
 }
 
 // NewService constructs a context assembly service with deterministic defaults.
 func NewService(config Config) *Service {
+	return NewServiceWithSummarizer(config, nil)
+}
+
+// NewServiceWithSummarizer constructs a context assembly service with an optional
+// conversation summarizer for compressing long turn histories.
+func NewServiceWithSummarizer(config Config, summarizer Summarizer) *Service {
 	if config.MaxBlocks <= 0 {
 		config.MaxBlocks = defaultMaxBlocks
 	}
@@ -25,12 +33,17 @@ func NewService(config Config) *Service {
 		config.Budget = defaultBudget
 	}
 
-	return &Service{config: config}
+	return &Service{config: config, summarizer: summarizer}
 }
 
 // Build assembles stage-specific context snapshots for planner, retrieval, and critic.
 // Each stage gets a different subset of blocks filtered by relevance and budget.
-func (s *Service) Build(_ context.Context, input BuildInput) (BuildResult, error) {
+// When a Summarizer is configured and recent turns exceed SummaryTurnThreshold,
+// older turns are compressed into a session summary (ConversationSummaryBuffer pattern).
+func (s *Service) Build(ctx context.Context, input BuildInput) (BuildResult, error) {
+	// ConversationSummaryBuffer: compress older turns when threshold is exceeded
+	input = s.maybeSummarize(ctx, input)
+
 	allBlocks := s.candidateBlocks(input)
 
 	// Planner: needs user profile, recent turns, scratchpad (no evidence/tool results)
@@ -41,7 +54,7 @@ func (s *Service) Build(_ context.Context, input BuildInput) (BuildResult, error
 	// Retrieval: needs user profile, recent turns, summary (for query context)
 	retrievalBlocks := filterByKinds(allBlocks,
 		BlockKindUserProfile, BlockKindRecentTurns, BlockKindSessionSummary)
-	retrievalBlocks, _ = s.applyBudget(retrievalBlocks, s.retrievalBudget())
+	retrievalBlocks, retrievalDropped := s.applyBudget(retrievalBlocks, s.retrievalBudget())
 
 	// Critic: needs everything — evidence and tool results for validation
 	criticBlocks, criticDropped := s.applyBudget(allBlocks, s.criticBudget())
@@ -53,11 +66,53 @@ func (s *Service) Build(_ context.Context, input BuildInput) (BuildResult, error
 		Log: AssemblyLog{
 			RequestID:      input.RequestID,
 			IncludedBlocks: blockKinds(plannerBlocks),
-			DroppedBlocks:  append(blockKinds(plannerDropped), blockKinds(criticDropped)...),
+			DroppedBlocks:  append(append(blockKinds(plannerDropped), blockKinds(retrievalDropped)...), blockKinds(criticDropped)...),
 			BudgetUsed:     totalEstimatedTokens(criticBlocks), // report largest stage
 			BudgetLimit:    s.criticBudget(),
 		},
 	}, nil
+}
+
+// maybeSummarize implements the ConversationSummaryBuffer pattern:
+// when recent turns exceed the threshold and a summarizer is available,
+// compress the oldest turns into a session summary while keeping the
+// most recent turns as-is. This prevents token overflow from long conversations
+// while preserving recent conversational context in full fidelity.
+func (s *Service) maybeSummarize(ctx context.Context, input BuildInput) BuildInput {
+	threshold := s.config.SummaryTurnThreshold
+	if threshold <= 0 || s.summarizer == nil || len(input.RecentTurns) <= threshold {
+		return input
+	}
+
+	// Keep the most recent `threshold` turns in full; compress the rest
+	splitAt := len(input.RecentTurns) - threshold
+	olderTurns := input.RecentTurns[:splitAt]
+	recentTurns := input.RecentTurns[splitAt:]
+
+	summary, err := s.summarizer.Summarize(ctx, olderTurns)
+	if err != nil {
+		slog.Warn("conversation summarization failed, using full turns",
+			slog.String("request_id", input.RequestID),
+			slog.Any("error", err),
+		)
+		return input
+	}
+
+	// Prepend the new summary to any existing session summary
+	if input.SessionSummary != "" {
+		input.SessionSummary = input.SessionSummary + "\n\n" + summary
+	} else {
+		input.SessionSummary = summary
+	}
+	input.RecentTurns = recentTurns
+
+	slog.Debug("conversation summarized",
+		slog.String("request_id", input.RequestID),
+		slog.Int("compressed_turns", len(olderTurns)),
+		slog.Int("kept_turns", len(recentTurns)),
+	)
+
+	return input
 }
 
 func (s *Service) candidateBlocks(input BuildInput) []Block {
@@ -75,11 +130,27 @@ func (s *Service) candidateBlocks(input BuildInput) []Block {
 	if input.TaskScratchpad != "" {
 		blocks = append(blocks, newBlock(BlockKindTaskScratchpad, input.TaskScratchpad, "active task notes", 40))
 	}
-	if content := formatRetrievalEvidence(input.RetrievalResults); content != "" {
-		blocks = append(blocks, newBlock(BlockKindRetrievalEvidence, content, "retrieved evidence for grounding", 80))
+	// Evidence snippets as individual blocks for fine-grained budget eviction.
+	// Lower-scored evidence gets lower priority so it drops first under pressure.
+	for i, ev := range input.RetrievalResults {
+		label := ev.CitationLabel
+		if label == "" {
+			label = fmt.Sprintf("[%d]", i+1)
+		}
+		content := fmt.Sprintf("%s %s: %s (score=%.3f)", label, ev.SourceTitle, ev.Snippet, ev.Score)
+		// Priority 80 base, adjusted by position (earlier = higher relevance after reranking)
+		priority := 80 - i
+		if priority < 60 {
+			priority = 60
+		}
+		blocks = append(blocks, newBlock(BlockKindRetrievalEvidence, content,
+			fmt.Sprintf("evidence snippet %s (score=%.3f)", label, ev.Score), priority))
 	}
-	if content := formatToolResults(input.ToolResults); content != "" {
-		blocks = append(blocks, newBlock(BlockKindToolResult, content, "tool execution outputs", 70))
+	// Tool results as individual blocks for per-tool eviction control
+	for _, tr := range input.ToolResults {
+		content := fmt.Sprintf("[%s] %s: %s", tr.Status, tr.ToolName, tr.OutputSummary)
+		blocks = append(blocks, newBlock(BlockKindToolResult, content,
+			fmt.Sprintf("tool output from %s (%s)", tr.ToolName, tr.Status), 70))
 	}
 
 	return blocks
@@ -122,6 +193,8 @@ func (s *Service) applyBudget(blocks []Block, budget int) ([]Block, []Block) {
 		included = removeBlock(included, idx)
 	}
 
+	// Safety net: never return empty context. Keep the highest-priority block
+	// even if it exceeds budget — an over-budget context is better than no context.
 	if len(included) == 0 && len(blocks) > 0 {
 		return []Block{blocks[0]}, dropped
 	}
@@ -177,32 +250,6 @@ func formatRecentTurns(turns []Turn) string {
 		lines = append(lines, fmt.Sprintf("%s: %s", turn.Role, turn.Content))
 	}
 
-	return strings.Join(lines, "\n")
-}
-
-func formatRetrievalEvidence(results []EvidenceSnippet) string {
-	if len(results) == 0 {
-		return ""
-	}
-	lines := make([]string, 0, len(results))
-	for _, r := range results {
-		label := r.CitationLabel
-		if label == "" {
-			label = "-"
-		}
-		lines = append(lines, fmt.Sprintf("%s %s: %s (score=%.3f)", label, r.SourceTitle, r.Snippet, r.Score))
-	}
-	return strings.Join(lines, "\n")
-}
-
-func formatToolResults(results []ToolResultSnippet) string {
-	if len(results) == 0 {
-		return ""
-	}
-	lines := make([]string, 0, len(results))
-	for _, r := range results {
-		lines = append(lines, fmt.Sprintf("[%s] %s: %s", r.Status, r.ToolName, r.OutputSummary))
-	}
 	return strings.Join(lines, "\n")
 }
 
