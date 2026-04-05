@@ -161,6 +161,44 @@ func TestServiceHandlePromotesTaskModeIntoWorkflowResult(t *testing.T) {
 	}
 }
 
+func TestServiceHandleWriteToolWithStructuredArgsSucceeds(t *testing.T) {
+	// LLM planner produces a write tool step WITH ToolArguments — should execute.
+	planJSON := `{"intent":"incident_assist","reasoning":"create comment","requires_retrieval":false,"requires_tool":true,"requires_workflow":false,"requires_approval":false,"output_schema":"markdown","steps":[{"kind":"tool","name":"create comment","depends_on":[],"tool_name":"ticket_comment_create","tool_arguments":{"ticket_id":"INC-100","comment":"automated note"},"read_only":false,"needs_approval":true},{"kind":"synthesize","name":"compose","depends_on":["create comment"],"tool_name":"","tool_arguments":{},"read_only":false,"needs_approval":false},{"kind":"critic","name":"validate","depends_on":["compose"],"tool_name":"","tool_arguments":{},"read_only":false,"needs_approval":false}]}`
+
+	llmCallIdx := 0
+	provider := &sequenceMockProvider{
+		responses: []llm.CompletionResponse{
+			{Content: planJSON, Model: "mock"},
+			{Content: "Done.", Model: "mock"},
+			{Content: `{"groundedness":0.9,"citation_coverage":0.8,"tool_consistency":1.0,"risk_level":"low","verdict":"approve","reasoning":"ok"}`, Model: "mock"},
+		},
+		callIdx: &llmCallIdx,
+	}
+	sessionService := session.NewService()
+	svc := NewServiceWithLLM(sessionService, nil, nil, nil, provider)
+
+	got, err := svc.Handle(context.Background(), ChatRequestEnvelope{
+		RequestID:   "req-write-tool-happy",
+		TenantID:    "tenant-1",
+		UserID:      "user-1",
+		Mode:        "chat",
+		UserMessage: "add a comment to ticket INC-100",
+	})
+	if err != nil {
+		t.Fatalf("Handle() error = %v, want nil (write tool with structured args should succeed)", err)
+	}
+	// The write tool has RequiresApproval=true, so it should be approval-gated
+	hasToolEvent := false
+	for _, evt := range got.Events {
+		if evt.Name == "tool" {
+			hasToolEvent = true
+		}
+	}
+	if !hasToolEvent {
+		t.Fatal("no tool event — write tool with structured args should execute (approval-gated)")
+	}
+}
+
 func TestServiceHandleRejectsWriteToolWithoutStructuredArgs(t *testing.T) {
 	// Keyword planner produces a write tool step without ToolArguments.
 	// The safety boundary should reject execution rather than falling back
