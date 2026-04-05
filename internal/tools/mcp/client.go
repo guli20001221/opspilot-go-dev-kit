@@ -17,15 +17,20 @@ import (
 	"io"
 	"log/slog"
 	"net/http"
+	"sort"
+	"sync/atomic"
 	"time"
 
 	toolregistry "opspilot-go/internal/tools/registry"
 )
 
+const maxResponseBytes = 10 * 1024 * 1024 // 10 MB
+
 // Client connects to an MCP-compliant server over HTTP JSON-RPC.
 type Client struct {
 	baseURL    string
 	httpClient *http.Client
+	nextID     atomic.Int64
 }
 
 // ClientOptions configures the MCP client.
@@ -156,7 +161,7 @@ func (c *Client) CallTool(ctx context.Context, name string, arguments json.RawMe
 func (c *Client) call(ctx context.Context, method string, params any) (json.RawMessage, error) {
 	body, err := json.Marshal(jsonRPCRequest{
 		JSONRPC: "2.0",
-		ID:      1,
+		ID:      int(c.nextID.Add(1)),
 		Method:  method,
 		Params:  params,
 	})
@@ -176,7 +181,7 @@ func (c *Client) call(ctx context.Context, method string, params any) (json.RawM
 	}
 	defer resp.Body.Close()
 
-	respBody, err := io.ReadAll(resp.Body)
+	respBody, err := io.ReadAll(io.LimitReader(resp.Body, maxResponseBytes))
 	if err != nil {
 		return nil, fmt.Errorf("read response: %w", err)
 	}
@@ -275,6 +280,7 @@ func extractParameters(schema json.RawMessage) []toolregistry.ParameterDef {
 		Required   []string                   `json:"required"`
 	}
 	if err := json.Unmarshal(schema, &parsed); err != nil {
+		slog.Warn("mcp: failed to parse tool input schema", slog.Any("error", err))
 		return nil
 	}
 	if parsed.Type != "object" || len(parsed.Properties) == 0 {
@@ -303,5 +309,6 @@ func extractParameters(schema json.RawMessage) []toolregistry.ParameterDef {
 		})
 	}
 
+	sort.Slice(params, func(i, j int) bool { return params[i].Name < params[j].Name })
 	return params
 }
