@@ -32,14 +32,15 @@ type SessionService interface {
 
 // Service orchestrates the Milestone 1 chat request flow.
 type Service struct {
-	sessions  SessionService
-	contexts  *contextengine.Service
-	critic    *agentcritic.Service
-	planner   *planner.Service
-	retrieval retrieval.Searcher
-	reranker  retrieval.Reranker
-	crag      *retrieval.CRAGFilter
-	hyde      *retrieval.HyDERewriter
+	sessions   SessionService
+	contexts   *contextengine.Service
+	critic     *agentcritic.Service
+	planner    *planner.Service
+	retrieval  retrieval.Searcher
+	reranker   retrieval.Reranker
+	compressor *retrieval.ContextualCompressor
+	crag       *retrieval.CRAGFilter
+	hyde       *retrieval.HyDERewriter
 	tools     *agenttool.Service
 	registry  *toolregistry.Registry
 	workflows *workflow.Service
@@ -102,10 +103,11 @@ func NewServiceWithMetrics(sessions SessionService, workflows *workflow.Service,
 		contexts:  contextengine.NewService(contextengine.Config{}),
 		critic:    agentcritic.NewServiceWithLLM(provider),
 		planner:   planner.NewServiceWithLLM(provider),
-		retrieval: searcher,
-		reranker:  reranker,
-		crag:      retrieval.NewCRAGFilter(provider),
-		hyde:      retrieval.NewHyDERewriter(provider),
+		retrieval:  searcher,
+		reranker:   reranker,
+		compressor: retrieval.NewContextualCompressor(provider),
+		crag:       retrieval.NewCRAGFilter(provider),
+		hyde:       retrieval.NewHyDERewriter(provider),
 		tools:     agenttool.NewService(registry),
 		registry:  registry,
 		workflows: workflows,
@@ -211,6 +213,10 @@ func (s *Service) Handle(ctx context.Context, req ChatRequestEnvelope) (HandleRe
 				retrievalResult.EvidenceBlocks = reranked
 			}
 		}
+		// Contextual Compression: extract only query-relevant content from each passage
+		if s.compressor != nil {
+			retrievalResult.EvidenceBlocks = s.compressor.Compress(ctx, req.UserMessage, retrievalResult.EvidenceBlocks)
+		}
 		// CRAG: validate relevance and discard irrelevant passages
 		if s.crag != nil {
 			filtered, cragStats := s.crag.Filter(ctx, req.UserMessage, retrievalResult.EvidenceBlocks)
@@ -276,6 +282,9 @@ func (s *Service) Handle(ctx context.Context, req ChatRequestEnvelope) (HandleRe
 				if rerankErr == nil {
 					retrievalResult.EvidenceBlocks = reranked
 				}
+			}
+			if s.compressor != nil {
+				retrievalResult.EvidenceBlocks = s.compressor.Compress(ctx, req.UserMessage, retrievalResult.EvidenceBlocks)
 			}
 			if s.crag != nil {
 				filtered, _ := s.crag.Filter(ctx, req.UserMessage, retrievalResult.EvidenceBlocks)
