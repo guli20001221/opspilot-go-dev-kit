@@ -17,6 +17,17 @@ const (
 	BlockKindToolResult = "tool_result"
 )
 
+// ImportanceScorer dynamically adjusts block priorities based on query relevance.
+// Replaces the static priority assignment with semantic similarity scoring.
+// Reference: MemGPT (2023) — context window as an actively managed resource.
+type ImportanceScorer interface {
+	// ScoreBlocks adjusts the Priority field of each block based on its semantic
+	// relevance to the current query. Higher priority = more likely to survive
+	// budget eviction. The scorer may use embeddings, keyword overlap, or LLM
+	// judgment. Blocks are modified in place.
+	ScoreBlocks(ctx context.Context, query string, blocks []Block)
+}
+
 // Summarizer compresses older conversation turns into a concise summary.
 // When the context engine detects that recent turns exceed a threshold,
 // it calls the summarizer to compress the oldest turns into a summary block.
@@ -66,6 +77,7 @@ type BuildInput struct {
 	TenantID         string
 	UserID           string
 	Mode             string
+	UserMessage      string // current query for dynamic importance scoring
 	RecentTurns      []Turn
 	SessionSummary   string
 	TaskScratchpad   string

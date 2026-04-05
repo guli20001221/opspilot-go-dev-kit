@@ -20,6 +20,7 @@ const (
 type Service struct {
 	config     Config
 	summarizer Summarizer
+	scorer     ImportanceScorer
 }
 
 // NewService constructs a context assembly service with deterministic defaults.
@@ -30,6 +31,12 @@ func NewService(config Config) *Service {
 // NewServiceWithSummarizer constructs a context assembly service with an optional
 // conversation summarizer for compressing long turn histories.
 func NewServiceWithSummarizer(config Config, summarizer Summarizer) *Service {
+	return NewServiceWithDependencies(config, summarizer, nil)
+}
+
+// NewServiceWithDependencies constructs a context assembly service with all optional
+// dependencies: conversation summarizer and dynamic importance scorer.
+func NewServiceWithDependencies(config Config, summarizer Summarizer, scorer ImportanceScorer) *Service {
 	if config.MaxBlocks <= 0 {
 		config.MaxBlocks = defaultMaxBlocks
 	}
@@ -37,7 +44,7 @@ func NewServiceWithSummarizer(config Config, summarizer Summarizer) *Service {
 		config.Budget = defaultBudget
 	}
 
-	return &Service{config: config, summarizer: summarizer}
+	return &Service{config: config, summarizer: summarizer, scorer: scorer}
 }
 
 // Build assembles stage-specific context snapshots for planner, retrieval, and critic.
@@ -49,6 +56,13 @@ func (s *Service) Build(ctx context.Context, input BuildInput) (BuildResult, err
 	input = s.maybeSummarize(ctx, input)
 
 	allBlocks := s.candidateBlocks(input)
+
+	// Dynamic importance scoring: adjust block priorities based on query relevance.
+	// Runs before stage filtering and budget eviction so that relevance-based
+	// priorities influence which blocks survive under token pressure.
+	if s.scorer != nil && input.UserMessage != "" {
+		s.scorer.ScoreBlocks(ctx, input.UserMessage, allBlocks)
+	}
 
 	// Planner: needs user profile, recent turns, scratchpad (no evidence/tool results)
 	plannerBlocks := filterByKinds(allBlocks,
