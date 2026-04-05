@@ -64,6 +64,7 @@ type ToolParameterDesc struct {
 type TenantPolicy struct {
 	Configured              bool     // true when policy was explicitly loaded
 	AllowToolUse            bool     // global toggle: if false, no tool steps allowed
+	AllowToolUseExplicit    bool     // true when AllowToolUse was explicitly set (distinguishes "set to false" from "not set")
 	AllowedTools            []string // if non-empty, only these tools are permitted
 	ForbiddenTools          []string // these tools are always blocked
 	MaxSteps                int      // max plan steps; 0 = use system default (6). Values above the system default are silently capped.

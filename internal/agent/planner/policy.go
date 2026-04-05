@@ -30,7 +30,14 @@ func MergePolicies(org, tenant, user TenantPolicy) TenantPolicy {
 			continue
 		}
 		result.Configured = true
-		result.AllowToolUse = layer.AllowToolUse
+
+		// Only override AllowToolUse when the layer explicitly set it.
+		// This prevents a partial policy (e.g. only max_steps) from
+		// accidentally disabling tools due to the bool zero value.
+		if layer.AllowToolUseExplicit {
+			result.AllowToolUse = layer.AllowToolUse
+			result.AllowToolUseExplicit = true
+		}
 
 		if len(layer.AllowedTools) > 0 {
 			result.AllowedTools = layer.AllowedTools

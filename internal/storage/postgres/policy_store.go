@@ -95,10 +95,12 @@ func parsePolicyJSON(raw json.RawMessage) (planner.TenantPolicy, error) {
 	policy := planner.TenantPolicy{Configured: true}
 	if parsed.AllowToolUse != nil {
 		policy.AllowToolUse = *parsed.AllowToolUse
+		policy.AllowToolUseExplicit = true
 	}
-	// When allow_tool_use is absent from JSON, AllowToolUse stays false (zero value).
-	// Only explicit "allow_tool_use": true enables tools. This prevents an empty
-	// policy row from accidentally overriding a parent-level tool restriction.
+	// When allow_tool_use is absent from JSON, AllowToolUseExplicit stays false.
+	// MergePolicies will skip this field, preserving the parent-level value.
+	// This prevents a partial policy row (e.g. only max_steps) from accidentally
+	// disabling tools.
 	policy.AllowedTools = parsed.AllowedTools
 	policy.ForbiddenTools = parsed.ForbiddenTools
 	policy.MaxSteps = parsed.MaxSteps

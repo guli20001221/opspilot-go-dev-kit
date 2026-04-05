@@ -238,7 +238,7 @@ func TestServicePlanWithLLMToolSelection(t *testing.T) {
 			{Name: "ticket_search", ReadOnly: true},
 			{Name: "ticket_comment_create", ReadOnly: false, RequiresApproval: true},
 		},
-		TenantPolicy: TenantPolicy{Configured: true, AllowToolUse: true},
+		TenantPolicy: TenantPolicy{Configured: true, AllowToolUse: true, AllowToolUseExplicit: true},
 	})
 	if err != nil {
 		t.Fatalf("Plan() error = %v", err)
@@ -483,7 +483,7 @@ func TestServicePlanLLMRequestIncludesToolDescriptions(t *testing.T) {
 			{Name: "ticket_search", ReadOnly: true},
 			{Name: "ticket_comment_create", ReadOnly: false, RequiresApproval: true},
 		},
-		TenantPolicy: TenantPolicy{Configured: true, AllowToolUse: true},
+		TenantPolicy: TenantPolicy{Configured: true, AllowToolUse: true, AllowToolUseExplicit: true},
 	})
 	if err != nil {
 		t.Fatalf("Plan() error = %v", err)
@@ -528,7 +528,7 @@ func TestServicePlanWithLLMApprovalTool(t *testing.T) {
 		AvailableTools: []ToolDescriptor{
 			{Name: "ticket_comment_create", ReadOnly: false, RequiresApproval: true},
 		},
-		TenantPolicy: TenantPolicy{Configured: true, AllowToolUse: true},
+		TenantPolicy: TenantPolicy{Configured: true, AllowToolUse: true, AllowToolUseExplicit: true},
 	})
 	if err != nil {
 		t.Fatalf("Plan() error = %v", err)
@@ -597,7 +597,7 @@ func TestServicePlanWithLLMToolArguments(t *testing.T) {
 		AvailableTools: []ToolDescriptor{
 			{Name: "ticket_search", ReadOnly: true},
 		},
-		TenantPolicy: TenantPolicy{Configured: true, AllowToolUse: true},
+		TenantPolicy: TenantPolicy{Configured: true, AllowToolUse: true, AllowToolUseExplicit: true},
 	})
 	if err != nil {
 		t.Fatalf("Plan() error = %v", err)
@@ -661,7 +661,7 @@ func TestBuildPlannerUserMessageContainsAllInputs(t *testing.T) {
 		AvailableTools: []ToolDescriptor{
 			{Name: "ticket_search", ReadOnly: true},
 		},
-		TenantPolicy: TenantPolicy{Configured: true, AllowToolUse: true},
+		TenantPolicy: TenantPolicy{Configured: true, AllowToolUse: true, AllowToolUseExplicit: true},
 	})
 
 	for _, want := range []string{"chat", "test query", "recent_turns", "ticket_search", "allow_tool_use=true"} {

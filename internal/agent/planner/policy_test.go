@@ -6,8 +6,8 @@ import (
 )
 
 func TestMergePoliciesChildOverridesAllowToolUse(t *testing.T) {
-	org := TenantPolicy{Configured: true, AllowToolUse: true}
-	tenant := TenantPolicy{Configured: true, AllowToolUse: false}
+	org := TenantPolicy{Configured: true, AllowToolUse: true, AllowToolUseExplicit: true}
+	tenant := TenantPolicy{Configured: true, AllowToolUse: false, AllowToolUseExplicit: true}
 	user := TenantPolicy{} // unconfigured
 
 	got := MergePolicies(org, tenant, user)
@@ -18,8 +18,8 @@ func TestMergePoliciesChildOverridesAllowToolUse(t *testing.T) {
 
 func TestMergePoliciesUserOverridesTenant(t *testing.T) {
 	org := TenantPolicy{}
-	tenant := TenantPolicy{Configured: true, AllowToolUse: false}
-	user := TenantPolicy{Configured: true, AllowToolUse: true}
+	tenant := TenantPolicy{Configured: true, AllowToolUse: false, AllowToolUseExplicit: true}
+	user := TenantPolicy{Configured: true, AllowToolUse: true, AllowToolUseExplicit: true}
 
 	got := MergePolicies(org, tenant, user)
 	if !got.AllowToolUse {
@@ -86,6 +86,22 @@ func TestMergePoliciesMaxStepsChildOverrides(t *testing.T) {
 	}
 }
 
+func TestMergePoliciesPartialRowDoesNotDisableTools(t *testing.T) {
+	// Org enables tools; tenant only sets max_steps (no allow_tool_use key).
+	// The partial tenant row must NOT disable tools.
+	org := TenantPolicy{Configured: true, AllowToolUse: true, AllowToolUseExplicit: true}
+	tenant := TenantPolicy{Configured: true, MaxSteps: 3} // AllowToolUseExplicit=false
+	user := TenantPolicy{}
+
+	got := MergePolicies(org, tenant, user)
+	if !got.AllowToolUse {
+		t.Fatal("AllowToolUse = false, want true (partial row should not disable tools)")
+	}
+	if got.MaxSteps != 3 {
+		t.Fatalf("MaxSteps = %d, want 3", got.MaxSteps)
+	}
+}
+
 func TestMergePoliciesAllUnconfiguredReturnsDefault(t *testing.T) {
 	got := MergePolicies(TenantPolicy{}, TenantPolicy{}, TenantPolicy{})
 	if got.Configured {
@@ -95,23 +111,26 @@ func TestMergePoliciesAllUnconfiguredReturnsDefault(t *testing.T) {
 
 func TestMergePoliciesFullThreeLevelStack(t *testing.T) {
 	org := TenantPolicy{
-		Configured:              true,
-		AllowToolUse:            true,
-		ForbiddenTools:          []string{"global_blocked"},
-		MaxSteps:                6,
+		Configured:           true,
+		AllowToolUse:         true,
+		AllowToolUseExplicit: true,
+		ForbiddenTools:       []string{"global_blocked"},
+		MaxSteps:             6,
 		RequireApprovalForWrite: true,
 	}
 	tenant := TenantPolicy{
-		Configured:     true,
-		AllowToolUse:   true,
-		AllowedTools:   []string{"ticket_search", "ticket_comment_create"},
-		ForbiddenTools: []string{"tenant_blocked"},
-		MaxSteps:       4,
+		Configured:           true,
+		AllowToolUse:         true,
+		AllowToolUseExplicit: true,
+		AllowedTools:         []string{"ticket_search", "ticket_comment_create"},
+		ForbiddenTools:       []string{"tenant_blocked"},
+		MaxSteps:             4,
 	}
 	user := TenantPolicy{
-		Configured:   true,
-		AllowToolUse: true,
-		MaxSteps:     3,
+		Configured:           true,
+		AllowToolUse:         true,
+		AllowToolUseExplicit: true,
+		MaxSteps:             3,
 	}
 
 	got := MergePolicies(org, tenant, user)
