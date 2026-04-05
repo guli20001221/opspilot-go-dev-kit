@@ -304,7 +304,7 @@ func (s *Service) Handle(ctx context.Context, req ChatRequestEnvelope) (HandleRe
 	// Rebuild context with retrieval evidence and tool results for the LLM completion.
 	// This ensures the context engine's stage-aware assembly, summarization, and
 	// dynamic importance scoring are applied to the final answer — not just planning.
-	completionContext, _ := s.contexts.Build(ctx, contextengine.BuildInput{
+	completionContext, completionCtxErr := s.contexts.Build(ctx, contextengine.BuildInput{
 		RequestID:   req.RequestID,
 		SessionID:   sessionID,
 		TenantID:    req.TenantID,
@@ -315,6 +315,12 @@ func (s *Service) Handle(ctx context.Context, req ChatRequestEnvelope) (HandleRe
 		RetrievalResults: toEvidenceSnippets(retrievalResult.EvidenceBlocks),
 		ToolResults:      toToolResultSnippets(toolResults),
 	})
+	if completionCtxErr != nil {
+		slog.Warn("context engine rebuild failed, using base prompt",
+			slog.String("request_id", req.RequestID),
+			slog.Any("error", completionCtxErr),
+		)
+	}
 
 	// Generate assistant response via LLM (or placeholder fallback)
 	// Uses streaming when the provider supports it and OnToken callback is set.
@@ -696,21 +702,17 @@ func (s *Service) buildCompletionRequestFromContext(
 			systemParts = append(systemParts, "\n\nConversation summary: "+block.Content)
 		case contextengine.BlockKindUserProfile:
 			systemParts = append(systemParts, "\n\nUser context: "+block.Content)
+		case contextengine.BlockKindTaskScratchpad:
+			systemParts = append(systemParts, "\n\nTask notes: "+block.Content)
+		case contextengine.BlockKindRecentTurns:
+			// Recent turns injected as conversation history in the system prompt
+			// so the LLM sees prior context alongside evidence and tool results.
+			systemParts = append(systemParts, "\n\nRecent conversation:\n"+block.Content)
 		}
 	}
 
-	// Recent turns as messages (from critic context or direct)
-	var messages []llm.Message
-	for _, block := range criticCtx.Blocks {
-		if block.Kind == contextengine.BlockKindRecentTurns {
-			// The block content is formatted turns — use it as a single user context message
-			messages = append(messages, llm.Message{Role: "user", Content: req.UserMessage})
-			break
-		}
-	}
-	if len(messages) == 0 {
-		messages = []llm.Message{{Role: "user", Content: req.UserMessage}}
-	}
+	// Always include the current user message as the final message
+	messages := []llm.Message{{Role: "user", Content: req.UserMessage}}
 
 	return llm.CompletionRequest{
 		SystemPrompt: strings.Join(systemParts, ""),
