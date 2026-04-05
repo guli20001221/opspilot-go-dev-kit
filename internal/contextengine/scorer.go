@@ -4,6 +4,7 @@ import (
 	"context"
 	"log/slog"
 	"math"
+	"strings"
 
 	"opspilot-go/internal/retrieval"
 )
@@ -65,6 +66,13 @@ func (s *EmbeddingImportanceScorer) ScoreBlocks(ctx context.Context, query strin
 		}
 
 		similarity := cosineSimilarity(queryEmb, blockEmb)
+		// Clamp to [0,1] — negative similarity (anti-correlated) maps to floor
+		if similarity < 0 {
+			similarity = 0
+		}
+		if similarity > 1 {
+			similarity = 1
+		}
 
 		base := s.basePriority[blocks[i].Kind]
 		if base == 0 {
@@ -154,25 +162,5 @@ func splitWords(s string) []string {
 }
 
 func containsWord(content, word string) bool {
-	// Case-insensitive substring match
-	lc := toLower(content)
-	lw := toLower(word)
-	for i := 0; i <= len(lc)-len(lw); i++ {
-		if lc[i:i+len(lw)] == lw {
-			return true
-		}
-	}
-	return false
-}
-
-func toLower(s string) string {
-	b := make([]byte, len(s))
-	for i := range s {
-		c := s[i]
-		if c >= 'A' && c <= 'Z' {
-			c += 'a' - 'A'
-		}
-		b[i] = c
-	}
-	return string(b)
+	return strings.Contains(strings.ToLower(content), strings.ToLower(word))
 }

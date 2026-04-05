@@ -36,9 +36,12 @@ func TestKeywordImportanceScorerCapsBoost(t *testing.T) {
 	scorer := KeywordImportanceScorer{}
 	scorer.ScoreBlocks(context.Background(), "reset password security settings authentication recovery", blocks)
 
-	// Many matches but boost is capped at 30
+	// Many matches but boost is capped at 30; minimum one-match boost is 15
 	if blocks[0].Priority > 80 {
 		t.Fatalf("Priority = %d, want <= 80 (50 base + 30 cap)", blocks[0].Priority)
+	}
+	if blocks[0].Priority < 60 {
+		t.Fatalf("Priority = %d, want >= 60 (50 base + at least 10 boost)", blocks[0].Priority)
 	}
 }
 
