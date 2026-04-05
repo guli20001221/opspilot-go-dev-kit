@@ -402,7 +402,22 @@ func (a *appHandler) handleChatStream(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Set SSE headers before calling Handle so streaming tokens can flush immediately
+	// Preflight validation BEFORE committing to SSE mode. This allows returning
+	// proper HTTP status codes (400/404) for detectable input errors. Once SSE
+	// headers are written, only SSE error events are possible.
+	if strings.TrimSpace(req.TenantID) == "" || strings.TrimSpace(req.UserMessage) == "" {
+		writeError(w, http.StatusBadRequest, "invalid_chat_request", "tenant_id and user_message are required")
+		return
+	}
+	if req.SessionID != "" {
+		if _, err := a.sessions.ListMessages(r.Context(), req.SessionID); err != nil {
+			writeError(w, http.StatusNotFound, "session_not_found", "session not found")
+			return
+		}
+	}
+
+	// Preflight passed — commit to SSE streaming mode.
+	// From this point on, errors can only be reported as SSE error events.
 	w.Header().Set("Content-Type", "text/event-stream")
 	w.Header().Set("Cache-Control", "no-cache")
 	w.Header().Set("Connection", "keep-alive")
