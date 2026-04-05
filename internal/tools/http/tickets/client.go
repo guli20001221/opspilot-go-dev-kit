@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"net/url"
 	"strings"
+	"time"
 )
 
 // HTTPClient executes ticket adapters over an HTTP boundary.
@@ -20,7 +21,7 @@ type HTTPClient struct {
 // NewHTTPClient constructs a ticket API adapter backed by the provided base URL.
 func NewHTTPClient(baseURL string, token string, client *http.Client) *HTTPClient {
 	if client == nil {
-		client = http.DefaultClient
+		client = &http.Client{Timeout: 15 * time.Second}
 	}
 
 	return &HTTPClient{

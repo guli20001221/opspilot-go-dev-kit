@@ -301,12 +301,33 @@ func (s *Service) Handle(ctx context.Context, req ChatRequestEnvelope) (HandleRe
 		s.metrics.RecordRetrievalLatency(ctx, time.Since(retrievalStart), len(retrievalResult.EvidenceBlocks), req.TenantID)
 	}
 
+	// Rebuild context with retrieval evidence and tool results for the LLM completion.
+	// This ensures the context engine's stage-aware assembly, summarization, and
+	// dynamic importance scoring are applied to the final answer — not just planning.
+	completionContext, completionCtxErr := s.contexts.Build(ctx, contextengine.BuildInput{
+		RequestID:   req.RequestID,
+		SessionID:   sessionID,
+		TenantID:    req.TenantID,
+		UserID:      req.UserID,
+		Mode:        req.Mode,
+		UserMessage: req.UserMessage,
+		RecentTurns: toTurns(recentMessages),
+		RetrievalResults: toEvidenceSnippets(retrievalResult.EvidenceBlocks),
+		ToolResults:      toToolResultSnippets(toolResults),
+	})
+	if completionCtxErr != nil {
+		slog.Warn("context engine rebuild failed, using base prompt",
+			slog.String("request_id", req.RequestID),
+			slog.Any("error", completionCtxErr),
+		)
+	}
+
 	// Generate assistant response via LLM (or placeholder fallback)
 	// Uses streaming when the provider supports it and OnToken callback is set.
 	assistantContent := PlaceholderAssistantResponse
 	if s.llm != nil {
 		llmStart := time.Now()
-		completionReq := s.buildCompletionRequest(req, recentMessages, retrievalResult, toolResults)
+		completionReq := s.buildCompletionRequestFromContext(req, completionContext.Critic)
 
 		var resp llm.CompletionResponse
 		var llmErr error
@@ -660,39 +681,69 @@ func actionClassForStep(step planner.PlanStep) string {
 
 const chatSystemPrompt = `You are OpsPilot, an enterprise operations assistant. Answer the user's question based on the provided context. If retrieval evidence is available, cite it. If tool results are available, incorporate them. Be concise and accurate. If you don't have enough information to answer, say so clearly.`
 
-func (s *Service) buildCompletionRequest(
+// buildCompletionRequestFromContext assembles the LLM completion request from
+// the context engine's critic context. This ensures summarization, importance
+// scoring, and budget eviction are applied to the final answer — not just planning.
+func (s *Service) buildCompletionRequestFromContext(
 	req ChatRequestEnvelope,
-	recentMessages []session.Message,
-	retrievalResult retrieval.RetrievalResult,
-	toolResults []agenttool.ToolResult,
+	criticCtx contextengine.CriticContext,
 ) llm.CompletionRequest {
 	var systemParts []string
 	systemParts = append(systemParts, chatSystemPrompt)
 
-	if len(retrievalResult.EvidenceBlocks) > 0 {
-		systemParts = append(systemParts, "\n\nRetrieved evidence:")
-		for _, block := range retrievalResult.EvidenceBlocks {
-			systemParts = append(systemParts, "\n"+block.CitationLabel+" "+block.SourceTitle+": "+block.Snippet)
+	// Assemble system prompt from context engine blocks (already budget-managed)
+	for _, block := range criticCtx.Blocks {
+		switch block.Kind {
+		case contextengine.BlockKindRetrievalEvidence:
+			systemParts = append(systemParts, "\n\nEvidence: "+block.Content)
+		case contextengine.BlockKindToolResult:
+			systemParts = append(systemParts, "\n\nTool result: "+block.Content)
+		case contextengine.BlockKindSessionSummary:
+			systemParts = append(systemParts, "\n\nConversation summary: "+block.Content)
+		case contextengine.BlockKindUserProfile:
+			systemParts = append(systemParts, "\n\nUser context: "+block.Content)
+		case contextengine.BlockKindTaskScratchpad:
+			systemParts = append(systemParts, "\n\nTask notes: "+block.Content)
+		case contextengine.BlockKindRecentTurns:
+			// Recent turns injected as conversation history in the system prompt
+			// so the LLM sees prior context alongside evidence and tool results.
+			systemParts = append(systemParts, "\n\nRecent conversation:\n"+block.Content)
 		}
 	}
 
-	if len(toolResults) > 0 {
-		systemParts = append(systemParts, "\n\nTool results:")
-		for _, tr := range toolResults {
-			systemParts = append(systemParts, "\n"+tr.ToolName+": "+tr.OutputSummary)
-		}
-	}
-
-	messages := make([]llm.Message, 0, len(recentMessages))
-	for _, msg := range recentMessages {
-		messages = append(messages, llm.Message{Role: msg.Role, Content: msg.Content})
-	}
+	// Always include the current user message as the final message
+	messages := []llm.Message{{Role: "user", Content: req.UserMessage}}
 
 	return llm.CompletionRequest{
 		SystemPrompt: strings.Join(systemParts, ""),
 		Messages:     messages,
 		MaxTokens:    1024,
 	}
+}
+
+func toEvidenceSnippets(blocks []retrieval.EvidenceBlock) []contextengine.EvidenceSnippet {
+	snippets := make([]contextengine.EvidenceSnippet, 0, len(blocks))
+	for _, b := range blocks {
+		snippets = append(snippets, contextengine.EvidenceSnippet{
+			SourceTitle:   b.SourceTitle,
+			Snippet:       b.Snippet,
+			CitationLabel: b.CitationLabel,
+			Score:         b.Score,
+		})
+	}
+	return snippets
+}
+
+func toToolResultSnippets(results []agenttool.ToolResult) []contextengine.ToolResultSnippet {
+	snippets := make([]contextengine.ToolResultSnippet, 0, len(results))
+	for _, r := range results {
+		snippets = append(snippets, contextengine.ToolResultSnippet{
+			ToolName:      r.ToolName,
+			Status:        r.Status,
+			OutputSummary: r.OutputSummary,
+		})
+	}
+	return snippets
 }
 
 func buildEvents(
