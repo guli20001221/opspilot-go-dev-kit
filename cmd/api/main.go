@@ -114,12 +114,12 @@ func main() {
 
 	ingestionPipeline := ingestion.NewPipeline(embedder, llmProvider, retrievalStore, ingestion.PipelineOptions{})
 
-	policyLoader := planner.StaticPolicyLoader{
-		Policy: planner.TenantPolicy{
-			Configured:   true,
-			AllowToolUse: cfg.ToolPolicyAllow,
-		},
-	}
+	// Hierarchical policy loader: DB-backed with cache when postgres is available,
+	// falls back to static config-based loader otherwise.
+	var policyLoader planner.PolicyLoader
+	policyStore := storagepostgres.NewPolicyStore(pool)
+	policyLoader = storagepostgres.NewHierarchicalPolicyLoader(policyStore, 30*time.Second)
+	logger.Info("hierarchical policy loader initialized (db-backed with 30s cache)")
 
 	server := &http.Server{
 		Addr: cfg.APIListenAddr,

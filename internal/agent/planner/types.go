@@ -64,35 +64,43 @@ type ToolParameterDesc struct {
 type TenantPolicy struct {
 	Configured              bool     // true when policy was explicitly loaded
 	AllowToolUse            bool     // global toggle: if false, no tool steps allowed
+	AllowToolUseExplicit    bool     // true when AllowToolUse was explicitly set (distinguishes "set to false" from "not set")
 	AllowedTools            []string // if non-empty, only these tools are permitted
 	ForbiddenTools          []string // these tools are always blocked
 	MaxSteps                int      // max plan steps; 0 = use system default (6). Values above the system default are silently capped.
 	RequireApprovalForWrite bool     // if true, all write tool steps must carry approval
 }
 
+// PolicyScope identifies the requesting scope for hierarchical policy resolution.
+type PolicyScope struct {
+	OrgID    string // organization-level scope (broadest)
+	TenantID string // tenant-level scope
+	UserID   string // user-level scope (most specific)
+}
+
 // PolicyLoader loads tenant policy at request time.
 // Implementations may read from a database, config file, or return defaults.
 type PolicyLoader interface {
-	LoadPolicy(ctx context.Context, tenantID string) TenantPolicy
+	LoadPolicy(ctx context.Context, scope PolicyScope) TenantPolicy
 }
 
-// DefaultPolicyLoader returns a fixed permissive policy for all tenants.
+// DefaultPolicyLoader returns a fixed permissive policy for all scopes.
 // Replace with a database-backed implementation for production use.
 type DefaultPolicyLoader struct{}
 
 // LoadPolicy returns the permissive default (Configured=false).
-func (DefaultPolicyLoader) LoadPolicy(_ context.Context, _ string) TenantPolicy {
+func (DefaultPolicyLoader) LoadPolicy(_ context.Context, _ PolicyScope) TenantPolicy {
 	return TenantPolicy{}
 }
 
-// StaticPolicyLoader returns a fixed policy for all tenants.
+// StaticPolicyLoader returns a fixed policy for all scopes.
 // Useful for local dev and integration testing.
 type StaticPolicyLoader struct {
 	Policy TenantPolicy
 }
 
 // LoadPolicy returns the static policy.
-func (s StaticPolicyLoader) LoadPolicy(_ context.Context, _ string) TenantPolicy {
+func (s StaticPolicyLoader) LoadPolicy(_ context.Context, _ PolicyScope) TenantPolicy {
 	return s.Policy
 }
 
