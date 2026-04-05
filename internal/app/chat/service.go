@@ -244,6 +244,48 @@ func (s *Service) Handle(ctx context.Context, req ChatRequestEnvelope) (HandleRe
 		activePlan = activePlanResult
 	}
 
+	// Post-replan retrieval: if the revised plan requires retrieval but the
+	// original plan did not (or retrieval returned no evidence), run the
+	// retrieval pipeline now so LLM completion has grounding context.
+	if replanCount > 0 && activePlan.RequiresRetrieval && len(retrievalResult.EvidenceBlocks) == 0 {
+		retrievalStart := time.Now()
+		hydeQuery := req.UserMessage
+		if s.hyde != nil {
+			if rewritten := s.hyde.Rewrite(ctx, req.UserMessage); rewritten != "" {
+				hydeQuery = rewritten
+			}
+		}
+		retrievalResult, err = s.retrieval.Search(ctx, retrieval.RetrievalRequest{
+			RequestID:      req.RequestID,
+			TraceID:        req.TraceID,
+			TenantID:       req.TenantID,
+			SessionID:      sessionID,
+			PlanID:         activePlan.PlanID,
+			QueryText:      req.UserMessage,
+			RewrittenQuery: hydeQuery,
+		})
+		if err != nil {
+			slog.Warn("post-replan retrieval failed, continuing without evidence",
+				slog.String("request_id", req.RequestID),
+				slog.Any("error", err),
+			)
+			retrievalResult = retrieval.RetrievalResult{}
+		} else {
+			if s.reranker != nil {
+				reranked, rerankErr := s.reranker.Rerank(ctx, req.UserMessage, retrievalResult.EvidenceBlocks)
+				if rerankErr == nil {
+					retrievalResult.EvidenceBlocks = reranked
+				}
+			}
+			if s.crag != nil {
+				filtered, _ := s.crag.Filter(ctx, req.UserMessage, retrievalResult.EvidenceBlocks)
+				retrievalResult.EvidenceBlocks = filtered
+			}
+			retrievalResult.EvidenceBlocks = retrieval.ReorderLostInTheMiddle(retrievalResult.EvidenceBlocks)
+		}
+		s.metrics.RecordRetrievalLatency(ctx, time.Since(retrievalStart), len(retrievalResult.EvidenceBlocks), req.TenantID)
+	}
+
 	// Generate assistant response via LLM (or placeholder fallback)
 	// Uses streaming when the provider supports it and OnToken callback is set.
 	assistantContent := PlaceholderAssistantResponse
