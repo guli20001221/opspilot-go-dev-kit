@@ -11,6 +11,9 @@ import (
 const (
 	defaultMaxBlocks = 8
 	defaultBudget    = 128
+	// summaryRecompressThreshold: when the concatenated session summary exceeds
+	// this token estimate, re-compress it through the summarizer (rolling summary).
+	summaryRecompressThreshold = 200
 )
 
 // Service assembles explicit context blocks from request and session state.
@@ -99,9 +102,28 @@ func (s *Service) maybeSummarize(ctx context.Context, input BuildInput) BuildInp
 		return input
 	}
 
-	// Prepend the new summary to any existing session summary
+	// Merge the new summary with any existing session summary
 	if input.SessionSummary != "" {
-		input.SessionSummary = input.SessionSummary + "\n\n" + summary
+		merged := input.SessionSummary + "\n\n" + summary
+		// Rolling re-compression: if the merged summary is too large,
+		// compress it again to prevent unbounded growth across long conversations.
+		if estimateTokens(merged) > summaryRecompressThreshold {
+			recompressed, recompErr := s.summarizer.Summarize(ctx, []Turn{
+				{Role: "system", Content: merged},
+			})
+			if recompErr == nil && recompressed != "" {
+				input.SessionSummary = recompressed
+				slog.Debug("session summary re-compressed (rolling)",
+					slog.String("request_id", input.RequestID),
+					slog.Int("original_tokens", estimateTokens(merged)),
+					slog.Int("compressed_tokens", estimateTokens(recompressed)),
+				)
+			} else {
+				input.SessionSummary = merged
+			}
+		} else {
+			input.SessionSummary = merged
+		}
 	} else {
 		input.SessionSummary = summary
 	}
@@ -259,7 +281,7 @@ func formatRecentTurns(turns []Turn) string {
 }
 
 func sortEvidenceByScoreDesc(evidence []EvidenceSnippet) {
-	sort.Slice(evidence, func(i, j int) bool {
+	sort.SliceStable(evidence, func(i, j int) bool {
 		return evidence[i].Score > evidence[j].Score
 	})
 }

@@ -243,6 +243,73 @@ func TestServiceBuildSummarizerAppendsToExistingSummary(t *testing.T) {
 	t.Fatal("session_summary block not found")
 }
 
+func TestServiceBuildRollingSummaryRecompression(t *testing.T) {
+	callCount := 0
+	summarizer := &mockSummarizer{}
+	// Override Summarize to track calls and return different results
+	origSummarize := summarizer.Summarize
+	_ = origSummarize
+	recompressSummarizer := &rollingSummarizer{
+		callCount: &callCount,
+		responses: []string{
+			"First compression: user discussed passwords and 2FA.",
+			"Rolling summary: passwords, 2FA, and account recovery.", // re-compression
+		},
+	}
+	svc := NewServiceWithSummarizer(Config{
+		Budget:               4096,
+		SummaryTurnThreshold: 2,
+	}, recompressSummarizer)
+
+	// First build: creates a long existing summary
+	longExisting := strings.Repeat("Previously discussed topic about security settings. ", 20)
+	got, err := svc.Build(context.Background(), BuildInput{
+		RequestID:      "req-rolling",
+		TenantID:       "tenant-1",
+		UserID:         "user-1",
+		Mode:           "chat",
+		SessionSummary: longExisting,
+		RecentTurns: []Turn{
+			{Role: "user", Content: "turn 1"},
+			{Role: "assistant", Content: "turn 2"},
+			{Role: "user", Content: "turn 3"},
+		},
+	})
+	if err != nil {
+		t.Fatalf("Build() error = %v", err)
+	}
+
+	// Should have been called twice: once for turn compression, once for re-compression
+	if *recompressSummarizer.callCount != 2 {
+		t.Fatalf("summarizer called %d times, want 2 (compress + re-compress)", *recompressSummarizer.callCount)
+	}
+
+	// The summary block should contain the re-compressed result, not the concatenated blob
+	for _, block := range got.Planner.Blocks {
+		if block.Kind == BlockKindSessionSummary {
+			if strings.Contains(block.Content, "Previously discussed") {
+				t.Fatal("summary still contains raw old text — re-compression should have replaced it")
+			}
+			return
+		}
+	}
+	t.Fatal("session_summary block not found")
+}
+
+type rollingSummarizer struct {
+	callCount *int
+	responses []string
+}
+
+func (r *rollingSummarizer) Summarize(_ context.Context, _ []Turn) (string, error) {
+	idx := *r.callCount
+	*r.callCount++
+	if idx < len(r.responses) {
+		return r.responses[idx], nil
+	}
+	return "fallback summary", nil
+}
+
 func TestServiceBuildEmptyInput(t *testing.T) {
 	svc := NewService(Config{Budget: 4096})
 	got, err := svc.Build(context.Background(), BuildInput{RequestID: "req-empty"})
