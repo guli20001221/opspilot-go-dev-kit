@@ -428,12 +428,23 @@ func (a *appHandler) handleChatStream(w http.ResponseWriter, r *http.Request) {
 		OnToken:         onToken,
 	})
 	if err != nil {
-		// Headers already sent (SSE mode), emit error as SSE event with code
+		// Headers already sent (SSE mode), emit error as SSE event.
+		// Classify by error content rather than input fields to avoid misleading codes.
 		errorCode := "chat_handle_failed"
-		if req.SessionID != "" {
+		errorMsg := "chat handle failed"
+		errStr := err.Error()
+		switch {
+		case strings.Contains(errStr, "session") && strings.Contains(errStr, "not found"):
 			errorCode = "session_not_found"
+			errorMsg = "session not found"
+		case strings.Contains(errStr, "requires structured tool_arguments"):
+			errorCode = "tool_arguments_required"
+			errorMsg = "write tool requires structured arguments from planner"
+		case strings.Contains(errStr, "tool") && strings.Contains(errStr, "not found"):
+			errorCode = "tool_not_found"
+			errorMsg = "tool not found"
 		}
-		writeSSE(w, "error", map[string]string{"code": errorCode, "message": "chat handle failed"})
+		writeSSE(w, "error", map[string]string{"code": errorCode, "message": errorMsg})
 		flusher.Flush()
 		return
 	}
