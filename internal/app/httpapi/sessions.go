@@ -411,7 +411,11 @@ func (a *appHandler) handleChatStream(w http.ResponseWriter, r *http.Request) {
 	}
 	if req.SessionID != "" {
 		if _, err := a.sessions.ListMessages(r.Context(), req.SessionID); err != nil {
-			writeError(w, http.StatusNotFound, "session_not_found", "session not found")
+			if strings.Contains(err.Error(), "not found") {
+				writeError(w, http.StatusNotFound, "session_not_found", "session not found")
+			} else {
+				writeError(w, http.StatusInternalServerError, "session_lookup_failed", "session lookup failed")
+			}
 			return
 		}
 	}
