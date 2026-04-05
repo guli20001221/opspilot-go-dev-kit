@@ -28,21 +28,34 @@ func NewService(config Config) *Service {
 	return &Service{config: config}
 }
 
-// Build assembles planner, retrieval, and critic contexts from the same block set.
+// Build assembles stage-specific context snapshots for planner, retrieval, and critic.
+// Each stage gets a different subset of blocks filtered by relevance and budget.
 func (s *Service) Build(_ context.Context, input BuildInput) (BuildResult, error) {
-	blocks := s.candidateBlocks(input)
-	blocks, dropped := s.applyLimits(blocks)
+	allBlocks := s.candidateBlocks(input)
+
+	// Planner: needs user profile, recent turns, scratchpad (no evidence/tool results)
+	plannerBlocks := filterByKinds(allBlocks,
+		BlockKindUserProfile, BlockKindRecentTurns, BlockKindSessionSummary, BlockKindTaskScratchpad)
+	plannerBlocks, plannerDropped := s.applyBudget(plannerBlocks, s.plannerBudget())
+
+	// Retrieval: needs user profile, recent turns, summary (for query context)
+	retrievalBlocks := filterByKinds(allBlocks,
+		BlockKindUserProfile, BlockKindRecentTurns, BlockKindSessionSummary)
+	retrievalBlocks, _ = s.applyBudget(retrievalBlocks, s.retrievalBudget())
+
+	// Critic: needs everything — evidence and tool results for validation
+	criticBlocks, criticDropped := s.applyBudget(allBlocks, s.criticBudget())
 
 	return BuildResult{
-		Planner:   PlannerContext{Blocks: cloneBlocks(blocks)},
-		Retrieval: RetrievalContext{Blocks: cloneBlocks(blocks)},
-		Critic:    CriticContext{Blocks: cloneBlocks(blocks)},
+		Planner:   PlannerContext{Blocks: plannerBlocks},
+		Retrieval: RetrievalContext{Blocks: retrievalBlocks},
+		Critic:    CriticContext{Blocks: criticBlocks},
 		Log: AssemblyLog{
 			RequestID:      input.RequestID,
-			IncludedBlocks: blockKinds(blocks),
-			DroppedBlocks:  blockKinds(dropped),
-			BudgetUsed:     totalEstimatedTokens(blocks),
-			BudgetLimit:    s.config.Budget,
+			IncludedBlocks: blockKinds(plannerBlocks),
+			DroppedBlocks:  append(blockKinds(plannerDropped), blockKinds(criticDropped)...),
+			BudgetUsed:     totalEstimatedTokens(criticBlocks), // report largest stage
+			BudgetLimit:    s.criticBudget(),
 		},
 	}, nil
 }
@@ -62,11 +75,38 @@ func (s *Service) candidateBlocks(input BuildInput) []Block {
 	if input.TaskScratchpad != "" {
 		blocks = append(blocks, newBlock(BlockKindTaskScratchpad, input.TaskScratchpad, "active task notes", 40))
 	}
+	if content := formatRetrievalEvidence(input.RetrievalResults); content != "" {
+		blocks = append(blocks, newBlock(BlockKindRetrievalEvidence, content, "retrieved evidence for grounding", 80))
+	}
+	if content := formatToolResults(input.ToolResults); content != "" {
+		blocks = append(blocks, newBlock(BlockKindToolResult, content, "tool execution outputs", 70))
+	}
 
 	return blocks
 }
 
-func (s *Service) applyLimits(blocks []Block) ([]Block, []Block) {
+func (s *Service) plannerBudget() int {
+	if s.config.PlannerBudget > 0 {
+		return s.config.PlannerBudget
+	}
+	return s.config.Budget
+}
+
+func (s *Service) retrievalBudget() int {
+	if s.config.RetrievalBudget > 0 {
+		return s.config.RetrievalBudget
+	}
+	return s.config.Budget
+}
+
+func (s *Service) criticBudget() int {
+	if s.config.CriticBudget > 0 {
+		return s.config.CriticBudget
+	}
+	return s.config.Budget
+}
+
+func (s *Service) applyBudget(blocks []Block, budget int) ([]Block, []Block) {
 	included := cloneBlocks(blocks)
 	var dropped []Block
 
@@ -76,7 +116,7 @@ func (s *Service) applyLimits(blocks []Block) ([]Block, []Block) {
 		included = removeBlock(included, idx)
 	}
 
-	for len(included) > 0 && totalEstimatedTokens(included) > s.config.Budget {
+	for len(included) > 0 && totalEstimatedTokens(included) > budget {
 		idx := lowestPriorityIndex(included)
 		dropped = append(dropped, included[idx])
 		included = removeBlock(included, idx)
@@ -87,6 +127,20 @@ func (s *Service) applyLimits(blocks []Block) ([]Block, []Block) {
 	}
 
 	return included, dropped
+}
+
+func filterByKinds(blocks []Block, kinds ...string) []Block {
+	kindSet := make(map[string]bool, len(kinds))
+	for _, k := range kinds {
+		kindSet[k] = true
+	}
+	filtered := make([]Block, 0, len(blocks))
+	for _, b := range blocks {
+		if kindSet[b.Kind] {
+			filtered = append(filtered, b)
+		}
+	}
+	return filtered
 }
 
 func newBlock(kind string, content string, reason string, priority int) Block {
@@ -123,6 +177,32 @@ func formatRecentTurns(turns []Turn) string {
 		lines = append(lines, fmt.Sprintf("%s: %s", turn.Role, turn.Content))
 	}
 
+	return strings.Join(lines, "\n")
+}
+
+func formatRetrievalEvidence(results []EvidenceSnippet) string {
+	if len(results) == 0 {
+		return ""
+	}
+	lines := make([]string, 0, len(results))
+	for _, r := range results {
+		label := r.CitationLabel
+		if label == "" {
+			label = "-"
+		}
+		lines = append(lines, fmt.Sprintf("%s %s: %s (score=%.3f)", label, r.SourceTitle, r.Snippet, r.Score))
+	}
+	return strings.Join(lines, "\n")
+}
+
+func formatToolResults(results []ToolResultSnippet) string {
+	if len(results) == 0 {
+		return ""
+	}
+	lines := make([]string, 0, len(results))
+	for _, r := range results {
+		lines = append(lines, fmt.Sprintf("[%s] %s: %s", r.Status, r.ToolName, r.OutputSummary))
+	}
 	return strings.Join(lines, "\n")
 }
 

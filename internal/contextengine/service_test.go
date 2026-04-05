@@ -94,6 +94,105 @@ func assertHasBlockKind(t *testing.T, blocks []Block, want string) {
 	t.Fatalf("block kind %q not found in %#v", want, blocks)
 }
 
+func TestServiceBuildStageSpecificFiltering(t *testing.T) {
+	svc := NewService(Config{Budget: 4096})
+
+	got, err := svc.Build(context.Background(), BuildInput{
+		RequestID:  "req-stage",
+		TenantID:   "tenant-1",
+		UserID:     "user-1",
+		Mode:       "chat",
+		RecentTurns: []Turn{{Role: "user", Content: "hello"}},
+		RetrievalResults: []EvidenceSnippet{
+			{SourceTitle: "Doc A", Snippet: "evidence text", CitationLabel: "[1]", Score: 0.9},
+		},
+		ToolResults: []ToolResultSnippet{
+			{ToolName: "ticket_search", Status: "succeeded", OutputSummary: "found 3 matches"},
+		},
+	})
+	if err != nil {
+		t.Fatalf("Build() error = %v", err)
+	}
+
+	// Planner should NOT have retrieval evidence or tool results
+	assertMissingBlockKind(t, got.Planner.Blocks, BlockKindRetrievalEvidence)
+	assertMissingBlockKind(t, got.Planner.Blocks, BlockKindToolResult)
+	assertHasBlockKind(t, got.Planner.Blocks, BlockKindRecentTurns)
+
+	// Retrieval should NOT have evidence or tool results (it provides context for query)
+	assertMissingBlockKind(t, got.Retrieval.Blocks, BlockKindRetrievalEvidence)
+	assertMissingBlockKind(t, got.Retrieval.Blocks, BlockKindToolResult)
+
+	// Critic SHOULD have everything including evidence and tool results
+	assertHasBlockKind(t, got.Critic.Blocks, BlockKindRetrievalEvidence)
+	assertHasBlockKind(t, got.Critic.Blocks, BlockKindToolResult)
+	assertHasBlockKind(t, got.Critic.Blocks, BlockKindRecentTurns)
+}
+
+func TestServiceBuildPerStageBudgets(t *testing.T) {
+	svc := NewService(Config{
+		Budget:        4096,
+		PlannerBudget: 20, // tight budget for planner
+		CriticBudget:  4096,
+	})
+
+	got, err := svc.Build(context.Background(), BuildInput{
+		RequestID:      "req-budgets",
+		TenantID:       "tenant-1",
+		UserID:         "user-1",
+		Mode:           "chat",
+		RecentTurns:    []Turn{{Role: "user", Content: "this is a longer message that should push the planner over budget"}},
+		SessionSummary: "detailed session summary that adds more tokens",
+		TaskScratchpad: "task notes with additional context",
+	})
+	if err != nil {
+		t.Fatalf("Build() error = %v", err)
+	}
+
+	// Planner has tight budget — should drop lower-priority blocks
+	if len(got.Planner.Blocks) >= 4 {
+		t.Fatalf("Planner.Blocks = %d, want < 4 (tight budget should drop some)", len(got.Planner.Blocks))
+	}
+
+	// Critic has large budget — should keep all
+	if len(got.Critic.Blocks) < len(got.Planner.Blocks) {
+		t.Fatalf("Critic.Blocks (%d) < Planner.Blocks (%d), want critic to have more with larger budget",
+			len(got.Critic.Blocks), len(got.Planner.Blocks))
+	}
+}
+
+func TestServiceBuildRetrievalEvidenceFormatting(t *testing.T) {
+	svc := NewService(Config{Budget: 4096})
+
+	got, err := svc.Build(context.Background(), BuildInput{
+		RequestID: "req-evidence",
+		TenantID:  "tenant-1",
+		UserID:    "user-1",
+		Mode:      "chat",
+		RetrievalResults: []EvidenceSnippet{
+			{SourceTitle: "Password Reset Guide", Snippet: "Navigate to Settings...", CitationLabel: "[1]", Score: 0.95},
+			{SourceTitle: "Account Recovery", Snippet: "Contact support...", CitationLabel: "[2]", Score: 0.82},
+		},
+	})
+	if err != nil {
+		t.Fatalf("Build() error = %v", err)
+	}
+
+	// Critic should have evidence block with formatted content
+	for _, block := range got.Critic.Blocks {
+		if block.Kind == BlockKindRetrievalEvidence {
+			if block.Priority != 80 {
+				t.Fatalf("evidence Priority = %d, want 80", block.Priority)
+			}
+			if block.EstimatedTokens <= 0 {
+				t.Fatal("evidence EstimatedTokens = 0")
+			}
+			return
+		}
+	}
+	t.Fatal("retrieval_evidence block not found in critic context")
+}
+
 func assertMissingBlockKind(t *testing.T, blocks []Block, want string) {
 	t.Helper()
 
