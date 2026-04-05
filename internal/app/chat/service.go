@@ -98,9 +98,14 @@ func NewServiceWithMetrics(sessions SessionService, workflows *workflow.Service,
 		reranker = &retrieval.NoopReranker{}
 	}
 
+	// Context engine with keyword importance scoring by default.
+	// Use NewServiceWithDependencies with an EmbeddingImportanceScorer for
+	// embedding-based scoring when an embedder is available.
+	var scorer contextengine.ImportanceScorer = contextengine.KeywordImportanceScorer{}
+
 	return &Service{
 		sessions:  sessions,
-		contexts:  contextengine.NewService(contextengine.Config{}),
+		contexts:  contextengine.NewServiceWithDependencies(contextengine.Config{}, nil, scorer),
 		critic:    agentcritic.NewServiceWithLLM(provider),
 		planner:   planner.NewServiceWithLLM(provider),
 		retrieval:  searcher,
@@ -155,6 +160,7 @@ func (s *Service) Handle(ctx context.Context, req ChatRequestEnvelope) (HandleRe
 		TenantID:    req.TenantID,
 		UserID:      req.UserID,
 		Mode:        req.Mode,
+		UserMessage: req.UserMessage,
 		RecentTurns: toTurns(recentMessages),
 	})
 	if err != nil {
@@ -520,6 +526,13 @@ func (s *Service) executeToolSteps(
 					var rArgs json.RawMessage
 					if len(rStep.ToolArguments) > 0 {
 						rArgs = rStep.ToolArguments
+					} else if !rStep.ReadOnly {
+						// Write-tool safety: same boundary as the primary path
+						slog.Warn("replan write tool has no structured arguments, refusing execution",
+							slog.String("request_id", req.RequestID),
+							slog.String("tool_name", rStep.ToolName),
+						)
+						return nil, nil, replanCount, revisedPlan, fmt.Errorf("write tool %q requires structured tool_arguments from planner", rStep.ToolName)
 					} else {
 						rArgs, err = buildToolArguments(rStep.ToolName, req.UserMessage)
 						if err != nil {
