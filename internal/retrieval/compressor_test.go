@@ -2,6 +2,7 @@ package retrieval
 
 import (
 	"context"
+	"fmt"
 	"strings"
 	"testing"
 
@@ -92,6 +93,29 @@ func TestContextualCompressorPlaceholderProviderReturnsNil(t *testing.T) {
 	if compressor != nil {
 		t.Fatal("placeholder provider should return nil compressor")
 	}
+}
+
+func TestContextualCompressorKeepsOriginalOnLLMError(t *testing.T) {
+	provider := &mockCompressorLLMWithError{}
+	compressor := NewContextualCompressor(provider)
+
+	blocks := []EvidenceBlock{
+		{EvidenceID: "ev-1", Snippet: "Original text that should be preserved.", CitationLabel: "[1]", Score: 0.9},
+	}
+
+	got := compressor.Compress(context.Background(), "query", blocks)
+	if len(got) != 1 {
+		t.Fatalf("len(got) = %d, want 1 (error should keep original)", len(got))
+	}
+	if got[0].Snippet != "Original text that should be preserved." {
+		t.Fatalf("Snippet = %q, want original (error should preserve)", got[0].Snippet)
+	}
+}
+
+type mockCompressorLLMWithError struct{}
+
+func (m *mockCompressorLLMWithError) Complete(_ context.Context, _ llm.CompletionRequest) (llm.CompletionResponse, error) {
+	return llm.CompletionResponse{}, fmt.Errorf("LLM unavailable")
 }
 
 func TestContextualCompressorEmptyBlocks(t *testing.T) {

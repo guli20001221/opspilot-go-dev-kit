@@ -283,6 +283,9 @@ func (s *Service) Handle(ctx context.Context, req ChatRequestEnvelope) (HandleRe
 					retrievalResult.EvidenceBlocks = reranked
 				}
 			}
+			if s.compressor != nil {
+				retrievalResult.EvidenceBlocks = s.compressor.Compress(ctx, req.UserMessage, retrievalResult.EvidenceBlocks)
+			}
 			if s.crag != nil {
 				filtered, _ := s.crag.Filter(ctx, req.UserMessage, retrievalResult.EvidenceBlocks)
 				retrievalResult.EvidenceBlocks = filtered

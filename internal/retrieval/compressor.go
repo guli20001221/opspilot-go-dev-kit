@@ -18,6 +18,9 @@ import (
 	"time"
 
 	"opspilot-go/internal/llm"
+	"opspilot-go/internal/observability/tracing"
+
+	"go.opentelemetry.io/otel/attribute"
 )
 
 const compressorPrompt = `You are a passage compressor. Given a user query and a retrieved passage, extract ONLY the sentences from the passage that are directly relevant to answering the query. Remove irrelevant content.
@@ -60,6 +63,10 @@ func (c *ContextualCompressor) Compress(ctx context.Context, query string, block
 		return blocks
 	}
 
+	ctx, span := tracing.StartSpan(ctx, "retrieval.compress",
+		attribute.Int("input_blocks", len(blocks)))
+	defer span.End()
+
 	type result struct {
 		idx       int
 		block     EvidenceBlock
@@ -91,6 +98,10 @@ func (c *ContextualCompressor) Compress(ctx context.Context, query string, block
 		}
 	}
 
+	span.SetAttributes(
+		attribute.Int("output_blocks", len(out)),
+		attribute.Int("removed_blocks", len(blocks)-len(out)),
+	)
 	slog.Debug("contextual compression completed",
 		slog.Int("input_blocks", len(blocks)),
 		slog.Int("output_blocks", len(out)),
