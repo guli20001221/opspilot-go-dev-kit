@@ -484,6 +484,14 @@ func (s *Service) executeToolSteps(
 				}
 
 				replanCount++
+				// Record the failed tool attempt so it appears in audit trail / SSE events
+				results = append(results, agenttool.ToolResult{
+					ToolCallID:    fmt.Sprintf("toolcall-%s-%s", plan.PlanID, step.StepID),
+					ToolName:      step.ToolName,
+					Status:        agenttool.StatusFailed,
+					OutputSummary: execErr.Error(),
+					AuditRef:      fmt.Sprintf("audit-%s-%s", plan.PlanID, step.StepID),
+				})
 				// Execute the revised plan's tool steps (no further replanning)
 				for _, rStep := range revisedPlan.Steps {
 					if rStep.Kind != planner.StepKindTool {
