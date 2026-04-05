@@ -1211,7 +1211,7 @@ type evalRegressionThresholds struct {
 }
 
 func (a *appHandler) handleEvalRegressionCheck(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodGet {
+	if r.Method != http.MethodGet && r.Method != http.MethodPost {
 		writeError(w, http.StatusMethodNotAllowed, "method_not_allowed", "method not allowed")
 		return
 	}
@@ -1261,16 +1261,24 @@ func (a *appHandler) handleEvalRegressionCheck(w http.ResponseWriter, r *http.Re
 	}
 
 	// Verify tenant isolation — both reports must belong to the requested tenant
-	baseline, _ := a.evalReports.GetEvalReport(r.Context(), baselineID)
-	candidate, _ := a.evalReports.GetEvalReport(r.Context(), candidateID)
+	baseline, baselineErr := a.evalReports.GetEvalReport(r.Context(), baselineID)
+	if baselineErr != nil {
+		writeError(w, http.StatusInternalServerError, "regression_check_failed", "regression check failed")
+		return
+	}
+	candidate, candidateErr := a.evalReports.GetEvalReport(r.Context(), candidateID)
+	if candidateErr != nil {
+		writeError(w, http.StatusInternalServerError, "regression_check_failed", "regression check failed")
+		return
+	}
 	if baseline.TenantID != tenantID || candidate.TenantID != tenantID {
 		writeError(w, http.StatusNotFound, "eval_report_not_found", "eval report not found")
 		return
 	}
 
-	// Auto-promote new bad cases to case management when requested
+	// Auto-promote new bad cases to case management when requested (POST only for safety)
 	promotedCount := 0
-	if r.URL.Query().Get("auto_promote") == "true" && result.Verdict == evalsvc.RegressionVerdictRegression {
+	if r.Method == http.MethodPost && r.URL.Query().Get("auto_promote") == "true" && result.Verdict == evalsvc.RegressionVerdictRegression {
 		createdBy := strings.TrimSpace(r.URL.Query().Get("created_by"))
 		if createdBy == "" {
 			createdBy = "regression-auto"

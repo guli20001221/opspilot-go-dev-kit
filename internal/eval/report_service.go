@@ -33,6 +33,7 @@ type CaseCreateInput struct {
 	Summary            string
 	SourceEvalReportID string
 	SourceEvalCaseID   string
+	SourceEvalRunID    string
 	CreatedBy          string
 }
 

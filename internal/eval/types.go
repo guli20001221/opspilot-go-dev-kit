@@ -366,10 +366,9 @@ type RegressionResult struct {
 	AverageScoreDelta float64 // candidate - baseline (negative = worse)
 	PassedItemsDelta  int
 	FailedItemsDelta  int
-	NewBadCases       []EvalReportBadCase // in candidate but not in baseline
-	ResolvedBadCases  []EvalReportBadCase // in baseline but not in candidate
-	PromotedCaseCount int                 // number of cases auto-created from new bad cases
-	Thresholds        RegressionThresholds
+	NewBadCases      []EvalReportBadCase // in candidate but not in baseline
+	ResolvedBadCases []EvalReportBadCase // in baseline but not in candidate
+	Thresholds       RegressionThresholds
 }
 
 // RunListFilter constrains eval-run list reads.
