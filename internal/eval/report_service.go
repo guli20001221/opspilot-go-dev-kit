@@ -87,6 +87,90 @@ func (s *EvalReportService) CompareEvalReports(ctx context.Context, leftReportID
 	}, nil
 }
 
+// DetectRegression compares a candidate eval report against a baseline and classifies
+// the result as regression, improvement, or stable based on configurable thresholds.
+// New bad cases (in candidate but not baseline) and resolved bad cases are identified.
+func (s *EvalReportService) DetectRegression(ctx context.Context, baselineReportID, candidateReportID string, thresholds RegressionThresholds) (RegressionResult, error) {
+	if baselineReportID == "" {
+		return RegressionResult{}, errors.New("baseline_report_id is required")
+	}
+	if candidateReportID == "" {
+		return RegressionResult{}, errors.New("candidate_report_id is required")
+	}
+
+	baseline, err := s.store.GetEvalReport(ctx, baselineReportID)
+	if err != nil {
+		return RegressionResult{}, fmt.Errorf("load baseline report: %w", err)
+	}
+	candidate, err := s.store.GetEvalReport(ctx, candidateReportID)
+	if err != nil {
+		return RegressionResult{}, fmt.Errorf("load candidate report: %w", err)
+	}
+
+	newBadCases := diffBadCases(baseline.BadCases, candidate.BadCases)
+	resolvedBadCases := diffBadCases(candidate.BadCases, baseline.BadCases)
+
+	scoreDelta := candidate.AverageScore - baseline.AverageScore
+	passedDelta := candidate.PassedItems - baseline.PassedItems
+	failedDelta := candidate.FailedItems - baseline.FailedItems
+
+	verdict := classifyRegression(scoreDelta, len(newBadCases), thresholds)
+
+	return RegressionResult{
+		BaselineReportID:  baselineReportID,
+		CandidateReportID: candidateReportID,
+		Verdict:           verdict,
+		AverageScoreDelta: scoreDelta,
+		PassedItemsDelta:  passedDelta,
+		FailedItemsDelta:  failedDelta,
+		NewBadCases:       newBadCases,
+		ResolvedBadCases:  resolvedBadCases,
+		Thresholds:        thresholds,
+	}, nil
+}
+
+// diffBadCases returns bad cases in `target` that are NOT in `reference` (by EvalCaseID).
+func diffBadCases(reference, target []EvalReportBadCase) []EvalReportBadCase {
+	refIDs := make(map[string]struct{}, len(reference))
+	for _, bc := range reference {
+		refIDs[bc.EvalCaseID] = struct{}{}
+	}
+
+	diff := make([]EvalReportBadCase, 0)
+	for _, bc := range target {
+		if _, ok := refIDs[bc.EvalCaseID]; !ok {
+			diff = append(diff, bc)
+		}
+	}
+	return diff
+}
+
+// classifyRegression determines the verdict based on score delta, new bad case count, and thresholds.
+func classifyRegression(scoreDelta float64, newBadCaseCount int, thresholds RegressionThresholds) string {
+	isRegression := false
+
+	// Score drop check (at or beyond threshold triggers regression)
+	if thresholds.ScoreDropThreshold > 0 && scoreDelta <= -thresholds.ScoreDropThreshold {
+		isRegression = true
+	}
+
+	// New bad case check
+	if newBadCaseCount > thresholds.NewFailedCasesMax {
+		isRegression = true
+	}
+
+	if isRegression {
+		return RegressionVerdictRegression
+	}
+
+	// Improvement: score improved AND no new bad cases
+	if scoreDelta > thresholds.ScoreDropThreshold && newBadCaseCount == 0 {
+		return RegressionVerdictImprovement
+	}
+
+	return RegressionVerdictStable
+}
+
 // MaterializeRunReport builds and saves the canonical eval report for one completed run.
 func (s *EvalReportService) MaterializeRunReport(ctx context.Context, runID string) (EvalReport, error) {
 	detail, err := s.runs.GetRunDetail(ctx, runID)

@@ -150,6 +150,7 @@ func (a *appHandler) registerRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("/api/v1/eval-runs/", a.handleEvalRunByID)
 	mux.HandleFunc("/api/v1/eval-reports", a.handleEvalReports)
 	mux.HandleFunc("/api/v1/eval-report-compare", a.handleEvalReportCompare)
+	mux.HandleFunc("/api/v1/eval-regression-check", a.handleEvalRegressionCheck)
 	mux.HandleFunc("/api/v1/eval-reports/", a.handleEvalReportByID)
 	mux.HandleFunc("/api/v1/tasks", a.handleTasks)
 	mux.HandleFunc("/api/v1/tasks/", a.handleTaskByID)

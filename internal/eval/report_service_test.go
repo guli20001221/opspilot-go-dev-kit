@@ -193,3 +193,169 @@ func TestEvalReportServiceCompareEvalReportsBuildsOperatorFacingSummary(t *testi
 		t.Fatalf("ReadyAtDeltaSecond = %d, want 15", got.Summary.ReadyAtDeltaSecond)
 	}
 }
+
+// --- Regression detection tests ---
+
+func TestDetectRegressionIdentifiesRegression(t *testing.T) {
+	svc := NewEvalReportService()
+	ctx := context.Background()
+
+	baseline := seedEvalReport(t, svc, "baseline-1", "tenant-reg", 0.85, []EvalReportBadCase{
+		{EvalCaseID: "case-a", Title: "Existing failure", Verdict: "fail", Score: 0.2},
+	})
+	candidate := seedEvalReport(t, svc, "candidate-1", "tenant-reg", 0.70, []EvalReportBadCase{
+		{EvalCaseID: "case-a", Title: "Existing failure", Verdict: "fail", Score: 0.2},
+		{EvalCaseID: "case-b", Title: "New failure", Verdict: "fail", Score: 0.1},
+	})
+
+	got, err := svc.DetectRegression(ctx, baseline.ID, candidate.ID, DefaultRegressionThresholds())
+	if err != nil {
+		t.Fatalf("DetectRegression() error = %v", err)
+	}
+	if got.Verdict != RegressionVerdictRegression {
+		t.Fatalf("Verdict = %q, want %q", got.Verdict, RegressionVerdictRegression)
+	}
+	if len(got.NewBadCases) != 1 || got.NewBadCases[0].EvalCaseID != "case-b" {
+		t.Fatalf("NewBadCases = %v, want [case-b]", got.NewBadCases)
+	}
+	if len(got.ResolvedBadCases) != 0 {
+		t.Fatalf("ResolvedBadCases = %v, want empty", got.ResolvedBadCases)
+	}
+	if got.AverageScoreDelta >= 0 {
+		t.Fatalf("AverageScoreDelta = %f, want negative", got.AverageScoreDelta)
+	}
+}
+
+func TestDetectRegressionIdentifiesImprovement(t *testing.T) {
+	svc := NewEvalReportService()
+	ctx := context.Background()
+
+	baseline := seedEvalReport(t, svc, "baseline-2", "tenant-reg", 0.70, []EvalReportBadCase{
+		{EvalCaseID: "case-a", Title: "Was failing", Verdict: "fail", Score: 0.2},
+	})
+	candidate := seedEvalReport(t, svc, "candidate-2", "tenant-reg", 0.90, []EvalReportBadCase{})
+
+	got, err := svc.DetectRegression(ctx, baseline.ID, candidate.ID, DefaultRegressionThresholds())
+	if err != nil {
+		t.Fatalf("DetectRegression() error = %v", err)
+	}
+	if got.Verdict != RegressionVerdictImprovement {
+		t.Fatalf("Verdict = %q, want %q", got.Verdict, RegressionVerdictImprovement)
+	}
+	if len(got.ResolvedBadCases) != 1 || got.ResolvedBadCases[0].EvalCaseID != "case-a" {
+		t.Fatalf("ResolvedBadCases = %v, want [case-a]", got.ResolvedBadCases)
+	}
+	if len(got.NewBadCases) != 0 {
+		t.Fatalf("NewBadCases = %v, want empty", got.NewBadCases)
+	}
+}
+
+func TestDetectRegressionIdentifiesStable(t *testing.T) {
+	svc := NewEvalReportService()
+	ctx := context.Background()
+
+	baseline := seedEvalReport(t, svc, "baseline-3", "tenant-reg", 0.80, []EvalReportBadCase{
+		{EvalCaseID: "case-a", Title: "Persistent failure", Verdict: "fail", Score: 0.3},
+	})
+	candidate := seedEvalReport(t, svc, "candidate-3", "tenant-reg", 0.81, []EvalReportBadCase{
+		{EvalCaseID: "case-a", Title: "Persistent failure", Verdict: "fail", Score: 0.3},
+	})
+
+	got, err := svc.DetectRegression(ctx, baseline.ID, candidate.ID, DefaultRegressionThresholds())
+	if err != nil {
+		t.Fatalf("DetectRegression() error = %v", err)
+	}
+	if got.Verdict != RegressionVerdictStable {
+		t.Fatalf("Verdict = %q, want %q", got.Verdict, RegressionVerdictStable)
+	}
+}
+
+func TestDetectRegressionCustomThresholds(t *testing.T) {
+	svc := NewEvalReportService()
+	ctx := context.Background()
+
+	baseline := seedEvalReport(t, svc, "baseline-4", "tenant-reg", 0.80, []EvalReportBadCase{})
+	candidate := seedEvalReport(t, svc, "candidate-4", "tenant-reg", 0.78, []EvalReportBadCase{
+		{EvalCaseID: "case-new", Title: "Minor failure", Verdict: "fail", Score: 0.4},
+	})
+
+	// Lenient thresholds: allow 1 new bad case and 10% score drop
+	lenient := RegressionThresholds{ScoreDropThreshold: 0.10, NewFailedCasesMax: 1}
+	got, err := svc.DetectRegression(ctx, baseline.ID, candidate.ID, lenient)
+	if err != nil {
+		t.Fatalf("DetectRegression() error = %v", err)
+	}
+	if got.Verdict != RegressionVerdictStable {
+		t.Fatalf("Verdict = %q, want %q (lenient thresholds)", got.Verdict, RegressionVerdictStable)
+	}
+
+	// Strict thresholds: 0 new bad cases allowed
+	strict := RegressionThresholds{ScoreDropThreshold: 0.10, NewFailedCasesMax: 0}
+	got2, err := svc.DetectRegression(ctx, baseline.ID, candidate.ID, strict)
+	if err != nil {
+		t.Fatalf("DetectRegression() strict error = %v", err)
+	}
+	if got2.Verdict != RegressionVerdictRegression {
+		t.Fatalf("Verdict = %q, want %q (strict thresholds)", got2.Verdict, RegressionVerdictRegression)
+	}
+}
+
+func TestDetectRegressionExactBoundaryIsRegression(t *testing.T) {
+	svc := NewEvalReportService()
+	ctx := context.Background()
+
+	// Score drops by exactly the threshold (0.05) — should be regression, not stable
+	baseline := seedEvalReport(t, svc, "baseline-boundary", "tenant-reg", 0.80, []EvalReportBadCase{})
+	candidate := seedEvalReport(t, svc, "candidate-boundary", "tenant-reg", 0.75, []EvalReportBadCase{
+		{EvalCaseID: "case-new", Title: "Boundary failure", Verdict: "fail", Score: 0.3},
+	})
+
+	got, err := svc.DetectRegression(ctx, baseline.ID, candidate.ID, DefaultRegressionThresholds())
+	if err != nil {
+		t.Fatalf("DetectRegression() error = %v", err)
+	}
+	if got.Verdict != RegressionVerdictRegression {
+		t.Fatalf("Verdict = %q, want %q (exact boundary should trigger regression)", got.Verdict, RegressionVerdictRegression)
+	}
+}
+
+func TestDetectRegressionRejectsEmptyIDs(t *testing.T) {
+	svc := NewEvalReportService()
+	ctx := context.Background()
+
+	_, err := svc.DetectRegression(ctx, "", "some-id", DefaultRegressionThresholds())
+	if err == nil {
+		t.Fatal("want error for empty baseline_report_id")
+	}
+	_, err = svc.DetectRegression(ctx, "some-id", "", DefaultRegressionThresholds())
+	if err == nil {
+		t.Fatal("want error for empty candidate_report_id")
+	}
+}
+
+// seedEvalReport creates and saves a minimal eval report for regression detection tests.
+func seedEvalReport(t *testing.T, svc *EvalReportService, id, tenantID string, avgScore float64, badCases []EvalReportBadCase) EvalReport {
+	t.Helper()
+	passed := 10 - len(badCases)
+	report := EvalReport{
+		ID:              id,
+		TenantID:        tenantID,
+		RunID:           "run-" + id,
+		DatasetID:       "dataset-" + id,
+		Status:          EvalReportStatusReady,
+		TotalItems:      10,
+		RecordedResults: 10,
+		PassedItems:     passed,
+		FailedItems:     len(badCases),
+		AverageScore:    avgScore,
+		BadCases:        badCases,
+		CreatedAt:       time.Now(),
+		UpdatedAt:       time.Now(),
+		ReadyAt:         time.Now(),
+	}
+	saved, err := svc.store.SaveEvalReport(context.Background(), report)
+	if err != nil {
+		t.Fatalf("seedEvalReport(%s) error = %v", id, err)
+	}
+	return saved
+}
