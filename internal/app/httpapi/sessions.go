@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"strings"
 
+	"opspilot-go/internal/agent/planner"
 	admintaskboard "opspilot-go/internal/app/admin/taskboard"
 	appchat "opspilot-go/internal/app/chat"
 	casesvc "opspilot-go/internal/case"
@@ -35,6 +36,7 @@ type appHandler struct {
 	workflows      *workflow.Service
 	chat           *appchat.Service
 	ingestion      *ingestpkg.Pipeline
+	policyLoader   planner.PolicyLoader
 }
 
 type createSessionRequest struct {
@@ -71,7 +73,7 @@ type errorResponse struct {
 	Message string `json:"message"`
 }
 
-func newAppHandler(workflowService *workflow.Service, reportService *report.Service, caseService *casesvc.Service, evalCaseService *evalsvc.Service, evalDatasetService *evalsvc.DatasetService, evalRunService *evalsvc.RunService, evalReportService *evalsvc.EvalReportService, versionService *version.Service, sessionService *session.Service, searchService retrieval.Searcher, llmProvider llm.Provider, ingestionPipeline *ingestpkg.Pipeline, registry *toolregistry.Registry) *appHandler {
+func newAppHandler(workflowService *workflow.Service, reportService *report.Service, caseService *casesvc.Service, evalCaseService *evalsvc.Service, evalDatasetService *evalsvc.DatasetService, evalRunService *evalsvc.RunService, evalReportService *evalsvc.EvalReportService, versionService *version.Service, sessionService *session.Service, searchService retrieval.Searcher, llmProvider llm.Provider, ingestionPipeline *ingestpkg.Pipeline, registry *toolregistry.Registry, policyLoader planner.PolicyLoader) *appHandler {
 	if sessionService == nil {
 		sessionService = session.NewService()
 	}
@@ -101,6 +103,10 @@ func newAppHandler(workflowService *workflow.Service, reportService *report.Serv
 		evalReportService = evalsvc.NewEvalReportServiceWithDependencies(nil, evalRunService)
 	}
 
+	if policyLoader == nil {
+		policyLoader = planner.DefaultPolicyLoader{}
+	}
+
 	return &appHandler{
 		adminTaskBoard: admintaskboard.NewService(workflowService),
 		cases:          caseService,
@@ -115,6 +121,7 @@ func newAppHandler(workflowService *workflow.Service, reportService *report.Serv
 		workflows:      workflowService,
 		chat:           appchat.NewServiceWithLLM(sessionService, workflowService, registry, searchService, llmProvider),
 		ingestion:      ingestionPipeline,
+		policyLoader:   policyLoader,
 	}
 }
 
@@ -415,6 +422,7 @@ func (a *appHandler) handleChatStream(w http.ResponseWriter, r *http.Request) {
 		UserMessage:     req.UserMessage,
 		AttachmentRefs:  req.AttachmentRefs,
 		ClientRequestID: req.ClientRequestID,
+		TenantPolicy:    a.policyLoader.LoadPolicy(r.Context(), req.TenantID),
 		OnToken:         onToken,
 	})
 	if err != nil {

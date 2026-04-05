@@ -3,16 +3,19 @@ package chat
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"log/slog"
 	"regexp"
 	"strconv"
 	"strings"
+	"time"
 
 	agentcritic "opspilot-go/internal/agent/critic"
 	"opspilot-go/internal/agent/planner"
 	agenttool "opspilot-go/internal/agent/tool"
 	"opspilot-go/internal/contextengine"
 	"opspilot-go/internal/llm"
+	"opspilot-go/internal/observability/metrics"
 	"opspilot-go/internal/observability/tracing"
 	"opspilot-go/internal/retrieval"
 	"opspilot-go/internal/session"
@@ -41,6 +44,7 @@ type Service struct {
 	registry  *toolregistry.Registry
 	workflows *workflow.Service
 	llm       llm.Provider
+	metrics   *metrics.Instruments
 }
 
 // NewService constructs a chat service with the required downstream dependencies.
@@ -65,7 +69,14 @@ func NewServiceWithDependencies(sessions SessionService, workflows *workflow.Ser
 }
 
 // NewServiceWithLLM constructs a chat service with an LLM provider for response generation.
+// Metrics instruments are auto-created; use NewServiceWithMetrics for explicit injection.
 func NewServiceWithLLM(sessions SessionService, workflows *workflow.Service, registry *toolregistry.Registry, searcher retrieval.Searcher, provider llm.Provider) *Service {
+	return NewServiceWithMetrics(sessions, workflows, registry, searcher, provider, nil)
+}
+
+// NewServiceWithMetrics constructs a chat service with all dependencies including metrics.
+// Pass nil for metrics to use auto-created instruments (or no-op in tests).
+func NewServiceWithMetrics(sessions SessionService, workflows *workflow.Service, registry *toolregistry.Registry, searcher retrieval.Searcher, provider llm.Provider, m *metrics.Instruments) *Service {
 	if workflows == nil {
 		workflows = workflow.NewService()
 	}
@@ -99,6 +110,7 @@ func NewServiceWithLLM(sessions SessionService, workflows *workflow.Service, reg
 		registry:  registry,
 		workflows: workflows,
 		llm:       provider,
+		metrics:   m,
 	}
 }
 
@@ -147,6 +159,7 @@ func (s *Service) Handle(ctx context.Context, req ChatRequestEnvelope) (HandleRe
 		return HandleResult{}, err
 	}
 
+	planStart := time.Now()
 	plan, err := s.planner.Plan(ctx, planner.PlanInput{
 		RequestID:      req.RequestID,
 		TraceID:        req.TraceID,
@@ -156,13 +169,16 @@ func (s *Service) Handle(ctx context.Context, req ChatRequestEnvelope) (HandleRe
 		UserMessage:    req.UserMessage,
 		Context:        assembledContext.Planner,
 		AvailableTools: toPlannerToolDescriptors(s.registry.List()),
+		TenantPolicy:   req.TenantPolicy,
 	})
 	if err != nil {
 		return HandleResult{}, err
 	}
+	s.metrics.RecordPlannerLatency(ctx, time.Since(planStart), plan.Intent, plan.Source, req.TenantID)
 
 	retrievalResult := retrieval.RetrievalResult{}
 	if plan.RequiresRetrieval {
+		retrievalStart := time.Now()
 		// HyDE: generate a hypothetical document to improve semantic matching
 		hydeQuery := req.UserMessage
 		if s.hyde != nil {
@@ -210,43 +226,18 @@ func (s *Service) Handle(ctx context.Context, req ChatRequestEnvelope) (HandleRe
 		}
 		// Apply lost-in-the-middle reordering for optimal LLM context placement
 		retrievalResult.EvidenceBlocks = retrieval.ReorderLostInTheMiddle(retrievalResult.EvidenceBlocks)
+		s.metrics.RecordRetrievalLatency(ctx, time.Since(retrievalStart), len(retrievalResult.EvidenceBlocks), req.TenantID)
 	}
 
 	isEvalMode := req.Mode == "eval"
 
 	toolResults := make([]agenttool.ToolResult, 0, len(plan.Steps))
 	toolInvocations := make([]agenttool.ToolInvocation, 0, len(plan.Steps))
+	var replanCount int
 	if !isEvalMode {
-		// Tool execution is skipped in eval mode to prevent side effects
-		for _, step := range plan.Steps {
-			if step.Kind != planner.StepKindTool {
-				continue
-			}
-
-			args, err := buildToolArguments(step.ToolName, req.UserMessage)
-			if err != nil {
-				return HandleResult{}, err
-			}
-
-			invocation := agenttool.ToolInvocation{
-				RequestID:        req.RequestID,
-				TraceID:          req.TraceID,
-				TenantID:         req.TenantID,
-				SessionID:        sessionID,
-				PlanID:           plan.PlanID,
-				StepID:           step.StepID,
-				ToolName:         step.ToolName,
-				ActionClass:      actionClassForStep(step),
-				RequiresApproval: step.NeedsApproval,
-				Arguments:        args,
-			}
-			toolInvocations = append(toolInvocations, invocation)
-
-			toolResult, err := s.tools.Execute(ctx, invocation)
-			if err != nil {
-				return HandleResult{}, err
-			}
-			toolResults = append(toolResults, toolResult)
+		toolResults, toolInvocations, replanCount, err = s.executeToolSteps(ctx, req, sessionID, plan)
+		if err != nil {
+			return HandleResult{}, err
 		}
 	}
 
@@ -254,6 +245,7 @@ func (s *Service) Handle(ctx context.Context, req ChatRequestEnvelope) (HandleRe
 	// Uses streaming when the provider supports it and OnToken callback is set.
 	assistantContent := PlaceholderAssistantResponse
 	if s.llm != nil {
+		llmStart := time.Now()
 		completionReq := s.buildCompletionRequest(req, recentMessages, retrievalResult, toolResults)
 
 		var resp llm.CompletionResponse
@@ -273,8 +265,10 @@ func (s *Service) Handle(ctx context.Context, req ChatRequestEnvelope) (HandleRe
 		} else if resp.Content != "" {
 			assistantContent = resp.Content
 		}
+		s.metrics.RecordLLMCall(ctx, time.Since(llmStart), resp.Model, resp.PromptTokens, resp.OutputTokens)
 	}
 
+	criticStart := time.Now()
 	criticVerdict, err := s.critic.Review(ctx, agentcritic.CriticInput{
 		Plan:        plan,
 		Retrieval:   &retrievalResult,
@@ -283,6 +277,11 @@ func (s *Service) Handle(ctx context.Context, req ChatRequestEnvelope) (HandleRe
 	})
 	if err != nil {
 		return HandleResult{}, err
+	}
+	s.metrics.RecordCriticVerdict(ctx, time.Since(criticStart), criticVerdict.Verdict, criticVerdict.Source)
+
+	if replanCount > 0 {
+		s.metrics.RecordReplan(ctx, "tool_failure")
 	}
 
 	var promotedTask *workflow.Task
@@ -337,8 +336,165 @@ func (s *Service) Handle(ctx context.Context, req ChatRequestEnvelope) (HandleRe
 		ToolResults:  toolResults,
 		Critic:       criticVerdict,
 		PromotedTask: promotedTask,
+		ReplanCount:  replanCount,
 		Events:       buildEvents(req, sessionID, plan, retrievalResult, toolResults, promotedTask, assistantContent),
 	}, nil
+}
+
+const maxReplanAttempts = 1
+
+// executeToolSteps runs tool steps from the plan, with dynamic replanning on failure.
+// Returns all tool results, invocations, the replan count, and any error.
+func (s *Service) executeToolSteps(
+	ctx context.Context,
+	req ChatRequestEnvelope,
+	sessionID string,
+	plan planner.ExecutionPlan,
+) ([]agenttool.ToolResult, []agenttool.ToolInvocation, int, error) {
+	var (
+		results     []agenttool.ToolResult
+		invocations []agenttool.ToolInvocation
+		replanCount int
+	)
+
+	for _, step := range plan.Steps {
+		if step.Kind != planner.StepKindTool {
+			continue
+		}
+
+		var args json.RawMessage
+		var err error
+		if len(step.ToolArguments) > 0 {
+			args = step.ToolArguments
+		} else {
+			slog.Debug("planner did not produce tool arguments, using heuristic fallback",
+				slog.String("request_id", req.RequestID),
+				slog.String("tool_name", step.ToolName),
+				slog.String("plan_source", plan.Source),
+			)
+			args, err = buildToolArguments(step.ToolName, req.UserMessage)
+			if err != nil {
+				return nil, nil, replanCount, err
+			}
+		}
+
+		invocation := agenttool.ToolInvocation{
+			RequestID:        req.RequestID,
+			TraceID:          req.TraceID,
+			TenantID:         req.TenantID,
+			SessionID:        sessionID,
+			PlanID:           plan.PlanID,
+			StepID:           step.StepID,
+			ToolName:         step.ToolName,
+			ActionClass:      actionClassForStep(step),
+			RequiresApproval: step.NeedsApproval,
+			Arguments:        args,
+		}
+		invocations = append(invocations, invocation)
+
+		toolStart := time.Now()
+		toolResult, execErr := s.tools.Execute(ctx, invocation)
+		if execErr != nil {
+			s.metrics.RecordToolExecution(ctx, time.Since(toolStart), step.ToolName, agenttool.StatusFailed, req.TenantID)
+			// Tool execution hard-failed — attempt dynamic replanning
+			if replanCount < maxReplanAttempts && plan.Source != planner.PlanSourceKeyword {
+				slog.Warn("tool execution failed, attempting replan",
+					slog.String("request_id", req.RequestID),
+					slog.String("tool_name", step.ToolName),
+					slog.Any("error", execErr),
+				)
+
+				executedSteps := buildExecutedSteps(results)
+				executedSteps = append(executedSteps, planner.ExecutedStep{
+					StepID:   step.StepID,
+					Kind:     step.Kind,
+					ToolName: step.ToolName,
+					Status:   agenttool.StatusFailed,
+					Summary:  execErr.Error(),
+				})
+
+				replanInput := planner.ReplanInput{
+					OriginalPlan:  plan,
+					ExecutedSteps: executedSteps,
+					Input: planner.PlanInput{
+						RequestID:      req.RequestID,
+						TenantID:       req.TenantID,
+						SessionID:      sessionID,
+						Mode:           req.Mode,
+						UserMessage:    req.UserMessage,
+						AvailableTools: toPlannerToolDescriptors(s.registry.List()),
+						TenantPolicy:   req.TenantPolicy,
+					},
+					ReplanReason: fmt.Sprintf("tool %s failed: %s", step.ToolName, execErr.Error()),
+				}
+
+				revisedPlan, replanErr := s.planner.Replan(ctx, replanInput)
+				if replanErr != nil {
+					slog.Warn("replan failed, propagating original error",
+						slog.String("request_id", req.RequestID),
+						slog.Any("replan_error", replanErr),
+					)
+					return nil, nil, replanCount, execErr
+				}
+
+				replanCount++
+				// Execute the revised plan's tool steps (no further replanning)
+				for _, rStep := range revisedPlan.Steps {
+					if rStep.Kind != planner.StepKindTool {
+						continue
+					}
+					var rArgs json.RawMessage
+					if len(rStep.ToolArguments) > 0 {
+						rArgs = rStep.ToolArguments
+					} else {
+						rArgs, err = buildToolArguments(rStep.ToolName, req.UserMessage)
+						if err != nil {
+							return nil, nil, replanCount, err
+						}
+					}
+					rInvocation := agenttool.ToolInvocation{
+						RequestID:        req.RequestID,
+						TraceID:          req.TraceID,
+						TenantID:         req.TenantID,
+						SessionID:        sessionID,
+						PlanID:           revisedPlan.PlanID,
+						StepID:           rStep.StepID,
+						ToolName:         rStep.ToolName,
+						ActionClass:      actionClassForStep(rStep),
+						RequiresApproval: rStep.NeedsApproval,
+						Arguments:        rArgs,
+					}
+					invocations = append(invocations, rInvocation)
+					rResult, rErr := s.tools.Execute(ctx, rInvocation)
+					if rErr != nil {
+						return nil, nil, replanCount, rErr
+					}
+					results = append(results, rResult)
+				}
+				return results, invocations, replanCount, nil
+			}
+			return nil, nil, replanCount, execErr
+		}
+		s.metrics.RecordToolExecution(ctx, time.Since(toolStart), step.ToolName, toolResult.Status, req.TenantID)
+		results = append(results, toolResult)
+	}
+
+	return results, invocations, replanCount, nil
+}
+
+// buildExecutedSteps converts completed tool results into planner ExecutedStep records.
+func buildExecutedSteps(results []agenttool.ToolResult) []planner.ExecutedStep {
+	steps := make([]planner.ExecutedStep, 0, len(results))
+	for _, r := range results {
+		steps = append(steps, planner.ExecutedStep{
+			StepID:   r.ToolCallID,
+			Kind:     planner.StepKindTool,
+			ToolName: r.ToolName,
+			Status:   r.Status,
+			Summary:  r.OutputSummary,
+		})
+	}
+	return steps
 }
 
 var ticketIDPattern = regexp.MustCompile(`(?i)\b[A-Z]+-\d+\b`)
@@ -385,11 +541,22 @@ func toTurns(messages []session.Message) []contextengine.Turn {
 func toPlannerToolDescriptors(defs []toolregistry.Definition) []planner.ToolDescriptor {
 	out := make([]planner.ToolDescriptor, 0, len(defs))
 	for _, def := range defs {
+		params := make([]planner.ToolParameterDesc, 0, len(def.Parameters))
+		for _, p := range def.Parameters {
+			params = append(params, planner.ToolParameterDesc{
+				Name:        p.Name,
+				Type:        p.Type,
+				Required:    p.Required,
+				Description: p.Description,
+			})
+		}
 		out = append(out, planner.ToolDescriptor{
 			Name:             def.Name,
+			Description:      def.Description,
 			ReadOnly:         def.ReadOnly,
 			RequiresApproval: def.RequiresApproval,
 			AsyncOnly:        def.AsyncOnly,
+			Parameters:       params,
 		})
 	}
 

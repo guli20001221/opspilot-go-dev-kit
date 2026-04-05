@@ -7,8 +7,10 @@ import (
 	"testing"
 	"time"
 
+	agenttool "opspilot-go/internal/agent/tool"
 	"opspilot-go/internal/llm"
 	"opspilot-go/internal/session"
+	toolregistry "opspilot-go/internal/tools/registry"
 )
 
 func TestServiceHandleCreatesSessionAndBuildsStreamEvents(t *testing.T) {
@@ -374,5 +376,85 @@ func TestServiceHandleNormalModeAllowsToolExecution(t *testing.T) {
 	}
 	if !hasToolEvent {
 		t.Fatal("no tool event emitted in normal mode — tools should execute")
+	}
+}
+
+func TestBuildToolArgumentsFallbackForKeywordPlanner(t *testing.T) {
+	// Keyword planner does not produce ToolArguments — verify the fallback
+	// heuristic still works correctly.
+	args, err := buildToolArguments("ticket_search", "search for INC-200")
+	if err != nil {
+		t.Fatalf("buildToolArguments() error = %v", err)
+	}
+	var parsed map[string]string
+	if err := json.Unmarshal(args, &parsed); err != nil {
+		t.Fatalf("Unmarshal() error = %v", err)
+	}
+	if parsed["query"] != "search for INC-200" {
+		t.Fatalf("query = %q, want user message", parsed["query"])
+	}
+}
+
+func TestBuildToolArgumentsFallbackForCommentCreate(t *testing.T) {
+	args, err := buildToolArguments("ticket_comment_create", "comment on ticket INC-300 fix applied")
+	if err != nil {
+		t.Fatalf("buildToolArguments() error = %v", err)
+	}
+	var parsed map[string]string
+	if err := json.Unmarshal(args, &parsed); err != nil {
+		t.Fatalf("Unmarshal() error = %v", err)
+	}
+	if parsed["ticket_id"] != "INC-300" {
+		t.Fatalf("ticket_id = %q, want %q", parsed["ticket_id"], "INC-300")
+	}
+	if parsed["comment"] == "" {
+		t.Fatal("comment is empty")
+	}
+}
+
+// --- Replanning integration tests ---
+
+func TestServiceHandleKeywordPlanDoesNotReplanOnToolError(t *testing.T) {
+	// Keyword planner cannot replan — tool errors propagate directly.
+	sessionService := session.NewService()
+	// Use a registry with a tool that will fail
+	registry := toolregistry.New()
+	registry.Register(toolregistry.Definition{
+		Name:        "ticket_search",
+		ActionClass: "read",
+		ReadOnly:    true,
+		Executor: func(_ context.Context, _ json.RawMessage) (any, error) {
+			return nil, fmt.Errorf("simulated search failure")
+		},
+	})
+	svc := NewServiceWithRegistry(sessionService, nil, registry)
+
+	_, err := svc.Handle(context.Background(), ChatRequestEnvelope{
+		RequestID:   "req-kw-no-replan",
+		TenantID:    "tenant-1",
+		UserID:      "user-1",
+		Mode:        "chat",
+		UserMessage: "search related ticket history",
+	})
+	// Should get the tool error directly since keyword plans can't replan
+	if err == nil {
+		t.Fatal("Handle() error = nil, want tool execution error")
+	}
+}
+
+func TestBuildExecutedSteps(t *testing.T) {
+	results := []agenttool.ToolResult{
+		{ToolCallID: "tc-1", ToolName: "ticket_search", Status: "succeeded", OutputSummary: "found 3 matches"},
+		{ToolCallID: "tc-2", ToolName: "ticket_comment_create", Status: "approval_required", OutputSummary: "needs approval"},
+	}
+	steps := buildExecutedSteps(results)
+	if len(steps) != 2 {
+		t.Fatalf("len(steps) = %d, want 2", len(steps))
+	}
+	if steps[0].ToolName != "ticket_search" || steps[0].Status != "succeeded" {
+		t.Fatalf("step[0] = %+v, want ticket_search/succeeded", steps[0])
+	}
+	if steps[1].ToolName != "ticket_comment_create" || steps[1].Status != "approval_required" {
+		t.Fatalf("step[1] = %+v, want ticket_comment_create/approval_required", steps[1])
 	}
 }

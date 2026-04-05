@@ -62,8 +62,10 @@ type ChunkRecord struct {
 // ChunkStore persists retrieval chunks with hybrid index data.
 type ChunkStore interface {
 	UpsertWithHybrid(ctx context.Context, chunk ChunkRecord) (ChunkRecord, error)
-	// DeleteStaleChunks removes chunks for the given document that have a version
-	// older than the specified version. This prevents stale content from being
-	// searchable after a document is re-ingested with fewer chunks.
-	DeleteStaleChunks(ctx context.Context, tenantID, documentID string, currentVersion int) (int, error)
+	// DeleteStaleChunks removes chunks for the given document that are stale.
+	// It deletes chunks with a version older than currentVersion, AND chunks
+	// with currentVersion whose chunk_id is not in currentChunkIDs. This
+	// handles both cross-version and same-version re-ingestion (where the new
+	// chunking produces fewer chunks than before).
+	DeleteStaleChunks(ctx context.Context, tenantID, documentID string, currentVersion int, currentChunkIDs []string) (int, error)
 }

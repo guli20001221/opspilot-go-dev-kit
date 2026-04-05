@@ -238,7 +238,7 @@ func TestServicePlanWithLLMToolSelection(t *testing.T) {
 			{Name: "ticket_search", ReadOnly: true},
 			{Name: "ticket_comment_create", ReadOnly: false, RequiresApproval: true},
 		},
-		TenantPolicy: TenantPolicy{AllowToolUse: true},
+		TenantPolicy: TenantPolicy{Configured: true, AllowToolUse: true},
 	})
 	if err != nil {
 		t.Fatalf("Plan() error = %v", err)
@@ -483,7 +483,7 @@ func TestServicePlanLLMRequestIncludesToolDescriptions(t *testing.T) {
 			{Name: "ticket_search", ReadOnly: true},
 			{Name: "ticket_comment_create", ReadOnly: false, RequiresApproval: true},
 		},
-		TenantPolicy: TenantPolicy{AllowToolUse: true},
+		TenantPolicy: TenantPolicy{Configured: true, AllowToolUse: true},
 	})
 	if err != nil {
 		t.Fatalf("Plan() error = %v", err)
@@ -528,7 +528,7 @@ func TestServicePlanWithLLMApprovalTool(t *testing.T) {
 		AvailableTools: []ToolDescriptor{
 			{Name: "ticket_comment_create", ReadOnly: false, RequiresApproval: true},
 		},
-		TenantPolicy: TenantPolicy{AllowToolUse: true},
+		TenantPolicy: TenantPolicy{Configured: true, AllowToolUse: true},
 	})
 	if err != nil {
 		t.Fatalf("Plan() error = %v", err)
@@ -575,6 +575,78 @@ func TestServicePlanWithLLMSendsTemperatureZero(t *testing.T) {
 	}
 }
 
+func TestServicePlanWithLLMToolArguments(t *testing.T) {
+	toolArgs := json.RawMessage(`{"query":"database outage tickets"}`)
+	planJSON := buildMockPlanJSON(IntentIncidentAssist, []llmPlanStep{
+		{Kind: StepKindTool, Name: "search tickets", ToolName: "ticket_search", ToolArguments: toolArgs, ReadOnly: true},
+		{Kind: StepKindSynthesize, Name: "compose", DependsOn: []string{"search tickets"}},
+		{Kind: StepKindCritic, Name: "validate", DependsOn: []string{"compose"}},
+	})
+
+	provider := &mockLLMProvider{
+		response: llm.CompletionResponse{Content: planJSON, Model: "test-model"},
+	}
+	svc := NewServiceWithLLM(provider)
+
+	got, err := svc.Plan(context.Background(), PlanInput{
+		RequestID:   "req-llm-args",
+		TenantID:    "tenant-1",
+		SessionID:   "session-1",
+		Mode:        "chat",
+		UserMessage: "find tickets about the database outage",
+		AvailableTools: []ToolDescriptor{
+			{Name: "ticket_search", ReadOnly: true},
+		},
+		TenantPolicy: TenantPolicy{Configured: true, AllowToolUse: true},
+	})
+	if err != nil {
+		t.Fatalf("Plan() error = %v", err)
+	}
+
+	if got.Source != PlanSourceLLM {
+		t.Fatalf("Source = %q, want %q", got.Source, PlanSourceLLM)
+	}
+	// Verify tool arguments are passed through from the LLM plan
+	for _, step := range got.Steps {
+		if step.Kind == StepKindTool {
+			if len(step.ToolArguments) == 0 {
+				t.Fatal("ToolArguments is empty, want planner-produced arguments")
+			}
+			var args map[string]string
+			if err := json.Unmarshal(step.ToolArguments, &args); err != nil {
+				t.Fatalf("Unmarshal(ToolArguments) error = %v", err)
+			}
+			if args["query"] != "database outage tickets" {
+				t.Fatalf("ToolArguments.query = %q, want %q", args["query"], "database outage tickets")
+			}
+			return
+		}
+	}
+	t.Fatal("no tool step found in plan")
+}
+
+func TestBuildPlannerUserMessageIncludesToolParameterSchemas(t *testing.T) {
+	msg := buildPlannerUserMessage(PlanInput{
+		Mode:        "chat",
+		UserMessage: "test",
+		AvailableTools: []ToolDescriptor{
+			{
+				Name:        "ticket_search",
+				Description: "Search tickets by keyword",
+				ReadOnly:    true,
+				Parameters: []ToolParameterDesc{
+					{Name: "query", Type: "string", Required: true, Description: "search keywords"},
+				},
+			},
+		},
+	})
+	for _, want := range []string{"ticket_search", "Search tickets by keyword", "parameters", "query", "search keywords"} {
+		if !contains(msg, want) {
+			t.Fatalf("user message missing %q; got:\n%s", want, msg)
+		}
+	}
+}
+
 // --- Prompt construction tests ---
 
 func TestBuildPlannerUserMessageContainsAllInputs(t *testing.T) {
@@ -589,13 +661,26 @@ func TestBuildPlannerUserMessageContainsAllInputs(t *testing.T) {
 		AvailableTools: []ToolDescriptor{
 			{Name: "ticket_search", ReadOnly: true},
 		},
-		TenantPolicy: TenantPolicy{AllowToolUse: true},
+		TenantPolicy: TenantPolicy{Configured: true, AllowToolUse: true},
 	})
 
 	for _, want := range []string{"chat", "test query", "recent_turns", "ticket_search", "allow_tool_use=true"} {
 		if !contains(msg, want) {
 			t.Fatalf("user message missing %q; got:\n%s", want, msg)
 		}
+	}
+}
+
+func TestBuildPlannerUserMessageUnconfiguredPolicy(t *testing.T) {
+	msg := buildPlannerUserMessage(PlanInput{
+		Mode:        "chat",
+		UserMessage: "test",
+	})
+	if contains(msg, "allow_tool_use=false") {
+		t.Fatalf("unconfigured policy should not emit allow_tool_use=false; got:\n%s", msg)
+	}
+	if !contains(msg, "permissive defaults") {
+		t.Fatalf("unconfigured policy should indicate permissive defaults; got:\n%s", msg)
 	}
 }
 
@@ -731,6 +816,65 @@ func TestValidateLLMPlanAcceptsValidPlan(t *testing.T) {
 	}
 }
 
+func TestValidateLLMPlanRejectsWorkflowWithToolSteps(t *testing.T) {
+	resp := llmPlanResponse{
+		Intent:           IntentReportRequest,
+		RequiresWorkflow: true,
+		Steps: []llmPlanStep{
+			{Kind: StepKindTool, Name: "search", ToolName: "ticket_search", ReadOnly: true},
+			{Kind: StepKindPromoteWorkflow, Name: "promote"},
+		},
+	}
+	available := map[string]bool{"ticket_search": true}
+	err := validateLLMPlan(resp, available)
+	if err == nil {
+		t.Fatal("validateLLMPlan() = nil, want error for workflow plan with tool steps")
+	}
+}
+
+func TestValidateLLMPlanRejectsWorkflowWithMultipleSteps(t *testing.T) {
+	resp := llmPlanResponse{
+		Intent:           IntentReportRequest,
+		RequiresWorkflow: true,
+		Steps: []llmPlanStep{
+			{Kind: StepKindRetrieve, Name: "retrieve"},
+			{Kind: StepKindSynthesize, Name: "compose"},
+			{Kind: StepKindPromoteWorkflow, Name: "promote"},
+		},
+	}
+	err := validateLLMPlan(resp, nil)
+	if err == nil {
+		t.Fatal("validateLLMPlan() = nil, want error for workflow plan with multiple steps")
+	}
+}
+
+func TestValidateLLMPlanRejectsPromoteWorkflowWithoutRequiresWorkflow(t *testing.T) {
+	resp := llmPlanResponse{
+		Intent:           IntentKnowledgeQA,
+		RequiresWorkflow: false,
+		Steps: []llmPlanStep{
+			{Kind: StepKindPromoteWorkflow, Name: "promote"},
+		},
+	}
+	err := validateLLMPlan(resp, nil)
+	if err == nil {
+		t.Fatal("validateLLMPlan() = nil, want error for promote_workflow without requires_workflow")
+	}
+}
+
+func TestValidateLLMPlanAcceptsWorkflowWithSinglePromoteStep(t *testing.T) {
+	resp := llmPlanResponse{
+		Intent:           IntentReportRequest,
+		RequiresWorkflow: true,
+		Steps: []llmPlanStep{
+			{Kind: StepKindPromoteWorkflow, Name: "promote"},
+		},
+	}
+	if err := validateLLMPlan(resp, nil); err != nil {
+		t.Fatalf("validateLLMPlan() = %v, want nil for valid workflow plan", err)
+	}
+}
+
 // --- Strip code fences tests ---
 
 func TestStripCodeFences(t *testing.T) {
@@ -796,4 +940,388 @@ func assertToolStep(t *testing.T, steps []PlanStep, wantTool string, wantReadOnl
 	}
 
 	t.Fatalf("tool step for %q not found in %#v", wantTool, steps)
+}
+
+// --- Policy validation tests ---
+
+func TestValidatePlanPolicyRejectsForbiddenTool(t *testing.T) {
+	resp := llmPlanResponse{
+		Intent: IntentIncidentAssist,
+		Steps: []llmPlanStep{
+			{Kind: StepKindTool, Name: "search", ToolName: "ticket_search"},
+		},
+	}
+	tools := map[string]ToolDescriptor{
+		"ticket_search": {Name: "ticket_search", ReadOnly: true},
+	}
+	policy := TenantPolicy{
+		Configured:   true,
+		AllowToolUse: true,
+		ForbiddenTools: []string{"ticket_search"},
+	}
+	if err := validatePlanPolicy(resp, tools, policy); err == nil {
+		t.Fatal("validatePlanPolicy() = nil, want error for forbidden tool")
+	}
+}
+
+func TestValidatePlanPolicyRejectsToolNotInAllowedList(t *testing.T) {
+	resp := llmPlanResponse{
+		Intent: IntentIncidentAssist,
+		Steps: []llmPlanStep{
+			{Kind: StepKindTool, Name: "search", ToolName: "ticket_search"},
+		},
+	}
+	tools := map[string]ToolDescriptor{
+		"ticket_search": {Name: "ticket_search", ReadOnly: true},
+	}
+	policy := TenantPolicy{
+		Configured:   true,
+		AllowToolUse: true,
+		AllowedTools: []string{"some_other_tool"},
+	}
+	if err := validatePlanPolicy(resp, tools, policy); err == nil {
+		t.Fatal("validatePlanPolicy() = nil, want error for tool not in allowed list")
+	}
+}
+
+func TestValidatePlanPolicyRejectsToolUseWhenDisabled(t *testing.T) {
+	resp := llmPlanResponse{
+		Intent: IntentIncidentAssist,
+		Steps: []llmPlanStep{
+			{Kind: StepKindTool, Name: "search", ToolName: "ticket_search"},
+		},
+	}
+	tools := map[string]ToolDescriptor{
+		"ticket_search": {Name: "ticket_search", ReadOnly: true},
+	}
+	policy := TenantPolicy{
+		Configured:   true,
+		AllowToolUse: false,
+	}
+	if err := validatePlanPolicy(resp, tools, policy); err == nil {
+		t.Fatal("validatePlanPolicy() = nil, want error for disabled tool use")
+	}
+}
+
+func TestValidatePlanPolicyRejectsExcessiveSteps(t *testing.T) {
+	steps := make([]llmPlanStep, 5)
+	for i := range steps {
+		steps[i] = llmPlanStep{Kind: StepKindRetrieve, Name: fmt.Sprintf("step-%d", i)}
+	}
+	resp := llmPlanResponse{
+		Intent: IntentKnowledgeQA,
+		Steps:  steps,
+	}
+	policy := TenantPolicy{
+		Configured:   true,
+		AllowToolUse: true,
+		MaxSteps:     3,
+	}
+	if err := validatePlanPolicy(resp, nil, policy); err == nil {
+		t.Fatal("validatePlanPolicy() = nil, want error for exceeding max steps")
+	}
+}
+
+func TestValidatePlanPolicyRejectsWriteWithoutApprovalWhenRequired(t *testing.T) {
+	resp := llmPlanResponse{
+		Intent: IntentIncidentAssist,
+		Steps: []llmPlanStep{
+			{Kind: StepKindTool, Name: "create", ToolName: "ticket_create", ReadOnly: false, NeedsApproval: false},
+		},
+	}
+	tools := map[string]ToolDescriptor{
+		"ticket_create": {Name: "ticket_create", ReadOnly: false, RequiresApproval: false},
+	}
+	policy := TenantPolicy{
+		Configured:              true,
+		AllowToolUse:            true,
+		RequireApprovalForWrite: true,
+	}
+	if err := validatePlanPolicy(resp, tools, policy); err == nil {
+		t.Fatal("validatePlanPolicy() = nil, want error for write tool without approval")
+	}
+}
+
+func TestValidatePlanPolicyRejectsAsyncOnlyWithoutWorkflow(t *testing.T) {
+	resp := llmPlanResponse{
+		Intent:           IntentIncidentAssist,
+		RequiresWorkflow: false,
+		Steps: []llmPlanStep{
+			{Kind: StepKindTool, Name: "deploy", ToolName: "deploy_tool"},
+		},
+	}
+	tools := map[string]ToolDescriptor{
+		"deploy_tool": {Name: "deploy_tool", AsyncOnly: true},
+	}
+	// Registry invariant — enforced even without Configured
+	if err := validatePlanPolicy(resp, tools, TenantPolicy{}); err == nil {
+		t.Fatal("validatePlanPolicy() = nil, want error for async-only without workflow")
+	}
+}
+
+func TestValidatePlanPolicyRejectsMismatchedReadOnly(t *testing.T) {
+	resp := llmPlanResponse{
+		Intent: IntentIncidentAssist,
+		Steps: []llmPlanStep{
+			{Kind: StepKindTool, Name: "create", ToolName: "ticket_create", ReadOnly: true},
+		},
+	}
+	tools := map[string]ToolDescriptor{
+		"ticket_create": {Name: "ticket_create", ReadOnly: false},
+	}
+	// Registry invariant — enforced even without Configured
+	if err := validatePlanPolicy(resp, tools, TenantPolicy{}); err == nil {
+		t.Fatal("validatePlanPolicy() = nil, want error for mismatched read_only")
+	}
+}
+
+func TestValidatePlanPolicyRejectsRegistryApprovalMismatch(t *testing.T) {
+	resp := llmPlanResponse{
+		Intent: IntentIncidentAssist,
+		Steps: []llmPlanStep{
+			{Kind: StepKindTool, Name: "create", ToolName: "ticket_create", ReadOnly: false, NeedsApproval: false},
+		},
+	}
+	tools := map[string]ToolDescriptor{
+		"ticket_create": {Name: "ticket_create", ReadOnly: false, RequiresApproval: true},
+	}
+	// Registry invariant — enforced even without Configured
+	if err := validatePlanPolicy(resp, tools, TenantPolicy{}); err == nil {
+		t.Fatal("validatePlanPolicy() = nil, want error for approval mismatch")
+	}
+}
+
+func TestValidatePlanPolicySkipsWhenNotConfigured(t *testing.T) {
+	resp := llmPlanResponse{
+		Intent: IntentIncidentAssist,
+		Steps: []llmPlanStep{
+			{Kind: StepKindTool, Name: "search", ToolName: "ticket_search", ReadOnly: true},
+			{Kind: StepKindSynthesize, Name: "compose"},
+			{Kind: StepKindCritic, Name: "validate"},
+		},
+	}
+	tools := map[string]ToolDescriptor{
+		"ticket_search": {Name: "ticket_search", ReadOnly: true},
+	}
+	// Not configured — all tenant-level checks should be skipped
+	if err := validatePlanPolicy(resp, tools, TenantPolicy{}); err != nil {
+		t.Fatalf("validatePlanPolicy() = %v, want nil for unconfigured policy", err)
+	}
+}
+
+func TestValidatePlanPolicyAcceptsValidPlan(t *testing.T) {
+	resp := llmPlanResponse{
+		Intent:           IntentIncidentAssist,
+		RequiresWorkflow: false,
+		Steps: []llmPlanStep{
+			{Kind: StepKindTool, Name: "search", ToolName: "ticket_search", ReadOnly: true, NeedsApproval: false},
+			{Kind: StepKindSynthesize, Name: "compose"},
+			{Kind: StepKindCritic, Name: "validate"},
+		},
+	}
+	tools := map[string]ToolDescriptor{
+		"ticket_search": {Name: "ticket_search", ReadOnly: true, RequiresApproval: false},
+	}
+	policy := TenantPolicy{
+		Configured:   true,
+		AllowToolUse: true,
+		AllowedTools: []string{"ticket_search"},
+		MaxSteps:     5,
+	}
+	if err := validatePlanPolicy(resp, tools, policy); err != nil {
+		t.Fatalf("validatePlanPolicy() = %v, want nil", err)
+	}
+}
+
+// --- Keyword planner policy tests ---
+
+func TestKeywordPlannerRejectsForbiddenTool(t *testing.T) {
+	svc := NewService()
+	got, err := svc.Plan(context.Background(), PlanInput{
+		RequestID:   "req-forbidden",
+		TenantID:    "tenant-1",
+		SessionID:   "session-1",
+		Mode:        "chat",
+		UserMessage: "search ticket history",
+		AvailableTools: []ToolDescriptor{
+			{Name: "ticket_search", ReadOnly: true},
+		},
+		TenantPolicy: TenantPolicy{
+			Configured:     true,
+			AllowToolUse:   true,
+			ForbiddenTools: []string{"ticket_search"},
+		},
+	})
+	if err != nil {
+		t.Fatalf("Plan() error = %v", err)
+	}
+	if got.RequiresTool {
+		t.Fatal("RequiresTool = true, want false for forbidden tool")
+	}
+}
+
+func TestKeywordPlannerRespectsAllowedList(t *testing.T) {
+	svc := NewService()
+	got, err := svc.Plan(context.Background(), PlanInput{
+		RequestID:   "req-allowed",
+		TenantID:    "tenant-1",
+		SessionID:   "session-1",
+		Mode:        "chat",
+		UserMessage: "search ticket history",
+		AvailableTools: []ToolDescriptor{
+			{Name: "ticket_search", ReadOnly: true},
+		},
+		TenantPolicy: TenantPolicy{
+			Configured:   true,
+			AllowToolUse: true,
+			AllowedTools: []string{"other_tool"},
+		},
+	})
+	if err != nil {
+		t.Fatalf("Plan() error = %v", err)
+	}
+	if got.RequiresTool {
+		t.Fatal("RequiresTool = true, want false when tool not in allowed list")
+	}
+}
+
+func TestKeywordPlannerEnforcesApprovalForWrite(t *testing.T) {
+	svc := NewService()
+	got, err := svc.Plan(context.Background(), PlanInput{
+		RequestID:   "req-write-approval",
+		TenantID:    "tenant-1",
+		SessionID:   "session-1",
+		Mode:        "chat",
+		UserMessage: "search ticket history",
+		AvailableTools: []ToolDescriptor{
+			{Name: "ticket_search", ReadOnly: false}, // write tool without RequiresApproval
+		},
+		TenantPolicy: TenantPolicy{
+			Configured:              true,
+			AllowToolUse:            true,
+			RequireApprovalForWrite: true,
+		},
+	})
+	if err != nil {
+		t.Fatalf("Plan() error = %v", err)
+	}
+	if !got.RequiresApproval {
+		t.Fatal("RequiresApproval = false, want true (policy requires approval for writes)")
+	}
+	for _, step := range got.Steps {
+		if step.Kind == StepKindTool && !step.NeedsApproval {
+			t.Fatalf("tool step %q NeedsApproval = false, want true", step.ToolName)
+		}
+	}
+}
+
+// --- LLM planner with policy integration ---
+
+func TestServicePlanWithLLMPolicyRejectsForbiddenTool(t *testing.T) {
+	planJSON := buildMockPlanJSON(IntentIncidentAssist, []llmPlanStep{
+		{Kind: StepKindTool, Name: "search tickets", ToolName: "ticket_search", ReadOnly: true},
+		{Kind: StepKindSynthesize, Name: "compose", DependsOn: []string{"search tickets"}},
+		{Kind: StepKindCritic, Name: "validate", DependsOn: []string{"compose"}},
+	})
+	provider := &mockLLMProvider{
+		response: llm.CompletionResponse{Content: planJSON, Model: "test-model"},
+	}
+	svc := NewServiceWithLLM(provider)
+
+	// LLM plan references ticket_search, but policy forbids it — should fall back to keyword
+	got, err := svc.Plan(context.Background(), PlanInput{
+		RequestID:   "req-llm-forbidden",
+		TenantID:    "tenant-1",
+		SessionID:   "session-1",
+		Mode:        "chat",
+		UserMessage: "find tickets",
+		AvailableTools: []ToolDescriptor{
+			{Name: "ticket_search", ReadOnly: true},
+		},
+		TenantPolicy: TenantPolicy{
+			Configured:     true,
+			AllowToolUse:   true,
+			ForbiddenTools: []string{"ticket_search"},
+		},
+	})
+	if err != nil {
+		t.Fatalf("Plan() error = %v", err)
+	}
+	// Should have fallen back to keyword planner because LLM plan violated policy
+	if got.Source != PlanSourceKeyword {
+		t.Fatalf("Source = %q, want %q (policy violation should trigger fallback)", got.Source, PlanSourceKeyword)
+	}
+}
+
+// --- Replan tests ---
+
+func TestServiceReplanProducesRevisedPlan(t *testing.T) {
+	replanJSON := buildMockPlanJSON(IntentKnowledgeQA, []llmPlanStep{
+		{Kind: StepKindRetrieve, Name: "fallback retrieve"},
+		{Kind: StepKindSynthesize, Name: "compose with context", DependsOn: []string{"fallback retrieve"}},
+		{Kind: StepKindCritic, Name: "validate", DependsOn: []string{"compose with context"}},
+	})
+	provider := &mockLLMProvider{
+		response: llm.CompletionResponse{Content: replanJSON, Model: "test-model"},
+	}
+	svc := NewServiceWithLLM(provider)
+
+	got, err := svc.Replan(context.Background(), ReplanInput{
+		OriginalPlan: ExecutionPlan{
+			PlanID: "plan-original",
+			Intent: IntentIncidentAssist,
+			Steps: []PlanStep{
+				{StepID: "step-1", Kind: StepKindTool, Name: "search", ToolName: "ticket_search"},
+				{StepID: "step-2", Kind: StepKindSynthesize, Name: "compose"},
+				{StepID: "step-3", Kind: StepKindCritic, Name: "validate"},
+			},
+			PlannerReasoningShort: "search tickets then answer",
+		},
+		ExecutedSteps: []ExecutedStep{
+			{StepID: "step-1", Kind: StepKindTool, ToolName: "ticket_search", Status: "failed", Summary: "ticket_search: not found"},
+		},
+		Input: PlanInput{
+			RequestID:   "req-replan",
+			TenantID:    "tenant-1",
+			SessionID:   "session-1",
+			Mode:        "chat",
+			UserMessage: "find info about INC-999",
+		},
+		ReplanReason: "tool ticket_search failed: not found",
+	})
+	if err != nil {
+		t.Fatalf("Replan() error = %v", err)
+	}
+
+	if got.Source != PlanSourceReplan {
+		t.Fatalf("Source = %q, want %q", got.Source, PlanSourceReplan)
+	}
+	if got.PlanID != "plan-original-replan" {
+		t.Fatalf("PlanID = %q, want %q", got.PlanID, "plan-original-replan")
+	}
+	if len(got.Steps) == 0 {
+		t.Fatal("Replan produced no steps")
+	}
+	// Verify the LLM was called with replanning prompt
+	if provider.captured == nil {
+		t.Fatal("LLM provider was not called")
+	}
+	if !contains(provider.captured.SystemPrompt, "replanning") {
+		t.Fatal("system prompt does not contain replanning context")
+	}
+	if !contains(provider.captured.Messages[0].Content, "ticket_search failed") {
+		t.Fatal("user message does not contain failure context")
+	}
+}
+
+func TestServiceReplanRequiresLLMProvider(t *testing.T) {
+	svc := NewService() // no LLM
+
+	_, err := svc.Replan(context.Background(), ReplanInput{
+		OriginalPlan: ExecutionPlan{PlanID: "plan-1"},
+		ReplanReason: "tool failed",
+	})
+	if err == nil {
+		t.Fatal("Replan() = nil, want error when no LLM provider")
+	}
 }

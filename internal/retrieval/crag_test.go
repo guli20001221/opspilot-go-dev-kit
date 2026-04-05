@@ -26,9 +26,9 @@ func (m *mockCRAGProvider) Complete(_ context.Context, req llm.CompletionRequest
 func TestCRAGFilterDiscardsIrrelevant(t *testing.T) {
 	provider := &mockCRAGProvider{
 		verdicts: map[string]string{
-			"reset guide":     "relevant",
+			"reset guide":      "relevant",
 			"weather forecast": "irrelevant",
-			"maybe reset":     "ambiguous",
+			"maybe reset":      "ambiguous",
 		},
 	}
 

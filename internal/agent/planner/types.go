@@ -1,6 +1,11 @@
 package planner
 
-import "opspilot-go/internal/contextengine"
+import (
+	"context"
+	"encoding/json"
+
+	"opspilot-go/internal/contextengine"
+)
 
 const (
 	// IntentKnowledgeQA is the default intent for synchronous knowledge questions.
@@ -39,15 +44,78 @@ type PlanInput struct {
 // ToolDescriptor describes one tool available to the planner.
 type ToolDescriptor struct {
 	Name             string
+	Description      string
 	ReadOnly         bool
 	RequiresApproval bool
 	AsyncOnly        bool
+	Parameters       []ToolParameterDesc
 }
 
-// TenantPolicy contains the minimal planner-facing policy toggles.
-type TenantPolicy struct {
-	AllowToolUse bool
+// ToolParameterDesc describes one expected parameter for a tool.
+type ToolParameterDesc struct {
+	Name        string
+	Type        string
+	Required    bool
+	Description string
 }
+
+// TenantPolicy contains the planner-facing policy controls for a tenant.
+// When Configured is false, the planner uses permissive defaults.
+type TenantPolicy struct {
+	Configured              bool     // true when policy was explicitly loaded
+	AllowToolUse            bool     // global toggle: if false, no tool steps allowed
+	AllowedTools            []string // if non-empty, only these tools are permitted
+	ForbiddenTools          []string // these tools are always blocked
+	MaxSteps                int      // max plan steps; 0 = use system default (6). Values above the system default are silently capped.
+	RequireApprovalForWrite bool     // if true, all write tool steps must carry approval
+}
+
+// PolicyLoader loads tenant policy at request time.
+// Implementations may read from a database, config file, or return defaults.
+type PolicyLoader interface {
+	LoadPolicy(ctx context.Context, tenantID string) TenantPolicy
+}
+
+// DefaultPolicyLoader returns a fixed permissive policy for all tenants.
+// Replace with a database-backed implementation for production use.
+type DefaultPolicyLoader struct{}
+
+// LoadPolicy returns the permissive default (Configured=false).
+func (DefaultPolicyLoader) LoadPolicy(_ context.Context, _ string) TenantPolicy {
+	return TenantPolicy{}
+}
+
+// StaticPolicyLoader returns a fixed policy for all tenants.
+// Useful for local dev and integration testing.
+type StaticPolicyLoader struct {
+	Policy TenantPolicy
+}
+
+// LoadPolicy returns the static policy.
+func (s StaticPolicyLoader) LoadPolicy(_ context.Context, _ string) TenantPolicy {
+	return s.Policy
+}
+
+// ExecutedStep records the outcome of one plan step during execution.
+// Used as input to dynamic replanning.
+type ExecutedStep struct {
+	StepID   string
+	Kind     string
+	ToolName string
+	Status   string // "succeeded", "failed", "approval_required"
+	Summary  string // human-readable outcome (e.g. tool output summary or error)
+}
+
+// ReplanInput provides context for dynamic replanning after partial execution.
+type ReplanInput struct {
+	OriginalPlan  ExecutionPlan
+	ExecutedSteps []ExecutedStep
+	Input         PlanInput // original planner input for context
+	ReplanReason  string    // why replanning was triggered (e.g. "tool ticket_search failed: not found")
+}
+
+// PlanSourceReplan indicates the plan was produced by LLM dynamic replanning.
+const PlanSourceReplan = "replan"
 
 // PlanSourceKeyword indicates the plan was produced by keyword-based fallback.
 const PlanSourceKeyword = "keyword"
@@ -78,6 +146,7 @@ type PlanStep struct {
 	Name          string
 	DependsOn     []string
 	ToolName      string
+	ToolArguments json.RawMessage // planner-produced structured arguments; nil triggers heuristic fallback
 	ReadOnly      bool
 	NeedsApproval bool
 }

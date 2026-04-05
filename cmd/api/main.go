@@ -10,7 +10,9 @@ import (
 	"syscall"
 	"time"
 
+	"opspilot-go/internal/agent/planner"
 	"opspilot-go/internal/app/config"
+	"opspilot-go/internal/observability/metrics"
 	"opspilot-go/internal/app/httpapi"
 	"opspilot-go/internal/app/logging"
 	casesvc "opspilot-go/internal/case"
@@ -37,6 +39,9 @@ func main() {
 
 	shutdownTracer := tracing.InitStdout()
 	defer shutdownTracer(context.Background())
+
+	shutdownMetrics := metrics.InitStdout()
+	defer shutdownMetrics(context.Background())
 
 	logger := logging.New(cfg.LogLevel)
 	slog.SetDefault(logger)
@@ -109,9 +114,31 @@ func main() {
 
 	ingestionPipeline := ingestion.NewPipeline(embedder, llmProvider, retrievalStore, ingestion.PipelineOptions{})
 
+	policyLoader := planner.StaticPolicyLoader{
+		Policy: planner.TenantPolicy{
+			Configured:   true,
+			AllowToolUse: cfg.ToolPolicyAllow,
+		},
+	}
+
 	server := &http.Server{
-		Addr:              cfg.APIListenAddr,
-		Handler:           httpapi.NewHandlerWithDependencies(httpapi.Dependencies{Workflows: workflowService, Reports: reportService, Cases: caseService, EvalCases: evalCaseService, EvalDatasets: evalDatasetService, EvalRuns: evalRunService, EvalReports: evalReportService, Versions: versionService, Sessions: sessionService, Retrieval: retrievalStore, LLM: llmProvider, Ingestion: ingestionPipeline, Registry: registry}),
+		Addr: cfg.APIListenAddr,
+		Handler: httpapi.NewHandlerWithDependencies(httpapi.Dependencies{
+			Workflows:    workflowService,
+			Reports:      reportService,
+			Cases:        caseService,
+			EvalCases:    evalCaseService,
+			EvalDatasets: evalDatasetService,
+			EvalRuns:     evalRunService,
+			EvalReports:  evalReportService,
+			Versions:     versionService,
+			Sessions:     sessionService,
+			Retrieval:    retrievalStore,
+			LLM:          llmProvider,
+			Ingestion:    ingestionPipeline,
+			Registry:     registry,
+			PolicyLoader: policyLoader,
+		}),
 		ReadHeaderTimeout: 5 * time.Second,
 	}
 

@@ -26,7 +26,8 @@ type ChatRequestEnvelope struct {
 	AttachmentRefs  []string
 	ClientRequestID string
 	RequestedAt     time.Time
-	OnToken         func(token string) // optional: called per-token during streaming LLM generation
+	TenantPolicy    planner.TenantPolicy // server-side loaded; MUST NOT be deserialized from client request body
+	OnToken         func(token string)   // optional: called per-token during streaming LLM generation
 }
 
 // StreamEvent represents one server-sent event payload produced by the chat application service.
@@ -44,5 +45,6 @@ type HandleResult struct {
 	ToolResults  []agenttool.ToolResult
 	Critic       critic.CriticVerdict
 	PromotedTask *workflow.Task
+	ReplanCount  int // number of dynamic replanning iterations (0 = no replan)
 	Events       []StreamEvent
 }

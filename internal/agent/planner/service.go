@@ -84,11 +84,16 @@ func (s *Service) planWithLLM(ctx context.Context, planID string, input PlanInpu
 	}
 
 	availableTools := make(map[string]bool, len(input.AvailableTools))
+	toolDescriptors := make(map[string]ToolDescriptor, len(input.AvailableTools))
 	for _, tool := range input.AvailableTools {
 		availableTools[tool.Name] = true
+		toolDescriptors[tool.Name] = tool
 	}
 	if err := validateLLMPlan(planResp, availableTools); err != nil {
 		return ExecutionPlan{}, fmt.Errorf("validate plan: %w", err)
+	}
+	if err := validatePlanPolicy(planResp, toolDescriptors, input.TenantPolicy); err != nil {
+		return ExecutionPlan{}, fmt.Errorf("validate plan policy: %w", err)
 	}
 
 	plan := toLLMPlanResponse(planID, planResp)
@@ -113,6 +118,10 @@ func (s *Service) planWithKeywords(input PlanInput, planID string) ExecutionPlan
 	tool := selectTool(input)
 	requiresTool := tool.Name != ""
 	requiresApproval := tool.RequiresApproval
+	if requiresTool && !tool.ReadOnly && input.TenantPolicy.RequireApprovalForWrite {
+		requiresApproval = true
+		tool.RequiresApproval = true // propagate to step builder
+	}
 	requiresRetrieval := !requiresWorkflow
 	if requiresTool && tool.ReadOnly {
 		requiresRetrieval = false
@@ -130,13 +139,74 @@ func (s *Service) planWithKeywords(input PlanInput, planID string) ExecutionPlan
 		Source:                PlanSourceKeyword,
 	}
 	plan.Steps = buildSteps(plan, tool)
+	effectiveMax := maxSteps
+	if input.TenantPolicy.Configured && input.TenantPolicy.MaxSteps > 0 && input.TenantPolicy.MaxSteps < effectiveMax {
+		effectiveMax = input.TenantPolicy.MaxSteps
+	}
 	plan.MaxSteps = len(plan.Steps)
-	if plan.MaxSteps > maxSteps {
-		plan.MaxSteps = maxSteps
-		plan.Steps = plan.Steps[:maxSteps]
+	if plan.MaxSteps > effectiveMax {
+		plan.MaxSteps = effectiveMax
+		plan.Steps = plan.Steps[:effectiveMax]
 	}
 
 	return plan
+}
+
+// Replan produces a revised execution plan after partial execution.
+// Requires an LLM provider — returns an error if none is configured.
+func (s *Service) Replan(ctx context.Context, input ReplanInput) (ExecutionPlan, error) {
+	if s.llm == nil {
+		return ExecutionPlan{}, fmt.Errorf("replan requires an LLM provider")
+	}
+
+	planID := input.OriginalPlan.PlanID + "-replan"
+
+	userMsg := buildReplanUserMessage(input)
+	resp, err := s.llm.Complete(ctx, llm.CompletionRequest{
+		SystemPrompt:   replanSystemPrompt,
+		Messages:       []llm.Message{{Role: "user", Content: userMsg}},
+		MaxTokens:      1024,
+		Temperature:    llm.TemperaturePtr(0),
+		ResponseFormat: llm.ResponseFormatJSON,
+	})
+	if err != nil {
+		return ExecutionPlan{}, fmt.Errorf("replan llm complete: %w", err)
+	}
+
+	content := strings.TrimSpace(resp.Content)
+	content = stripCodeFences(content)
+
+	var planResp llmPlanResponse
+	if err := json.Unmarshal([]byte(content), &planResp); err != nil {
+		return ExecutionPlan{}, fmt.Errorf("replan unmarshal: %w (raw: %s)", err, truncate(content, 200))
+	}
+
+	availableTools := make(map[string]bool, len(input.Input.AvailableTools))
+	toolDescriptors := make(map[string]ToolDescriptor, len(input.Input.AvailableTools))
+	for _, tool := range input.Input.AvailableTools {
+		availableTools[tool.Name] = true
+		toolDescriptors[tool.Name] = tool
+	}
+	if err := validateLLMPlan(planResp, availableTools); err != nil {
+		return ExecutionPlan{}, fmt.Errorf("replan validate: %w", err)
+	}
+	if err := validatePlanPolicy(planResp, toolDescriptors, input.Input.TenantPolicy); err != nil {
+		return ExecutionPlan{}, fmt.Errorf("replan validate policy: %w", err)
+	}
+
+	plan := toLLMPlanResponse(planID, planResp)
+	plan.Source = PlanSourceReplan
+	plan.PromptVersion = PromptVersion
+
+	slog.Info("llm replanner produced revised plan",
+		slog.String("plan_id", planID),
+		slog.String("intent", plan.Intent),
+		slog.Int("steps", len(plan.Steps)),
+		slog.String("reasoning", plan.PlannerReasoningShort),
+		slog.String("replan_reason", input.ReplanReason),
+	)
+
+	return plan, nil
 }
 
 func classifyIntent(input PlanInput) string {
@@ -165,26 +235,47 @@ func shouldPromoteWorkflow(input PlanInput, intent string) bool {
 }
 
 func selectTool(input PlanInput) ToolDescriptor {
-	if !input.TenantPolicy.AllowToolUse && input.TenantPolicy != (TenantPolicy{}) {
+	if input.TenantPolicy.Configured && !input.TenantPolicy.AllowToolUse {
 		return ToolDescriptor{}
 	}
 
 	message := strings.ToLower(input.UserMessage)
 	if strings.Contains(message, "ticket") && (strings.Contains(message, "search") || strings.Contains(message, "history") || strings.Contains(message, "query")) {
 		for _, tool := range input.AvailableTools {
-			if tool.Name == "ticket_search" {
+			if tool.Name == "ticket_search" && isTenantToolAllowed(tool.Name, input.TenantPolicy) {
 				return tool
 			}
 		}
 	}
 
 	for _, tool := range input.AvailableTools {
-		if strings.Contains(message, "ticket") && strings.Contains(tool.Name, "ticket") {
+		if strings.Contains(message, "ticket") && strings.Contains(tool.Name, "ticket") && isTenantToolAllowed(tool.Name, input.TenantPolicy) {
 			return tool
 		}
 	}
 
 	return ToolDescriptor{}
+}
+
+// isTenantToolAllowed checks whether a specific tool is permitted by tenant policy.
+func isTenantToolAllowed(toolName string, policy TenantPolicy) bool {
+	if !policy.Configured {
+		return true
+	}
+	for _, t := range policy.ForbiddenTools {
+		if t == toolName {
+			return false
+		}
+	}
+	if len(policy.AllowedTools) > 0 {
+		for _, t := range policy.AllowedTools {
+			if t == toolName {
+				return true
+			}
+		}
+		return false
+	}
+	return true
 }
 
 func buildSteps(plan ExecutionPlan, tool ToolDescriptor) []PlanStep {

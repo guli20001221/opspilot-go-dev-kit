@@ -25,11 +25,9 @@ type RetrievalRequest struct {
 }
 
 // RetrievalFilters contains optional retrieval filters.
+// Only declare fields that are actually enforced by the storage layer.
 type RetrievalFilters struct {
-	DocumentTags     []string
 	PermissionsScope string // when set, restricts results to this scope
-	TimeFrom         *time.Time
-	TimeTo           *time.Time
 }
 
 // RetrievalResult is the typed retrieval output consumed upstream.

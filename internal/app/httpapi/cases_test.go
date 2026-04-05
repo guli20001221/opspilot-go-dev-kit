@@ -257,9 +257,10 @@ func TestCreateAndGetCaseEndpointWithEvalRunSource(t *testing.T) {
 	}
 
 	server := httptest.NewServer(NewHandlerWithDependencies(Dependencies{
-		Cases:     caseService,
-		EvalCases: evalCaseService,
-		EvalRuns:  runService,
+		Cases:        caseService,
+		EvalCases:    evalCaseService,
+		EvalDatasets: datasetService,
+		EvalRuns:     runService,
 	}))
 	defer server.Close()
 
@@ -333,9 +334,10 @@ func TestCreateCaseEndpointReusesOpenCaseBySourceEvalRun(t *testing.T) {
 	}
 
 	server := httptest.NewServer(NewHandlerWithDependencies(Dependencies{
-		Cases:     caseService,
-		EvalCases: evalCaseService,
-		EvalRuns:  runService,
+		Cases:        caseService,
+		EvalCases:    evalCaseService,
+		EvalDatasets: datasetService,
+		EvalRuns:     runService,
 	}))
 	defer server.Close()
 
@@ -2694,4 +2696,109 @@ func (s *staleAssignStore) Reopen(_ context.Context, caseID string, reopenedBy s
 		return casesvc.Case{}, casesvc.ErrCaseNotFound
 	}
 	return casesvc.Case{}, casesvc.ErrInvalidCaseState
+}
+
+// --- Provenance lineage rejection tests ---
+
+func TestCreateCaseEndpointRejectsMismatchedEvalRunLineage(t *testing.T) {
+	caseService := casesvc.NewService()
+	evalCaseService := evalsvc.NewService(caseService, nil)
+	datasetService := evalsvc.NewDatasetService(evalCaseService)
+	runService := evalsvc.NewRunService(datasetService)
+	reportService := evalsvc.NewEvalReportServiceWithDependencies(nil, runService)
+
+	tenantID := "tenant-lineage-run-mismatch"
+	evalReportID := materializeEvalRunReport(t, tenantID, evalsvc.RunStatusFailed, "failure detail",
+		caseService, evalCaseService, datasetService, runService, reportService,
+		"Dataset Lineage Run", "Source Lineage Run")
+
+	// Create a second, unrelated eval pipeline to get a different RunID
+	evalReportID2 := materializeEvalRunReport(t, tenantID, evalsvc.RunStatusFailed, "unrelated failure",
+		caseService, evalCaseService, datasetService, runService, reportService,
+		"Dataset Unrelated", "Source Unrelated")
+	report2, err := reportService.GetEvalReport(context.Background(), evalReportID2)
+	if err != nil {
+		t.Fatalf("GetEvalReport() error = %v", err)
+	}
+	unrelatedRunID := report2.RunID
+
+	server := httptest.NewServer(NewHandlerWithDependencies(Dependencies{
+		Cases:       caseService,
+		EvalCases:   evalCaseService,
+		EvalRuns:    runService,
+		EvalReports: reportService,
+	}))
+	defer server.Close()
+
+	// Post eval_report_id from pipeline 1, but eval_run_id from pipeline 2
+	body := bytes.NewBufferString(`{
+		"tenant_id":"` + tenantID + `",
+		"title":"Cross-linked lineage",
+		"summary":"Mismatched run",
+		"source_eval_report_id":"` + evalReportID + `",
+		"source_eval_run_id":"` + unrelatedRunID + `",
+		"created_by":"operator-test"
+	}`)
+	resp, err := http.Post(server.URL+"/api/v1/cases", "application/json", body)
+	if err != nil {
+		t.Fatalf("Post() error = %v", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusConflict {
+		t.Fatalf("StatusCode = %d, want %d (mismatched eval run lineage)", resp.StatusCode, http.StatusConflict)
+	}
+}
+
+func TestCreateCaseEndpointRejectsMismatchedEvalReportTaskLineage(t *testing.T) {
+	caseService := casesvc.NewService()
+	evalCaseService := evalsvc.NewService(caseService, nil)
+	datasetService := evalsvc.NewDatasetService(evalCaseService)
+	runService := evalsvc.NewRunService(datasetService)
+	reportService := evalsvc.NewEvalReportServiceWithDependencies(nil, runService)
+	workflowService := workflow.NewService()
+
+	tenantID := "tenant-lineage-task-mismatch"
+	evalReportID := materializeEvalRunReport(t, tenantID, evalsvc.RunStatusFailed, "failure detail",
+		caseService, evalCaseService, datasetService, runService, reportService,
+		"Dataset Lineage Task", "Source Lineage Task")
+
+	// Create an unrelated task in the same tenant
+	unrelatedTask, err := workflowService.Promote(context.Background(), workflow.PromoteRequest{
+		RequestID: "req-unrelated",
+		TenantID:  tenantID,
+		SessionID: "session-unrelated",
+		TaskType:  workflow.TaskTypeReportGeneration,
+		Reason:    "test",
+	})
+	if err != nil {
+		t.Fatalf("Promote() error = %v", err)
+	}
+
+	server := httptest.NewServer(NewHandlerWithDependencies(Dependencies{
+		Cases:       caseService,
+		Workflows:   workflowService,
+		EvalCases:   evalCaseService,
+		EvalReports: reportService,
+	}))
+	defer server.Close()
+
+	// Post eval_report_id + unrelated task_id — bad-case lineage won't match
+	body := bytes.NewBufferString(`{
+		"tenant_id":"` + tenantID + `",
+		"title":"Cross-linked task",
+		"summary":"Task has no lineage to eval report",
+		"source_eval_report_id":"` + evalReportID + `",
+		"source_task_id":"` + unrelatedTask.ID + `",
+		"created_by":"operator-test"
+	}`)
+	resp, err := http.Post(server.URL+"/api/v1/cases", "application/json", body)
+	if err != nil {
+		t.Fatalf("Post() error = %v", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusConflict {
+		t.Fatalf("StatusCode = %d, want %d (eval report has no bad-case lineage to task)", resp.StatusCode, http.StatusConflict)
+	}
 }

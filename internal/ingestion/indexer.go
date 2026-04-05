@@ -20,6 +20,8 @@ func NewIndexer(store ChunkStore, embedder retrieval.Embedder) *Indexer {
 
 // Index embeds and persists parent and child chunks for a document.
 func (idx *Indexer) Index(ctx context.Context, doc Document, chunks []Chunk) (parentCount, childCount int, err error) {
+	var currentChunkIDs []string
+
 	for i, chunk := range chunks {
 		if ctx.Err() != nil {
 			return parentCount, childCount, ctx.Err()
@@ -51,6 +53,7 @@ func (idx *Indexer) Index(ctx context.Context, doc Document, chunks []Chunk) (pa
 		}); err != nil {
 			return parentCount, childCount, fmt.Errorf("upsert parent chunk %d: %w", i, err)
 		}
+		currentChunkIDs = append(currentChunkIDs, parentChunkID)
 		parentCount++
 
 		// Store child chunks — reuse cached sentence embeddings from chunker
@@ -88,13 +91,14 @@ func (idx *Indexer) Index(ctx context.Context, doc Document, chunks []Chunk) (pa
 			}); err != nil {
 				return parentCount, childCount, fmt.Errorf("upsert child chunk %d-%d: %w", i, j, err)
 			}
+			currentChunkIDs = append(currentChunkIDs, childChunkID)
 			childCount++
 		}
 	}
 
-	// Clean up stale chunks from older document versions
+	// Clean up stale chunks: older versions + same-version orphans from fewer chunks
 	if doc.DocumentVersion > 0 {
-		if _, err := idx.store.DeleteStaleChunks(ctx, doc.TenantID, doc.DocumentID, doc.DocumentVersion); err != nil {
+		if _, err := idx.store.DeleteStaleChunks(ctx, doc.TenantID, doc.DocumentID, doc.DocumentVersion, currentChunkIDs); err != nil {
 			return parentCount, childCount, fmt.Errorf("delete stale chunks: %w", err)
 		}
 	}
