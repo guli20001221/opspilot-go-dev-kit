@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"sort"
 	"strings"
 )
 
@@ -131,8 +132,12 @@ func (s *Service) candidateBlocks(input BuildInput) []Block {
 		blocks = append(blocks, newBlock(BlockKindTaskScratchpad, input.TaskScratchpad, "active task notes", 40))
 	}
 	// Evidence snippets as individual blocks for fine-grained budget eviction.
-	// Lower-scored evidence gets lower priority so it drops first under pressure.
-	for i, ev := range input.RetrievalResults {
+	// Sort by score descending so highest-relevance evidence gets highest priority.
+	sortedEvidence := make([]EvidenceSnippet, len(input.RetrievalResults))
+	copy(sortedEvidence, input.RetrievalResults)
+	sortEvidenceByScoreDesc(sortedEvidence)
+
+	for i, ev := range sortedEvidence {
 		label := ev.CitationLabel
 		if label == "" {
 			label = fmt.Sprintf("[%d]", i+1)
@@ -251,6 +256,12 @@ func formatRecentTurns(turns []Turn) string {
 	}
 
 	return strings.Join(lines, "\n")
+}
+
+func sortEvidenceByScoreDesc(evidence []EvidenceSnippet) {
+	sort.Slice(evidence, func(i, j int) bool {
+		return evidence[i].Score > evidence[j].Score
+	})
 }
 
 func estimateTokens(content string) int {

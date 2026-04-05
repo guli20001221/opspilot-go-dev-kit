@@ -208,6 +208,41 @@ func TestServiceBuildGracefulOnSummarizerError(t *testing.T) {
 	}
 }
 
+func TestServiceBuildSummarizerAppendsToExistingSummary(t *testing.T) {
+	summarizer := &mockSummarizer{result: "Compressed: user asked about 2FA."}
+	svc := NewServiceWithSummarizer(Config{
+		Budget:               4096,
+		SummaryTurnThreshold: 2,
+	}, summarizer)
+
+	got, err := svc.Build(context.Background(), BuildInput{
+		RequestID:      "req-append-summary",
+		TenantID:       "tenant-1",
+		UserID:         "user-1",
+		Mode:           "chat",
+		SessionSummary: "Previous: user asked about password reset.",
+		RecentTurns: []Turn{
+			{Role: "user", Content: "How do I enable 2FA?"},
+			{Role: "assistant", Content: "Go to Security settings."},
+			{Role: "user", Content: "What about recovery codes?"},
+		},
+	})
+	if err != nil {
+		t.Fatalf("Build() error = %v", err)
+	}
+
+	for _, block := range got.Planner.Blocks {
+		if block.Kind == BlockKindSessionSummary {
+			want := "Previous: user asked about password reset.\n\nCompressed: user asked about 2FA."
+			if block.Content != want {
+				t.Fatalf("summary = %q, want concatenated %q", block.Content, want)
+			}
+			return
+		}
+	}
+	t.Fatal("session_summary block not found")
+}
+
 func TestServiceBuildEmptyInput(t *testing.T) {
 	svc := NewService(Config{Budget: 4096})
 	got, err := svc.Build(context.Background(), BuildInput{RequestID: "req-empty"})
@@ -315,19 +350,27 @@ func TestServiceBuildRetrievalEvidenceFormatting(t *testing.T) {
 		t.Fatalf("Build() error = %v", err)
 	}
 
-	// Critic should have evidence block with formatted content
+	// Critic should have 2 evidence blocks with decaying priority
+	var evidenceBlocks []Block
 	for _, block := range got.Critic.Blocks {
 		if block.Kind == BlockKindRetrievalEvidence {
-			if block.Priority != 80 {
-				t.Fatalf("evidence Priority = %d, want 80", block.Priority)
-			}
-			if block.EstimatedTokens <= 0 {
-				t.Fatal("evidence EstimatedTokens = 0")
-			}
-			return
+			evidenceBlocks = append(evidenceBlocks, block)
 		}
 	}
-	t.Fatal("retrieval_evidence block not found in critic context")
+	if len(evidenceBlocks) != 2 {
+		t.Fatalf("evidence block count = %d, want 2", len(evidenceBlocks))
+	}
+	// First evidence (highest score after sort) should have priority 80
+	if evidenceBlocks[0].Priority != 80 {
+		t.Fatalf("first evidence Priority = %d, want 80", evidenceBlocks[0].Priority)
+	}
+	// Second evidence should have priority 79 (decayed by position)
+	if evidenceBlocks[1].Priority != 79 {
+		t.Fatalf("second evidence Priority = %d, want 79", evidenceBlocks[1].Priority)
+	}
+	if evidenceBlocks[0].EstimatedTokens <= 0 {
+		t.Fatal("evidence EstimatedTokens = 0")
+	}
 }
 
 func assertMissingBlockKind(t *testing.T, blocks []Block, want string) {

@@ -98,6 +98,9 @@ type CriticContext struct {
 }
 
 // AssemblyLog records which blocks were included or dropped during assembly.
+// IncludedBlocks reflects the planner stage (most constrained).
+// DroppedBlocks aggregates drops across all three stages.
+// BudgetUsed/BudgetLimit reflect the critic stage (most permissive).
 type AssemblyLog struct {
 	RequestID      string
 	IncludedBlocks []string
